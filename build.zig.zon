@@ -1,0 +1,35 @@
+.{
+    .name = .engine,
+    .version = "0.0.1",
+    .fingerprint = 0xe8a81a8d0aa558d5, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.14.1",
+    .dependencies = .{
+        .sdl = .{
+            .url = "git+https://github.com/castholm/SDL.git#f6bbe8ac5e7b901db69ba62f017596090c362d84",
+            .hash = "sdl-0.2.1+3.2.10-7uIn9PLkfQHKJO7TvSXbVa0VnySCHbLz28PDZIlKWF4Y",
+        },
+        .sdl_ttf = .{
+            .url = "git+https://github.com/loftafi/SDL_ttf.git#85e45fbbbd9375d640628392fafab492600d1e32",
+            .hash = "sdl_ttf-3.2.2-9xyaiOQVBwB315-061yAPXu0LcjjsUQJBxFyE3gmM-sY",
+        },
+        .zigimg = .{
+            .url = "git+https://github.com/loftafi/zigimg.git#aa93a624b7a67b20525198620403a6090e5f16ab",
+            .hash = "zigimg-0.1.0-lly-O_qZEgAP5eJWUbcWtL9Jv4V_BGcK5p-570Hiaj7k",
+        },
+        .praxis = .{
+            .url = "git+https://github.com/loftafi/praxis.git#d088c87040d1fb94d08048eedac465a26712f467",
+            .hash = "praxis-0.0.2-FPf2NXgmBABGb9HYwNwNoMqNIKTzLDpAsxGevQ10yhN-",
+        },
+        .resources = .{
+            .url = "git+https://github.com/loftafi/resources.git#81c450b16e46252e03d3bb25b338b05cc66bbe24",
+            .hash = "resources-0.0.2-J0GwI1j0AABsmGpb15W6lVYuVjtanQp2uNa0K2Cfk-Lf",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE.md",
+        "README.md",
+    },
+}
