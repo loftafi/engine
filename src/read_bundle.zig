@@ -11,7 +11,6 @@ pub fn init_resource_loader(
     ReadMetadataFailed,
     ReadRepoFileFailed,
     InvalidResourceUID,
-    unexpected_separator,
     MetadataMissing,
     Utf8ExpectedContinuation,
     Utf8OverlongEncoding,
