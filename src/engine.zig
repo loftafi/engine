@@ -4093,7 +4093,7 @@ pub const Display = struct {
 
             else => {
                 if (display.event_hook) |eh| {
-                    try eh.?(display, e);
+                    try eh(display, e);
                 }
                 // Other SDL events are not handled
             },
