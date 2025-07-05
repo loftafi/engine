@@ -4916,19 +4916,19 @@ pub const warn = std.log.info;
 pub const err = std.log.err;
 const sdl = @import("sdl");
 const builtin = @import("builtin");
-const engine = @import("engine.zig");
-const Animator = @import("animator.zig");
+pub const engine = @import("engine.zig");
+pub const Animator = @import("animator.zig");
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
-const Chunker = @import("chunker.zig").Chunker;
-const Translation = @import("translation.zig").Translation;
+pub const Chunker = @import("chunker.zig").Chunker;
+pub const Translation = @import("translation.zig").Translation;
 const Resources = @import("resources").Resources;
 const zigimg = @import("zigimg");
 
-const BundleLoader = @import("read_bundle.zig");
-const init_resource_loader = BundleLoader.init_resource_loader;
-const sdl_load_bundle = BundleLoader.sdl_load_bundle;
-const sdl_load_resource = BundleLoader.sdl_load_resource;
+pub const BundleLoader = @import("read_bundle.zig");
+pub const init_resource_loader = BundleLoader.init_resource_loader;
+pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
+pub const sdl_load_resource = BundleLoader.sdl_load_resource;
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
