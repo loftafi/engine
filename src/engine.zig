@@ -2346,7 +2346,7 @@ pub const Display = struct {
 
     keybindings: std.AutoHashMap(c_uint, *const fn (display: *Display) Allocator.Error!void),
     on_resized: ?*const fn (display: *Display, element: *Element) bool = null,
-    event_hook: ?*const fn (display: *Display, e: *sdl.SDL_Event) error{OutOfMemory}!void = null,
+    event_hook: ?*const fn (display: *Display, e: u32) error{OutOfMemory}!void = null,
 
     pub fn create(allocator: Allocator, app_name: [:0]const u8, app_version: [:0]const u8, app_id: [:0]const u8, dev_resource_folder: []const u8, translation_filename: []const u8, gui_flags: usize) !*Display {
         var display = try allocator.create(Display);
@@ -4094,7 +4094,7 @@ pub const Display = struct {
 
             else => {
                 if (display.event_hook) |eh| {
-                    try eh(display, e);
+                    try eh(display, e.type);
                 }
                 // Other SDL events are not handled
             },
