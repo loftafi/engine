@@ -4225,6 +4225,21 @@ pub const Display = struct {
         return button;
     }
 
+    /// Add an empty panel that keeps a space open in a list of elements.
+    pub fn add_spacer(display: *Display, parent: *Element, size: f32) error{OutOfMemory}!*Element {
+        return try parent.add(try engine.create_panel(
+            display,
+            "",
+            .{
+                .name = "spacer",
+                .rect = .{ .width = size, .height = size },
+                .layout = .{ .x = .shrinks, .y = .shrinks },
+                .minimum = .{ .width = size, .height = size },
+                .type = .{ .panel = .{} },
+            },
+        ));
+    }
+
     /// Add a label with generic settings needed for a paragraph.
     pub fn add_paragraph(
         display: *Display,
