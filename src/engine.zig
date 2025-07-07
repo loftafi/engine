@@ -1193,7 +1193,7 @@ pub const Element = struct {
 
         // Draw a border around an element if a border is specified, or
         // if `dev_mode` has been enabled.
-        if (dev_build and dev_mode) {
+        if (dev_mode) {
             var colour = display.theme.emphasised_text_colour;
             if (element.type == .panel) {
                 colour = display.theme.tinted_text_colour;
@@ -1204,6 +1204,14 @@ pub const Element = struct {
                 colour,
                 element.rect.move(&scroll_offset),
             );
+            if (element.type == .panel and (element.type.panel.scrollable.scroll.x or element.type.panel.scrollable.scroll.y)) {
+                draw_rectangle(
+                    display.renderer,
+                    2,
+                    display.theme.success_panel_colour,
+                    element.rect,
+                );
+            }
             if (element.type == .button) {
                 // inner padding line
                 colour = display.theme.tinted_text_colour;
@@ -1215,12 +1223,6 @@ pub const Element = struct {
                 });
             }
         } else if (element.border_width > 0 and element.border_colour.a > 0) {
-            draw_rectangle(
-                display.renderer,
-                element.border_width,
-                element.border_colour,
-                element.rect.move(&scroll_offset),
-            );
             draw_rectangle(
                 display.renderer,
                 element.border_width,
@@ -4033,8 +4035,11 @@ pub const Display = struct {
             // Mark the newly hovered item as hovered
             // if there is one that is hovered.
             if (found != display.hovered) {
-                trace("entered hover: {s} {s}", .{ @tagName(found.?.type), found.?.name });
-                trace("   size: {d}x{d}   min: {d}x{d}   max: {d}x{d}", .{
+                trace("entered hover({s} {s}) pos: {d}x{d} size: {d}x{d}  min: {d}x{d}   max: {d}x{d}", .{
+                    @tagName(found.?.type),
+                    found.?.name,
+                    found.?.rect.x,
+                    found.?.rect.y,
                     found.?.rect.width,
                     found.?.rect.height,
                     found.?.minimum.width,
@@ -4042,6 +4047,16 @@ pub const Display = struct {
                     found.?.maximum.width,
                     found.?.maximum.height,
                 });
+                if (dev_build and dev_mode and found.?.type == .panel) {
+                    trace("entered hover({s} {s}) panel content {d}x{d}.  usable area: {d}x{d}", .{
+                        @tagName(found.?.type),
+                        found.?.name,
+                        found.?.type.panel.scrollable.size.width,
+                        found.?.type.panel.scrollable.size.height,
+                        found.?.rect.width,
+                        found.?.rect.height,
+                    });
+                }
                 display.hovered = found.?;
                 display.hovered.?.hovered = true;
             } else {
