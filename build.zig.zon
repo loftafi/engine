@@ -24,6 +24,10 @@
             .url = "git+https://github.com/loftafi/resources.git#a7cf2506a25f799a3fbf72c4334f05f483f9e6df",
             .hash = "resources-0.0.3-J0GwI4X0AABDdFpi5dpYwJTW-GaEeapq1ovBdAD_2OcN",
         },
+        .engine = .{
+            .url = "git+https://github.com/loftafi/engine.git#18177694370fbca822b4c6126c241015e677acba",
+            .hash = "engine-0.0.7-1VilCuSnIgOeyLStVG4j6eY1Vt4wsM3wyogkoA1HgGum",
+        },
     },
     .paths = .{
         "build.zig",
