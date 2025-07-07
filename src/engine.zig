@@ -4226,7 +4226,16 @@ pub const Display = struct {
     }
 
     /// Add an empty panel that keeps a space open in a list of elements.
-    pub fn add_spacer(display: *Display, parent: *Element, size: f32) error{OutOfMemory}!*Element {
+    pub fn add_spacer(
+        display: *Display,
+        parent: *Element,
+        size: f32,
+    ) error{
+        OutOfMemory,
+        ResourceNotFound,
+        ResourceReadError,
+        UnknownImageFormat,
+    }!*Element {
         return try parent.add(try engine.create_panel(
             display,
             "",
@@ -4247,7 +4256,12 @@ pub const Display = struct {
         size: TextSize,
         name: []const u8,
         text: []const u8,
-    ) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!void {
+    ) error{
+        OutOfMemory,
+        ResourceNotFound,
+        ResourceReadError,
+        UnknownImageFormat,
+    }!void {
         try parent.add_element(try engine.create_label(
             display,
             "",
