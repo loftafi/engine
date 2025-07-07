@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.0.9",
+    .version = "0.0.10",
     .fingerprint = 0xe8a81a8d0aa558d5, // Changing this has security and trust implications.
     .minimum_zig_version = "0.14.1",
     .dependencies = .{
@@ -17,8 +17,8 @@
             .hash = "zigimg-0.1.0-lly-O_qZEgAP5eJWUbcWtL9Jv4V_BGcK5p-570Hiaj7k",
         },
         .praxis = .{
-            .url = "git+https://github.com/loftafi/praxis.git#643d67bc88b0e9e8ed2227bfd141c1bb81b5119d",
-            .hash = "praxis-0.0.4-FPf2NUYnBACd5PtEVXWsjV2nNRr-tFZW7Ln182Oc1Nqs",
+            .url = "git+https://github.com/loftafi/praxis.git#57f6a0f23ec8191d4737210459ce55bacbea65d6",
+            .hash = "praxis-0.0.5-FPf2NdwnBABFfnBZneRdaZy3rDXeTaoX2aIEh5UaVxnL",
         },
         .resources = .{
             .url = "git+https://github.com/loftafi/resources.git#a7cf2506a25f799a3fbf72c4334f05f483f9e6df",
