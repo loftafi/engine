@@ -2367,6 +2367,7 @@ pub const Display = struct {
         display.animators = ArrayList(*Animator).init(allocator);
         display.keybindings = std.AutoHashMap(c_uint, *const fn (display: *Display) Allocator.Error!void).init(display.allocator);
         errdefer display.keybindings.deinit();
+        display.event_hook = null;
 
         _ = sdl.SDL_SetAppMetadata(app_name, app_version, app_id);
 
