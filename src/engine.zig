@@ -4454,8 +4454,9 @@ pub fn create_label(
 
     if (element.type != .label) {
         err("create_label called without config.", .{});
-        element.type = .{ .label = .{ .text = "", .translated = "" } };
+        element.type = .{ .label = .{ .text = "" } };
     }
+    element.type.label.translated = "";
 
     if (element.focus == .unspecified) {
         if (element.type.label.on_click != null) {
@@ -4499,6 +4500,7 @@ pub fn create_checkbox(
         err("create_checkbox called without config.", .{});
         element.type = .{ .checkbox = .{ .text = "", .translated = "" } };
     }
+    element.type.checkbox.translated = "";
 
     element.type.checkbox.elements = ArrayList(TextElement).init(display.allocator);
     try element.set_text(display, element.type.checkbox.text, true);
@@ -4552,8 +4554,9 @@ pub fn create_button(
 
     if (element.type != .button) {
         err("create_button called without config.", .{});
-        element.type = .{ .button = .{ .text = "", .translated = "" } };
+        element.type = .{ .button = .{ .text = "" } };
     }
+    element.type.button.translated = "";
     element.type.button.icon_pressed = null;
     element.type.button.icon_hover = null;
     element.type.button.background_pressed = null;
@@ -4770,13 +4773,18 @@ pub fn create_panel(
     element.* = settings;
     element.texture = null;
     element.background_texture = null;
-    if (element.focus == .unspecified) {
-        element.focus = .never_focus;
-    }
 
     if (element.type != .panel) {
         err("create_panel({s}) called without config.", .{element.name});
         element.type = .{ .panel = .{} };
+    }
+
+    if (element.focus == .unspecified) {
+        if (element.type.panel.on_click != null) {
+            element.focus = .can_focus;
+        } else {
+            element.focus = .never_focus;
+        }
     }
 
     if (background.len > 0) {

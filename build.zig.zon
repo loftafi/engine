@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.0.11",
+    .version = "0.0.12",
     .fingerprint = 0xe8a81a8d0aa558d5, // Changing this has security and trust implications.
     .minimum_zig_version = "0.14.1",
     .dependencies = .{
