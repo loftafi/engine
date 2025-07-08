@@ -1234,7 +1234,9 @@ pub const Element = struct {
         // Any element can have a selection underline
         if (display.selected != null and display.selected == element) {
             if (element.type != .text_input) {
-                draw_selection_marker(display, display.renderer, display.theme.cursor_colour, element.rect.move(&scroll_offset));
+                if (display.keyboard_selected) {
+                    draw_selection_marker(display, display.renderer, display.theme.cursor_colour, element.rect.move(&scroll_offset));
+                }
             }
         }
     }
@@ -1727,6 +1729,7 @@ pub const Element = struct {
         if (self.type == .text_input) {
             _ = sdl.SDL_StopTextInput(display.window);
         }
+        display.keyboard_selected = false;
         display.selected = null;
     }
 
@@ -2303,6 +2306,7 @@ pub const Display = struct {
     /// One user interface element may be marked as selected to recieve
     /// keyboard input
     selected: ?*Element = null,
+    keyboard_selected: bool = false,
 
     /// One user interface element may be rendered differently
     /// when the mouse/pointer is floating over that element.
@@ -2356,6 +2360,7 @@ pub const Display = struct {
         display.allocator = allocator;
         display.hovered = null;
         display.selected = null;
+        display.keyboard_selected = false;
         display.focussed = null;
         display.scrolling = null;
         display.text_height = FONT_SIZE;
@@ -2364,7 +2369,7 @@ pub const Display = struct {
         display.need_relayout = true;
         display.quit = false;
         display.translation.init(allocator);
-        display.accessibility = true;
+        display.accessibility = false;
         errdefer display.translation.deinit();
         display.animators = ArrayList(*Animator).init(allocator);
         display.keybindings = std.AutoHashMap(c_uint, *const fn (display: *Display) Allocator.Error!void).init(display.allocator);
@@ -3656,6 +3661,9 @@ pub const Display = struct {
                 display.select_previous_element();
             } else {
                 display.select_next_element();
+            }
+            if (display.selected != null) {
+                display.keyboard_selected = true;
             }
             return;
         }
