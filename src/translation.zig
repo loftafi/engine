@@ -41,13 +41,13 @@ pub const Translation = struct {
             switch (i.next()) {
                 .eol => break,
                 .eof => {
-                    log.err("load_translation_data has no row data", .{});
+                    err("load_translation_data has no row data", .{});
                     return;
                 },
                 .field => {
                     const lr = Lang.parse_code(i.value);
                     if (lr == .unknown) {
-                        log.err("load_translation_data has invalid languge code: '{s}'", .{i.value});
+                        err("load_translation_data has invalid languge code: '{s}'", .{i.value});
                         return;
                     }
                     try self.maps.put(lr, std.StringHashMap([]const u8).init(self.data.allocator));
@@ -56,7 +56,7 @@ pub const Translation = struct {
             }
         }
         if (headers.items.len == 0) {
-            log.err("load_translation_data found no language data.", .{});
+            err("load_translation_data found no language data.", .{});
             return;
         }
 
@@ -78,12 +78,12 @@ pub const Translation = struct {
                         if (n == .field) {
                             try headers.items[col].*.put(en, i.value);
                         } else {
-                            log.err("load_translation_data has unexpected eol/eof on row {d}.", .{i.row});
+                            err("load_translation_data has unexpected eol/eof on row {d}.", .{i.row});
                             return;
                         }
                     }
                     if (i.next() == .field) {
-                        log.err("load_translation_data has too many entries on row {d}.", .{i.row});
+                        err("load_translation_data has too many entries on row {d}.", .{i.row});
                         return;
                     }
                 },
@@ -111,8 +111,9 @@ pub const Translation = struct {
 };
 
 const std = @import("std");
-const log = std.log;
 const praxis = @import("praxis");
+const engine = @import("engine.zig");
+const err = engine.err;
 const Lang = praxis.Lang;
 const CsvReader = @import("csv_reader.zig").CsvReader;
 const expectEqual = std.testing.expectEqual;

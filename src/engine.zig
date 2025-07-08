@@ -726,7 +726,7 @@ pub const Element = struct {
                 }
             },
             else => {
-                log.info("set_placeholder_text({s}.{s}) invalid", .{ @tagName(self.type), text });
+                info("set_placeholder_text({s}.{s}) invalid", .{ @tagName(self.type), text });
             },
         }
     }
@@ -1137,7 +1137,7 @@ pub const Element = struct {
         if (element.type != .button) {
             if (element.background_texture) |texture| {
                 if (element.type != .text_input and element.type != .panel and element.type != .button) {
-                    log.info("drawing background for {s}", .{@tagName(element.type)});
+                    info("drawing background for {s}", .{@tagName(element.type)});
                 }
                 // Elements may optionally have a background texture
                 var dest = element.rect.move(&scroll_offset);
@@ -2441,20 +2441,20 @@ pub const Display = struct {
         debug("Renderers: {}", .{driver_formatter(renderer)});
 
         const pixel_scale = sdl.SDL_GetWindowDisplayScale(window);
-        log.info("WindowDisplayScale: {d}", .{pixel_scale});
+        info("WindowDisplayScale: {d}", .{pixel_scale});
 
         var pixel_width: c_int = 0;
         var pixel_height: c_int = 0;
         _ = sdl.SDL_GetWindowSizeInPixels(window, &pixel_width, &pixel_height);
-        log.info("WindowSizeInPixels: {d}x{d}", .{ pixel_width, pixel_height });
+        info("WindowSizeInPixels: {d}x{d}", .{ pixel_width, pixel_height });
 
         var window_width: c_int = 0;
         var window_height: c_int = 0;
         _ = sdl.SDL_GetWindowSize(window, &window_width, &window_height);
-        log.info("GetWindowSize: {d}x{d}", .{ window_width, window_height });
+        info("GetWindowSize: {d}x{d}", .{ window_width, window_height });
 
         const density = sdl.SDL_GetWindowPixelDensity(window);
-        log.info("WindowPixelDensity: {d}", .{density});
+        info("WindowPixelDensity: {d}", .{density});
 
         _ = sdl.SDL_SetRenderVSync(renderer, 1);
 
@@ -2996,7 +2996,7 @@ pub const Display = struct {
         const overflow_height = (parent.rect.y + parent.rect.height - parent.pad.bottom) - current.y;
         parent.type.panel.scrollable.size.height = @max(needed_height, parent.rect.height);
 
-        //log.info(" top to bottom layout {s} {s} - need {d} overflow {d}", .{ parent.name, @tagName(parent.type), needed_height, overflow_height });
+        //info(" top to bottom layout {s} {s} - need {d} overflow {d}", .{ parent.name, @tagName(parent.type), needed_height, overflow_height });
 
         // If there are expanders, expand them, otherwise,
         // do start/centre/end alignment.
@@ -3116,7 +3116,7 @@ pub const Display = struct {
         const overflow_width = (parent.rect.x + parent.rect.width - parent.pad.right) - current.x;
         parent.type.panel.scrollable.size.width = @max(needed_width, parent.rect.width);
 
-        //log.info(" left to right layout {s} {s} - need {d} overflow {d}", .{ parent.name, @tagName(parent.type), needed_width, overflow_width });
+        //info(" left to right layout {s} {s} - need {d} overflow {d}", .{ parent.name, @tagName(parent.type), needed_width, overflow_width });
 
         // If there is remaining space at end of children, maybe we
         // need to centre or right align.
@@ -3187,7 +3187,7 @@ pub const Display = struct {
         const now = std.time.microTimestamp();
         //const delta = now - display.last_draw;
         //display.last_draw = now;
-        //log.info("animate delta={d}", .{delta});
+        //info("animate delta={d}", .{delta});
         var i: usize = 0;
         while (i < display.animators.items.len) {
             const done = display.animators.items[i].animate(display, now);
@@ -3624,7 +3624,7 @@ pub const Display = struct {
     /// Update the quit flag to indicate to the main loop that
     /// it should exit after processing the current event.
     pub fn end_main_loop(display: *Display) void {
-        log.info("Ending main loop.", .{});
+        info("Ending main loop.", .{});
         display.quit = true;
     }
 
@@ -3636,7 +3636,7 @@ pub const Display = struct {
     /// Enters the main run loop and only returns when quit has been
     /// requested. Use in conjunction with SDL_Main
     pub fn main(display: *Display) !void {
-        log.info("Main loop starting", .{});
+        info("Main loop starting", .{});
         display.quit = false;
 
         while (!display.quit) {
@@ -3832,7 +3832,7 @@ pub const Display = struct {
         var area: sdl.SDL_Rect = undefined;
         var updated = false;
         if (sdl.SDL_GetRenderSafeArea(self.renderer, &area)) {
-            log.info("System reported safe area: {d}x{d} {d}x{d}", .{
+            info("System reported safe area: {d}x{d} {d}x{d}", .{
                 area.x,
                 area.y,
                 area.w,
@@ -3849,13 +3849,13 @@ pub const Display = struct {
             if (builtin.abi.isAndroid()) {
                 if (top_pad > 0 and bottom_pad > 0) {
                     if (top_pad > bottom_pad) {
-                        log.info("Android safe area hack {d},{d} -=> {d},{d}", .{
+                        info("Android safe area hack {d},{d} -=> {d},{d}", .{
                             top_pad, bottom_pad,
                             0,       bottom_pad,
                         });
                         top_pad = 0;
                     } else {
-                        log.info("Android safe area hack {d},{d} -=> {d},{d}", .{
+                        info("Android safe area hack {d},{d} -=> {d},{d}", .{
                             top_pad, bottom_pad,
                             top_pad, 0,
                         });
@@ -3871,7 +3871,7 @@ pub const Display = struct {
 
             if (updated or (dev_build and dev_mode)) {
                 // Log the padding numbers in css/border ordering
-                log.info("safe area changed: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
+                info("safe area changed: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
                     self.safe_area.left,  self.safe_area.top,
                     self.safe_area.right, self.safe_area.bottom,
                     left_pad,             top_pad,
@@ -4188,7 +4188,7 @@ pub const Display = struct {
         //const allocator = app_context.?.allocator;
         if (display.resources.used_resource_list) |manifest| {
             if (manifest.items.len == 0) {
-                log.info("no resources in manifest, nothing to bundle.", .{});
+                info("no resources in manifest, nothing to bundle.", .{});
                 return;
             }
             //const base_folder = find_base_folder(allocator, RESOURCE_BUNDLE_FILENAME) catch |e| {
@@ -4207,13 +4207,13 @@ pub const Display = struct {
             buffer.appendSlice(RESOURCE_BUNDLE_FILENAME) catch {
                 return std.mem.Allocator.Error.OutOfMemory;
             };
-            log.info("making resource bundle: {s}", .{buffer.slice()});
+            info("making resource bundle: {s}", .{buffer.slice()});
 
             display.resources.save_bundle(buffer.slice(), manifest.items) catch |e| {
-                log.info("save resource bundle failed. {s} {any}", .{ buffer.slice(), e });
+                info("save resource bundle failed. {s} {any}", .{ buffer.slice(), e });
             };
         } else {
-            log.info("no resource bundle manifest", .{});
+            info("no resource bundle manifest", .{});
         }
     }
 
@@ -4314,7 +4314,7 @@ pub const Display = struct {
 
 fn toggle_dev_mode(_: *Display) error{OutOfMemory}!void {
     engine.dev_mode = !engine.dev_mode;
-    log.info("Dev mode: {any}", .{engine.dev_mode});
+    info("Dev mode: {any}", .{engine.dev_mode});
 }
 
 fn increase_content_size(display: *Display) error{OutOfMemory}!void {
@@ -4958,7 +4958,6 @@ pub const SdlLogCategory = enum(c_int) {
     unknown = 9999,
 
     pub fn fromInt(category: c_int) SdlLogCategory {
-        //return @enumFromInt(category);
         return std.meta.intToEnum(SdlLogCategory, category) catch .unknown;
     }
 };
@@ -4966,22 +4965,66 @@ pub const SdlLogCategory = enum(c_int) {
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
     if (dev_build and dev_mode) {
         std.log.debug(format, args);
+        log_output("trace", .engine, format, args);
     }
 }
 
 pub inline fn debug(comptime format: []const u8, args: anytype) void {
     if (dev_build or dev_mode) {
-        std.log.debug(format, args);
+        log_output_handler(std.log.Level.debug, .engine, format, args);
     }
 }
+
+pub inline fn info(comptime format: []const u8, args: anytype) void {
+    log_output_handler(std.log.Level.info, .engine, format, args);
+}
+
+pub inline fn warn(comptime format: []const u8, args: anytype) void {
+    log_output_handler(std.log.Level.warn, .engine, format, args);
+}
+
+pub inline fn err(comptime format: []const u8, args: anytype) void {
+    log_output_handler(std.log.Level.err, .engine, format, args);
+}
+
+pub fn log_output(
+    comptime level: []const u8,
+    comptime scope: @Type(.enum_literal),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const prefix = "[" ++ comptime level ++ "] ";
+    if (scope != .term_scope) {
+        var buf: [3000]u8 = undefined;
+        if (std.fmt.bufPrintZ(&buf, prefix ++ format, args)) |f| {
+            sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), f.ptr);
+        } else |_| {
+            sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ format);
+        }
+    }
+    std.debug.lockStdErr();
+    defer std.debug.unlockStdErr();
+    const stderr = std.io.getStdErr().writer();
+    nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
+}
+
+pub fn log_output_handler(
+    comptime level: std.log.Level,
+    comptime scope: @Type(.enum_literal),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    log_output(level.asText(), scope, format, args);
+}
+
+pub const std_options: std.Options = .{
+    .log_level = .debug,
+    .logFn = log_output_handler,
+};
 
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
-const log = std.log;
-pub const info = std.log.info;
-pub const warn = std.log.info;
-pub const err = std.log.err;
 const sdl = @import("sdl");
 const builtin = @import("builtin");
 pub const engine = @import("engine.zig");
@@ -4997,10 +5040,6 @@ pub const BundleLoader = @import("read_bundle.zig");
 pub const init_resource_loader = BundleLoader.init_resource_loader;
 pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
 pub const sdl_load_resource = BundleLoader.sdl_load_resource;
-
-pub const std_options: std.Options = .{
-    .log_level = .debug,
-};
 
 test "sdl_log_priority" {
     try std.testing.expectEqual(.info, SdlLogPriority.fromInt(sdl.SDL_LOG_PRIORITY_INFO));

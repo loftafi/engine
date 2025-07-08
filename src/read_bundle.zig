@@ -222,7 +222,7 @@ pub fn sdl_load_bundle(
                 };
             } else {
                 const file_uid = encode_uid(u64, r.uid, buffer[0..40 :0]);
-                std.debug.print("empty sentence keyword in {s}\n", .{file_uid});
+                debug("empty sentence keyword in {s}\n", .{file_uid});
             }
         }
     }

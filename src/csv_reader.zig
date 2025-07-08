@@ -78,7 +78,6 @@ pub const Token = enum {
 };
 
 const std = @import("std");
-const log = std.log;
 const praxis = @import("praxis");
 const Lang = praxis.Lang;
 const expectEqual = std.testing.expectEqual;
