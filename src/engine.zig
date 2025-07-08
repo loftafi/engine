@@ -3678,6 +3678,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_SPACE)
                     {
                         try selected.chosen(display);
+                        return; // keypress handled
                     }
                 },
                 .sprite => {
@@ -3688,6 +3689,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_SPACE)
                     {
                         try selected.chosen(display);
+                        return; // keypress handled
                     }
                 },
                 .panel => {
@@ -3698,6 +3700,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_SPACE)
                     {
                         try selected.chosen(display);
+                        return; // keypress handled
                     }
                 },
                 .checkbox => {
@@ -3708,6 +3711,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_SPACE)
                     {
                         try selected.chosen(display);
+                        return; // keypress handled
                     }
                 },
                 .label => {
@@ -3718,6 +3722,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_SPACE)
                     {
                         try selected.chosen(display);
+                        return; // keypress handled
                     }
                 },
                 .text_input => {
@@ -3748,7 +3753,7 @@ pub const Display = struct {
                         },
                         else => {},
                     }
-                    return;
+                    return; // keypress consumed by text edit box
                 },
                 else => {
                     // Only button, label, and text_input have
@@ -3756,6 +3761,8 @@ pub const Display = struct {
                 },
             }
         }
+
+        // Unhandled keypresses fall through to user defined keybindings.
         var i = display.keybindings.iterator();
         while (i.next()) |k| {
             if (k.key_ptr.* == e.key.key) {
