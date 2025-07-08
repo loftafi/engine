@@ -1,7 +1,7 @@
 .{
     .name = .engine,
-    .version = "0.0.14",
-    .fingerprint = 0xe8a81a8d0aa558d5, // Changing this has security and trust implications.
+    .version = "0.1.0",
+    .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.14.1",
     .dependencies = .{
         .sdl = .{
