@@ -2175,57 +2175,6 @@ const FontInfo = struct {
     }
 };
 
-/// Describe the colour and theme of every visual element. Attributes
-/// of all visual elements must never be hardcoded.
-const Theme = struct {
-    background_colour: Colour,
-
-    label_background_colour: Colour,
-    tinted_text_colour: Colour,
-    emphasised_text_colour: Colour,
-    emphasised_panel_colour: Colour,
-    success_text_colour: Colour,
-    success_button_colour: Colour,
-    success_panel_colour: Colour,
-    failed_text_colour: Colour,
-    failed_button_colour: Colour,
-    failed_panel_colour: Colour,
-    faded_panel_colour: Colour,
-
-    text_colour: Colour,
-    placeholder_text_colour: Colour,
-    cursor_colour: Colour,
-
-    toggle_button: Colour,
-    toggle_button_picked: Colour,
-    toggle_button_correct: Colour,
-    toggle_button_incorrect: Colour,
-};
-
-pub const ThemeColour = enum {
-    normal,
-    faded,
-    tinted,
-    emphasised,
-    success,
-    failed,
-    background,
-    custom,
-
-    pub fn from(self: ThemeColour, theme: *Theme, custom: Colour) Colour {
-        return switch (self) {
-            .normal => theme.text_colour,
-            .faded => theme.faded_panel_colour,
-            .tinted => theme.tinted_text_colour,
-            .emphasised => theme.emphasised_text_colour,
-            .success => theme.success_text_colour,
-            .failed => theme.failed_text_colour,
-            .background => theme.background_colour,
-            .custom => custom,
-        };
-    }
-};
-
 pub const TextSize = enum {
     small,
     normal,
@@ -2279,7 +2228,7 @@ pub const Display = struct {
     textures: std.StringHashMap(*TextureInfo),
 
     /// Four possible theme options are available.
-    themes: [4]Theme,
+    themes: ArrayList(Theme),
 
     /// Current theme choice.
     theme: *Theme,
@@ -2478,90 +2427,10 @@ pub const Display = struct {
             try display.keybindings.put(sdl.SDLK_B, make_bundle);
         }
 
-        // Black
-        display.themes[0].background_colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
-        display.themes[0].label_background_colour = .{ .r = 31, .g = 34, .b = 48, .a = 255 };
-        display.themes[0].tinted_text_colour = .{ .r = 185, .g = 185, .b = 245, .a = 255 };
-        display.themes[0].emphasised_text_colour = .{ .r = 255, .g = 205, .b = 205, .a = 128 };
-        display.themes[0].emphasised_panel_colour = .{ .r = 255, .g = 205, .b = 205, .a = 128 };
-        display.themes[0].success_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[0].success_button_colour = .{ .r = 35, .g = 129, .b = 43, .a = 255 };
-        display.themes[0].success_panel_colour = .{ .r = 83, .g = 172, .b = 75, .a = 128 };
-        display.themes[0].failed_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[0].failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 };
-        display.themes[0].failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 };
-        display.themes[0].faded_panel_colour = .{ .r = 15, .g = 17, .b = 25, .a = 255 };
-        display.themes[0].cursor_colour = .{ .r = 255, .g = 255, .b = 255, .a = 128 };
-        display.themes[0].text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[0].placeholder_text_colour = .{ .r = 132, .g = 142, .b = 172, .a = 255 };
-        display.themes[0].toggle_button = .{ .r = 42, .g = 52, .b = 62, .a = 255 };
-        display.themes[0].toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 };
-        display.themes[0].toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 };
-        display.themes[0].toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 };
-
-        // Midnight
-        display.themes[1].background_colour = .{ .r = 31, .g = 41, .b = 51, .a = 255 };
-        display.themes[1].label_background_colour = .{ .r = 47, .g = 58, .b = 69, .a = 255 };
-        display.themes[1].tinted_text_colour = .{ .r = 150, .g = 150, .b = 142, .a = 128 };
-        display.themes[1].emphasised_text_colour = .{ .r = 185, .g = 166, .b = 194, .a = 255 };
-        display.themes[1].emphasised_panel_colour = .{ .r = 185, .g = 166, .b = 194, .a = 255 };
-        display.themes[1].success_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[1].success_button_colour = .{ .r = 35, .g = 129, .b = 43, .a = 255 };
-        display.themes[1].success_panel_colour = .{ .r = 83, .g = 172, .b = 75, .a = 128 };
-        display.themes[1].failed_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[1].failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 };
-        display.themes[1].failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 };
-        display.themes[1].faded_panel_colour = .{ .r = 36, .g = 46, .b = 56, .a = 255 };
-        display.themes[1].cursor_colour = .{ .r = 195, .g = 195, .b = 220, .a = 128 };
-        display.themes[1].text_colour = .{ .r = 195, .g = 195, .b = 220, .a = 255 };
-        display.themes[1].placeholder_text_colour = .{ .r = 146, .g = 146, .b = 175, .a = 255 };
-        display.themes[1].toggle_button = .{ .r = 58, .g = 72, .b = 86, .a = 255 };
-        display.themes[1].toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 };
-        display.themes[1].toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 };
-        display.themes[1].toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 };
-
-        // Sand
-        display.themes[2].background_colour = .{ .r = 224, .g = 214, .b = 204, .a = 255 };
-        display.themes[2].label_background_colour = .{ .r = 210, .g = 200, .b = 190, .a = 255 };
-        display.themes[2].tinted_text_colour = .{ .r = 90, .g = 90, .b = 65, .a = 255 };
-        display.themes[2].emphasised_text_colour = .{ .r = 100, .g = 60, .b = 35, .a = 128 };
-        display.themes[2].emphasised_panel_colour = .{ .r = 100, .g = 60, .b = 35, .a = 128 };
-        display.themes[2].success_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[2].success_button_colour = .{ .r = 35, .g = 129, .b = 43, .a = 255 };
-        display.themes[2].success_panel_colour = .{ .r = 83, .g = 172, .b = 75, .a = 128 };
-        display.themes[2].failed_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[2].failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 };
-        display.themes[2].failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 };
-        display.themes[2].faded_panel_colour = .{ .r = 217, .g = 207, .b = 197, .a = 255 };
-        display.themes[2].cursor_colour = .{ .r = 60, .g = 60, .b = 35, .a = 128 };
-        display.themes[2].text_colour = .{ .r = 60, .g = 60, .b = 35, .a = 255 };
-        display.themes[2].placeholder_text_colour = .{ .r = 128, .g = 128, .b = 85, .a = 255 };
-        display.themes[2].toggle_button = .{ .r = 196, .g = 184, .b = 170, .a = 255 };
-        display.themes[2].toggle_button_picked = .{ .r = 157, .g = 138, .b = 118, .a = 255 };
-        display.themes[2].toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 };
-        display.themes[2].toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 };
-
-        // White
-        display.themes[3].background_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[3].label_background_colour = .{ .r = 217, .g = 230, .b = 242, .a = 255 };
-        display.themes[3].tinted_text_colour = .{ .r = 99, .g = 138, .b = 171, .a = 128 };
-        display.themes[3].emphasised_text_colour = .{ .r = 40, .g = 0, .b = 0, .a = 128 };
-        display.themes[3].emphasised_panel_colour = .{ .r = 40, .g = 0, .b = 0, .a = 128 };
-        display.themes[3].success_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[3].success_button_colour = .{ .r = 35, .g = 129, .b = 43, .a = 255 };
-        display.themes[3].success_panel_colour = .{ .r = 83, .g = 172, .b = 75, .a = 128 };
-        display.themes[3].failed_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-        display.themes[3].failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 };
-        display.themes[3].failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 };
-        display.themes[3].faded_panel_colour = .{ .r = 240, .g = 247, .b = 255, .a = 255 };
-        display.themes[3].cursor_colour = .{ .r = 0, .g = 0, .b = 0, .a = 128 };
-        display.themes[3].text_colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
-        display.themes[3].placeholder_text_colour = .{ .r = 104, .g = 104, .b = 114, .a = 255 };
-        display.themes[3].toggle_button = .{ .r = 193, .g = 203, .b = 213, .a = 255 };
-        display.themes[3].toggle_button_picked = .{ .r = 131, .g = 142, .b = 149, .a = 255 };
-        display.themes[3].toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 };
-        display.themes[3].toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 };
-
+        display.themes = try ArrayList(Theme).initCapacity(allocator, 20);
+        for (&default_themes) |*theme| {
+            try display.themes.append(theme.*);
+        }
         display.update_system_theme();
 
         display.fonts = ArrayList(*FontInfo).init(allocator);
@@ -2598,6 +2467,7 @@ pub const Display = struct {
         trace("Engine cleanup", .{});
 
         self.root.deinit(self, self.allocator);
+        self.themes.deinit();
 
         for (self.fonts.items) |item| {
             item.destroy(self.allocator);
@@ -2631,20 +2501,48 @@ pub const Display = struct {
         self.allocator.destroy(self);
     }
 
-    pub fn update_system_theme(self: *Display) void {
+    /// Check that a theme name is a valid theme name. Return a stack
+    /// allocated string version of the name.
+    pub fn validate_theme(display: *Display, name: []const u8) []const u8 {
+        for (display.themes.items) |theme| {
+            if (std.ascii.eqlIgnoreCase(theme.tag, name)) {
+                return theme.tag;
+            }
+        }
+        return "";
+    }
+
+    /// Change the theme. If the theme name is not valid, or empty
+    /// use the system preference.
+    pub fn set_theme(self: *Display, name: []const u8) bool {
+        for (self.themes.items) |*theme| {
+            if (std.ascii.eqlIgnoreCase(theme.*.tag, name)) {
+                self.theme = theme;
+                return true;
+            }
+        }
         switch (sdl.SDL_GetSystemTheme()) {
             sdl.SDL_SYSTEM_THEME_DARK => {
-                self.theme = &self.themes[0];
+                self.theme = &self.themes.items[0];
             },
             sdl.SDL_SYSTEM_THEME_LIGHT => {
-                self.theme = &self.themes[3];
-            },
-            sdl.SDL_SYSTEM_THEME_UNKNOWN => {
-                self.theme = &self.themes[3];
+                self.theme = &self.themes.items[3];
             },
             else => {
-                self.theme = &self.themes[3];
+                self.theme = &self.themes.items[3];
             },
+        }
+        return name.len == 0 or std.ascii.eqlIgnoreCase(name, "default");
+    }
+
+    /// On initialisation, the display reads the users OS light/dark
+    /// theme preference.
+    pub fn update_system_theme(self: *Display) void {
+        switch (sdl.SDL_GetSystemTheme()) {
+            sdl.SDL_SYSTEM_THEME_DARK => self.theme = &self.themes.items[0],
+            sdl.SDL_SYSTEM_THEME_LIGHT => self.theme = &self.themes.items[3],
+            sdl.SDL_SYSTEM_THEME_UNKNOWN => self.theme = &self.themes.items[3],
+            else => self.theme = &self.themes.items[3],
         }
     }
 
@@ -3608,17 +3506,17 @@ pub const Display = struct {
         var index: usize = 0;
 
         // Find the current theme
-        for (&self.themes) |*theme| {
+        for (self.themes.items) |*theme| {
             if (theme == self.theme) {
                 break;
             }
             index += 1;
         }
         index += 1;
-        if (index >= self.themes.len) {
+        if (index >= self.themes.items.len) {
             index = 0;
         }
-        self.theme = &self.themes[index];
+        self.theme = &self.themes.items[index];
     }
 
     /// Update the quit flag to indicate to the main loop that
@@ -5035,6 +4933,9 @@ pub const Chunker = @import("chunker.zig").Chunker;
 pub const Translation = @import("translation.zig").Translation;
 const Resources = @import("resources").Resources;
 const zigimg = @import("zigimg");
+const default_themes = @import("theme.zig").default_themes;
+const Theme = @import("theme.zig").Theme;
+const ThemeColour = @import("theme.zig").ThemeColour;
 
 pub const BundleLoader = @import("read_bundle.zig");
 pub const init_resource_loader = BundleLoader.init_resource_loader;
