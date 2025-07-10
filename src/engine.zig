@@ -259,21 +259,15 @@ pub const Element = struct {
 
     rect: Rect = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
 
-    /// If this element is a scroll panel, the offset tracks how far it has scrolled.
+    /// Scroll panels use 'offset` to track how far it has scrolled.
     offset: Vector = .{ .x = 0, .y = 0 },
 
     pad: Clip = .{ .top = 0, .left = 0, .right = 0, .bottom = 0 },
     velocity: Vector = .{ .x = 0, .y = 0 },
     flip: Flip = .{ .x = false, .y = false },
     visible: Visibility = .visible,
-    layout: Layout = .{
-        .x = .fixed,
-        .y = .fixed,
-    },
-    child_align: ChildLayout = .{
-        .x = .start,
-        .y = .start,
-    },
+    layout: Layout = .{ .x = .fixed, .y = .fixed },
+    child_align: ChildLayout = .{ .x = .start, .y = .start },
     minimum: Size = .{ .width = 0, .height = 0 },
     maximum: Size = .{ .width = 0, .height = 0 },
 
@@ -481,7 +475,9 @@ pub const Element = struct {
     /// Return true if this element appears under this point on the screen.
     pub fn at_point(self: *Element, cursor: Vector, parent_scroll_offset: Vector) bool {
         const point = Vector{ .x = self.rect.x, .y = self.rect.y };
-        if (self.type == .panel and (self.type.panel.scrollable.scroll.x or self.type.panel.scrollable.scroll.y)) {
+        if (self.type == .panel and
+            (self.type.panel.scrollable.scroll.x or self.type.panel.scrollable.scroll.y))
+        {
             // Scrollable panels live at their pre-scroll-offset location.
             if (cursor.x < point.x) {
                 return false;
@@ -655,7 +651,10 @@ pub const Element = struct {
                     return;
                 },
                 else => {
-                    warn("unhandled panel tint option: {s}", .{@tagName(self.type.panel.style)});
+                    warn(
+                        "unhandled panel tint option: {s}",
+                        .{@tagName(self.type.panel.style)},
+                    );
                 },
             }
         }
@@ -710,7 +709,10 @@ pub const Element = struct {
         display: *Display,
         text: []const u8,
     ) !void {
-        debug("set_placeholder_text({s}.{s}) {s}", .{ @tagName(self.type), self.name, text });
+        debug(
+            "set_placeholder_text({s}.{s}) {s}",
+            .{ @tagName(self.type), self.name, text },
+        );
         switch (self.type) {
             .text_input => {
                 if (self.type.text_input.placeholder_texture) |texture| {
@@ -888,7 +890,11 @@ pub const Element = struct {
 
     /// Use `insert_element` to insert a child element in a specific location
     /// in this panel. Only permitted for the `panel` element type.
-    pub inline fn insert_element(self: *Element, location: usize, child: *Element) error{OutOfMemory}!void {
+    pub inline fn insert_element(
+        self: *Element,
+        location: usize,
+        child: *Element,
+    ) error{OutOfMemory}!void {
         std.debug.assert(self.type == .panel);
         std.debug.assert(location <= self.type.panel.children.items.len);
         try self.type.panel.children.insert(location, child);
@@ -905,7 +911,11 @@ pub const Element = struct {
 
     /// Use `remove_element` to remove a panel that is a
     /// child of this element.
-    pub inline fn remove_element(self: *Element, display: *Display, child: *Element) ?*Element {
+    pub inline fn remove_element(
+        self: *Element,
+        display: *Display,
+        child: *Element,
+    ) ?*Element {
         std.debug.assert(self.type == .panel);
         child.clear_display_pointers(display);
         for (0..self.type.panel.children.items.len) |i| {
@@ -1241,7 +1251,13 @@ pub const Element = struct {
         }
     }
 
-    inline fn draw_panel(element: *Element, display: *Display, _: Vector, parent_clip: ?Clip, scroll_offset: Vector) void {
+    inline fn draw_panel(
+        element: *Element,
+        display: *Display,
+        _: Vector,
+        parent_clip: ?Clip,
+        scroll_offset: Vector,
+    ) void {
         if (parent_clip) |clip| {
             for (element.type.panel.children.items) |child| {
                 child.draw(display, scroll_offset, clip);
@@ -1262,7 +1278,12 @@ pub const Element = struct {
         }
     }
 
-    inline fn draw_rectangle_element(element: *Element, display: *Display, _: Vector, _: ?Clip) void {
+    inline fn draw_rectangle_element(
+        element: *Element,
+        display: *Display,
+        _: Vector,
+        _: ?Clip,
+    ) void {
         const colour = element.type.rectangle.style.from(display.theme, element.background_colour);
         _ = sdl.SDL_SetRenderDrawColor(
             display.renderer,
@@ -1274,7 +1295,12 @@ pub const Element = struct {
         _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&element.rect));
     }
 
-    inline fn draw_text_input(element: *Element, display: *Display, _: Vector, _: ?Clip) void {
+    inline fn draw_text_input(
+        element: *Element,
+        display: *Display,
+        _: Vector,
+        _: ?Clip,
+    ) void {
         var x = element.rect.x + element.pad.left;
         const y = element.rect.y + element.pad.top;
         const word_spacing = display.text_height / 3.0 * display.scale;
@@ -1381,7 +1407,12 @@ pub const Element = struct {
         }
     }
 
-    inline fn draw_sprite(element: *Element, display: *Display, _: Vector, _: ?Clip) void {
+    inline fn draw_sprite(
+        element: *Element,
+        display: *Display,
+        _: Vector,
+        _: ?Clip,
+    ) void {
         if (element.texture) |texture| {
             var dest: Rect = .{
                 .x = element.rect.x + element.pad.left,
@@ -1781,7 +1812,14 @@ pub const Element = struct {
         }
     }
 
-    inline fn do_word_alignment(element: *Element, _: f32, x: f32, x_ending: f32, children: []TextElement, _: ?*Display) void {
+    inline fn do_word_alignment(
+        element: *Element,
+        _: f32,
+        x: f32,
+        x_ending: f32,
+        children: []TextElement,
+        _: ?*Display,
+    ) void {
         // At end of line, do we need to centre or right align?
         const trailing_pixel_space = x_ending - x;
 
@@ -2106,7 +2144,7 @@ inline fn text_elements_size(
 }
 
 const TextElement = struct {
-    text: []const u8,
+    text: ?[]const u8,
     width: f32, // compared to default height
     texture: *sdl.SDL_Texture,
     location: Rect,
@@ -2122,25 +2160,20 @@ const TextureInfo = struct {
     references: i32,
 
     pub fn create(allocator: Allocator, name: []const u8, texture: *sdl.SDL_Texture) !*TextureInfo {
-        var texture_info = try allocator.create(TextureInfo);
-        if (name.len == 0) {
-            texture_info.name = "";
-        } else {
-            texture_info.name = try allocator.dupe(u8, name);
-        }
-        texture_info.texture = texture;
-        texture_info.references = 0;
+        const texture_info = try allocator.create(TextureInfo);
+        texture_info.* = .{
+            .name = if (name.len > 0) try allocator.dupe(u8, name) else "",
+            .texture = texture,
+            .references = 0,
+        };
         debug("loaded texture: {s}", .{name});
         return texture_info;
     }
 
     pub fn destroy(self: *TextureInfo, allocator: Allocator) void {
-        //debug("TextureInfo.destroy: {s}", .{self.name});
         sdl.SDL_DestroyTexture(self.texture);
-        if (self.name.len > 0) {
+        if (self.name.len > 0)
             allocator.free(self.name);
-            self.name = "";
-        }
         allocator.destroy(self);
     }
 
@@ -2157,12 +2190,19 @@ const FontInfo = struct {
     font: *sdl.TTF_Font,
     font_buffer: []const u8,
 
-    pub fn create(allocator: Allocator, name: []const u8, font: *sdl.TTF_Font) !*FontInfo {
-        var font_info = try allocator.create(FontInfo);
-        font_info.name = try allocator.dupe(u8, name);
-        font_info.font = font;
-        const fontname = sdl.TTF_GetFontFamilyName(font_info.font);
-        debug("loaded font: {s}", .{fontname});
+    pub fn create(
+        allocator: Allocator,
+        name: []const u8,
+        font: *sdl.TTF_Font,
+        raw_data: []const u8,
+    ) !*FontInfo {
+        const font_info = try allocator.create(FontInfo);
+        font_info.* = .{
+            .name = try allocator.dupe(u8, name),
+            .font = font,
+            .font_buffer = raw_data,
+        };
+        debug("loaded font: {s}", .{sdl.TTF_GetFontFamilyName(font_info.font)});
         return font_info;
     }
 
@@ -2859,7 +2899,12 @@ pub const Display = struct {
         //parent.type.panel.scrollable.size.height = @max(needed_height, parent.height);
     }
 
-    inline fn relayout_top_to_bottom(_: *Display, parent: *Element, expanders: *std.BoundedArray(*Element, 10), expander_weights: f32) void {
+    inline fn relayout_top_to_bottom(
+        _: *Display,
+        parent: *Element,
+        expanders: *std.BoundedArray(*Element, 10),
+        expander_weights: f32,
+    ) void {
         // Layout each item from top to bottom, initially ignoring
         // the need to centre the items or expand any expanders.
         var current: Vector = .{
@@ -2977,7 +3022,12 @@ pub const Display = struct {
         }
     }
 
-    inline fn relayout_left_to_right(_: *Display, parent: *Element, _: *std.BoundedArray(*Element, 10), _: f32) void {
+    inline fn relayout_left_to_right(
+        _: *Display,
+        parent: *Element,
+        _: *std.BoundedArray(*Element, 10),
+        _: f32,
+    ) void {
         // Draw panel children from top left corner of the panel
         // assuming no scrolling of the child elements. Offsets
         // applied at runtime.
@@ -3091,7 +3141,11 @@ pub const Display = struct {
             const done = display.animators.items[i].animate(display, now);
             if (done) {
                 const old = display.animators.swapRemove(i);
-                trace("animate complete for {s} start={d} end={d}", .{ old.target.name, old.start_time, old.end_time });
+                trace("animate complete for {s} start={d} end={d}", .{
+                    old.target.name,
+                    old.start_time,
+                    old.end_time,
+                });
                 display.allocator.destroy(old);
             } else {
                 i += 1;
@@ -3127,7 +3181,11 @@ pub const Display = struct {
     }
 
     /// Load and associate a font file with a font name.
-    pub fn load_font(self: *Display, name: []const u8) error{ OutOfMemory, ResourceNotFound, ResourceReadError }!*FontInfo {
+    pub fn load_font(self: *Display, name: []const u8) error{
+        OutOfMemory,
+        ResourceNotFound,
+        ResourceReadError,
+    }!*FontInfo {
         const resource = self.resources.lookupOne(name, .font);
         if (resource == null) {
             return error.ResourceNotFound;
@@ -3154,8 +3212,7 @@ pub const Display = struct {
         };
         //sdl.TTF_SetFontHinting(myfont, 0);
 
-        const font_info = try FontInfo.create(self.allocator, name, myfont);
-        font_info.font_buffer = font_buffer;
+        const font_info = try FontInfo.create(self.allocator, name, myfont, font_buffer);
         errdefer font_info.destroy(self.allocator);
         try self.fonts.append(font_info);
 
@@ -3244,7 +3301,12 @@ pub const Display = struct {
     }
 
     /// Load an image from the resource bundle or resource directory.
-    pub fn load_texture_resource(self: *Display, name: []const u8) error{ UnknownImageFormat, OutOfMemory, ResourceNotFound, ResourceReadError }!?*TextureInfo {
+    pub fn load_texture_resource(self: *Display, name: []const u8) error{
+        UnknownImageFormat,
+        OutOfMemory,
+        ResourceNotFound,
+        ResourceReadError,
+    }!?*TextureInfo {
         if (name.len == 0) {
             return null;
         }
@@ -3362,7 +3424,12 @@ pub const Display = struct {
         }
     }
 
-    fn do_select_next_element(self: *Display, elements: []*Element, state: *SelectState, previous: *?*Element) ?*Element {
+    fn do_select_next_element(
+        self: *Display,
+        elements: []*Element,
+        state: *SelectState,
+        previous: *?*Element,
+    ) ?*Element {
         for (elements) |element| {
             trace("search: {s} inspect {s}/{s}/{s}", .{
                 @tagName(state.*),

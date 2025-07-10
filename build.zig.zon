@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.1.3",
+    .version = "0.1.4",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.14.1",
     .dependencies = .{
@@ -21,8 +21,8 @@
             .hash = "praxis-0.0.5-FPf2NdwnBABFfnBZneRdaZy3rDXeTaoX2aIEh5UaVxnL",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#a7cf2506a25f799a3fbf72c4334f05f483f9e6df",
-            .hash = "resources-0.0.3-J0GwI4X0AABDdFpi5dpYwJTW-GaEeapq1ovBdAD_2OcN",
+            .url = "git+https://github.com/loftafi/resources.git#09023ba562719f24ef476b3ada7440de257f73a1",
+            .hash = "resources-0.0.3-J0GwI_L3AABhc5cgaEnpL01G0wdVxhjFzsfwAQOwkQ20",
         },
         .engine = .{
             .url = "git+https://github.com/loftafi/engine.git#18177694370fbca822b4c6126c241015e677acba",
