@@ -204,7 +204,7 @@ pub fn sdl_load_bundle(
 
         try self.by_uid.put(r.uid, r);
         for (r.sentences.items) |sentence| {
-            self.by_filename.add(sentence, r) catch |e| {
+            self.by_filename.add(self.arena_allocator, sentence, r) catch |e| {
                 err("Bundle contains invalid filename: {s} -> {s}. {any}", .{ bundle_filename, sentence, e });
                 return error.ResourceReadError;
             };
@@ -216,7 +216,7 @@ pub fn sdl_load_bundle(
         var it = unique.words.iterator();
         while (it.next()) |word| {
             if (word.key_ptr.*.len > 0) {
-                self.by_word.add(word.key_ptr.*, r) catch |e| {
+                self.by_word.add(self.arena_allocator, word.key_ptr.*, r) catch |e| {
                     err("Bundle contains invalid filename word size: {s} -> {s} {any}", .{ bundle_filename, word.key_ptr.*, e });
                     return error.ResourceReadError;
                 };
