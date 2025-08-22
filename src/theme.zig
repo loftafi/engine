@@ -66,7 +66,7 @@ pub const ThemeColour = enum {
 
 /// The `Display` is prefilled with this usable set of default themes on
 /// initialisation.
-pub const default_themes = [4]Theme{
+pub const default_themes = [5]Theme{
     .{
         .tag = "black",
         .background_colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
@@ -111,6 +111,7 @@ pub const default_themes = [4]Theme{
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
     },
+
     .{
         .tag = "sand",
         .background_colour = .{ .r = 224, .g = 214, .b = 204, .a = 255 },
@@ -133,6 +134,7 @@ pub const default_themes = [4]Theme{
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
         .toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 },
     },
+
     .{
         .tag = "white",
         .background_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
@@ -154,6 +156,28 @@ pub const default_themes = [4]Theme{
         .toggle_button_picked = .{ .r = 131, .g = 142, .b = 149, .a = 255 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
         .toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 },
+    },
+    .{
+        .tag = "garden",
+        .background_colour = .{ .r = 54, .g = 132, .b = 48, .a = 255 },
+        .text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
+        .placeholder_text_colour = .{ .r = 136, .g = 194, .b = 136, .a = 255 },
+        .cursor_colour = .{ .r = 160, .g = 210, .b = 160, .a = 128 },
+        .label_background_colour = .{ .r = 81, .g = 160, .b = 77, .a = 255 },
+        .tinted_text_colour = .{ .r = 250, .g = 250, .b = 170, .a = 255 },
+        .emphasised_text_colour = .{ .r = 255, .g = 255, .b = 170, .a = 255 },
+        .emphasised_panel_colour = .{ .r = 14, .g = 57, .b = 14, .a = 255 },
+        .success_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
+        .success_button_colour = .{ .r = 35, .g = 129, .b = 43, .a = 255 },
+        .success_panel_colour = .{ .r = 83, .g = 172, .b = 75, .a = 128 },
+        .failed_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
+        .failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 },
+        .failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 },
+        .faded_panel_colour = .{ .r = 66, .g = 144, .b = 62, .a = 255 },
+        .toggle_button = .{ .r = 20, .g = 70, .b = 20, .a = 255 },
+        .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
+        .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
+        .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
     },
 };
 
