@@ -2,7 +2,7 @@
 /// check if there is a developer resource folder.
 pub fn init_resource_loader(
     allocator: Allocator,
-    bundle_filename: [:0]const u8,
+    bundle_filename: []const u8,
     dev_repo: []const u8,
 ) error{
     OutOfMemory,
@@ -19,8 +19,8 @@ pub fn init_resource_loader(
     Utf8InvalidStartByte,
 }!*Resources {
     const start = std.time.milliTimestamp();
-
     var resources = try Resources.create(allocator);
+
     if (sdl_load_bundle(resources, bundle_filename)) |_| {
         const end = std.time.milliTimestamp();
         info("Resource list scanned in {d}ms.", .{end - start});
@@ -64,7 +64,7 @@ pub fn init_resource_loader(
 
 /// Check of a specific file exists in any of the expected location. Return
 /// a non empty string containing the path if the location is found.
-fn find_base_folder(allocator: Allocator, expected_file: [:0]const u8) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
+fn find_base_folder(allocator: Allocator, expected_file: []const u8) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
 
     // First check in the SDL reported base path.
     if (sdl.SDL_GetBasePath()) |sdl_base| {
@@ -150,7 +150,7 @@ pub inline fn sdl_load_resource(
 /// Returns an error if bundle was not loaded for any reason.
 pub fn sdl_load_bundle(
     self: *Resources,
-    bundle_filename: [:0]const u8,
+    bundle_filename: []const u8,
 ) error{
     OutOfMemory,
     ResourceReadError,
@@ -162,7 +162,10 @@ pub fn sdl_load_bundle(
 }!bool {
     var buffer: [300:0]u8 = undefined;
 
-    const in = sdl.SDL_IOFromFile(bundle_filename, "rb");
+    const bundle_filename_z = try self.parent_allocator.dupeZ(u8, bundle_filename);
+    defer self.parent_allocator.free(bundle_filename_z);
+
+    const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
     if (in == null) {
         err("Open bundle file via sdl failed: {s}", .{bundle_filename});
         return error.ResourceReadError;
@@ -228,7 +231,7 @@ pub fn sdl_load_bundle(
 }
 
 pub fn sdl_read_data(
-    self: *Resources,
+    resources: *Resources,
     resource: *Resource,
     allocator: Allocator,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]const u8 {
@@ -237,10 +240,10 @@ pub fn sdl_read_data(
         return error.ResourceNotFound;
     }
     if (resource.bundle_offset) |bundle_offset| {
-        if (self.used_resource_list) |*manifest| {
+        if (resources.used_resource_list) |*manifest| {
             try manifest.append(resource);
         }
-        return try sdl_load_file_byte_slice(allocator, self.bundle_file, bundle_offset, resource.size);
+        return try sdl_load_file_byte_slice(allocator, resources.bundle_file, bundle_offset, resource.size);
     }
     return error.ResourceNotFound;
 }
@@ -251,9 +254,12 @@ fn sdl_load_file_byte_slice(
     offset: usize,
     size: usize,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]u8 {
-    const in = sdl.SDL_IOFromFile(bundle_filename.ptr, "rb");
+    const bundle_filename_z = try allocator.dupeZ(u8, bundle_filename);
+    defer allocator.free(bundle_filename_z);
+
+    const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
     if (in == null) {
-        err("Read bundle slice {d} from file failed: {s}", .{ offset, bundle_filename });
+        err("Open bundle (to read from {d}) failed: {s}", .{ offset, bundle_filename });
         return error.ResourceReadError;
     }
     const input = in.?;
