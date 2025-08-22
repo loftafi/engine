@@ -1,5 +1,10 @@
-/// a `Resources` manager. If a resource bundle is not available
-/// check if there is a developer resource folder.
+/// Returns a `Resources` manager with resources preloaded. Checks standard
+/// locations for the existence of the `bundle_filename` or falls back to
+/// loading resources from the `dev_repo` folder.
+///
+/// The reason for existence of this function, is that we need to replace
+/// the `Resources` load bundle function with a custom function that attempts
+/// to use SDL to load resources.
 pub fn init_resource_loader(
     allocator: Allocator,
     bundle_filename: []const u8,
