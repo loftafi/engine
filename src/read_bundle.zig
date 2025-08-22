@@ -164,11 +164,7 @@ pub fn sdl_load_bundle(
 
     const in = sdl.SDL_IOFromFile(bundle_filename, "rb");
     if (in == null) {
-        if (builtin.is_test) {
-            debug("Open bundle file failed: {s}", .{bundle_filename});
-        } else {
-            err("Open bundle file failed: {s}", .{bundle_filename});
-        }
+        err("Open bundle file via sdl failed: {s}", .{bundle_filename});
         return error.ResourceReadError;
     }
     const input = in.?;
@@ -257,8 +253,7 @@ fn sdl_load_file_byte_slice(
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]u8 {
     const in = sdl.SDL_IOFromFile(bundle_filename.ptr, "rb");
     if (in == null) {
-        //return error.CantOpenBundle;
-        err("Open bundle file failed: {s}", .{bundle_filename});
+        err("Read bundle slice {d} from file failed: {s}", .{ offset, bundle_filename });
         return error.ResourceReadError;
     }
     const input = in.?;
