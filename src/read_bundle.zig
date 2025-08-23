@@ -25,6 +25,7 @@ pub fn init_resource_loader(
 }!*Resources {
     const start = std.time.milliTimestamp();
     var resources = try Resources.create(allocator);
+    errdefer resources.destroy();
 
     if (sdl_load_bundle(resources, bundle_filename)) |_| {
         const end = std.time.milliTimestamp();
