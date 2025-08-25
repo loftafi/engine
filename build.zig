@@ -2,12 +2,12 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const praxis = b.dependency("praxis", .{ .target = target, .optimize = optimize });
-    const praxis_module = praxis.module("praxis");
-
     const resources = b.dependency("resources", .{ .target = target, .optimize = optimize });
     const resources_module = resources.module("resources");
     add_libs(b, &target, resources_module);
+
+    const praxis = resources.builder.dependency("praxis", .{ .target = target, .optimize = optimize });
+    const praxis_module = praxis.module("praxis");
 
     const zigimg = b.dependency("zigimg", .{ .target = target, .optimize = optimize });
     const zigimg_module = zigimg.module("zigimg");
@@ -23,8 +23,9 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("praxis", praxis_module);
     lib_mod.addImport("resources", resources_module);
     lib_mod.addImport("zigimg", zigimg_module);
+    lib_mod.addImport("sdl", sdl_module);
 
-    import_sdl_module(b, &target, lib_mod, sdl_module);
+    link_sdl_framework(b, &target, lib_mod);
 
     const lib = b.addLibrary(.{
         .linkage = .static,
@@ -130,13 +131,11 @@ pub fn add_libs(
 }
 
 /// Tell a library/exe how to link to the SDL and SDL_ttf libraries
-pub fn import_sdl_module(
+pub fn link_sdl_framework(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
     lib: *std.Build.Module,
-    sdl_module: *std.Build.Module,
 ) void {
-    lib.addImport("sdl", sdl_module);
     switch (target.result.os.tag) {
         .macos => {
             lib.addFrameworkPath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/"));
@@ -164,8 +163,8 @@ pub fn import_sdl_module(
             }
         },
         else => {
-            debug("import_sdl_module not configured for {s}", .{@tagName(target.result.os.tag)});
-            @panic("import_sdl_module not configured for this platform");
+            debug("link_sdl_framework not configured for {s}", .{@tagName(target.result.os.tag)});
+            //@panic("link_sdl_framework not configured for this platform");
         },
     }
 }
