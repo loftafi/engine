@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.1.9",
+    .version = "0.1.10",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.14.1",
     .dependencies = .{
@@ -17,12 +17,12 @@
             .hash = "zigimg-0.1.0-lly-O_qZEgAP5eJWUbcWtL9Jv4V_BGcK5p-570Hiaj7k",
         },
         .praxis = .{
-            .url = "git+https://github.com/loftafi/praxis.git#88063206b43a36296cae30f70fa0bc57b522fe48",
-            .hash = "praxis-0.0.6-FPf2NQlSBAAqxeJPwt1QE1JXoRaFMPj3U-erNdGbpxDL",
+            .url = "git+https://github.com/loftafi/praxis.git#1067a94dae6929486c93ead17500961788438d60",
+            .hash = "praxis-0.1.24-FPf2NTVZBgDPXX4OJEYDYy0tKErjy3QcwSMuGhRUUl-t",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#76f9900675106f929473937a87643e1c52e7f73c",
-            .hash = "resources-0.0.5-J0GwI4n5AACORm1ztLSveKfXRHIvLxv7nrxtSl8FJaip",
+            .url = "git+https://github.com/loftafi/resources.git#10e98913164911d4160133c58a55123b8ccddc19",
+            .hash = "resources-0.1.0-J0GwI4RKAQBUnv4fZJ7iInUBfaJoac1jM_eNpVkrNabH",
         },
     },
     .paths = .{
