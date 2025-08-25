@@ -2,14 +2,16 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const praxis = b.dependency("praxis", .{});
+    const praxis = b.dependency("praxis", .{ .target = target, .optimize = optimize });
     const praxis_module = praxis.module("praxis");
 
-    const resources = b.dependency("resources", .{});
+    const resources = b.dependency("resources", .{ .target = target, .optimize = optimize });
     const resources_module = resources.module("resources");
+    add_libs(b, &target, resources_module);
 
-    const zigimg = b.dependency("zigimg", .{});
+    const zigimg = b.dependency("zigimg", .{ .target = target, .optimize = optimize });
     const zigimg_module = zigimg.module("zigimg");
+    add_libs(b, &target, zigimg_module);
 
     const sdl_module = build_sdl_module(b, &target, &optimize);
 
@@ -62,16 +64,26 @@ fn build_sdl_module(
     headers.addIncludePath(sdl_dep.path("include"));
     headers.addIncludePath(ttf_dep.path("include"));
 
+    const module = headers.addModule("sdl");
+    add_libs(b, target, module);
+    return module;
+}
+
+pub fn add_libs(
+    b: *std.Build,
+    target: *const std.Build.ResolvedTarget,
+    lib: *std.Build.Module,
+) void {
     // For TranslateC to work, we need the system library headers
     switch (target.result.os.tag) {
         .macos => {
             const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
                 @panic("macOS SDK is missing");
-            headers.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                 sdk,
                 "/usr/include",
             }) });
-            headers.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
+            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
                 sdk,
                 "/System/Library/Frameworks",
             }) });
@@ -79,11 +91,11 @@ fn build_sdl_module(
         .ios => {
             const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
                 @panic("macOS SDK is missing");
-            headers.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                 sdk,
                 "/usr/include",
             }) });
-            headers.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
+            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
                 sdk,
                 "/System/Library/Frameworks",
             }) });
@@ -95,11 +107,11 @@ fn build_sdl_module(
                     @panic("printing ndk path failed");
                 };
                 defer b.allocator.free(ndk_location);
-                headers.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                     ndk_location,
                     "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
                 }) });
-                headers.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                     ndk_location,
                     "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
                 }) });
@@ -115,8 +127,6 @@ fn build_sdl_module(
             @panic("build_sdl_module only supports macos and ios");
         },
     }
-
-    return headers.addModule("sdl");
 }
 
 /// Tell a library/exe how to link to the SDL and SDL_ttf libraries
