@@ -3230,6 +3230,10 @@ pub const Display = struct {
         var new_animator = try self.allocator.create(Animator);
         new_animator.* = animator;
         new_animator.setup = false;
+        if (new_animator.duration == 0) {
+            warn("add_animator called with duration of 0", .{});
+            new_animator.duration = 10;
+        }
         try self.animators.append(new_animator);
     }
 
