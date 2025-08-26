@@ -54,7 +54,8 @@ pub fn animate(self: *Self, display: *Display, current_time: i64) bool {
 
     // An item moves along its parth from the start time to the end time.
     // `step` indicates how close (in time) we are to the end point.
-    const step: i64 = self.end_time - current_time;
+    var step: i64 = self.end_time - current_time;
+    if (current_time > self.end_time) step = 0;
 
     switch (self.mode) {
         .pause => {
@@ -194,10 +195,14 @@ inline fn ease(start: f32, end: f32, step: i64, total_steps: i64) f32 {
     const p = end - start;
 
     if (value < 1) {
-        return p * 0.5 * value * value + start;
+        const result = p * 0.5 * value * value + start;
+        //debug("ease {d}->{d} -- {d}", .{ start, end, result });
+        return result;
     } else {
         value -= 1;
-        return p * -0.5 * (value * (value - 2) - 1) + start;
+        const result = p * -0.5 * (value * (value - 2) - 1) + start;
+        //debug("ease {d}->{d} -- {d}", .{ start, end, result });
+        return result;
     }
 }
 
