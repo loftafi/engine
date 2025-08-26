@@ -13,7 +13,7 @@ pub fn build(b: *std.Build) void {
     const zigimg_module = zigimg.module("zigimg");
     add_libs(b, &target, zigimg_module);
 
-    const sdl_module = build_sdl_module(b, &target, &optimize);
+    const sdl_module = define_sdl_module(b, &target, &optimize);
 
     const lib_mod = b.addModule("engine", .{
         .root_source_file = b.path("src/engine.zig"),
@@ -45,7 +45,7 @@ pub fn build(b: *std.Build) void {
 
 /// Build an SDL module from the SDL3 and SDL3_ttf header files that we
 /// import as dependencies from zig packages that contain these headers.
-fn build_sdl_module(
+fn define_sdl_module(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
@@ -64,22 +64,25 @@ fn build_sdl_module(
     });
     headers.addIncludePath(sdl_dep.path("include"));
     headers.addIncludePath(ttf_dep.path("include"));
+    add_translatec_headers(b, target, headers);
 
     const module = headers.addModule("sdl");
     add_libs(b, target, module);
     return module;
 }
 
-pub fn add_libs(
+pub fn add_translatec_headers(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
-    lib: *std.Build.Module,
+    lib: *std.Build.Step.TranslateC,
 ) void {
     // For TranslateC to work, we need the system library headers
     switch (target.result.os.tag) {
         .macos => {
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
+            //const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
+            const sdk = std.zig.system.darwin.getSdk(b.allocator, target.result) orelse
                 @panic("macOS SDK is missing");
+            std.log.info("engine using macos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                 sdk,
                 "/usr/include",
@@ -90,8 +93,10 @@ pub fn add_libs(
             }) });
         },
         .ios => {
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
-                @panic("macOS SDK is missing");
+            //const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
+            const sdk = std.zig.system.darwin.getSdk(b.allocator, target.result) orelse
+                @panic("iOS SDK is missing");
+            std.log.info("engine using iphoneos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                 sdk,
                 "/usr/include",
@@ -108,6 +113,7 @@ pub fn add_libs(
                     @panic("printing ndk path failed");
                 };
                 defer b.allocator.free(ndk_location);
+                std.log.info("Using android c headers: {s}", .{ndk_location});
                 lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                     ndk_location,
                     "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
@@ -122,10 +128,73 @@ pub fn add_libs(
         },
         else => {
             debug(
-                "build_sdl_module not supported on {s}",
+                "add_translatec_headers not supported on {s}",
                 .{@tagName(target.result.os.tag)},
             );
-            @panic("build_sdl_module only supports macos and ios");
+            @panic("add_translatec_headers only supports macos and ios");
+        },
+    }
+}
+
+pub fn add_libs(
+    b: *std.Build,
+    target: *const std.Build.ResolvedTarget,
+    lib: *std.Build.Module,
+) void {
+    // For TranslateC to work, we need the system library headers
+    switch (target.result.os.tag) {
+        .macos => {
+            const sdk = std.zig.system.darwin.getSdk(b.allocator, target.result) orelse
+                @panic("macOS SDK is missing");
+            std.log.info("engine using macos c headers: {s}", .{sdk});
+            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                sdk,
+                "/usr/include",
+            }) });
+            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
+                sdk,
+                "/System/Library/Frameworks",
+            }) });
+        },
+        .ios => {
+            const sdk = std.zig.system.darwin.getSdk(b.allocator, target.result) orelse
+                @panic("iOS SDK is missing");
+            std.log.info("engine using iphoneos c headers: {s}", .{sdk});
+            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                sdk,
+                "/usr/include",
+            }) });
+            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
+                sdk,
+                "/System/Library/Frameworks",
+            }) });
+        },
+        .linux => {
+            // When building for android, we need to use the android linux headers
+            if (FindNDK.find(b.allocator)) |android_ndk| {
+                const ndk_location = android_ndk.realpathAlloc(b.allocator, ".") catch {
+                    @panic("printing ndk path failed");
+                };
+                defer b.allocator.free(ndk_location);
+                std.log.info("Using android c headers: {s}", .{ndk_location});
+                lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                    ndk_location,
+                    "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
+                }) });
+                lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                    ndk_location,
+                    "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
+                }) });
+            } else {
+                @panic("android/linux build requires ndk. Set ANDROID_NDK_HOME");
+            }
+        },
+        else => {
+            debug(
+                "add_libs not supported on {s}",
+                .{@tagName(target.result.os.tag)},
+            );
+            @panic("add_libs only supports macos and ios");
         },
     }
 }
@@ -224,6 +293,7 @@ const FindNDK = struct {
     pub fn search_ndk_folder(_: std.mem.Allocator, ndk_base: std.fs.Dir) ?std.fs.Dir {
         for (ndk_versions) |version| {
             const folder = ndk_base.openDir(version, .{}) catch {
+                std.log.debug("ndk version {s} not found", .{version});
                 continue;
             };
             std.log.debug("ndk version found: {any}", .{folder});
@@ -241,12 +311,11 @@ const FindNDK = struct {
         while (iter.next()) |entry| {
             if (std.ascii.eqlIgnoreCase("ANDROID_NDK_HOME", entry.key_ptr.*)) {
                 home = entry.value_ptr.*;
-                std.debug.print("{s}={s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
                 break;
             }
         }
         if (home == null) {
-            std.log.info("ANDROID_NDK_HOME not set.", .{});
+            std.log.warn("ANDROID_NDK_HOME not set.", .{});
             return null;
         }
         const d = std.fs.openDirAbsolute(home.?, .{}) catch {
@@ -265,7 +334,6 @@ const FindNDK = struct {
         while (iter.next()) |entry| {
             if (std.ascii.eqlIgnoreCase("ANDROID_SDK_ROOT", entry.key_ptr.*)) {
                 home = entry.value_ptr.*;
-                std.debug.print("{s}={s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
                 break;
             }
         }
@@ -289,11 +357,9 @@ const FindNDK = struct {
         while (iter.next()) |entry| {
             if (std.ascii.eqlIgnoreCase("HOME", entry.key_ptr.*)) {
                 home = entry.value_ptr.*;
-                std.debug.print("{s}={s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
             }
             if (std.ascii.eqlIgnoreCase("UserProfile", entry.key_ptr.*)) {
                 home = entry.value_ptr.*;
-                std.debug.print("{s}={s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
             }
         }
         if (home != null) {
