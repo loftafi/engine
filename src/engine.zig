@@ -3230,6 +3230,10 @@ pub const Display = struct {
     /// Add an animator that points to a currently active/valid element.
     /// The element must not be destroyed for the lifetime of the animation.
     pub inline fn add_animator(self: *Display, animator: Animator) error{OutOfMemory}!void {
+        if (animator.target == null) {
+            err("add_animator called with without target", .{});
+            return;
+        }
         var new_animator = try self.allocator.create(Animator);
         new_animator.* = animator;
         new_animator.setup = false;
