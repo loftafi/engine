@@ -2945,7 +2945,7 @@ pub const Display = struct {
         // do start/centre/end alignment.
         if (expanders.len > 0) {
             // Relayout the children with expanders
-            debug("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
+            trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
                 parent.name,
                 expanders.len,
                 needed_height,
