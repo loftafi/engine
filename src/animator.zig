@@ -29,11 +29,12 @@ movement: Ease = .ease,
 start: Rect = undefined,
 end: Rect = undefined,
 duration: i64 = 0, // number of nanoseconds to animate over
+on_end: ?*const fn (display: *Display, element: *Element) void = null,
 
 setup: bool = false,
 start_time: i64 = 0,
 end_time: i64 = 0,
-target: *Element = undefined,
+target: *Element,
 
 /// Reposition/adjust an element based on the current_time in nanoseconds.
 /// When an animation starts, an `Ease` formula calculates the current
@@ -186,7 +187,8 @@ inline fn bounce(start: f32, _end: f32, step: i64, total_steps: i64) f32 {
     } else {
         s = p / (2 * PI) * std.math.asin(end / a);
     }
-    return (a * std.math.pow(f32, 2, -10 * value) * @sin((value * d - s) * (2 * PI) / p) + end + start);
+    const result = (a * std.math.pow(f32, 2, -10 * value) * @sin((value * d - s) * (2 * PI) / p) + end + start);
+    return result;
 }
 
 inline fn ease(start: f32, end: f32, step: i64, total_steps: i64) f32 {
