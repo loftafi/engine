@@ -3138,7 +3138,10 @@ pub const Display = struct {
         //info("animate delta={d}", .{delta});
         var i: usize = 0;
         while (i < display.animators.items.len) {
-            const done = display.animators.items[i].animate(display, now);
+            const animator = display.animators.items[i];
+            const done = animator.animate(display, now);
+            // TODO: relayout is not always needed
+            display.need_relayout = true;
             if (done) {
                 const old = display.animators.swapRemove(i);
                 trace("animate complete for {s} start={d} end={d}", .{
