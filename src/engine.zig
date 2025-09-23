@@ -277,10 +277,12 @@ pub const Element = struct {
     focus: FocusOption = .unspecified,
 
     texture: ?*TextureInfo = null,
+    texture_name: ?[]const u8 = null,
     colour: Colour = WHITE,
 
     background_colour: Colour = TRANSPARENT,
     background_texture: ?*TextureInfo = null,
+    background_texture_name: ?[]const u8 = null,
 
     border_colour: Colour = TRANSPARENT,
     border_width: f32 = 0,
@@ -887,12 +889,22 @@ pub const Element = struct {
         return child;
     }
 
+    /// `add_alloc` a child element to this panel and return the element. Only
+    /// permitted for the `panel` element type. See also `add_element`
+    pub inline fn add_alloc(self: *Element, allocator: Allocator, display: *Display, conf: Element) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*Element {
+        std.debug.assert(self.type == .panel);
+        const child = try allocator.create(Element);
+        child.* = conf;
+        try display.setup_element(allocator, child);
+        try self.type.panel.children.append(allocator, child);
+        return child;
+    }
+
     /// `add_element` adds a child element to this panel and does
     /// not return the child pointer. Only permitted for the `panel`
     /// element type.
     pub inline fn add_element(self: *Element, allocator: Allocator, child: *Element) error{OutOfMemory}!void {
-        std.debug.assert(self.type == .panel);
-        try self.type.panel.children.append(allocator, child);
+        _ = try self.add(allocator, child);
     }
 
     /// Use `insert_element` to insert a child element in a specific location
@@ -4280,24 +4292,32 @@ pub const Display = struct {
         ResourceReadError,
         UnknownImageFormat,
     } || ResourcesError)!void {
-        try parent.add_element(allocator, try engine.create_label(
-            allocator,
-            display,
-            "",
-            .{
-                .name = name,
-                .focus = .accessibility_focus,
-                .rect = .{ .x = 250, .y = 50, .width = 500, .height = 80 },
-                .layout = .{ .y = .shrinks, .x = .grows },
-                .child_align = .{ .x = .start, .y = .start },
-                .type = .{ .label = .{
-                    .text = text,
-                    .translated = "",
-                    .text_size = size,
-                    .text_colour = .normal,
-                } },
-            },
-        ));
+        _ = try parent.add_alloc(allocator, display, .{
+            .name = name,
+            .focus = .accessibility_focus,
+            .rect = .{ .x = 250, .y = 50, .width = 500, .height = 80 },
+            .layout = .{ .y = .shrinks, .x = .grows },
+            .child_align = .{ .x = .start, .y = .start },
+            .type = .{ .label = .{
+                .text = text,
+                .translated = "",
+                .text_size = size,
+                .text_colour = .normal,
+            } },
+        });
+    }
+
+    pub fn setup_element(
+        self: *Display,
+        allocator: Allocator,
+        element: *Element,
+    ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+        switch (element.type) {
+            .label => try setup_label(self, allocator, element),
+            .checkbox => try setup_checkbox(self, allocator, element),
+            .sprite => try setup_sprite(self, allocator, element),
+            else => unreachable,
+        }
     }
 };
 
@@ -4491,20 +4511,54 @@ pub fn create_rect(
     return element;
 }
 
-/// Load and process text for a label.
-pub fn create_label(
+pub fn setup_checkbox(
+    self: *Display,
     allocator: Allocator,
-    display: *Display,
-    background_texture: []const u8,
-    settings: Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*Element {
-    var element = try display.allocator.create(Element);
-    element.* = settings;
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+    element.texture = null;
+    element.background_texture = null;
+    element.type.checkbox.translated = "";
+    element.type.checkbox.elements = .empty;
 
-    if (element.type != .label) {
-        err("create_label called without config.", .{});
-        element.type = .{ .label = .{ .text = "" } };
+    if (element.focus == .unspecified)
+        element.focus = .can_focus;
+
+    try element.set_text(allocator, self, element.type.checkbox.text, true);
+
+    if (try self.load_texture_resource(allocator, "ios-checkbox-on")) |texture| {
+        element.type.checkbox.on_texture = texture;
     }
+    if (try self.load_texture_resource(allocator, "ios-checkbox-off")) |texture| {
+        element.type.checkbox.off_texture = texture;
+    }
+
+    // Is there a background for this checkbox
+    if (element.background_texture_name) |name| {
+        if (try self.load_texture_resource(allocator, name)) |texture|
+            element.background_texture = texture;
+    }
+
+    if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
+        element.pad.left = self.text_height * self.scale * 0.8;
+        element.pad.right = self.text_height * self.scale * 0.8;
+        element.pad.top = self.text_height * self.scale * 0.3;
+        element.pad.bottom = self.text_height * self.scale * 0.3;
+    }
+
+    const size = self.checkbox();
+    if (element.minimum.height < size.height)
+        element.minimum.height = size.height;
+
+    if (element.minimum.width < size.width)
+        element.minimum.width = size.width;
+}
+
+pub fn setup_label(
+    self: *Display,
+    allocator: Allocator,
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.type.label.translated = "";
 
     if (element.focus == .unspecified) {
@@ -4518,18 +4572,61 @@ pub fn create_label(
     element.background_texture = null;
 
     element.type.label.elements = .empty;
-    try element.set_text(allocator, display, element.type.label.text, true);
+    try element.set_text(allocator, self, element.type.label.text, true);
 
     // Is there a background for this label?
-    if (try display.load_texture_resource(allocator, background_texture)) |texture| {
-        element.background_texture = texture;
+    if (element.background_texture_name) |name| {
+        if (try self.load_texture_resource(allocator, name)) |texture|
+            element.background_texture = texture;
     }
 
     if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
-        element.pad.top = display.text_height * display.scale * 0.3;
-        element.pad.bottom = display.text_height * display.scale * 0.3;
+        element.pad.top = self.text_height * self.scale * 0.3;
+        element.pad.bottom = self.text_height * self.scale * 0.3;
+    }
+}
+
+pub fn setup_sprite(
+    self: *Display,
+    allocator: Allocator,
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+    element.texture = null;
+    element.background_texture = null;
+    if (element.focus == .unspecified) {
+        element.focus = .accessibility_focus;
     }
 
+    if (element.texture_name) |image| {
+        if (try self.load_texture_resource(allocator, image)) |texture| {
+            element.texture = texture;
+        } else {
+            err("Failed to load sprite texture named \"{s}\"", .{image});
+        }
+    }
+}
+
+/// Load and associate an image file with a sprite name.
+pub fn create_sprite(
+    allocator: Allocator,
+    display: *Display,
+    settings: Element,
+) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
+    const element = try allocator.create(Element);
+    element.* = settings;
+    display.setup_element(allocator, element);
+    return element;
+}
+
+/// Load and process text for a label.
+pub fn create_label(
+    allocator: Allocator,
+    display: *Display,
+    settings: Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*Element {
+    const element = try display.allocator.create(Element);
+    element.* = settings;
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -4537,53 +4634,11 @@ pub fn create_label(
 pub fn create_checkbox(
     allocator: Allocator,
     display: *Display,
-    background_texture: []const u8,
     settings: Element,
 ) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || ResourcesError)!*Element {
-    var element = try allocator.create(Element);
+    const element = try allocator.create(Element);
     element.* = settings;
-    if (element.focus == .unspecified) {
-        element.focus = .can_focus;
-    }
-    element.texture = null;
-    element.background_texture = null;
-
-    if (element.type != .checkbox) {
-        err("create_checkbox called without config.", .{});
-        element.type = .{ .checkbox = .{ .text = "", .translated = "" } };
-    }
-    element.type.checkbox.translated = "";
-
-    element.type.checkbox.elements = .empty;
-    try element.set_text(allocator, display, element.type.checkbox.text, true);
-
-    if (try display.load_texture_resource(allocator, "ios-checkbox-on")) |texture| {
-        element.type.checkbox.on_texture = texture;
-    }
-    if (try display.load_texture_resource(allocator, "ios-checkbox-off")) |texture| {
-        element.type.checkbox.off_texture = texture;
-    }
-
-    // Is there a background for this label?
-    if (try display.load_texture_resource(allocator, background_texture)) |texture| {
-        element.background_texture = texture;
-    }
-
-    if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
-        element.pad.left = display.text_height * display.scale * 0.8;
-        element.pad.right = display.text_height * display.scale * 0.8;
-        element.pad.top = display.text_height * display.scale * 0.3;
-        element.pad.bottom = display.text_height * display.scale * 0.3;
-    }
-
-    const size = display.checkbox();
-    if (element.minimum.height < size.height) {
-        element.minimum.height = size.height;
-    }
-    if (element.minimum.width < size.width) {
-        element.minimum.width = size.width;
-    }
-
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -4788,35 +4843,6 @@ pub fn create_expander(
     if (element.type != .expander) {
         err("create_expander called without config.", .{});
         element.type = .{ .expander = .{} };
-    }
-
-    return element;
-}
-
-/// Load and associate an image file with a sprite name.
-pub fn create_sprite(
-    allocator: Allocator,
-    display: *Display,
-    image: []const u8,
-    settings: Element,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
-    var element = try allocator.create(Element);
-    element.* = settings;
-    element.texture = null;
-    element.background_texture = null;
-    if (element.focus == .unspecified) {
-        element.focus = .accessibility_focus;
-    }
-
-    if (element.type != .sprite) {
-        err("create_sprite called without config.", .{});
-        element.type = .{ .sprite = .{} };
-    }
-
-    if (try display.load_texture_resource(allocator, allocator, image)) |texture| {
-        element.texture = texture;
-    } else {
-        err("Failed to load sprite texture named \"{s}\"", .{image});
     }
 
     return element;
@@ -5120,7 +5146,7 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with enough space
-        const l = try create_label(allocator, display, "", .{
+        const l = try create_label(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 50 },
@@ -5136,7 +5162,7 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with minimum
-        const l = try create_label(allocator, display, "", .{
+        const l = try create_label(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 55 },
@@ -5152,7 +5178,7 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with minimum
-        const l = try create_label(allocator, display, "", .{
+        const l = try create_label(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 200, .height = 100 },
             .minimum = .{ .width = 300, .height = 20 },
@@ -5168,7 +5194,7 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with x growth
-        const l = try create_label(allocator, display, "", .{
+        const l = try create_label(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
@@ -5184,7 +5210,7 @@ test "text input sizing" {
 
     {
         // Create a label with full shrinking
-        const l = try create_label(allocator, display, "", .{
+        const l = try create_label(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
@@ -5202,7 +5228,7 @@ test "text input sizing" {
         try eq(88, l.shrink_height(display, 115));
     }
 
-    const label = try create_label(allocator, display, "", .{
+    const label = try create_label(allocator, display, .{
         .name = "hello",
         .rect = .{ .width = 500, .height = 60 },
         .minimum = .{ .width = 300, .height = 100 },
@@ -5255,6 +5281,33 @@ test "text input sizing" {
     // The height is two lines (44*2)
     try eq(44, @trunc(label.rect.height));
     try eq(200, @trunc(panel.rect.height));
+}
+
+test "test_init" {
+    const allocator = std.testing.allocator;
+    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
+    defer display.destroy(allocator);
+    var panel = try create_panel(allocator, display, "", .{
+        .rect = .{ .width = 500, .height = 200 },
+        .minimum = .{ .width = 5, .height = 8 },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    });
+    try display.add_element(allocator, panel);
+
+    try eq(0, display.root.type.panel.children.items.len);
+    const element = try allocator.create(Element);
+    element.* = .{
+        .name = "menu_bg",
+        .rect = .{ .x = 0, .y = 0, .width = 550, .height = 100 },
+        .minimum = .{ .width = 300, .height = 130 },
+        .layout = .{ .x = .fixed, .y = .fixed, .position = .float },
+        .background_colour = .{ .r = 99, .g = 150, .b = 50, .a = 255 },
+        .type = .{ .rectangle = .{ .style = .background } },
+    };
+    try panel.add_element(allocator, element);
+    try eq(1, display.root.type.panel.children.items.len);
+    try eq(9, display.root.type.panel.children.items.len);
 }
 
 const std = @import("std");
