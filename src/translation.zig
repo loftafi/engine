@@ -2,38 +2,40 @@
 //! requested/preferred language.
 
 pub const Translation = struct {
-    maps: std.AutoHashMap(Lang, std.StringHashMap([]const u8)) = undefined,
-    current: ?std.StringHashMap([]const u8) = null,
-    data: std.ArrayList([]const u8) = undefined,
+    maps: std.AutoHashMapUnmanaged(Lang, std.StringHashMapUnmanaged([]const u8)) = .empty,
+    current: ?std.StringHashMapUnmanaged([]const u8) = .empty,
+    data: std.ArrayListUnmanaged([]const u8) = .empty,
 
-    pub fn init(self: *Translation, allocator: std.mem.Allocator) void {
-        self.maps = std.AutoHashMap(Lang, std.StringHashMap([]const u8)).init(allocator);
-        errdefer self.maps.deinit();
-        self.data = std.ArrayList([]const u8).init(allocator);
-        errdefer self.data.deinit();
-        self.current = null;
-    }
+    pub const empty: @This() = .{
+        .maps = .empty,
+        .data = .empty,
+        .current = .empty,
+    };
 
-    pub fn deinit(self: *Translation) void {
+    pub fn deinit(self: *Translation, allocator: Allocator) void {
         var i = self.maps.iterator();
         while (i.next()) |map| {
-            map.value_ptr.deinit();
+            map.value_ptr.deinit(allocator);
         }
-        self.maps.deinit();
+        self.maps.deinit(allocator);
         for (self.data.items) |*item| {
-            self.data.allocator.free(item.*);
+            allocator.free(item.*);
         }
-        self.data.deinit();
+        self.data.deinit(allocator);
     }
 
     /// Each colum represents a langauge in the `lang.Lang` enum. The header row
     /// contans the language code (defined by the enum), and every subsequent row
     /// should have the same number of columns as the header row.
-    pub fn load_translation_data(self: *Translation, tdata: []const u8) !void {
-        const data = try self.data.allocator.dupe(u8, tdata);
-        try self.data.append(data);
-        var headers = std.ArrayList(*std.StringHashMap([]const u8)).init(self.data.allocator);
-        defer headers.deinit();
+    pub fn load_translation_data(
+        self: *Translation,
+        allocator: Allocator,
+        tdata: []const u8,
+    ) !void {
+        const data = try allocator.dupe(u8, tdata);
+        try self.data.append(allocator, data);
+        var headers: std.ArrayListUnmanaged(*std.StringHashMapUnmanaged([]const u8)) = .empty;
+        defer headers.deinit(allocator);
         var i = CsvReader{ .data = data };
 
         while (true) {
@@ -50,8 +52,8 @@ pub const Translation = struct {
                         err("load_translation_data has invalid languge code: '{s}'", .{i.value});
                         return;
                     }
-                    try self.maps.put(lr, std.StringHashMap([]const u8).init(self.data.allocator));
-                    try headers.append(self.maps.getPtr(lr).?);
+                    try self.maps.put(allocator, lr, .empty);
+                    try headers.append(allocator, self.maps.getPtr(lr).?);
                 },
             }
         }
@@ -71,12 +73,12 @@ pub const Translation = struct {
                 },
                 .field => {
                     const en = i.value;
-                    try headers.items[0].*.put(en, en);
+                    try headers.items[0].*.put(allocator, en, en);
                     var col: usize = 1;
                     while (col < headers.items.len) : (col += 1) {
                         const n = i.next();
                         if (n == .field) {
-                            try headers.items[col].*.put(en, i.value);
+                            try headers.items[col].*.put(allocator, en, i.value);
                         } else {
                             err("load_translation_data has unexpected eol/eof on row {d}.", .{i.row});
                             return;
@@ -111,6 +113,7 @@ pub const Translation = struct {
 };
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const praxis = @import("praxis");
 const engine = @import("engine.zig");
 const err = engine.err;
@@ -120,11 +123,11 @@ const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
 test "translator" {
+    const allocator = std.testing.allocator;
     {
-        var translator = Translation{};
-        translator.init(std.testing.allocator);
-        defer translator.deinit();
-        try translator.load_translation_data("en,el\nbread,ἄρτος\n");
+        var translator: Translation = .empty;
+        defer translator.deinit(allocator);
+        try translator.load_translation_data(allocator, "en,el\nbread,ἄρτος\n");
         translator.set_language(.english);
         try expectEqualStrings("fish", translator.translate("fish"));
         try expectEqualStrings("bread", translator.translate("bread"));
@@ -132,10 +135,9 @@ test "translator" {
         try expectEqualStrings("ἄρτος", translator.translate("bread"));
     }
     {
-        var translator = Translation{};
-        translator.init(std.testing.allocator);
-        defer translator.deinit();
-        try translator.load_translation_data(
+        var translator: Translation = .empty;
+        defer translator.deinit(allocator);
+        try translator.load_translation_data(allocator,
             \\en,el
             \\Verb,ῥῆμα
             \\Noun,ὄνομα

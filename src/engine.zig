@@ -289,7 +289,7 @@ pub const Element = struct {
 
     type: union(ElementType) {
         panel: struct {
-            children: ArrayList(*Element) = undefined,
+            children: ArrayListUnmanaged(*Element) = .empty,
             direction: LayoutDirection = .centre,
             spacing: f32 = 0,
             style: ThemeColour = .normal,
@@ -306,7 +306,7 @@ pub const Element = struct {
         label: struct {
             text: []const u8 = "",
             translated: []const u8 = "",
-            elements: ArrayList(TextElement) = undefined,
+            elements: ArrayListUnmanaged(TextElement) = .empty,
             line_height: f32 = 1,
             text_size: TextSize = .normal,
             text_colour: ThemeColour = .normal,
@@ -316,7 +316,7 @@ pub const Element = struct {
             checked: bool = false,
             translated: []const u8 = "",
             text: []const u8 = "",
-            elements: ArrayList(TextElement) = undefined,
+            elements: ArrayListUnmanaged(TextElement) = .empty,
             line_height: f32 = 1,
             text_size: TextSize = .normal,
             text_colour: ThemeColour = .normal,
@@ -326,15 +326,15 @@ pub const Element = struct {
         },
         text_input: struct {
             texture: ?*sdl.SDL_Texture = null,
-            text: ArrayList(u8) = undefined,
-            runes: ArrayList(u21) = undefined,
+            text: ArrayListUnmanaged(u8) = .empty,
+            runes: ArrayListUnmanaged(u21) = .empty,
             max_runes: usize = 0,
             cursor_character: usize = 0,
             cursor_pixels: f32 = 0,
             on_change: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
             on_submit: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
             placeholder_texture: ?*sdl.SDL_Texture = null,
-            placeholder_text: ArrayList(u8) = undefined,
+            placeholder_text: ArrayListUnmanaged(u8) = .empty,
             placeholder_translate: []const u8 = "",
         },
         rectangle: struct {
@@ -382,12 +382,12 @@ pub const Element = struct {
         // Cleanup shared attributes
 
         if (self.texture) |texture| {
-            display.release_texture_resource(texture);
+            display.release_texture_resource(allocator, texture);
             self.texture = null;
         }
 
         if (self.background_texture) |texture| {
-            display.release_texture_resource(texture);
+            display.release_texture_resource(allocator, texture);
             self.background_texture = null;
         }
 
@@ -397,7 +397,7 @@ pub const Element = struct {
                 for (i.*.children.items) |child| {
                     child.destroy(display, allocator);
                 }
-                i.*.children.deinit();
+                i.*.children.deinit(allocator);
             },
             .progress_bar => |_| {
                 //
@@ -409,29 +409,29 @@ pub const Element = struct {
                 if (i.*.texture) |texture| {
                     sdl.SDL_DestroyTexture(texture);
                 }
-                i.*.placeholder_text.deinit();
-                i.*.runes.deinit();
-                i.*.text.deinit();
+                i.*.placeholder_text.deinit(allocator);
+                i.*.runes.deinit(allocator);
+                i.*.text.deinit(allocator);
             },
             .label => |*i| {
                 for (i.*.elements.items) |item| {
                     sdl.SDL_DestroyTexture(item.texture);
                 }
-                i.*.elements.deinit();
+                i.*.elements.deinit(allocator);
             },
             .checkbox => |*i| {
                 for (i.*.elements.items) |item| {
                     sdl.SDL_DestroyTexture(item.texture);
                 }
                 if (i.*.on_texture) |texture| {
-                    display.release_texture_resource(texture);
+                    display.release_texture_resource(allocator, texture);
                     i.*.on_texture = null;
                 }
                 if (i.*.off_texture) |texture| {
-                    display.release_texture_resource(texture);
+                    display.release_texture_resource(allocator, texture);
                     i.*.off_texture = null;
                 }
-                i.*.elements.deinit();
+                i.*.elements.deinit(allocator);
             },
             .rectangle => {},
             .sprite => {},
@@ -440,16 +440,16 @@ pub const Element = struct {
                     sdl.SDL_DestroyTexture(texture);
                 }
                 if (i.*.icon_hover) |texture| {
-                    display.release_texture_resource(texture);
+                    display.release_texture_resource(allocator, texture);
                 }
                 if (i.*.icon_pressed) |texture| {
-                    display.release_texture_resource(texture);
+                    display.release_texture_resource(allocator, texture);
                 }
                 if (i.*.background_hover) |texture| {
-                    display.release_texture_resource(texture);
+                    display.release_texture_resource(allocator, texture);
                 }
                 if (i.*.background_pressed) |texture| {
-                    display.release_texture_resource(texture);
+                    display.release_texture_resource(allocator, texture);
                 }
             },
             .button_bar => {
@@ -706,6 +706,7 @@ pub const Element = struct {
     /// visibily prominent.
     pub inline fn set_placeholder_text(
         self: *Element,
+        allocator: Allocator,
         display: *Display,
         text: []const u8,
     ) !void {
@@ -721,7 +722,7 @@ pub const Element = struct {
                 }
                 self.type.text_input.placeholder_text.clearRetainingCapacity();
                 if (text.len > 0) {
-                    try self.type.text_input.placeholder_text.appendSlice(text);
+                    try self.type.text_input.placeholder_text.appendSlice(allocator, text);
                     if (display.generate_text_texture(self.type.text_input.placeholder_text.items)) |texture| {
                         self.type.text_input.placeholder_texture = texture;
                     }
@@ -737,7 +738,13 @@ pub const Element = struct {
     /// checkboxes and buttons, and regenerates the grahpics/image
     /// textures for each word if the text was changed or `forced`
     /// is requested.
-    pub inline fn set_text(self: *Element, display: *Display, new_text: []const u8, forced: bool) error{OutOfMemory}!void {
+    pub inline fn set_text(
+        self: *Element,
+        allocator: Allocator,
+        display: *Display,
+        new_text: []const u8,
+        forced: bool,
+    ) error{OutOfMemory}!void {
         const old_translated = switch (self.type) {
             .text_input => self.type.text_input.text.items,
             .checkbox => self.type.checkbox.translated,
@@ -781,8 +788,8 @@ pub const Element = struct {
                 self.type.text_input.text.clearRetainingCapacity();
                 self.type.text_input.runes.clearRetainingCapacity();
                 if (new_text.len > 0) {
-                    try self.type.text_input.text.appendSlice(new_text);
-                    self.text_data_to_runes();
+                    try self.type.text_input.text.appendSlice(allocator, new_text);
+                    self.text_data_to_runes(allocator);
                     if (display.generate_text_texture(self.type.text_input.text.items)) |texture| {
                         self.type.text_input.cursor_pixels = text_size(display, texture, .normal).width;
                         self.type.text_input.texture = texture;
@@ -808,7 +815,7 @@ pub const Element = struct {
                     var data = Chunker.init(self.type.label.translated);
                     while (data.next()) |text| {
                         if (display.generate_text_texture(text)) |texture| {
-                            try self.type.label.elements.append(.{
+                            try self.type.label.elements.append(allocator, .{
                                 .text = text,
                                 .width = @floatFromInt(texture.*.w),
                                 .texture = texture,
@@ -836,7 +843,7 @@ pub const Element = struct {
                     var data = Chunker.init(self.type.checkbox.translated);
                     while (data.next()) |text| {
                         if (display.generate_text_texture(text)) |texture| {
-                            try self.type.checkbox.elements.append(.{
+                            try self.type.checkbox.elements.append(allocator, .{
                                 .text = text,
                                 .width = @floatFromInt(texture.*.w),
                                 .texture = texture,
@@ -874,30 +881,31 @@ pub const Element = struct {
 
     /// `add` a child element to this panel and return the element. Only
     /// permitted for the `panel` element type. See also `add_element`
-    pub inline fn add(self: *Element, child: *Element) error{OutOfMemory}!*Element {
+    pub inline fn add(self: *Element, allocator: Allocator, child: *Element) error{OutOfMemory}!*Element {
         std.debug.assert(self.type == .panel);
-        try self.type.panel.children.append(child);
+        try self.type.panel.children.append(allocator, child);
         return child;
     }
 
     /// `add_element` adds a child element to this panel and does
     /// not return the child pointer. Only permitted for the `panel`
     /// element type.
-    pub inline fn add_element(self: *Element, child: *Element) error{OutOfMemory}!void {
+    pub inline fn add_element(self: *Element, allocator: Allocator, child: *Element) error{OutOfMemory}!void {
         std.debug.assert(self.type == .panel);
-        try self.type.panel.children.append(child);
+        try self.type.panel.children.append(allocator, child);
     }
 
     /// Use `insert_element` to insert a child element in a specific location
     /// in this panel. Only permitted for the `panel` element type.
     pub inline fn insert_element(
         self: *Element,
+        allocator: Allocator,
         location: usize,
         child: *Element,
     ) error{OutOfMemory}!void {
         std.debug.assert(self.type == .panel);
         std.debug.assert(location <= self.type.panel.children.items.len);
-        try self.type.panel.children.insert(location, child);
+        try self.type.panel.children.insert(allocator, location, child);
     }
 
     /// Use `remove_element_at` to attach a child element in a specific location
@@ -1099,13 +1107,13 @@ pub const Element = struct {
     /// Handle the langauge change event and propogate the event
     /// downwards to each child element, so that each child has
     /// a chance to regenerate its translation and text texture.
-    fn language_changed(self: *Element, display: *Display, lang: Lang) !void {
+    fn language_changed(self: *Element, allocator: Allocator, display: *Display, lang: Lang) !void {
         switch (self.type) {
-            .label => try self.set_text(display, self.type.label.text, false),
-            .checkbox => try self.set_text(display, self.type.checkbox.text, false),
-            .button => try self.set_text(display, self.type.button.text, false),
+            .label => try self.set_text(allocator, display, self.type.label.text, false),
+            .checkbox => try self.set_text(allocator, display, self.type.checkbox.text, false),
+            .button => try self.set_text(allocator, display, self.type.button.text, false),
             .panel => for (self.type.panel.children.items) |child| {
-                try child.language_changed(display, lang);
+                try child.language_changed(allocator, display, lang);
             },
             else => {},
         }
@@ -1604,6 +1612,7 @@ pub const Element = struct {
 
     pub fn keypress(
         self: *Element,
+        allocator: Allocator,
         display: *Display,
         key: u21,
         slice: []const u8,
@@ -1624,7 +1633,7 @@ pub const Element = struct {
                         return;
                     }
                     _ = self.type.text_input.runes.pop();
-                    self.text_runes_to_data();
+                    self.text_runes_to_data(allocator);
                     self.type.text_input.cursor_character -= 1;
                 },
                 else => {
@@ -1632,12 +1641,12 @@ pub const Element = struct {
                         trace("Ignoring {u}. Input limited to {d} characters", .{ key, self.type.text_input.max_runes });
                         return;
                     }
-                    self.type.text_input.text.appendSlice(slice) catch {};
-                    self.type.text_input.runes.append(key) catch {};
+                    self.type.text_input.text.appendSlice(allocator, slice) catch {};
+                    self.type.text_input.runes.append(allocator, key) catch {};
                     self.type.text_input.cursor_character += 1;
                 },
             }
-            self.text_data_to_runes();
+            self.text_data_to_runes(allocator);
 
             // Update the text texture image.
             if (self.type.text_input.texture) |texture| {
@@ -1764,7 +1773,7 @@ pub const Element = struct {
         display.selected = null;
     }
 
-    pub fn text_runes_to_data(self: *Element) void {
+    pub fn text_runes_to_data(self: *Element, allocator: Allocator) void {
         std.debug.assert(self.type == .text_input);
         self.type.text_input.text.clearRetainingCapacity();
         for (self.type.text_input.runes.items) |rune| {
@@ -1772,13 +1781,13 @@ pub const Element = struct {
             const len = std.unicode.utf8Encode(rune, &buff) catch {
                 return;
             };
-            self.type.text_input.text.appendSlice(buff[0..len]) catch {
+            self.type.text_input.text.appendSlice(allocator, buff[0..len]) catch {
                 return;
             };
         }
     }
 
-    pub fn text_data_to_runes(self: *Element) void {
+    pub fn text_data_to_runes(self: *Element, allocator: Allocator) void {
         std.debug.assert(self.type == .text_input);
         self.type.text_input.runes.clearRetainingCapacity();
         var v = std.unicode.Utf8View.init(self.type.text_input.text.items) catch {
@@ -1791,7 +1800,7 @@ pub const Element = struct {
             if (count == self.type.text_input.cursor_character) {
                 cursor_slice = i.i;
             }
-            self.type.text_input.runes.append(rune) catch {
+            self.type.text_input.runes.append(allocator, rune) catch {
                 return;
             };
             count += 1;
@@ -2257,7 +2266,7 @@ pub const Display = struct {
     resources: *Resources,
 
     /// A list of all active fonts loaded from the resources bundle.
-    fonts: ArrayList(*FontInfo),
+    fonts: ArrayListUnmanaged(*FontInfo) = .empty,
 
     /// Translates the default provided text into a specific language
     /// using a csv translation file
@@ -2265,10 +2274,10 @@ pub const Display = struct {
     current_language: Lang = .unknown,
 
     /// Cache of currently loaded textures.
-    textures: std.StringHashMap(*TextureInfo),
+    textures: std.StringHashMapUnmanaged(*TextureInfo),
 
     /// Four possible theme options are available.
-    themes: ArrayList(Theme),
+    themes: ArrayListUnmanaged(Theme) = .empty,
 
     /// Current theme choice.
     theme: *Theme,
@@ -2337,9 +2346,9 @@ pub const Display = struct {
         .type = .{ .panel = .{ .direction = .centre, .spacing = 0 } },
         .on_resized = null,
     },
-    animators: ArrayList(*Animator),
+    animators: ArrayListUnmanaged(*Animator) = .empty,
 
-    keybindings: std.AutoHashMap(c_uint, *const fn (display: *Display) Allocator.Error!void),
+    keybindings: std.AutoHashMapUnmanaged(c_uint, *const fn (display: *Display) Allocator.Error!void) = .empty,
     on_resized: ?*const fn (display: *Display, element: *Element) bool = null,
     event_hook: ?*const fn (display: *Display, e: u32) error{OutOfMemory}!void = null,
 
@@ -2357,12 +2366,10 @@ pub const Display = struct {
         display.current_language = .unknown;
         display.need_relayout = true;
         display.quit = false;
-        display.translation.init(allocator);
+        display.translation = .empty;
         display.accessibility = false;
-        errdefer display.translation.deinit();
-        display.animators = ArrayList(*Animator).init(allocator);
-        display.keybindings = std.AutoHashMap(c_uint, *const fn (display: *Display) Allocator.Error!void).init(display.allocator);
-        errdefer display.keybindings.deinit();
+        display.animators = .empty;
+        display.keybindings = .empty;
         display.event_hook = null;
 
         _ = sdl.SDL_SetAppMetadata(app_name, app_version, app_id);
@@ -2403,10 +2410,10 @@ pub const Display = struct {
 
         debug("Initialising resource loader", .{});
         display.resources = try init_resource_loader(allocator, engine.RESOURCE_BUNDLE_FILENAME, dev_resource_folder);
-        if (display.resources.lookupOne(translation_filename, .csv)) |resource| {
+        if (try display.resources.lookupOne(translation_filename, .csv)) |resource| {
             const data = try sdl_load_resource(display.resources, resource, allocator);
             defer allocator.free(data);
-            try display.translation.load_translation_data(data);
+            try display.translation.load_translation_data(allocator, data);
             debug("Translation file loaded", .{});
         } else {
             err("No translation file found.", .{});
@@ -2455,26 +2462,26 @@ pub const Display = struct {
         display.scale = display.pixel_scale / display.user_scale;
 
         // App can accept these keybindings or replace them
-        try display.keybindings.put(sdl.SDLK_D, toggle_dev_mode);
-        try display.keybindings.put(sdl.SDLK_K, use_next_theme);
-        try display.keybindings.put(sdl.SDLK_X, increase_content_size);
-        try display.keybindings.put(sdl.SDLK_PLUS, increase_content_size);
-        try display.keybindings.put(sdl.SDLK_EQUALS, increase_content_size);
-        try display.keybindings.put(sdl.SDLK_MINUS, decrease_content_size);
-        try display.keybindings.put(sdl.SDLK_KP_PLUS, increase_content_size);
-        try display.keybindings.put(sdl.SDLK_KP_MINUS, decrease_content_size);
+        try display.keybindings.put(allocator, sdl.SDLK_D, toggle_dev_mode);
+        try display.keybindings.put(allocator, sdl.SDLK_K, use_next_theme);
+        try display.keybindings.put(allocator, sdl.SDLK_X, increase_content_size);
+        try display.keybindings.put(allocator, sdl.SDLK_PLUS, increase_content_size);
+        try display.keybindings.put(allocator, sdl.SDLK_EQUALS, increase_content_size);
+        try display.keybindings.put(allocator, sdl.SDLK_MINUS, decrease_content_size);
+        try display.keybindings.put(allocator, sdl.SDLK_KP_PLUS, increase_content_size);
+        try display.keybindings.put(allocator, sdl.SDLK_KP_MINUS, decrease_content_size);
         if (engine.dev_build) {
-            try display.keybindings.put(sdl.SDLK_B, make_bundle);
+            try display.keybindings.put(allocator, sdl.SDLK_B, make_bundle);
         }
 
-        display.themes = try ArrayList(Theme).initCapacity(allocator, 20);
+        display.themes = .empty;
         for (&default_themes) |*theme| {
-            try display.themes.append(theme.*);
+            try display.themes.append(allocator, theme.*);
         }
         display.update_system_theme();
 
-        display.fonts = ArrayList(*FontInfo).init(allocator);
-        display.textures = std.StringHashMap(*TextureInfo).init(allocator);
+        display.fonts = .empty;
+        display.textures = .empty;
 
         display.last_draw = std.time.microTimestamp();
 
@@ -2495,7 +2502,7 @@ pub const Display = struct {
         display.root.rect.width = @as(f32, @floatFromInt(window_width)) * display.pixel_density;
         display.root.rect.height = @as(f32, @floatFromInt(window_height)) * display.pixel_density;
         display.root.texture = null;
-        display.root.type.panel.children = ArrayList(*Element).init(allocator);
+        display.root.type.panel.children = .empty;
 
         try display.update_screen_metrics(true);
 
@@ -2503,16 +2510,16 @@ pub const Display = struct {
     }
 
     /// Cleanup memory assocaited with this display.
-    pub fn destroy(self: *Display) void {
+    pub fn destroy(self: *Display, allocator: Allocator) void {
         trace("Engine cleanup", .{});
 
-        self.root.deinit(self, self.allocator);
-        self.themes.deinit();
+        self.root.deinit(self, allocator);
+        self.themes.deinit(allocator);
 
         for (self.fonts.items) |item| {
-            item.destroy(self.allocator);
+            item.destroy(allocator);
         }
-        self.fonts.deinit();
+        self.fonts.deinit(allocator);
 
         var i = self.textures.iterator();
         while (i.next()) |x| {
@@ -2522,23 +2529,23 @@ pub const Display = struct {
                     x.value_ptr.*.references,
                 });
             }
-            x.value_ptr.*.destroy(self.allocator);
+            x.value_ptr.*.destroy(allocator);
         }
-        self.textures.deinit();
+        self.textures.deinit(allocator);
         self.resources.destroy();
         for (self.animators.items) |animator| {
-            self.allocator.destroy(animator);
+            allocator.destroy(animator);
         }
-        self.animators.deinit();
+        self.animators.deinit(allocator);
 
         sdl.SDL_DestroyRenderer(self.renderer);
         sdl.SDL_DestroyWindow(self.window);
         sdl.TTF_Quit();
         sdl.SDL_Quit();
 
-        self.keybindings.deinit();
-        self.translation.deinit();
-        self.allocator.destroy(self);
+        self.keybindings.deinit(allocator);
+        self.translation.deinit(allocator);
+        allocator.destroy(self);
     }
 
     /// Check that a theme name is a valid theme name. Return a stack
@@ -3107,7 +3114,7 @@ pub const Display = struct {
         }
     }
 
-    pub fn set_language(display: *Display, language: Lang) !void {
+    pub fn set_language(display: *Display, allocator: Allocator, language: Lang) !void {
         if (language == display.current_language) {
             debug("set_language({s}) unchanged.", .{@tagName(display.current_language)});
             return;
@@ -3120,10 +3127,10 @@ pub const Display = struct {
         display.translation.set_language(language);
         for (display.root.type.panel.children.items) |element| {
             switch (element.type) {
-                .label => try element.language_changed(display, language),
-                .checkbox => try element.language_changed(display, language),
-                .button => try element.language_changed(display, language),
-                .panel => try element.language_changed(display, language),
+                .label => try element.language_changed(allocator, display, language),
+                .checkbox => try element.language_changed(allocator, display, language),
+                .button => try element.language_changed(allocator, display, language),
+                .panel => try element.language_changed(allocator, display, language),
                 else => {},
             }
         }
@@ -3187,16 +3194,16 @@ pub const Display = struct {
     }
 
     /// Load and associate a font file with a font name.
-    pub fn load_font(self: *Display, name: []const u8) error{
-        OutOfMemory,
-        ResourceNotFound,
-        ResourceReadError,
-    }!*FontInfo {
-        const resource = self.resources.lookupOne(name, .font);
+    pub fn load_font(
+        self: *Display,
+        allocator: Allocator,
+        name: []const u8,
+    ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*FontInfo {
+        const resource = try self.resources.lookupOne(name, .font);
         if (resource == null) {
             return error.ResourceNotFound;
         }
-        const font_buffer = try sdl_load_resource(self.resources, resource.?, self.allocator);
+        const font_buffer = try sdl_load_resource(self.resources, resource.?, allocator);
 
         const fio = sdl.SDL_IOFromConstMem(font_buffer.ptr, font_buffer.len) orelse {
             err("SDL_IOFromConstMem: {s}", .{sdl.SDL_GetError()});
@@ -3218,9 +3225,9 @@ pub const Display = struct {
         };
         //sdl.TTF_SetFontHinting(myfont, 0);
 
-        const font_info = try FontInfo.create(self.allocator, name, myfont, font_buffer);
-        errdefer font_info.destroy(self.allocator);
-        try self.fonts.append(font_info);
+        const font_info = try FontInfo.create(allocator, name, myfont, font_buffer);
+        errdefer font_info.destroy(allocator);
+        try self.fonts.append(allocator, font_info);
 
         if (self.fonts.items.len > 1) {
             const i = self.fonts.items.len - 2;
@@ -3232,20 +3239,20 @@ pub const Display = struct {
 
     /// Add an animator that points to a currently active/valid element.
     /// The element must not be destroyed for the lifetime of the animation.
-    pub inline fn add_animator(self: *Display, animator: Animator) error{OutOfMemory}!void {
-        var new_animator = try self.allocator.create(Animator);
+    pub inline fn add_animator(self: *Display, allocator: Allocator, animator: Animator) error{OutOfMemory}!void {
+        var new_animator = try allocator.create(Animator);
         new_animator.* = animator;
         new_animator.setup = false;
         if (new_animator.duration == 0) {
             warn("add_animator called with duration of 0", .{});
             new_animator.duration = 10;
         }
-        try self.animators.append(new_animator);
+        try self.animators.append(allocator, new_animator);
     }
 
     /// Attach a child element to the main display panel (root) element. The
     /// main display panel should only contain panels as children
-    pub inline fn add_element(self: *Display, element: *Element) error{OutOfMemory}!void {
+    pub inline fn add_element(self: *Display, allocator: Allocator, element: *Element) error{OutOfMemory}!void {
         //std.debug.assert(element.type == .panel);
         if (element.type != .panel) {
             warn("parent display should contan panels. Not {s} {s}", .{
@@ -3254,7 +3261,7 @@ pub const Display = struct {
             });
             return;
         }
-        try self.root.type.panel.children.append(element);
+        try self.root.type.panel.children.append(allocator, element);
     }
 
     /// Convert a text string into an image that is sent as a texture to
@@ -3295,7 +3302,7 @@ pub const Display = struct {
     /// A texture resource may be referenced by multiple on screen
     /// elements. This releases a texture, only when all references to
     /// a texture no longer exist.
-    pub fn release_texture_resource(self: *Display, ti: *TextureInfo) void {
+    pub fn release_texture_resource(self: *Display, allocator: Allocator, ti: *TextureInfo) void {
         ti.references -= 1;
         if (ti.references != 0) {
             if (ti.references < 0) {
@@ -3307,16 +3314,11 @@ pub const Display = struct {
         }
         trace("free texture \"{s}\" (now)", .{ti.name});
         _ = self.textures.remove(ti.name);
-        ti.destroy(self.allocator);
+        ti.destroy(allocator);
     }
 
     /// Load an image from the resource bundle or resource directory.
-    pub fn load_texture_resource(self: *Display, name: []const u8) error{
-        UnknownImageFormat,
-        OutOfMemory,
-        ResourceNotFound,
-        ResourceReadError,
-    }!?*TextureInfo {
+    pub fn load_texture_resource(self: *Display, allocator: Allocator, name: []const u8) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!?*TextureInfo {
         if (name.len == 0) {
             return null;
         }
@@ -3326,14 +3328,14 @@ pub const Display = struct {
             return texture;
         }
 
-        const resource = self.resources.lookupOne(name, .image);
+        const resource = try self.resources.lookupOne(name, .image);
         if (resource == null) {
             return null;
         }
-        const buf: []const u8 = try sdl_load_resource(self.resources, resource.?, self.allocator);
-        defer self.allocator.free(buf);
+        const buf: []const u8 = try sdl_load_resource(self.resources, resource.?, allocator);
+        defer allocator.free(buf);
 
-        var img = zigimg.Image.fromMemory(self.allocator, buf[0..]) catch |e| {
+        var img = zigimg.Image.fromMemory(allocator, buf[0..]) catch |e| {
             if (e == error.OutOfMemory) return error.OutOfMemory;
             return error.UnknownImageFormat;
         };
@@ -3364,9 +3366,9 @@ pub const Display = struct {
         const img_height: c_int = @intCast(img.height);
         const surface = sdl.SDL_CreateSurfaceFrom(img_width, img_height, sdl_format, img.pixels.asBytes().ptr, row_size);
         const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, surface);
-        const ti = try TextureInfo.create(self.allocator, name, texture);
+        const ti = try TextureInfo.create(allocator, name, texture);
         ti.references += 1;
-        try self.textures.put(ti.name, ti);
+        try self.textures.put(allocator, ti.name, ti);
         return ti;
     }
 
@@ -3610,7 +3612,7 @@ pub const Display = struct {
 
     /// Enters the main run loop and only returns when quit has been
     /// requested. Use in conjunction with SDL_Main
-    pub fn main(display: *Display) !void {
+    pub fn main(display: *Display, allocator: Allocator) !void {
         info("Main loop starting", .{});
         display.quit = false;
 
@@ -3621,7 +3623,7 @@ pub const Display = struct {
             // Handle any outstanding events on the event queue
             var e: sdl.SDL_Event = undefined;
             while (sdl.SDL_PollEvent(&e)) {
-                try display.handle_event(&e);
+                try display.handle_event(allocator, &e);
                 if (display.quit) break;
             }
         }
@@ -3629,7 +3631,11 @@ pub const Display = struct {
         debug("Main loop ended", .{});
     }
 
-    inline fn handle_key_up_event(display: *Display, e: *sdl.SDL_Event) !void {
+    inline fn handle_key_up_event(
+        display: *Display,
+        allocator: Allocator,
+        e: *sdl.SDL_Event,
+    ) !void {
         trace("handle_key_up_event({any})", .{e.key.key});
         if (e.key.key == sdl.SDLK_TAB) {
             if (e.key.mod == sdl.SDL_KMOD_SHIFT or e.key.mod == sdl.SDL_KMOD_LSHIFT or e.key.mod == sdl.SDL_KMOD_RSHIFT) {
@@ -3705,14 +3711,14 @@ pub const Display = struct {
                         sdl.SDLK_BACKSPACE,
                         sdl.SDLK_DELETE,
                         sdl.SDLK_KP_BACKSPACE,
-                        => try selected.keypress(display, sdl.SDLK_BACKSPACE, ""),
+                        => try selected.keypress(allocator, display, sdl.SDLK_BACKSPACE, ""),
                         sdl.SDLK_RETURN,
                         sdl.SDLK_KP_ENTER,
                         sdl.SDLK_RETURN2,
                         => {
                             switch (selected.type) {
                                 .text_input => {
-                                    try selected.keypress(display, 10, "");
+                                    try selected.keypress(allocator, display, 10, "");
                                 },
                                 .button => {
                                     if (selected.type.button.on_click != null) {
@@ -3748,7 +3754,7 @@ pub const Display = struct {
 
     /// Handle key down events. Usually no action is triggered until the
     /// key is released.
-    inline fn handle_key_down_event(_: *Display, _: *sdl.SDL_Event) !void {
+    inline fn handle_key_down_event(_: *Display, _: Allocator, _: *sdl.SDL_Event) !void {
         //
     }
 
@@ -4058,12 +4064,13 @@ pub const Display = struct {
     }
 
     /// Handle an event on the event queue.
-    pub fn handle_event(display: *Display, e: *sdl.SDL_Event) !void {
+    pub fn handle_event(display: *Display, allocator: Allocator, e: *sdl.SDL_Event) !void {
         switch (e.type) {
             sdl.SDL_EVENT_TEXT_INPUT => {
                 if (display.selected) |selected| {
                     if (selected.type == .text_input) {
                         try selected.keypress(
+                            allocator,
                             display,
                             c_unicode_to_u21(e.text.text),
                             c_unicode_to_slice(e.text.text),
@@ -4075,8 +4082,8 @@ pub const Display = struct {
                     err("sdl text input event when nothing selected.", .{});
                 }
             },
-            sdl.SDL_EVENT_KEY_UP => try display.handle_key_up_event(e),
-            sdl.SDL_EVENT_KEY_DOWN => try display.handle_key_down_event(e),
+            sdl.SDL_EVENT_KEY_UP => try display.handle_key_up_event(allocator, e),
+            sdl.SDL_EVENT_KEY_DOWN => try display.handle_key_down_event(allocator, e),
             sdl.SDL_EVENT_MOUSE_BUTTON_DOWN => try display.handle_mouse_down_event(e),
             sdl.SDL_EVENT_MOUSE_BUTTON_UP => try display.handle_mouse_up_event(e),
             sdl.SDL_EVENT_MOUSE_MOTION => try display.handle_mouse_motion_event(e),
@@ -4194,16 +4201,19 @@ pub const Display = struct {
 
     /// Provides a standardised way to place a back button in the top left
     /// corner of the screen.
-    pub fn add_back_button(display: *Display, parent: *Element, close_fn: fn (
+    pub fn add_back_button(
         display: *Display,
-        _: *Element,
-    ) Allocator.Error!void) error{
+        allocator: Allocator,
+        parent: *Element,
+        close_fn: fn (display: *Display, _: *Element) Allocator.Error!void,
+    ) (error{
         OutOfMemory,
         ResourceNotFound,
         ResourceReadError,
         UnknownImageFormat,
-    }!*Element {
+    } || ResourcesError)!*Element {
         const button = try engine.create_button(
+            allocator,
             display,
             "icon-back",
             "icon-back",
@@ -4226,22 +4236,24 @@ pub const Display = struct {
             "",
             "",
         );
-        try parent.add_element(button);
+        try parent.add_element(allocator, button);
         return button;
     }
 
     /// Add an empty panel that keeps a space open in a list of elements.
     pub fn add_spacer(
         display: *Display,
+        allocator: Allocator,
         parent: *Element,
         size: f32,
-    ) error{
+    ) (error{
         OutOfMemory,
         ResourceNotFound,
         ResourceReadError,
         UnknownImageFormat,
-    }!*Element {
-        return try parent.add(try engine.create_panel(
+    } || Resources.Error)!*Element {
+        return try parent.add(allocator, try engine.create_panel(
+            allocator,
             display,
             "",
             .{
@@ -4257,17 +4269,19 @@ pub const Display = struct {
     /// Add a label with generic settings needed for a paragraph.
     pub fn add_paragraph(
         display: *Display,
+        allocator: Allocator,
         parent: *Element,
         size: TextSize,
         name: []const u8,
         text: []const u8,
-    ) error{
+    ) (error{
         OutOfMemory,
         ResourceNotFound,
         ResourceReadError,
         UnknownImageFormat,
-    }!void {
-        try parent.add_element(try engine.create_label(
+    } || ResourcesError)!void {
+        try parent.add_element(allocator, try engine.create_label(
+            allocator,
             display,
             "",
             .{
@@ -4479,10 +4493,11 @@ pub fn create_rect(
 
 /// Load and process text for a label.
 pub fn create_label(
+    allocator: Allocator,
     display: *Display,
     background_texture: []const u8,
     settings: Element,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*Element {
     var element = try display.allocator.create(Element);
     element.* = settings;
 
@@ -4502,27 +4517,30 @@ pub fn create_label(
     element.texture = null;
     element.background_texture = null;
 
-    element.type.label.elements = ArrayList(TextElement).init(display.allocator);
-    try element.set_text(display, element.type.label.text, true);
+    element.type.label.elements = .empty;
+    try element.set_text(allocator, display, element.type.label.text, true);
 
     // Is there a background for this label?
-    if (try display.load_texture_resource(background_texture)) |texture| {
+    if (try display.load_texture_resource(allocator, background_texture)) |texture| {
         element.background_texture = texture;
     }
 
-    element.pad.top = display.text_height * display.scale * 0.3;
-    element.pad.bottom = display.text_height * display.scale * 0.3;
+    if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
+        element.pad.top = display.text_height * display.scale * 0.3;
+        element.pad.bottom = display.text_height * display.scale * 0.3;
+    }
 
     return element;
 }
 
 /// Load and process text for a label.
 pub fn create_checkbox(
+    allocator: Allocator,
     display: *Display,
     background_texture: []const u8,
     settings: Element,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
-    var element = try display.allocator.create(Element);
+) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || ResourcesError)!*Element {
+    var element = try allocator.create(Element);
     element.* = settings;
     if (element.focus == .unspecified) {
         element.focus = .can_focus;
@@ -4536,25 +4554,27 @@ pub fn create_checkbox(
     }
     element.type.checkbox.translated = "";
 
-    element.type.checkbox.elements = ArrayList(TextElement).init(display.allocator);
-    try element.set_text(display, element.type.checkbox.text, true);
+    element.type.checkbox.elements = .empty;
+    try element.set_text(allocator, display, element.type.checkbox.text, true);
 
-    if (try display.load_texture_resource("ios-checkbox-on")) |texture| {
+    if (try display.load_texture_resource(allocator, "ios-checkbox-on")) |texture| {
         element.type.checkbox.on_texture = texture;
     }
-    if (try display.load_texture_resource("ios-checkbox-off")) |texture| {
+    if (try display.load_texture_resource(allocator, "ios-checkbox-off")) |texture| {
         element.type.checkbox.off_texture = texture;
     }
 
     // Is there a background for this label?
-    if (try display.load_texture_resource(background_texture)) |texture| {
+    if (try display.load_texture_resource(allocator, background_texture)) |texture| {
         element.background_texture = texture;
     }
 
-    element.pad.left = display.text_height * display.scale * 0.8;
-    element.pad.right = display.text_height * display.scale * 0.8;
-    element.pad.top = display.text_height * display.scale * 0.3;
-    element.pad.bottom = display.text_height * display.scale * 0.3;
+    if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
+        element.pad.left = display.text_height * display.scale * 0.8;
+        element.pad.right = display.text_height * display.scale * 0.8;
+        element.pad.top = display.text_height * display.scale * 0.3;
+        element.pad.bottom = display.text_height * display.scale * 0.3;
+    }
 
     const size = display.checkbox();
     if (element.minimum.height < size.height) {
@@ -4569,6 +4589,7 @@ pub fn create_checkbox(
 
 /// Load a button with textures for each state
 pub fn create_button(
+    allocator: Allocator,
     display: *Display,
     icon_default: []const u8,
     icon_pressed: []const u8,
@@ -4577,8 +4598,8 @@ pub fn create_button(
     background_default: []const u8,
     background_pressed: []const u8,
     background_hover: []const u8,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
-    var element = try display.allocator.create(Element);
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*Element {
+    var element = try allocator.create(Element);
     element.* = settings;
     element.texture = null;
     element.background_texture = null;
@@ -4596,17 +4617,17 @@ pub fn create_button(
     element.type.button.background_pressed = null;
     element.type.button.background_hover = null;
 
-    try element.set_text(display, element.type.button.text, true);
+    try element.set_text(allocator, display, element.type.button.text, true);
 
     if (icon_default.len > 0) {
-        if (try display.load_texture_resource(icon_default)) |texture| {
+        if (try display.load_texture_resource(allocator, icon_default)) |texture| {
             element.texture = texture;
             if (element.type.button.icon_size.x == 0 or element.type.button.icon_size.y == 0) {
                 warn("button {s} has icon {s}, but no icon size.", .{ element.name, icon_default });
             }
 
             if (icon_pressed.len > 0) {
-                if (try display.load_texture_resource(icon_pressed)) |ip| {
+                if (try display.load_texture_resource(allocator, icon_pressed)) |ip| {
                     element.type.button.icon_pressed = ip;
                 } else {
                     err("create_button failed to load icon_pressed resource {s}.", .{icon_pressed});
@@ -4617,7 +4638,7 @@ pub fn create_button(
             }
 
             if (icon_hover.len > 0) {
-                if (try display.load_texture_resource(icon_hover)) |ih| {
+                if (try display.load_texture_resource(allocator, icon_hover)) |ih| {
                     element.type.button.icon_hover = ih;
                 }
                 if (element.type.button.icon_hover == null) {
@@ -4630,11 +4651,11 @@ pub fn create_button(
     }
 
     if (background_default.len > 0) {
-        if (try display.load_texture_resource(background_default)) |texture| {
+        if (try display.load_texture_resource(allocator, background_default)) |texture| {
             element.background_texture = texture;
 
             if (background_pressed.len > 0) {
-                if (try display.load_texture_resource(background_pressed)) |bp| {
+                if (try display.load_texture_resource(allocator, background_pressed)) |bp| {
                     element.type.button.background_pressed = bp;
                 } else {
                     err("create_button failed to load background_pressed resource {s}.", .{background_pressed});
@@ -4645,7 +4666,7 @@ pub fn create_button(
             }
 
             if (background_hover.len > 0) {
-                if (try display.load_texture_resource(background_hover)) |bh| {
+                if (try display.load_texture_resource(allocator, background_hover)) |bh| {
                     element.type.button.background_hover = bh;
                 } else {
                     err("create_button failed to load background_hover resource {s}.", .{background_hover});
@@ -4664,14 +4685,15 @@ pub fn create_button(
 
 /// Load and process text for a label.
 pub fn create_text_input(
+    allocator: Allocator,
     display: *Display,
     text: []const u8,
     placeholder_text: []const u8,
     icon: []const u8,
     background: []const u8,
     settings: Element,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
-    var element = try display.allocator.create(Element);
+) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || ResourcesError)!*Element {
+    var element = try allocator.create(Element);
     element.* = settings;
     element.texture = null;
     element.background_texture = null;
@@ -4685,7 +4707,7 @@ pub fn create_text_input(
     }
 
     if (icon.len > 0) {
-        if (try display.load_texture_resource(icon)) |texture| {
+        if (try display.load_texture_resource(allocator, icon)) |texture| {
             element.texture = texture;
         } else {
             err("Failed to load text_input icon texture named \"{s}\"", .{icon});
@@ -4693,35 +4715,39 @@ pub fn create_text_input(
     }
 
     if (background.len > 0) {
-        if (try display.load_texture_resource(background)) |texture| {
+        if (try display.load_texture_resource(allocator, background)) |texture| {
             element.background_texture = texture;
         } else {
             err("Failed to load text_input background texture named \"{s}\"", .{background});
         }
     }
 
+    if (element.pad.top == 0 and element.pad.bottom == 0) {
+        element.pad.left = display.text_height * display.scale * 0.6;
+        element.pad.right = display.text_height * display.scale * 0.6;
+        element.pad.top = display.text_height * display.scale * 0.5;
+        element.pad.bottom = display.text_height * display.scale * 0.5;
+    }
+
     element.focus = .can_focus;
-    element.pad.left = display.text_height * display.scale * 0.6;
-    element.pad.right = display.text_height * display.scale * 0.6;
-    element.pad.top = display.text_height * display.scale * 0.5;
-    element.pad.bottom = display.text_height * display.scale * 0.5;
     element.rect.height = (display.text_height * display.scale) + (element.pad.top + element.pad.bottom);
 
-    element.type.text_input.text = ArrayList(u8).init(display.allocator);
-    element.type.text_input.placeholder_text = ArrayList(u8).init(display.allocator);
-    element.type.text_input.runes = ArrayList(u21).init(display.allocator);
-    try element.set_text(display, text, true);
-    try element.set_placeholder_text(display, placeholder_text);
+    element.type.text_input.text = .empty;
+    element.type.text_input.placeholder_text = .empty;
+    element.type.text_input.runes = .empty;
+    try element.set_text(allocator, display, text, true);
+    try element.set_placeholder_text(allocator, display, placeholder_text);
 
     return element;
 }
 
 /// Load a standard progress bar.
 pub fn create_progress_bar(
+    allocator: Allocator,
     display: *Display,
     settings: Element,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
-    var element = try display.allocator.create(Element);
+) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || ResourcesError)!*Element {
+    var element = try allocator.create(Element);
     element.* = settings;
     element.texture = null;
     element.background_texture = null;
@@ -4734,7 +4760,7 @@ pub fn create_progress_bar(
         element.type = .{ .progress_bar = .{} };
     }
 
-    if (try display.load_texture_resource("rounded progress bar")) |texture| {
+    if (try display.load_texture_resource(allocator, "rounded progress bar")) |texture| {
         element.texture = texture;
     } else {
         err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
@@ -4749,10 +4775,11 @@ pub fn create_progress_bar(
 /// When a panel has excess space, thie expander takes a percentage
 /// of the space based on its weight.
 pub fn create_expander(
-    display: *Display,
+    allocator: Allocator,
+    _: *Display,
     settings: Element,
 ) Allocator.Error!*Element {
-    var element = try display.allocator.create(Element);
+    var element = try allocator.create(Element);
     element.* = settings;
     element.texture = null;
     element.background_texture = null;
@@ -4768,11 +4795,12 @@ pub fn create_expander(
 
 /// Load and associate an image file with a sprite name.
 pub fn create_sprite(
+    allocator: Allocator,
     display: *Display,
     image: []const u8,
     settings: Element,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
-    var element = try display.allocator.create(Element);
+    var element = try allocator.create(Element);
     element.* = settings;
     element.texture = null;
     element.background_texture = null;
@@ -4785,7 +4813,7 @@ pub fn create_sprite(
         element.type = .{ .sprite = .{} };
     }
 
-    if (try display.load_texture_resource(image)) |texture| {
+    if (try display.load_texture_resource(allocator, allocator, image)) |texture| {
         element.texture = texture;
     } else {
         err("Failed to load sprite texture named \"{s}\"", .{image});
@@ -4799,11 +4827,12 @@ pub fn create_sprite(
 /// floating items that appear anywhere on the screen, not just inside
 /// the panel.
 pub fn create_panel(
+    allocator: Allocator,
     display: *Display,
     background: []const u8,
     settings: Element,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
-    var element = try display.allocator.create(Element);
+) (error{ OutOfMemory, ResourceReadError, ResourceNotFound, UnknownImageFormat } || ResourcesError)!*Element {
+    var element = try allocator.create(Element);
     element.* = settings;
     element.texture = null;
     element.background_texture = null;
@@ -4822,14 +4851,14 @@ pub fn create_panel(
     }
 
     if (background.len > 0) {
-        if (try display.load_texture_resource(background)) |texture| {
+        if (try display.load_texture_resource(allocator, background)) |texture| {
             element.background_texture = texture;
         } else {
-            err("Failed to load panel background texture named \"{any}\"", .{background});
+            err("Failed to load panel background texture named \"{s}\"", .{background});
         }
     }
 
-    element.type.panel.children = ArrayList(*Element).init(display.allocator);
+    element.type.panel.children = .empty;
     return element;
 }
 
@@ -4997,28 +5026,6 @@ pub const std_options: std.Options = .{
     .logFn = log_output_handler,
 };
 
-const std = @import("std");
-const ArrayList = std.ArrayList;
-const Allocator = std.mem.Allocator;
-const sdl = @import("sdl");
-const builtin = @import("builtin");
-pub const engine = @import("engine.zig");
-pub const Animator = @import("animator.zig");
-const praxis = @import("praxis");
-const Lang = @import("praxis").Lang;
-pub const Chunker = @import("chunker.zig").Chunker;
-pub const Translation = @import("translation.zig").Translation;
-const Resources = @import("resources").Resources;
-const zigimg = @import("zigimg");
-const default_themes = @import("theme.zig").default_themes;
-const Theme = @import("theme.zig").Theme;
-const ThemeColour = @import("theme.zig").ThemeColour;
-
-pub const BundleLoader = @import("read_bundle.zig");
-pub const init_resource_loader = BundleLoader.init_resource_loader;
-pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
-pub const sdl_load_resource = BundleLoader.sdl_load_resource;
-
 test "sdl_log_priority" {
     try std.testing.expectEqual(.info, SdlLogPriority.fromInt(sdl.SDL_LOG_PRIORITY_INFO));
     try std.testing.expectEqual(.unknown, SdlLogPriority.fromInt(999));
@@ -5034,28 +5041,26 @@ const eq = std.testing.expectEqual;
 test "init catch" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    //defer resources.destroy();
     var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
-    defer display.destroy();
+    defer display.destroy(allocator);
 }
 
 test "button sizing" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    //defer resources.destroy();
     var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
-    defer display.destroy();
+    defer display.destroy(allocator);
 
-    var panel = try create_panel(display, "", .{
+    var panel = try create_panel(allocator, display, "", .{
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try display.add_element(panel);
+    try display.add_element(allocator, panel);
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
-    const button = try create_button(display, "", "", "", .{
+    const button = try create_button(allocator, display, "", "", "", .{
         .visible = .visible,
         .rect = .{ .width = 50, .height = 50 },
         .minimum = .{ .width = 42, .height = 41 },
@@ -5068,7 +5073,7 @@ test "button sizing" {
     button.layout.y = .shrinks;
     try eq(42, button.shrink_width(display, 500));
     try eq(41, button.shrink_height(display, 500));
-    try panel.add_element(button);
+    try panel.add_element(allocator, button);
     display.relayout();
     try eq(42, panel.shrink_width(display, 500));
     try eq(42, button.rect.width);
@@ -5093,9 +5098,9 @@ test "button sizing" {
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    _ = try display.load_font("Roboto-Light");
+    _ = try display.load_font(allocator, "Roboto-Light");
 
-    try button.set_text(display, "Hello", true);
+    try button.set_text(allocator, display, "Hello", true);
     display.relayout();
     try eq(83, @trunc(button.rect.width));
     try eq(100, @trunc(panel.rect.width));
@@ -5106,17 +5111,16 @@ test "button sizing" {
 test "text input sizing" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    //defer resources.destroy();
     var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
-    defer display.destroy();
+    defer display.destroy(allocator);
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    _ = try display.load_font("Roboto-Light");
+    _ = try display.load_font(allocator, "Roboto-Light");
 
     {
         // Create a fixed sized label with enough space
-        const l = try create_label(display, "", .{
+        const l = try create_label(allocator, display, "", .{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 50 },
@@ -5124,7 +5128,7 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .fixed, .y = .grows },
         });
-        defer l.destroy(display, display.allocator);
+        defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.shrink_width(display, 500));
         try eq(44, l.shrink_height(display, 500));
@@ -5132,7 +5136,7 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with minimum
-        const l = try create_label(display, "", .{
+        const l = try create_label(allocator, display, "", .{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 55 },
@@ -5140,7 +5144,7 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .fixed, .y = .fixed },
         });
-        defer l.destroy(display, display.allocator);
+        defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.shrink_width(display, 500));
         try eq(60, l.shrink_height(display, 500));
@@ -5148,7 +5152,7 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with minimum
-        const l = try create_label(display, "", .{
+        const l = try create_label(allocator, display, "", .{
             .name = "hello",
             .rect = .{ .width = 200, .height = 100 },
             .minimum = .{ .width = 300, .height = 20 },
@@ -5156,7 +5160,7 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
         });
-        defer l.destroy(display, display.allocator);
+        defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(300, l.shrink_width(display, 500));
         try eq(44, l.shrink_height(display, 500));
@@ -5164,7 +5168,7 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with x growth
-        const l = try create_label(display, "", .{
+        const l = try create_label(allocator, display, "", .{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
@@ -5172,7 +5176,7 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
         });
-        defer l.destroy(display, display.allocator);
+        defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(91, @round(l.shrink_width(display, 500)));
         try eq(44, l.shrink_height(display, 500));
@@ -5180,7 +5184,7 @@ test "text input sizing" {
 
     {
         // Create a label with full shrinking
-        const l = try create_label(display, "", .{
+        const l = try create_label(allocator, display, "", .{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
@@ -5188,7 +5192,7 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .shrinks, .y = .shrinks },
         });
-        defer l.destroy(display, display.allocator);
+        defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(2, l.type.label.elements.items.len);
         try eq(98, @trunc(l.type.label.elements.items[0].width / display.scale));
@@ -5198,7 +5202,7 @@ test "text input sizing" {
         try eq(88, l.shrink_height(display, 115));
     }
 
-    const label = try create_label(display, "", .{
+    const label = try create_label(allocator, display, "", .{
         .name = "hello",
         .rect = .{ .width = 500, .height = 60 },
         .minimum = .{ .width = 300, .height = 100 },
@@ -5219,13 +5223,13 @@ test "text input sizing" {
     label.layout.x = .grows;
     try eq(91, @round(label.shrink_width(display, 500)));
 
-    var panel = try create_panel(display, "", .{
+    var panel = try create_panel(allocator, display, "", .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try display.add_element(panel);
+    try display.add_element(allocator, panel);
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
@@ -5233,7 +5237,7 @@ test "text input sizing" {
     panel.layout.y = .shrinks;
     label.layout.x = .grows;
     label.layout.y = .shrinks;
-    try panel.add_element(label);
+    try panel.add_element(allocator, label);
     label.pad.top = 0;
     label.pad.bottom = 0;
     display.relayout();
@@ -5252,3 +5256,26 @@ test "text input sizing" {
     try eq(44, @trunc(label.rect.height));
     try eq(200, @trunc(panel.rect.height));
 }
+
+const std = @import("std");
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const Allocator = std.mem.Allocator;
+const sdl = @import("sdl");
+const builtin = @import("builtin");
+pub const engine = @import("engine.zig");
+pub const Animator = @import("animator.zig");
+const praxis = @import("praxis");
+const Lang = @import("praxis").Lang;
+pub const Chunker = @import("chunker.zig").Chunker;
+pub const Translation = @import("translation.zig").Translation;
+const Resources = @import("resources").Resources;
+const ResourcesError = @import("resources").Resources.Error;
+const zigimg = @import("zigimg");
+const default_themes = @import("theme.zig").default_themes;
+const Theme = @import("theme.zig").Theme;
+const ThemeColour = @import("theme.zig").ThemeColour;
+
+pub const BundleLoader = @import("read_bundle.zig");
+pub const init_resource_loader = BundleLoader.init_resource_loader;
+pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
+pub const sdl_load_resource = BundleLoader.sdl_load_resource;
