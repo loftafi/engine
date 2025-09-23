@@ -4267,7 +4267,6 @@ pub const Display = struct {
         return try parent.add(allocator, try engine.create_panel(
             allocator,
             display,
-            "",
             .{
                 .name = "spacer",
                 .rect = .{ .width = size, .height = size },
@@ -4313,9 +4312,12 @@ pub const Display = struct {
         element: *Element,
     ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
         switch (element.type) {
+            .panel => try setup_panel(self, allocator, element),
             .label => try setup_label(self, allocator, element),
             .checkbox => try setup_checkbox(self, allocator, element),
             .sprite => try setup_sprite(self, allocator, element),
+            .progress_bar => try setup_progress_bar(self, allocator, element),
+            .expander => try setup_expander(self, allocator, element),
             else => unreachable,
         }
     }
@@ -4511,6 +4513,56 @@ pub fn create_rect(
     return element;
 }
 
+pub fn setup_panel(
+    self: *Display,
+    allocator: Allocator,
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+    element.texture = null;
+    element.background_texture = null;
+
+    if (element.focus == .unspecified) {
+        if (element.type.panel.on_click != null) {
+            element.focus = .can_focus;
+        } else {
+            element.focus = .never_focus;
+        }
+    }
+
+    if (element.background_texture_name) |name| {
+        if (try self.load_texture_resource(allocator, name)) |texture| {
+            element.background_texture = texture;
+        } else {
+            err("Failed to load panel background texture named \"{s}\"", .{name});
+        }
+    }
+
+    element.type.panel.children = .empty;
+}
+
+pub fn setup_progress_bar(
+    self: *Display,
+    allocator: Allocator,
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+    element.texture = null;
+    element.background_texture = null;
+    if (element.focus == .unspecified) {
+        element.focus = .never_focus;
+    }
+
+    if (element.type != .progress_bar) {
+        err("create_progress_bar called without config.", .{});
+        element.type = .{ .progress_bar = .{} };
+    }
+
+    if (try self.load_texture_resource(allocator, "rounded progress bar")) |texture| {
+        element.texture = texture;
+    } else {
+        err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
+    }
+}
+
 pub fn setup_checkbox(
     self: *Display,
     allocator: Allocator,
@@ -4552,6 +4604,16 @@ pub fn setup_checkbox(
 
     if (element.minimum.width < size.width)
         element.minimum.width = size.width;
+}
+
+pub fn setup_expander(
+    _: *Display,
+    _: Allocator,
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+    element.texture = null;
+    element.background_texture = null;
+    element.focus = .never_focus;
 }
 
 pub fn setup_label(
@@ -4802,25 +4864,9 @@ pub fn create_progress_bar(
     display: *Display,
     settings: Element,
 ) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || ResourcesError)!*Element {
-    var element = try allocator.create(Element);
+    const element = try allocator.create(Element);
     element.* = settings;
-    element.texture = null;
-    element.background_texture = null;
-    if (element.focus == .unspecified) {
-        element.focus = .never_focus;
-    }
-
-    if (element.type != .progress_bar) {
-        err("create_progress_bar called without config.", .{});
-        element.type = .{ .progress_bar = .{} };
-    }
-
-    if (try display.load_texture_resource(allocator, "rounded progress bar")) |texture| {
-        element.texture = texture;
-    } else {
-        err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
-    }
-
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -4831,20 +4877,12 @@ pub fn create_progress_bar(
 /// of the space based on its weight.
 pub fn create_expander(
     allocator: Allocator,
-    _: *Display,
+    display: *Display,
     settings: Element,
-) Allocator.Error!*Element {
-    var element = try allocator.create(Element);
+) (error{ ResourceReadError, ResourceNotFound, UnknownImageFormat } || Allocator.Error || ResourcesError)!*Element {
+    const element = try allocator.create(Element);
     element.* = settings;
-    element.texture = null;
-    element.background_texture = null;
-    element.focus = .never_focus;
-
-    if (element.type != .expander) {
-        err("create_expander called without config.", .{});
-        element.type = .{ .expander = .{} };
-    }
-
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -4855,36 +4893,11 @@ pub fn create_expander(
 pub fn create_panel(
     allocator: Allocator,
     display: *Display,
-    background: []const u8,
     settings: Element,
 ) (error{ OutOfMemory, ResourceReadError, ResourceNotFound, UnknownImageFormat } || ResourcesError)!*Element {
-    var element = try allocator.create(Element);
+    const element = try allocator.create(Element);
     element.* = settings;
-    element.texture = null;
-    element.background_texture = null;
-
-    if (element.type != .panel) {
-        err("create_panel({s}) called without config.", .{element.name});
-        element.type = .{ .panel = .{} };
-    }
-
-    if (element.focus == .unspecified) {
-        if (element.type.panel.on_click != null) {
-            element.focus = .can_focus;
-        } else {
-            element.focus = .never_focus;
-        }
-    }
-
-    if (background.len > 0) {
-        if (try display.load_texture_resource(allocator, background)) |texture| {
-            element.background_texture = texture;
-        } else {
-            err("Failed to load panel background texture named \"{s}\"", .{background});
-        }
-    }
-
-    element.type.panel.children = .empty;
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -5077,7 +5090,7 @@ test "button sizing" {
     var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
     defer display.destroy(allocator);
 
-    var panel = try create_panel(allocator, display, "", .{
+    var panel = try create_panel(allocator, display, .{
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
@@ -5249,7 +5262,7 @@ test "text input sizing" {
     label.layout.x = .grows;
     try eq(91, @round(label.shrink_width(display, 500)));
 
-    var panel = try create_panel(allocator, display, "", .{
+    var panel = try create_panel(allocator, display, .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
@@ -5287,7 +5300,7 @@ test "test_init" {
     const allocator = std.testing.allocator;
     var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
     defer display.destroy(allocator);
-    var panel = try create_panel(allocator, display, "", .{
+    var panel = try create_panel(allocator, display, .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
@@ -5295,7 +5308,7 @@ test "test_init" {
     });
     try display.add_element(allocator, panel);
 
-    try eq(0, display.root.type.panel.children.items.len);
+    try eq(1, display.root.type.panel.children.items.len);
     const element = try allocator.create(Element);
     element.* = .{
         .name = "menu_bg",
@@ -5306,8 +5319,7 @@ test "test_init" {
         .type = .{ .rectangle = .{ .style = .background } },
     };
     try panel.add_element(allocator, element);
-    try eq(1, display.root.type.panel.children.items.len);
-    try eq(9, display.root.type.panel.children.items.len);
+    try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
 }
 
 const std = @import("std");
