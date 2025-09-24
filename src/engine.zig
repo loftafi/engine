@@ -328,6 +328,8 @@ pub const Element = struct {
         },
         text_input: struct {
             texture: ?*sdl.SDL_Texture = null,
+            initial_text: ?[]const u8 = "",
+            icon_texture_name: ?[]const u8 = "",
             text: ArrayListUnmanaged(u8) = .empty,
             runes: ArrayListUnmanaged(u21) = .empty,
             max_runes: usize = 0,
@@ -336,7 +338,7 @@ pub const Element = struct {
             on_change: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
             on_submit: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
             placeholder_texture: ?*sdl.SDL_Texture = null,
-            placeholder_text: ArrayListUnmanaged(u8) = .empty,
+            placeholder_text: ?[]const u8 = "",
             placeholder_translate: []const u8 = "",
         },
         rectangle: struct {
@@ -348,10 +350,15 @@ pub const Element = struct {
             text_texture: ?*sdl.SDL_Texture = null,
             icon_size: Vector = .{ .x = 0, .y = 0 },
             spacing: f32 = 0,
+            icon_default_name: ?[]const u8 = "",
             icon_hover: ?*TextureInfo = null,
+            icon_hover_name: ?[]const u8 = "",
             icon_pressed: ?*TextureInfo = null,
+            icon_pressed_name: ?[]const u8 = "",
             background_hover: ?*TextureInfo = null,
+            background_hover_name: ?[]const u8 = "",
             background_pressed: ?*TextureInfo = null,
+            background_pressed_name: ?[]const u8 = "",
             on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
             toggle: ToggleState = .no_toggle,
             style: ThemeColour = .normal,
@@ -411,7 +418,6 @@ pub const Element = struct {
                 if (i.*.texture) |texture| {
                     sdl.SDL_DestroyTexture(texture);
                 }
-                i.*.placeholder_text.deinit(allocator);
                 i.*.runes.deinit(allocator);
                 i.*.text.deinit(allocator);
             },
@@ -708,7 +714,7 @@ pub const Element = struct {
     /// visibily prominent.
     pub inline fn set_placeholder_text(
         self: *Element,
-        allocator: Allocator,
+        _: Allocator,
         display: *Display,
         text: []const u8,
     ) !void {
@@ -722,12 +728,10 @@ pub const Element = struct {
                     sdl.SDL_DestroyTexture(texture);
                     self.texture = null;
                 }
-                self.type.text_input.placeholder_text.clearRetainingCapacity();
-                if (text.len > 0) {
-                    try self.type.text_input.placeholder_text.appendSlice(allocator, text);
-                    if (display.generate_text_texture(self.type.text_input.placeholder_text.items)) |texture| {
-                        self.type.text_input.placeholder_texture = texture;
-                    }
+                if (text.len == 0) return;
+                self.type.text_input.placeholder_text = text;
+                if (display.generate_text_texture(self.type.text_input.placeholder_text.?)) |texture| {
+                    self.type.text_input.placeholder_texture = texture;
                 }
             },
             else => {
@@ -4227,11 +4231,11 @@ pub const Display = struct {
         const button = try engine.create_button(
             allocator,
             display,
-            "icon-back",
-            "icon-back",
-            "icon-back",
             .{
                 .name = "back",
+                .icon_default_name = "icon-back",
+                .icon_pressed_name = "icon-back",
+                .icon_hover_name = "icon-back",
                 .focus = .can_focus,
                 .rect = .{ .x = 20, .y = 20, .width = 120, .height = 120 },
                 .pad = .{ .left = 20, .right = 20, .top = 20, .bottom = 20 },
@@ -4244,9 +4248,6 @@ pub const Display = struct {
                 } },
                 .on_resized = back_button_resize,
             },
-            "",
-            "",
-            "",
         );
         try parent.add_element(allocator, button);
         return button;
@@ -4313,11 +4314,14 @@ pub const Display = struct {
     ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
         switch (element.type) {
             .panel => try setup_panel(self, allocator, element),
+            .button => try setup_button(self, allocator, element),
             .label => try setup_label(self, allocator, element),
+            .rectangle => try setup_rect(self, allocator, element),
             .checkbox => try setup_checkbox(self, allocator, element),
             .sprite => try setup_sprite(self, allocator, element),
             .progress_bar => try setup_progress_bar(self, allocator, element),
             .expander => try setup_expander(self, allocator, element),
+            .text_input => try setup_text_input(self, allocator, element),
             else => unreachable,
         }
     }
@@ -4492,25 +4496,16 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
     }
 }
 
-/// Load and associate an image file with a sprite name.
-pub fn create_rect(
-    display: *Display,
-    settings: Element,
-) Allocator.Error!*Element {
-    var element = try display.allocator.create(Element);
-    element.* = settings;
+pub fn setup_rect(
+    _: *Display,
+    _: Allocator,
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
     element.background_texture = null;
     if (element.focus == .unspecified) {
         element.focus = .never_focus;
     }
-
-    if (element.type != .rectangle) {
-        err("create_rect called without config.", .{});
-        element.type = .{ .rectangle = .{} };
-    }
-
-    return element;
 }
 
 pub fn setup_panel(
@@ -4648,6 +4643,57 @@ pub fn setup_label(
     }
 }
 
+pub fn setup_text_input(
+    self: *Display,
+    allocator: Allocator,
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+    element.texture = null;
+    element.background_texture = null;
+    if (element.focus == .unspecified) {
+        element.focus = .can_focus;
+    }
+
+    if (element.type.text_input.icon_texture_name) |icon| {
+        if (try self.load_texture_resource(allocator, icon)) |texture| {
+            element.texture = texture;
+        } else {
+            err("Failed to load text_input icon texture named \"{s}\"", .{icon});
+        }
+    }
+
+    if (element.background_texture_name) |background| {
+        if (try self.load_texture_resource(allocator, background)) |texture| {
+            element.background_texture = texture;
+        } else {
+            err("Failed to load text_input background texture named \"{s}\"", .{background});
+        }
+    }
+
+    if (element.pad.top == 0 and element.pad.bottom == 0) {
+        element.pad.left = self.text_height * self.scale * 0.6;
+        element.pad.right = self.text_height * self.scale * 0.6;
+        element.pad.top = self.text_height * self.scale * 0.5;
+        element.pad.bottom = self.text_height * self.scale * 0.5;
+    }
+
+    element.focus = .can_focus;
+    element.rect.height = (self.text_height * self.scale) + (element.pad.top + element.pad.bottom);
+
+    element.type.text_input.text = .empty;
+    element.type.text_input.runes = .empty;
+    if (element.type.text_input.initial_text) |text| {
+        try element.set_text(allocator, self, text, true);
+    } else {
+        try element.set_text(allocator, self, "", true);
+    }
+    if (element.type.text_input.placeholder_text) |text| {
+        try element.set_placeholder_text(allocator, self, text);
+    } else {
+        try element.set_placeholder_text(allocator, self, "");
+    }
+}
+
 pub fn setup_sprite(
     self: *Display,
     allocator: Allocator,
@@ -4668,6 +4714,83 @@ pub fn setup_sprite(
     }
 }
 
+pub fn setup_button(
+    display: *Display,
+    allocator: Allocator,
+    element: *Element,
+) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+    element.texture = null;
+    element.background_texture = null;
+    if (element.focus == .unspecified)
+        element.focus = .can_focus;
+
+    element.type.button.translated = "";
+    element.type.button.icon_pressed = null;
+    element.type.button.icon_hover = null;
+    element.type.button.background_pressed = null;
+    element.type.button.background_hover = null;
+
+    if (element.texture_name != null)
+        warn("button named `{s}` has texture_name `{s}`. Buttons do not use `texture_name`", .{ element.name, element.texture_name.? });
+
+    try element.set_text(allocator, display, element.type.button.text, true);
+
+    if (element.type.button.icon_default_name) |icon_default| {
+        if (try display.load_texture_resource(allocator, icon_default)) |texture| {
+            element.texture = texture;
+            if (element.type.button.icon_size.x == 0 or element.type.button.icon_size.y == 0)
+                warn("button `{s}` has icon `{s}`, but no icon size.", .{ element.name, icon_default });
+        }
+    }
+
+    if (element.type.button.icon_pressed_name) |icon_pressed| {
+        if (try display.load_texture_resource(allocator, icon_pressed)) |ip|
+            element.type.button.icon_pressed = ip
+        else
+            err("create_button failed to load icon_pressed resource {s}.", .{icon_pressed});
+
+        if (element.type.button.icon_pressed == null and element.texture != null)
+            element.type.button.icon_pressed = element.texture.?.clone();
+    }
+
+    if (element.type.button.icon_hover_name) |icon_hover| {
+        if (try display.load_texture_resource(allocator, icon_hover)) |ih|
+            element.type.button.icon_hover = ih
+        else
+            err("create_button failed to load icon_default resource {s}.", .{icon_hover});
+
+        if (element.type.button.icon_hover == null and element.texture != null)
+            element.type.button.icon_hover = element.texture.?.clone();
+    }
+
+    if (element.background_texture_name) |background_default| {
+        if (try display.load_texture_resource(allocator, background_default)) |texture|
+            element.background_texture = texture
+        else
+            err("create_button failed to load background_default resource {s}.", .{background_default});
+    }
+
+    if (element.type.button.background_pressed_name) |background_pressed| {
+        if (try display.load_texture_resource(allocator, background_pressed)) |bp|
+            element.type.button.background_pressed = bp
+        else
+            err("create_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
+
+        if (element.type.button.background_pressed == null and element.background_texture != null)
+            element.type.button.background_pressed = element.background_texture.?.clone();
+    }
+
+    if (element.type.button.background_hover_name) |background_hover| {
+        if (try display.load_texture_resource(allocator, background_hover)) |bh|
+            element.type.button.background_hover = bh
+        else
+            err("create_button background_hover resource `{s}` not loaded.", .{background_hover});
+
+        if (element.type.button.background_hover == null and element.background_texture != null)
+            element.type.button.background_hover = element.background_texture.?.clone();
+    }
+}
+
 /// Load and associate an image file with a sprite name.
 pub fn create_sprite(
     allocator: Allocator,
@@ -4675,6 +4798,18 @@ pub fn create_sprite(
     settings: Element,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
     const element = try allocator.create(Element);
+    element.* = settings;
+    display.setup_element(allocator, element);
+    return element;
+}
+
+/// Load and associate an image file with a sprite name.
+pub fn create_rect(
+    display: *Display,
+    allocator: Allocator,
+    settings: Element,
+) Allocator.Error!*Element {
+    const element = try display.allocator.create(Element);
     element.* = settings;
     display.setup_element(allocator, element);
     return element;
@@ -4708,95 +4843,11 @@ pub fn create_checkbox(
 pub fn create_button(
     allocator: Allocator,
     display: *Display,
-    icon_default: []const u8,
-    icon_pressed: []const u8,
-    icon_hover: []const u8,
     settings: Element,
-    background_default: []const u8,
-    background_pressed: []const u8,
-    background_hover: []const u8,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*Element {
-    var element = try allocator.create(Element);
+    const element = try allocator.create(Element);
     element.* = settings;
-    element.texture = null;
-    element.background_texture = null;
-    if (element.focus == .unspecified) {
-        element.focus = .can_focus;
-    }
-
-    if (element.type != .button) {
-        err("create_button called without config.", .{});
-        element.type = .{ .button = .{ .text = "" } };
-    }
-    element.type.button.translated = "";
-    element.type.button.icon_pressed = null;
-    element.type.button.icon_hover = null;
-    element.type.button.background_pressed = null;
-    element.type.button.background_hover = null;
-
-    try element.set_text(allocator, display, element.type.button.text, true);
-
-    if (icon_default.len > 0) {
-        if (try display.load_texture_resource(allocator, icon_default)) |texture| {
-            element.texture = texture;
-            if (element.type.button.icon_size.x == 0 or element.type.button.icon_size.y == 0) {
-                warn("button {s} has icon {s}, but no icon size.", .{ element.name, icon_default });
-            }
-
-            if (icon_pressed.len > 0) {
-                if (try display.load_texture_resource(allocator, icon_pressed)) |ip| {
-                    element.type.button.icon_pressed = ip;
-                } else {
-                    err("create_button failed to load icon_pressed resource {s}.", .{icon_pressed});
-                }
-            }
-            if (element.type.button.icon_pressed == null) {
-                element.type.button.icon_pressed = texture.clone();
-            }
-
-            if (icon_hover.len > 0) {
-                if (try display.load_texture_resource(allocator, icon_hover)) |ih| {
-                    element.type.button.icon_hover = ih;
-                }
-                if (element.type.button.icon_hover == null) {
-                    element.type.button.icon_hover = texture.clone();
-                }
-            }
-        } else {
-            err("create_button failed to load icon_default resource {s}.", .{icon_default});
-        }
-    }
-
-    if (background_default.len > 0) {
-        if (try display.load_texture_resource(allocator, background_default)) |texture| {
-            element.background_texture = texture;
-
-            if (background_pressed.len > 0) {
-                if (try display.load_texture_resource(allocator, background_pressed)) |bp| {
-                    element.type.button.background_pressed = bp;
-                } else {
-                    err("create_button failed to load background_pressed resource {s}.", .{background_pressed});
-                }
-            }
-            if (element.type.button.background_pressed == null) {
-                element.type.button.background_pressed = texture.clone();
-            }
-
-            if (background_hover.len > 0) {
-                if (try display.load_texture_resource(allocator, background_hover)) |bh| {
-                    element.type.button.background_hover = bh;
-                } else {
-                    err("create_button failed to load background_hover resource {s}.", .{background_hover});
-                }
-            }
-            if (element.type.button.background_hover == null) {
-                element.type.button.background_hover = texture.clone();
-            }
-        } else {
-            err("create_button failed to load background_default resource {s}.", .{background_default});
-        }
-    }
-
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -4804,57 +4855,11 @@ pub fn create_button(
 pub fn create_text_input(
     allocator: Allocator,
     display: *Display,
-    text: []const u8,
-    placeholder_text: []const u8,
-    icon: []const u8,
-    background: []const u8,
     settings: Element,
 ) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || ResourcesError)!*Element {
-    var element = try allocator.create(Element);
+    const element = try allocator.create(Element);
     element.* = settings;
-    element.texture = null;
-    element.background_texture = null;
-    if (element.focus == .unspecified) {
-        element.focus = .can_focus;
-    }
-
-    if (element.type != .text_input) {
-        err("create_text_input called without config.", .{});
-        element.type = .{ .text_input = .{} };
-    }
-
-    if (icon.len > 0) {
-        if (try display.load_texture_resource(allocator, icon)) |texture| {
-            element.texture = texture;
-        } else {
-            err("Failed to load text_input icon texture named \"{s}\"", .{icon});
-        }
-    }
-
-    if (background.len > 0) {
-        if (try display.load_texture_resource(allocator, background)) |texture| {
-            element.background_texture = texture;
-        } else {
-            err("Failed to load text_input background texture named \"{s}\"", .{background});
-        }
-    }
-
-    if (element.pad.top == 0 and element.pad.bottom == 0) {
-        element.pad.left = display.text_height * display.scale * 0.6;
-        element.pad.right = display.text_height * display.scale * 0.6;
-        element.pad.top = display.text_height * display.scale * 0.5;
-        element.pad.bottom = display.text_height * display.scale * 0.5;
-    }
-
-    element.focus = .can_focus;
-    element.rect.height = (display.text_height * display.scale) + (element.pad.top + element.pad.bottom);
-
-    element.type.text_input.text = .empty;
-    element.type.text_input.placeholder_text = .empty;
-    element.type.text_input.runes = .empty;
-    try element.set_text(allocator, display, text, true);
-    try element.set_placeholder_text(allocator, display, placeholder_text);
-
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -5099,13 +5104,13 @@ test "button sizing" {
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
-    const button = try create_button(allocator, display, "", "", "", .{
+    const button = try create_button(allocator, display, .{
         .visible = .visible,
         .rect = .{ .width = 50, .height = 50 },
         .minimum = .{ .width = 42, .height = 41 },
         .maximum = .{ .width = 82, .height = 81 },
         .type = .{ .button = .{ .text = "" } },
-    }, "", "", "");
+    });
     try eq(50, button.shrink_width(display, 500));
     try eq(50, button.shrink_height(display, 500));
     button.layout.x = .shrinks;
