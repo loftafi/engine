@@ -355,6 +355,7 @@ pub const Element = struct {
             icon_hover_name: ?[]const u8 = "",
             icon_pressed: ?*TextureInfo = null,
             icon_pressed_name: ?[]const u8 = "",
+            background_default_name: ?[]const u8 = null,
             background_hover: ?*TextureInfo = null,
             background_hover_name: ?[]const u8 = "",
             background_pressed: ?*TextureInfo = null,
@@ -4233,14 +4234,14 @@ pub const Display = struct {
             display,
             .{
                 .name = "back",
-                .icon_default_name = "icon-back",
-                .icon_pressed_name = "icon-back",
-                .icon_hover_name = "icon-back",
                 .focus = .can_focus,
                 .rect = .{ .x = 20, .y = 20, .width = 120, .height = 120 },
                 .pad = .{ .left = 20, .right = 20, .top = 20, .bottom = 20 },
                 .layout = .{ .x = .fixed, .y = .fixed, .position = .float },
                 .type = .{ .button = .{
+                    .icon_default_name = "icon-back",
+                    .icon_pressed_name = "icon-back",
+                    .icon_hover_name = "icon-back",
                     .text = "",
                     .translated = "",
                     .on_click = close_fn,
@@ -4616,19 +4617,17 @@ pub fn setup_label(
     allocator: Allocator,
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
-    element.type.label.translated = "";
-
-    if (element.focus == .unspecified) {
-        if (element.type.label.on_click != null) {
-            element.focus = .can_focus;
-        } else {
-            element.focus = .accessibility_focus;
-        }
-    }
     element.texture = null;
     element.background_texture = null;
-
+    element.type.label.translated = "";
     element.type.label.elements = .empty;
+
+    if (element.focus == .unspecified) {
+        if (element.type.label.on_click != null)
+            element.focus = .can_focus
+        else
+            element.focus = .accessibility_focus;
+    }
     try element.set_text(allocator, self, element.type.label.text, true);
 
     // Is there a background for this label?
@@ -4719,19 +4718,22 @@ pub fn setup_button(
     allocator: Allocator,
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
+    element.type.button.translated = "";
     element.texture = null;
     element.background_texture = null;
-    if (element.focus == .unspecified)
-        element.focus = .can_focus;
-
-    element.type.button.translated = "";
     element.type.button.icon_pressed = null;
     element.type.button.icon_hover = null;
     element.type.button.background_pressed = null;
     element.type.button.background_hover = null;
 
+    if (element.focus == .unspecified)
+        element.focus = .can_focus;
+
     if (element.texture_name != null)
-        warn("button named `{s}` has texture_name `{s}`. Buttons do not use `texture_name`", .{ element.name, element.texture_name.? });
+        warn("button named `{s}` has texture_name `{s}`. Buttons use `icon_default_name`", .{ element.name, element.texture_name.? });
+
+    if (element.background_texture_name != null)
+        warn("button named `{s}` has background_texture_name `{s}`. Buttons do not use `background_default_name`", .{ element.name, element.background_texture_name.? });
 
     try element.set_text(allocator, display, element.type.button.text, true);
 
@@ -4763,7 +4765,7 @@ pub fn setup_button(
             element.type.button.icon_hover = element.texture.?.clone();
     }
 
-    if (element.background_texture_name) |background_default| {
+    if (element.type.button.background_default_name) |background_default| {
         if (try display.load_texture_resource(allocator, background_default)) |texture|
             element.background_texture = texture
         else
