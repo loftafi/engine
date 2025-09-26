@@ -38,6 +38,7 @@ pub const Translation = struct {
         defer headers.deinit(allocator);
         var i = CsvReader{ .data = data };
 
+        var col: usize = 0;
         while (true) {
             // Read header
             switch (i.next()) {
@@ -47,7 +48,9 @@ pub const Translation = struct {
                     return;
                 },
                 .field => {
-                    const lr = Lang.parse_code(i.value);
+                    col += 1;
+                    if (col == 1) continue;
+                    const lr: Lang = Lang.parse_code(i.value);
                     if (lr == .unknown) {
                         err("load_translation_data has invalid languge code: '{s}'", .{i.value});
                         return;
@@ -72,13 +75,15 @@ pub const Translation = struct {
                     continue;
                 },
                 .field => {
-                    const en = i.value;
-                    try headers.items[0].*.put(allocator, en, en);
-                    var col: usize = 1;
+                    // read the key from the first column
+                    const key = i.value;
+                    //try headers.items[0].*.put(allocator, key, key);
+                    // read the translations in the next columns
+                    col = 0;
                     while (col < headers.items.len) : (col += 1) {
                         const n = i.next();
                         if (n == .field) {
-                            try headers.items[col].*.put(allocator, en, i.value);
+                            try headers.items[col].*.put(allocator, key, i.value);
                         } else {
                             err("load_translation_data has unexpected eol/eof on row {d}.", .{i.row});
                             return;
@@ -127,26 +132,25 @@ test "translator" {
     {
         var translator: Translation = .empty;
         defer translator.deinit(allocator);
-        try translator.load_translation_data(allocator, "en,el\nbread,ἄρτος\n");
+        try translator.load_translation_data(allocator, "keys,en,el\nBREAD,bread,ἄρτος\n");
         translator.set_language(.english);
-        try expectEqualStrings("fish", translator.translate("fish"));
-        try expectEqualStrings("bread", translator.translate("bread"));
+        try expectEqualStrings("bread", translator.translate("BREAD"));
         translator.set_language(.greek);
-        try expectEqualStrings("ἄρτος", translator.translate("bread"));
+        try expectEqualStrings("ἄρτος", translator.translate("BREAD"));
     }
     {
         var translator: Translation = .empty;
         defer translator.deinit(allocator);
         try translator.load_translation_data(allocator,
-            \\en,el
-            \\Verb,ῥῆμα
-            \\Noun,ὄνομα
-            \\Adjective,ἐπὶθετον
-            \\Adverb,ἐπίρρημα
+            \\keys,en,el
+            \\VERB,Verb,ῥῆμα
+            \\NOUN,Noun,ὄνομα
+            \\ADJECTIVE,Adjective,ἐπὶθετον
+            \\ADVERB,Adverb,ἐπίρρημα
         );
         translator.set_language(.english);
-        try expectEqualStrings("Noun", translator.translate("Noun"));
+        try expectEqualStrings("Noun", translator.translate("NOUN"));
         translator.set_language(.greek);
-        try expectEqualStrings("ὄνομα", translator.translate("Noun"));
+        try expectEqualStrings("ὄνομα", translator.translate("NOUN"));
     }
 }
