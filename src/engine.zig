@@ -608,6 +608,7 @@ pub const Element = struct {
         if (self.type == .panel) {
             switch (self.type.panel.style) {
                 .emphasised => {
+                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.emphasised_panel_colour.a);
                     _ = sdl.SDL_SetTextureColorMod(
                         texture,
                         display.theme.emphasised_panel_colour.r,
@@ -617,6 +618,7 @@ pub const Element = struct {
                     return;
                 },
                 .success => {
+                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.success_panel_colour.a);
                     _ = sdl.SDL_SetTextureColorMod(
                         texture,
                         display.theme.success_panel_colour.r,
@@ -626,6 +628,7 @@ pub const Element = struct {
                     return;
                 },
                 .failed => {
+                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.failed_panel_colour.a);
                     _ = sdl.SDL_SetTextureColorMod(
                         texture,
                         display.theme.failed_panel_colour.r,
@@ -635,6 +638,7 @@ pub const Element = struct {
                     return;
                 },
                 .faded => {
+                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.faded_panel_colour.a);
                     _ = sdl.SDL_SetTextureColorMod(
                         texture,
                         display.theme.faded_panel_colour.r,
@@ -644,6 +648,7 @@ pub const Element = struct {
                     return;
                 },
                 .background => {
+                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.background_colour.a);
                     _ = sdl.SDL_SetTextureColorMod(
                         texture,
                         display.theme.background_colour.r,
@@ -653,6 +658,7 @@ pub const Element = struct {
                     return;
                 },
                 .normal => {
+                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.label_background_colour.a);
                     _ = sdl.SDL_SetTextureColorMod(
                         texture,
                         display.theme.label_background_colour.r,
@@ -667,6 +673,18 @@ pub const Element = struct {
                         .{@tagName(self.type.panel.style)},
                     );
                 },
+            }
+        }
+        if (self.type == .sprite) {
+            if (self.background_colour.a != 0) {
+                _ = sdl.SDL_SetTextureAlphaMod(texture, self.background_colour.a);
+                _ = sdl.SDL_SetTextureColorMod(
+                    texture,
+                    self.background_colour.r,
+                    self.background_colour.g,
+                    self.background_colour.b,
+                );
+                return;
             }
         }
         _ = sdl.SDL_SetTextureColorMod(
@@ -1177,9 +1195,9 @@ pub const Element = struct {
         // Any element can have a background texture
         if (element.type != .button) {
             if (element.background_texture) |texture| {
-                if (element.type != .text_input and element.type != .panel and element.type != .button) {
-                    info("drawing background for {s}", .{@tagName(element.type)});
-                }
+                //if (element.type != .text_input and element.type != .panel and element.type != .button) {
+                //    info("drawing background for {s}", .{@tagName(element.type)});
+                //}
                 // Elements may optionally have a background texture
                 var dest = element.rect.move(&scroll_offset);
                 if (element.flip.x) {
@@ -1205,8 +1223,9 @@ pub const Element = struct {
             }
         }
 
-        // Any element can contain a basic background fill colour
-        if (element.type != .rectangle and element.background_colour.a > 0) {
+        // Non rectangles and sprites use background_colour to  draw an actual
+        // background.
+        if (element.type != .rectangle and element.type != .sprite and element.background_colour.a > 0) {
             _ = sdl.SDL_SetRenderDrawColor(
                 display.renderer,
                 element.background_colour.r,
@@ -4721,6 +4740,18 @@ pub fn setup_sprite(
                 element.rect.height = @floatFromInt(texture.texture.h);
         } else {
             err("Failed to load sprite texture named \"{s}\"", .{image});
+        }
+    }
+
+    if (element.background_texture_name) |image| {
+        if (try self.load_texture_resource(allocator, image)) |texture| {
+            element.background_texture = texture;
+            if (element.rect.width == 0)
+                element.rect.width = @floatFromInt(texture.texture.w);
+            if (element.rect.height == 0)
+                element.rect.height = @floatFromInt(texture.texture.h);
+        } else {
+            err("Failed to load sprite background texture named \"{s}\"", .{image});
         }
     }
 }
