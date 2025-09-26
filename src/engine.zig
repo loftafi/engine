@@ -5056,18 +5056,23 @@ pub fn log_output(
     args: anytype,
 ) void {
     const prefix = "[" ++ comptime level ++ "] ";
-    if (scope != .term_scope) {
-        var buf: [3000]u8 = undefined;
-        if (std.fmt.bufPrintZ(&buf, prefix ++ format, args)) |f| {
-            sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), f.ptr);
-        } else |_| {
-            sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ format);
+    if (builtin.mode == .Debug) {
+        // Log to terminal in debug mode
+        std.debug.lockStdErr();
+        defer std.debug.unlockStdErr();
+        const stderr = std.io.getStdErr().writer();
+        nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
+    } else {
+        // Log using SDL when in release mode
+        if (scope != .term_scope) {
+            var buf: [3000]u8 = undefined;
+            if (std.fmt.bufPrintZ(&buf, prefix ++ format, args)) |f| {
+                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), f.ptr);
+            } else |_| {
+                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ format);
+            }
         }
     }
-    std.debug.lockStdErr();
-    defer std.debug.unlockStdErr();
-    const stderr = std.io.getStdErr().writer();
-    nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
 }
 
 pub fn log_output_handler(
