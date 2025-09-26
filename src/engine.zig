@@ -66,8 +66,8 @@ pub const Size = struct {
 
 /// Indicate if an element should be flipped when it is drawn.
 pub const Flip = struct {
-    x: bool,
-    y: bool,
+    x: bool = false,
+    y: bool = false,
 };
 
 /// Scroll information
@@ -296,6 +296,7 @@ pub const Element = struct {
             spacing: f32 = 0,
             style: ThemeColour = .normal,
             on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
+            update: ?*const fn (display: *Display, element: *Element) void = null,
             scrollable: Scroller = .{
                 .scroll = .{ .x = false, .y = false },
                 .size = .{ .width = 0, .height = 0 },
@@ -304,6 +305,7 @@ pub const Element = struct {
         },
         sprite: struct {
             on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
+            update: ?*const fn (display: *Display, element: *Element) void = null,
         },
         label: struct {
             text: []const u8 = "",
@@ -350,16 +352,16 @@ pub const Element = struct {
             text_texture: ?*sdl.SDL_Texture = null,
             icon_size: Vector = .{ .x = 0, .y = 0 },
             spacing: f32 = 0,
-            icon_default_name: ?[]const u8 = "",
+            icon_default_name: ?[]const u8 = null,
             icon_hover: ?*TextureInfo = null,
-            icon_hover_name: ?[]const u8 = "",
+            icon_hover_name: ?[]const u8 = null,
             icon_pressed: ?*TextureInfo = null,
-            icon_pressed_name: ?[]const u8 = "",
+            icon_pressed_name: ?[]const u8 = null,
             background_default_name: ?[]const u8 = null,
             background_hover: ?*TextureInfo = null,
-            background_hover_name: ?[]const u8 = "",
+            background_hover_name: ?[]const u8 = null,
             background_pressed: ?*TextureInfo = null,
-            background_pressed_name: ?[]const u8 = "",
+            background_pressed_name: ?[]const u8 = null,
             on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
             toggle: ToggleState = .no_toggle,
             style: ThemeColour = .normal,
@@ -973,6 +975,9 @@ pub const Element = struct {
     /// Animations, and used provided code may be updated inside the
     /// update function. This is called prior to the `draw` function.
     pub fn update(self: *Element, display: *Display) void {
+        if (self.type == .sprite) {
+            if (self.type.sprite.update) |f| f(display, self);
+        }
         if (display.need_relayout) {
             display.relayout();
         }
@@ -984,6 +989,7 @@ pub const Element = struct {
         }
 
         if (self.type == .panel) {
+            if (self.type.panel.update) |f| f(display, self);
             for (self.type.panel.children.items) |child| {
                 child.update(display);
             }
@@ -2180,7 +2186,7 @@ const TextElement = struct {
 /// If a texture is in use by more than one element, then the `references`
 /// counter keeps track of how many elements are currently depending on
 /// this texture.
-const TextureInfo = struct {
+pub const TextureInfo = struct {
     name: []const u8,
     texture: *sdl.SDL_Texture,
     references: i32,
@@ -2271,6 +2277,7 @@ pub const Display = struct {
     need_relayout: bool = true,
     accessibility: bool = false,
     last_draw: i64 = 0,
+    last_delta: i64 = 0,
 
     // Text height in pixels _before_ display scaling. i.e.
     // 16 on normal screens,
@@ -2501,6 +2508,7 @@ pub const Display = struct {
         display.textures = .empty;
 
         display.last_draw = std.time.microTimestamp();
+        display.last_delta = display.last_draw;
 
         display.root = .{
             .name = "root",
@@ -3157,8 +3165,8 @@ pub const Display = struct {
     /// Update and draw all elements on the display.
     pub fn draw(display: *Display) !void {
         const now = std.time.microTimestamp();
-        //const delta = now - display.last_draw;
-        //display.last_draw = now;
+        display.last_delta = now - display.last_draw;
+        display.last_draw = now;
         //info("animate delta={d}", .{delta});
         var i: usize = 0;
         while (i < display.animators.items.len) {
@@ -4707,6 +4715,10 @@ pub fn setup_sprite(
     if (element.texture_name) |image| {
         if (try self.load_texture_resource(allocator, image)) |texture| {
             element.texture = texture;
+            if (element.rect.width == 0)
+                element.rect.width = @floatFromInt(texture.texture.w);
+            if (element.rect.height == 0)
+                element.rect.height = @floatFromInt(texture.texture.h);
         } else {
             err("Failed to load sprite texture named \"{s}\"", .{image});
         }
