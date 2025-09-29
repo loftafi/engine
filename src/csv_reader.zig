@@ -44,16 +44,41 @@ pub const CsvReader = struct {
         }
         var end = start;
         var end_candidate = start;
+
+        var in_quote = false;
+        if (end < self.data.len and self.data[end] == '\"') {
+            end += 1;
+            start += 1;
+            end_candidate += 1;
+            in_quote = true;
+        }
         while (true) {
             if (end >= self.data.len) {
                 break;
             }
             switch (self.data[end]) {
+                '\"' => {
+                    end_candidate = end;
+                    end += 1;
+                    while (end < self.data.len and self.data[end] == ' ' or self.data[end] == '\t') end += 1;
+                    if (end < self.data.len and (self.data[end] == ',' or self.data[end] == '\r' or self.data[end] == '\t')) end += 1;
+                    break;
+                },
                 ',' => {
+                    if (in_quote) {
+                        end += 1;
+                        end_candidate = end;
+                        continue;
+                    }
                     end += 1;
                     break;
                 },
                 '\r', '\n' => {
+                    if (in_quote) {
+                        end += 1;
+                        end_candidate = end;
+                        continue;
+                    }
                     break;
                 },
                 ' ', '\t' => end += 1,
@@ -117,5 +142,32 @@ test "reader" {
     try expectEqualStrings("", i.value);
     try expectEqual(Token.field, i.next());
     try expectEqualStrings("b", i.value);
+    try expectEqual(Token.eof, i.next());
+
+    i = CsvReader{ .data = "a1,\"b1\",c1\n" };
+    try expectEqual(Token.field, i.next());
+    try expectEqualStrings("a1", i.value);
+    try expectEqual(Token.field, i.next());
+    try expectEqualStrings("b1", i.value);
+    try expectEqual(Token.field, i.next());
+    try expectEqualStrings("c1", i.value);
+    try expectEqual(Token.eol, i.next());
+    try expectEqual(Token.eof, i.next());
+
+    i = CsvReader{ .data = 
+        \\  a1 ,"b
+        \\1",c1,  "d,1"
+        \\
+    };
+    try expectEqual(Token.field, i.next());
+    try expectEqualStrings("a1", i.value);
+    try expectEqual(Token.field, i.next());
+    try expectEqualStrings("b\n1", i.value);
+    try expectEqual(Token.field, i.next());
+    std.log.err("remaining '{s}'", .{i.data});
+    try expectEqualStrings("c1", i.value);
+    try expectEqual(Token.field, i.next());
+    try expectEqualStrings("d,1", i.value);
+    try expectEqual(Token.eol, i.next());
     try expectEqual(Token.eof, i.next());
 }

@@ -39,29 +39,34 @@ pub const Translation = struct {
         var i = CsvReader{ .data = data };
 
         var col: usize = 0;
+        var line: usize = 0;
         while (true) {
             // Read header
             switch (i.next()) {
-                .eol => break,
+                .eol => {
+                    line += 1;
+                    break;
+                },
                 .eof => {
-                    err("load_translation_data has no row data", .{});
+                    err("load_translation_data has no row data. Line: {d}", .{line});
                     return;
                 },
                 .field => {
                     col += 1;
-                    if (col == 1) continue;
+                    if (col == 1) continue; // Skip unused first cell
                     const lr: Lang = Lang.parse_code(i.value);
                     if (lr == .unknown) {
                         err("load_translation_data has invalid languge code: '{s}'", .{i.value});
                         return;
                     }
+                    err("saw {s}, {s}", .{ i.value, @tagName(lr) });
                     try self.maps.put(allocator, lr, .empty);
                     try headers.append(allocator, self.maps.getPtr(lr).?);
                 },
             }
         }
         if (headers.items.len == 0) {
-            err("load_translation_data found no language data.", .{});
+            err("load_translation_data found no language data. Line: {d}", .{line});
             return;
         }
 
@@ -72,6 +77,7 @@ pub const Translation = struct {
                     return;
                 },
                 .eol => {
+                    line += 1;
                     continue;
                 },
                 .field => {
@@ -79,18 +85,30 @@ pub const Translation = struct {
                     const key = i.value;
                     //try headers.items[0].*.put(allocator, key, key);
                     // read the translations in the next columns
+                    //if (i.next() != .field) {
+                    //    err("load_translation_data expecting a translation field on line {d}.", .{line});
+                    //    return;
+                    //}
                     col = 0;
+                    var n: Token = .eof;
                     while (col < headers.items.len) : (col += 1) {
-                        const n = i.next();
+                        n = i.next();
                         if (n == .field) {
+                            err("saw {d}, {s}={s}", .{ col, key, i.value });
                             try headers.items[col].*.put(allocator, key, i.value);
+                        } else if (n == .eol or n == .eof) {
+                            // Handle case where last column(s) are empty
+                            break;
                         } else {
-                            err("load_translation_data has unexpected eol/eof on row {d}.", .{i.row});
+                            err("load_translation_data has unexpected token {s} on row {d}.", .{ @tagName(n), i.row });
                             return;
                         }
                     }
+                    if (n == .eof) return;
+                    if (n == .eol) continue;
+                    // Next should be eol or eof
                     if (i.next() == .field) {
-                        err("load_translation_data has too many entries on row {d}.", .{i.row});
+                        err("load_translation_data has too many entries on row {d} line {d}.", .{ i.row, line });
                         return;
                     }
                 },
@@ -117,22 +135,17 @@ pub const Translation = struct {
     }
 };
 
-const std = @import("std");
-const Allocator = std.mem.Allocator;
-const praxis = @import("praxis");
-const engine = @import("engine.zig");
-const err = engine.err;
-const Lang = praxis.Lang;
-const CsvReader = @import("csv_reader.zig").CsvReader;
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
-
 test "translator" {
     const allocator = std.testing.allocator;
     {
         var translator: Translation = .empty;
         defer translator.deinit(allocator);
         try translator.load_translation_data(allocator, "keys,en,el\nBREAD,bread,ἄρτος\n");
+
+        try expect(translator.maps.contains(Lang.english));
+        try expect(!translator.maps.contains(Lang.hebrew));
+        try expect(translator.maps.contains(Lang.greek));
+
         translator.set_language(.english);
         try expectEqualStrings("bread", translator.translate("BREAD"));
         translator.set_language(.greek);
@@ -153,4 +166,28 @@ test "translator" {
         translator.set_language(.greek);
         try expectEqualStrings("ὄνομα", translator.translate("NOUN"));
     }
+    {
+        var translator: Translation = .empty;
+        defer translator.deinit(allocator);
+        try translator.load_translation_data(allocator,
+            \\keys,en,es,zh_TW,ko,Uk
+            \\NONE,,,,,
+            \\APPLE,a,a,a,a,a
+            \\PEAR,a,a,a
+            \\COFFEE,a,a,a,a,a
+        );
+        try expectEqual(5, translator.maps.count());
+    }
 }
+
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+const praxis = @import("praxis");
+const engine = @import("engine.zig");
+const err = engine.err;
+const Lang = praxis.Lang;
+const CsvReader = @import("csv_reader.zig").CsvReader;
+const Token = @import("csv_reader.zig").Token;
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+const expectEqualStrings = std.testing.expectEqualStrings;

@@ -1,6 +1,7 @@
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const test_filters = b.option([]const []const u8, "test-filter", "Skip tests that do not match any filter") orelse &[0][]const u8{};
 
     const resources = b.dependency("resources", .{ .target = target, .optimize = optimize });
     const resources_module = resources.module("resources");
@@ -36,6 +37,7 @@ pub fn build(b: *std.Build) void {
 
     const lib_unit_tests = b.addTest(.{
         .root_module = lib_mod,
+        .filters = test_filters,
     });
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
