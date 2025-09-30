@@ -1241,8 +1241,8 @@ pub const Element = struct {
             .button => draw_button(element, display, parent_scroll_offset, parent_clip, scroll_offset),
             .checkbox => draw_checkbox(element, display, parent_scroll_offset, parent_clip, scroll_offset),
             .text_input => draw_text_input(element, display, parent_scroll_offset, parent_clip),
-            .sprite => draw_sprite(element, display, parent_scroll_offset, parent_clip),
-            .rectangle => draw_rectangle_element(element, display, parent_scroll_offset, parent_clip),
+            .sprite => draw_sprite(element, display, parent_scroll_offset, parent_clip, scroll_offset),
+            .rectangle => draw_rectangle_element(element, display, parent_scroll_offset, parent_clip, scroll_offset),
             .label => if (element.type.label.text.len > 0) {
                 draw_text_elements(element, display, scroll_offset, parent_clip, true);
             },
@@ -1263,6 +1263,7 @@ pub const Element = struct {
                 2,
                 colour,
                 element.rect.move(&scroll_offset),
+                .{},
             );
             if (element.type == .panel and (element.type.panel.scrollable.scroll.x or element.type.panel.scrollable.scroll.y)) {
                 draw_rectangle(
@@ -1270,6 +1271,7 @@ pub const Element = struct {
                     2,
                     display.theme.success_panel_colour,
                     element.rect,
+                    .{},
                 );
             }
             if (element.type == .button) {
@@ -1280,7 +1282,7 @@ pub const Element = struct {
                     .y = element.rect.y + scroll_offset.y + element.pad.top,
                     .width = element.rect.width - (element.pad.left + element.pad.right),
                     .height = element.rect.height - (element.pad.top + element.pad.bottom),
-                });
+                }, .{});
             }
         } else if (element.border_width > 0 and element.border_colour.a > 0) {
             draw_rectangle(
@@ -1288,6 +1290,7 @@ pub const Element = struct {
                 element.border_width,
                 element.border_colour,
                 element.rect.move(&scroll_offset),
+                .{},
             );
         }
 
@@ -1333,6 +1336,7 @@ pub const Element = struct {
         display: *Display,
         _: Vector,
         _: ?Clip,
+        scroll_offset: Vector,
     ) void {
         const colour = element.type.rectangle.style.from(display.theme, element.background_colour);
         _ = sdl.SDL_SetRenderDrawColor(
@@ -1342,7 +1346,8 @@ pub const Element = struct {
             colour.b,
             colour.a,
         );
-        _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&element.rect));
+        var dest = element.rect.move(&scroll_offset);
+        _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&dest));
     }
 
     inline fn draw_text_input(
@@ -1462,6 +1467,7 @@ pub const Element = struct {
         display: *Display,
         _: Vector,
         _: ?Clip,
+        scroll_offset: Vector,
     ) void {
         if (element.texture) |texture| {
             var dest: Rect = .{
@@ -1470,6 +1476,8 @@ pub const Element = struct {
                 .width = element.rect.width - element.pad.left - element.pad.right,
                 .height = element.rect.height - element.pad.top - element.pad.bottom,
             };
+            dest.x += scroll_offset.x;
+            dest.y += scroll_offset.y;
 
             // TODO: Sprites might have frames
             //const source: Rect = .{
@@ -1945,6 +1953,7 @@ inline fn draw_rectangle(
     border_width: f32,
     colour: Colour,
     rect: Rect,
+    scroll_offset: Vector,
 ) void {
     if (border_width > 0 and colour.a > 0) {
         _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -1954,6 +1963,8 @@ inline fn draw_rectangle(
             .width = rect.width,
             .height = border_width,
         };
+        dest.x += scroll_offset.x;
+        dest.y += scroll_offset.y;
         _ = sdl.SDL_SetRenderDrawColor(
             renderer,
             colour.r,

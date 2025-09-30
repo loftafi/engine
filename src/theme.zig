@@ -22,6 +22,7 @@ pub const Theme = struct {
 
     // Switch from default panel style to a faded/de-emphasised panel style.
     faded_panel_colour: Colour,
+    faded_text_colour: Colour,
 
     // Use for success dialogue boxes and panels.
     success_panel_colour: Colour,
@@ -84,6 +85,7 @@ pub const default_themes = [5]Theme{
         .failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 },
         .failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 },
         .faded_panel_colour = .{ .r = 15, .g = 17, .b = 25, .a = 255 },
+        .faded_text_colour = .{ .r = 204, .g = 204, .b = 204, .a = 255 },
         .toggle_button = .{ .r = 42, .g = 52, .b = 62, .a = 255 },
         .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
@@ -106,6 +108,7 @@ pub const default_themes = [5]Theme{
         .failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 },
         .failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 },
         .faded_panel_colour = .{ .r = 36, .g = 46, .b = 56, .a = 255 },
+        .faded_text_colour = .{ .r = 156, .g = 156, .b = 156, .a = 255 },
         .toggle_button = .{ .r = 58, .g = 72, .b = 86, .a = 255 },
         .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
@@ -129,6 +132,7 @@ pub const default_themes = [5]Theme{
         .failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 },
         .failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 },
         .faded_panel_colour = .{ .r = 217, .g = 207, .b = 197, .a = 255 },
+        .faded_text_colour = .{ .r = 72, .g = 72, .b = 42, .a = 255 },
         .toggle_button = .{ .r = 196, .g = 184, .b = 170, .a = 255 },
         .toggle_button_picked = .{ .r = 157, .g = 138, .b = 118, .a = 255 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
@@ -152,6 +156,7 @@ pub const default_themes = [5]Theme{
         .failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 },
         .failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 },
         .faded_panel_colour = .{ .r = 240, .g = 247, .b = 255, .a = 255 },
+        .faded_text_colour = .{ .r = 40, .g = 40, .b = 40, .a = 255 },
         .toggle_button = .{ .r = 193, .g = 203, .b = 213, .a = 255 },
         .toggle_button_picked = .{ .r = 131, .g = 142, .b = 149, .a = 255 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
@@ -174,6 +179,7 @@ pub const default_themes = [5]Theme{
         .failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 },
         .failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 },
         .faded_panel_colour = .{ .r = 65, .g = 130, .b = 92, .a = 255 },
+        .faded_text_colour = .{ .r = 204, .g = 204, .b = 204, .a = 255 },
         .toggle_button = .{ .r = 20, .g = 70, .b = 20, .a = 255 },
         .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
