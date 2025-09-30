@@ -164,7 +164,6 @@ test "reader" {
     try expectEqual(Token.field, i.next());
     try expectEqualStrings("b\n1", i.value);
     try expectEqual(Token.field, i.next());
-    std.log.err("remaining '{s}'", .{i.data});
     try expectEqualStrings("c1", i.value);
     try expectEqual(Token.field, i.next());
     try expectEqualStrings("d,1", i.value);

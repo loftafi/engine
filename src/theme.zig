@@ -51,7 +51,7 @@ pub const ThemeColour = enum {
     background,
     custom,
 
-    pub fn from(self: ThemeColour, theme: *Theme, custom: Colour) Colour {
+    pub fn text(self: ThemeColour, theme: *Theme, custom: Colour) Colour {
         return switch (self) {
             .normal => theme.text_colour,
             .faded => theme.faded_panel_colour,
@@ -60,6 +60,19 @@ pub const ThemeColour = enum {
             .success => theme.success_text_colour,
             .failed => theme.failed_text_colour,
             .background => theme.background_colour,
+            .custom => custom,
+        };
+    }
+
+    pub fn panel(self: ThemeColour, theme: *Theme, custom: Colour) Colour {
+        return switch (self) {
+            .normal => theme.text_colour,
+            .background => theme.background_colour,
+            .tinted => theme.tinted_text_colour,
+            .faded => theme.faded_panel_colour,
+            .emphasised => theme.emphasised_panel_colour,
+            .success => theme.success_panel_colour,
+            .failed => theme.failed_panel_colour,
             .custom => custom,
         };
     }

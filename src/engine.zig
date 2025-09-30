@@ -1338,7 +1338,7 @@ pub const Element = struct {
         _: ?Clip,
         scroll_offset: Vector,
     ) void {
-        const colour = element.type.rectangle.style.from(display.theme, element.background_colour);
+        const colour = element.type.rectangle.style.panel(display.theme, element.background_colour);
         _ = sdl.SDL_SetRenderDrawColor(
             display.renderer,
             colour.r,
@@ -2094,14 +2094,15 @@ inline fn draw_text_elements(
                 }
             }
 
-            // Only do rendering if display parameter is provided
-            const current_colour = text_colour.from(display.theme, element.colour);
+            // Only render text if display parameter is provided
+            const current_colour = text_colour.text(display.theme, element.colour);
             _ = sdl.SDL_SetTextureColorMod(
                 item.texture,
                 current_colour.r,
                 current_colour.g,
                 current_colour.b,
             );
+            _ = sdl.SDL_SetTextureAlphaMod(item.texture, current_colour.a);
             _ = sdl.SDL_RenderTexture(
                 display.renderer,
                 item.texture,

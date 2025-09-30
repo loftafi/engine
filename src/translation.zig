@@ -59,7 +59,6 @@ pub const Translation = struct {
                         err("load_translation_data has invalid languge code: '{s}'", .{i.value});
                         return;
                     }
-                    err("saw {s}, {s}", .{ i.value, @tagName(lr) });
                     try self.maps.put(allocator, lr, .empty);
                     try headers.append(allocator, self.maps.getPtr(lr).?);
                 },
@@ -81,20 +80,12 @@ pub const Translation = struct {
                     continue;
                 },
                 .field => {
-                    // read the key from the first column
                     const key = i.value;
-                    //try headers.items[0].*.put(allocator, key, key);
-                    // read the translations in the next columns
-                    //if (i.next() != .field) {
-                    //    err("load_translation_data expecting a translation field on line {d}.", .{line});
-                    //    return;
-                    //}
                     col = 0;
                     var n: Token = .eof;
                     while (col < headers.items.len) : (col += 1) {
                         n = i.next();
                         if (n == .field) {
-                            err("saw {d}, {s}={s}", .{ col, key, i.value });
                             try headers.items[col].*.put(allocator, key, i.value);
                         } else if (n == .eol or n == .eof) {
                             // Handle case where last column(s) are empty
