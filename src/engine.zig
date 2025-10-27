@@ -1019,12 +1019,11 @@ pub const Element = struct {
     /// to the width of the parent, then the parent width is needed
     /// to calculate the height
     fn shrink_height(self: *Element, display: *Display, parent_width: f32) f32 {
-        if (self.visible == .hidden) {
+        if (self.visible == .hidden)
             return 0;
-        }
-        if (self.layout.y == .fixed) {
+        if (self.layout.y == .fixed)
             return @max(self.minimum.height, self.rect.height);
-        }
+
         const height = switch (self.type) {
             .label, .checkbox => {
                 // Simulate a draw of this element to see how many lines it
@@ -1034,12 +1033,12 @@ pub const Element = struct {
                     .shrinks => {
                         const mm = text_elements_size(self, display, parent_width);
                         //err("{s} {s} use shrink height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
-                        return mm.max_height;
+                        return @max(self.minimum.height, mm.max_height);
                     },
                     .grows => {
                         const mm = text_elements_size(self, display, parent_width);
                         //err("{s} {s} use grows height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
-                        return mm.max_height;
+                        return @max(self.minimum.height, mm.max_height);
                     },
                     .fixed => {
                         //err("{s} {s} use fixed height {d} (parent_width={d})", .{ self.name, @tagName(self.type), self.height, parent_width });
@@ -1480,15 +1479,21 @@ pub const Element = struct {
             dest.y += scroll_offset.y;
 
             // TODO: Sprites might have frames
+            const source: sdl.SDL_FRect = .{
+                .x = 0,
+                .y = 0,
+                .w = @as(f32, @floatFromInt(texture.texture.w)),
+                .h = @as(f32, @floatFromInt(texture.texture.h)),
+            };
             //const source: Rect = .{
             //    .x = 0,
             //    .y = 0,
-            //    .w = @as(f32, @floatFromInt(texture.texture.w)),
-            //    .h = @as(f32, @floatFromInt(texture.texture.h)),
+            //    .width = @as(f32, @floatFromInt(texture.texture.w)),
+            //    .height = @as(f32, @floatFromInt(texture.texture.h)),
             //};
             //_ = sdl.SDL_RenderTexture(display.renderer, texture.texture, &source, @ptrCast(&dest));
 
-            _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+            _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, @ptrCast(&source), @ptrCast(&dest));
         }
     }
 

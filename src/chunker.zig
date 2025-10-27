@@ -22,10 +22,9 @@ pub const Chunker = struct {
                         self.data.len -= 1;
                     }
                 }
-                const token = "\n";
                 self.data.ptr += 1;
                 self.data.len -= 1;
-                return token;
+                return cr;
             }
             if (!is_whitespace(self.data[0])) {
                 break;
@@ -36,6 +35,14 @@ pub const Chunker = struct {
 
         var end: usize = 0;
         while (self.data.len > end) {
+            if (self.data[end] == '\\' and self.data.len > end + 1 and self.data[end + 1] == 'n') {
+                if (end == 0) {
+                    self.data.ptr += 2;
+                    self.data.len -= 2;
+                    return cr;
+                }
+                break;
+            }
             if (is_whitespace_or_eol(self.data[end])) {
                 break;
             }
@@ -48,6 +55,8 @@ pub const Chunker = struct {
         return token;
     }
 };
+
+const cr = "\n";
 
 pub inline fn is_whitespace(c: u8) bool {
     return c == ' ' or c == '\t';
@@ -112,6 +121,21 @@ test "read_chunks" {
     data = Chunker.init("fish\r\n\n\rcat");
     try expectEqualStrings("fish", data.next().?);
     try expectEqualStrings("\n", data.next().?);
+    try expectEqualStrings("\n", data.next().?);
+    try expectEqualStrings("cat", data.next().?);
+    try expectEqual(null, data.next());
+
+    data = Chunker.init("\\ncat");
+    try expectEqualStrings("\n", data.next().?);
+    try expectEqualStrings("cat", data.next().?);
+    try expectEqual(null, data.next());
+
+    data = Chunker.init("fish\\cat");
+    try expectEqualStrings("fish\\cat", data.next().?);
+    try expectEqual(null, data.next());
+
+    data = Chunker.init("fish\\ncat");
+    try expectEqualStrings("fish", data.next().?);
     try expectEqualStrings("\n", data.next().?);
     try expectEqualStrings("cat", data.next().?);
     try expectEqual(null, data.next());
