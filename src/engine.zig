@@ -2049,9 +2049,10 @@ inline fn draw_text_elements(
     var current_line_start: usize = 0;
 
     for (children, 0..) |*item, i| {
+        const is_cr = item.text != null and item.text.?.len == 1 and item.text.?[0] == '\n';
         const size = text_size(display, item.texture, text_height);
         // Would drawing this word overflow?
-        if (x + size.width > x_ending and line_word_count > 0) {
+        if ((x + size.width > x_ending and line_word_count > 0) or is_cr) {
             element.do_word_alignment(x_start, x, x_ending, children[current_line_start..i], display);
             // Wrap to next line
             x = element.rect.x + element.pad.left;
@@ -2060,17 +2061,17 @@ inline fn draw_text_elements(
             line_word_count = 0;
             current_line_start = i;
         }
-        if (line_word_count > 0) {
+        if (line_word_count > 0 and !is_cr) {
             x += word_spacing;
         }
         item.location = .{
             .x = @round(x + scroll_offset.x),
             .y = @round(y + scroll_offset.y),
-            .width = size.width,
+            .width = if (is_cr) 0 else size.width,
             .height = size.height,
         };
-        line_word_count += 1;
-        x += size.width;
+        if (!is_cr) x += size.width;
+        if (!is_cr) line_word_count += 1;
     }
 
     if (children.len > 0) {
