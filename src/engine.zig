@@ -1357,7 +1357,7 @@ pub const Element = struct {
     ) void {
         var x = element.rect.x + element.pad.left;
         const y = element.rect.y + element.pad.top;
-        const word_spacing = display.text_height / 3.0 * display.scale;
+        const word_spacing = display.text_height / 4.0 * display.scale;
 
         if (display.selected != null and element == display.selected.?) {
             // Draw cursor
@@ -2018,7 +2018,6 @@ inline fn draw_text_elements(
 
     var x: f32 = element.rect.x + element.pad.left;
     var y: f32 = element.rect.y + element.pad.top;
-    const word_spacing = display.text_height / 3.0 * display.scale;
     const x_start: f32 = @floor(x);
 
     const x_ending = switch (element.type) {
@@ -2041,6 +2040,8 @@ inline fn draw_text_elements(
         .checkbox => element.type.checkbox.text_colour,
         else => unreachable,
     };
+
+    const word_spacing = display.text_height * display.scale * text_height.height() / 4.0;
 
     var lines: usize = 0;
     // A line must have at least one word before a line break is inserted
@@ -2162,8 +2163,6 @@ inline fn text_elements_size(
         max_width -= display.checkbox().width;
     }
 
-    const word_spacing = display.text_height / 3.0 * display.scale;
-
     const text_height: TextSize = if (element.type == .label)
         element.type.label.text_size
     else
@@ -2173,6 +2172,8 @@ inline fn text_elements_size(
         element.type.label.elements.items
     else
         element.type.checkbox.elements.items;
+
+    const word_spacing = display.text_height * display.scale * text_height.height() / 3.0;
 
     var lines: usize = 0;
     // A line must have at least one word before a line break is inserted
