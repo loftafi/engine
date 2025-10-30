@@ -358,7 +358,7 @@ pub const Element = struct {
             text: []const u8 = "",
             translated: []const u8 = "",
             text_texture: ?*sdl.SDL_Texture = null,
-            icon_size: Vector = .{ .x = 0, .y = 0 },
+            icon_size: Size = .{ .width = 0, .height = 0 },
             spacing: f32 = 0,
             icon_default_name: ?[]const u8 = null,
             icon_hover: ?*TextureInfo = null,
@@ -1106,7 +1106,7 @@ pub const Element = struct {
                 if (self.type.button.text_texture) |_| {
                     height = display.text_height * display.scale; // * text_height;
                 }
-                height = @max(self.type.button.icon_size.y, height);
+                height = @max(self.type.button.icon_size.height, height);
                 height += (self.pad.top + self.pad.bottom);
                 return @max(self.minimum.height, height);
             },
@@ -1139,10 +1139,10 @@ pub const Element = struct {
             .button => {
                 var width: f32 = self.pad.left + self.pad.right;
 
-                width += self.type.button.icon_size.x;
+                width += self.type.button.icon_size.width;
 
                 // Do we need to pad between icon and text?
-                if (self.type.button.icon_size.x > 0 and self.type.button.text.len > 0) {
+                if (self.type.button.icon_size.width > 0 and self.type.button.text.len > 0) {
                     width += self.type.button.spacing;
                 }
 
@@ -1654,7 +1654,7 @@ pub const Element = struct {
         }
 
         // The inner content can contain a button and/or text texture.
-        var content_width = element.type.button.icon_size.x;
+        var content_width = element.type.button.icon_size.width;
         if (element.type.button.text_texture) |texture| {
             const size = text_size(display, texture, .normal);
 
@@ -1681,8 +1681,8 @@ pub const Element = struct {
                 var dest: Rect = .{
                     .x = element.rect.x + element.pad.left + content_offset,
                     .y = element.rect.y + element.pad.top,
-                    .width = element.type.button.icon_size.x,
-                    .height = element.type.button.icon_size.y,
+                    .width = element.type.button.icon_size.width,
+                    .height = element.type.button.icon_size.height,
                 };
                 dest.x += scroll_offset.x;
                 dest.y += scroll_offset.y;
@@ -1703,13 +1703,13 @@ pub const Element = struct {
         if (element.type.button.text_texture) |texture| {
             const size = text_size(display, texture, .normal);
             var dest: Rect = .{
-                .x = element.rect.x + element.type.button.icon_size.x + element.pad.left + content_offset,
+                .x = element.rect.x + element.type.button.icon_size.width + element.pad.left + content_offset,
                 .y = element.rect.y + (element.rect.height / 2.0) - (size.height / 2),
                 .width = size.width,
                 .height = size.height,
             };
             dest = dest.move(&scroll_offset);
-            if (has_icon or element.type.button.icon_size.x > 0) {
+            if (has_icon or element.type.button.icon_size.width > 0) {
                 dest.x += element.type.button.spacing;
             }
             _ = sdl.SDL_SetTextureColorMod(texture, tint.r, tint.g, tint.b);
@@ -4342,7 +4342,7 @@ pub const Display = struct {
                     .text = "",
                     .translated = "",
                     .on_click = close_fn,
-                    .icon_size = .{ .x = 70, .y = 70 },
+                    .icon_size = .{ .width = 70, .height = 70 },
                 } },
                 .on_resized = back_button_resize,
             },
@@ -4868,7 +4868,7 @@ pub fn setup_button(
     if (element.type.button.icon_default_name) |icon_default| {
         if (try display.load_texture_resource(allocator, icon_default)) |texture| {
             element.texture = texture;
-            if (element.type.button.icon_size.x == 0 or element.type.button.icon_size.y == 0)
+            if (element.type.button.icon_size.width == 0 or element.type.button.icon_size.height == 0)
                 warn("button `{s}` has icon `{s}`, but no icon size.", .{ element.name, icon_default });
         }
     }
