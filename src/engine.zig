@@ -769,6 +769,50 @@ pub const Element = struct {
         }
     }
 
+    /// set_texture replaces the current texture of an element with a new
+    /// texture found in the resource bucket.
+    pub inline fn set_texture(
+        self: *Element,
+        allocator: Allocator,
+        display: *Display,
+        name: []const u8,
+    ) error{OutOfMemory}!void {
+        const texture = display.load_texture_resource(allocator, name) catch |f| {
+            err("set_texture({s}) error loading texture. {any}", .{ name, f });
+            return;
+        };
+        if (texture != null) {
+            if (self.texture != null) {
+                display.release_texture_resource(allocator, self.texture.?);
+            }
+            self.texture = texture.?;
+        } else {
+            err("set_texture({s}) resource not found", .{name});
+        }
+    }
+
+    /// set_texture replaces the current texture of an element with a new
+    /// texture found in the resource bucket.
+    pub inline fn set_background_texture(
+        self: *Element,
+        allocator: Allocator,
+        display: *Display,
+        name: []const u8,
+    ) error{OutOfMemory}!void {
+        const texture = display.load_texture_resource(allocator, name) catch |f| {
+            err("set_background_texture({s}) error loading texture. {any}", .{ name, f });
+            return;
+        };
+        if (texture != null) {
+            if (self.background_texture != null) {
+                display.release_texture_resource(allocator, self.background_texture.?);
+            }
+            self.background_texture = texture.?;
+        } else {
+            err("set_background_texture({s}) resource not found", .{name});
+        }
+    }
+
     /// set_text updates the `text` and `translation` fields of labels,
     /// checkboxes and buttons, and regenerates the grahpics/image
     /// textures for each word if the text was changed or `forced`
