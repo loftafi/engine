@@ -308,6 +308,8 @@ pub const Element = struct {
             update: ?*const fn (display: *Display, element: *Element) void = null,
         },
         label: struct {
+            font: *FontInfo = undefined,
+            font_name: ?[]const u8 = null,
             text: []const u8 = "",
             translated: []const u8 = "",
             elements: ArrayListUnmanaged(TextElement) = .empty,
@@ -317,6 +319,8 @@ pub const Element = struct {
             on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
         },
         checkbox: struct {
+            font: *FontInfo = undefined,
+            font_name: ?[]const u8 = null,
             checked: bool = false,
             translated: []const u8 = "",
             text: []const u8 = "",
@@ -329,6 +333,8 @@ pub const Element = struct {
             on_change: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
         },
         text_input: struct {
+            font: *FontInfo = undefined,
+            font_name: ?[]const u8 = null,
             texture: ?*sdl.SDL_Texture = null,
             initial_text: ?[]const u8 = "",
             icon_texture_name: ?[]const u8 = "",
@@ -347,6 +353,8 @@ pub const Element = struct {
             style: ThemeColour = .normal,
         },
         button: struct {
+            font: *FontInfo = undefined,
+            font_name: ?[]const u8 = null,
             text: []const u8 = "",
             translated: []const u8 = "",
             text_texture: ?*sdl.SDL_Texture = null,
@@ -751,7 +759,7 @@ pub const Element = struct {
                 }
                 if (text.len == 0) return;
                 self.type.text_input.placeholder_text = text;
-                if (display.generate_text_texture(self.type.text_input.placeholder_text.?)) |texture| {
+                if (display.generate_text_texture(self.type.text_input.placeholder_text.?, self.type.text_input.font)) |texture| {
                     self.type.text_input.placeholder_texture = texture;
                 }
             },
@@ -817,7 +825,7 @@ pub const Element = struct {
                 if (new_text.len > 0) {
                     try self.type.text_input.text.appendSlice(allocator, new_text);
                     self.text_data_to_runes(allocator);
-                    if (display.generate_text_texture(self.type.text_input.text.items)) |texture| {
+                    if (display.generate_text_texture(self.type.text_input.text.items, self.type.text_input.font)) |texture| {
                         self.type.text_input.cursor_pixels = text_size(display, texture, .normal).width;
                         self.type.text_input.texture = texture;
                         self.type.text_input.cursor_character = self.type.text_input.runes.items.len;
@@ -841,7 +849,7 @@ pub const Element = struct {
                 if (self.type.label.translated.len > 0) {
                     var data = Chunker.init(self.type.label.translated);
                     while (data.next()) |text| {
-                        if (display.generate_text_texture(text)) |texture| {
+                        if (display.generate_text_texture(text, self.type.label.font)) |texture| {
                             try self.type.label.elements.append(allocator, .{
                                 .text = text,
                                 .width = @floatFromInt(texture.*.w),
@@ -869,7 +877,7 @@ pub const Element = struct {
                     self.type.checkbox.elements.clearRetainingCapacity();
                     var data = Chunker.init(self.type.checkbox.translated);
                     while (data.next()) |text| {
-                        if (display.generate_text_texture(text)) |texture| {
+                        if (display.generate_text_texture(text, self.type.checkbox.font)) |texture| {
                             try self.type.checkbox.elements.append(allocator, .{
                                 .text = text,
                                 .width = @floatFromInt(texture.*.w),
@@ -895,7 +903,7 @@ pub const Element = struct {
                 self.type.button.text = new_text;
                 self.type.button.translated = new_translated;
                 if (new_translated.len > 0) {
-                    if (display.generate_text_texture(self.type.button.translated)) |texture| {
+                    if (display.generate_text_texture(self.type.button.translated, self.type.button.font)) |texture| {
                         self.type.button.text_texture = texture;
                     }
                 }
@@ -1709,7 +1717,7 @@ pub const Element = struct {
                 self.type.text_input.texture = null;
             }
             if (self.type.text_input.text.items.len > 0) {
-                if (display.generate_text_texture(self.type.text_input.text.items)) |texture| {
+                if (display.generate_text_texture(self.type.text_input.text.items, self.type.text_input.font)) |texture| {
                     self.type.text_input.texture = texture;
                     // For now, the cursor position is simply the end of the text.
                     self.type.text_input.cursor_pixels = text_size(display, texture, .normal).width;
@@ -3329,15 +3337,14 @@ pub const Display = struct {
 
     /// Convert a text string into an image that is sent as a texture to
     /// the graphics card.
-    fn generate_text_texture(self: *Display, text: []const u8) ?*sdl.SDL_Texture {
-        const myfont = self.fonts.items[0].font;
+    fn generate_text_texture(self: *Display, text: []const u8, myfont: *FontInfo) ?*sdl.SDL_Texture {
 
         // Step 1: Create a surface (a bitmap) that holds the text.
         //
         // The text colour is set to white, so that it can be tinted to
         // match the current theme.
         const surface = sdl.TTF_RenderText_Blended(
-            myfont,
+            myfont.font,
             text.ptr,
             text.len,
             .{ .r = 255, .g = 255, .b = 255, .a = 255 },
@@ -4614,6 +4621,7 @@ pub fn setup_checkbox(
     element.background_texture = null;
     element.type.checkbox.translated = "";
     element.type.checkbox.elements = .empty;
+    element.type.checkbox.font = select_font(self.fonts.items, element.type.checkbox.font_name);
 
     if (element.focus == .unspecified)
         element.focus = .can_focus;
@@ -4667,6 +4675,7 @@ pub fn setup_label(
     element.background_texture = null;
     element.type.label.translated = "";
     element.type.label.elements = .empty;
+    element.type.label.font = select_font(self.fonts.items, element.type.label.font_name);
 
     if (element.focus == .unspecified) {
         if (element.type.label.on_click != null)
@@ -4698,6 +4707,7 @@ pub fn setup_text_input(
     if (element.focus == .unspecified) {
         element.focus = .can_focus;
     }
+    element.type.text_input.font = select_font(self.fonts.items, element.type.text_input.font_name);
 
     if (element.type.text_input.icon_texture_name) |icon| {
         if (try self.load_texture_resource(allocator, icon)) |texture| {
@@ -4775,6 +4785,17 @@ pub fn setup_sprite(
     }
 }
 
+fn select_font(fonts: []*FontInfo, name: ?[]const u8) *FontInfo {
+    if (name) |font_name| {
+        for (fonts) |font| {
+            if (std.mem.eql(u8, font.name, font_name)) {
+                return font;
+            }
+        }
+    }
+    return fonts[0];
+}
+
 pub fn setup_button(
     display: *Display,
     allocator: Allocator,
@@ -4787,6 +4808,7 @@ pub fn setup_button(
     element.type.button.icon_hover = null;
     element.type.button.background_pressed = null;
     element.type.button.background_hover = null;
+    element.type.button.font = select_font(display.fonts.items, element.type.button.font_name);
 
     if (element.focus == .unspecified)
         element.focus = .can_focus;
