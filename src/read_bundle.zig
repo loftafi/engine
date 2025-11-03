@@ -329,15 +329,156 @@ inline fn read_slice(
     return error.ResourceReadError;
 }
 
+/// Load a preferences data file. Returns null if the file does not
+/// exist. Release the data array after using.
+pub fn load_preference_data(
+    gpa: Allocator,
+    app_name: []const u8,
+    app_org: []const u8,
+    filename: []const u8,
+    max_file_size: usize,
+) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
+    const app_org_z = try gpa.dupeZ(u8, app_org);
+    defer gpa.free(app_org_z);
+    const app_name_z = try gpa.dupeZ(u8, app_name);
+    defer gpa.free(app_name_z);
+
+    const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
+    const zpath = std.mem.sliceTo(path, 0);
+    var folder = std.fs.openDirAbsolute(zpath, .{}) catch |e| {
+        warn("Open preferences path failed. {s} {any}", .{ path, e });
+        return null;
+    };
+    debug("Preferences path: {s} for {s}", .{ zpath, filename });
+    var file = folder.openFile(filename, .{}) catch |e| {
+        if (e == error.FileNotFound) {
+            info("Preferences file not yet created.", .{});
+            return null;
+        }
+        warn("Open preferences file failed. {s} {any}", .{ path, e });
+        return error.ResourceReadError;
+    };
+    defer file.close();
+    debug("start reading {s}", .{filename});
+    const data = file.readToEndAlloc(gpa, max_file_size) catch |e| {
+        warn("Read preferences file failed. {s} {any}", .{ path, e });
+        return error.ResourceReadError;
+    };
+    debug("read {s} size = {d}", .{ filename, data.len });
+    return data;
+}
+
+pub fn save_preference_data(
+    gpa: Allocator,
+    app_name: []const u8,
+    app_org: []const u8,
+    filename: []const u8,
+    data: []const u8,
+) error{ ResourceWriteError, OutOfMemory }!void {
+    const app_org_z = try gpa.dupeZ(u8, app_org);
+    defer gpa.free(app_org_z);
+    const app_name_z = try gpa.dupeZ(u8, app_name);
+    defer gpa.free(app_name_z);
+
+    const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
+    const zpath = std.mem.sliceTo(path, 0);
+    var folder = std.fs.openDirAbsolute(zpath, .{}) catch |e| {
+        warn("Open preferences path failed. {s} {any}", .{ path, e });
+        return error.ResourceWriteError;
+    };
+    var file = folder.createFile(filename, .{}) catch |e| {
+        warn("Open preferences file failed. {s} {any}", .{ path, e });
+        return error.ResourceWriteError;
+    };
+    defer file.close();
+    file.writeAll(data) catch |e| {
+        warn("Write preferences file failed. {s} {any}", .{ path, e });
+        return error.ResourceWriteError;
+    };
+}
+
+pub fn remove_preference_data(
+    gpa: Allocator,
+    app_name: []const u8,
+    app_org: []const u8,
+    filename: []const u8,
+) error{ ResourceDeleteError, OutOfMemory }!void {
+    const app_org_z = try gpa.dupeZ(u8, app_org);
+    defer gpa.free(app_org_z);
+    const app_name_z = try gpa.dupeZ(u8, app_name);
+    defer gpa.free(app_name_z);
+
+    const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
+    const zpath = std.mem.sliceTo(path, 0);
+
+    // Check the folder exists
+    std.fs.cwd().access(zpath, .{}) catch |f| {
+        if (f == error.FileNotFound) return;
+        return error.ResourceDeleteError;
+    };
+
+    var folder = std.fs.openDirAbsolute(zpath, .{}) catch |e| {
+        warn("Open preferences path failed. {s} {any}", .{ path, e });
+        return error.ResourceDeleteError;
+    };
+
+    // Check the file exists
+    folder.access(filename, .{}) catch |f| {
+        if (f == error.FileNotFound) return;
+        return error.ResourceDeleteError;
+    };
+    folder.deleteFile(filename) catch |e| {
+        warn("Delete preferences file '{s}' failed. {s} {any}", .{ filename, path, e });
+        return error.ResourceDeleteError;
+    };
+}
+
+// Fill an array with random alphanumeric characters, A-Z, a-z, 0-9.
+pub fn random_string(data: []u8) void {
+    for (0..data.len) |i| {
+        const x = random(26 + 26 + 10);
+        data[i] = switch (x) {
+            0...25 => 'a' + @as(u8, @intCast(x)),
+            26...51 => 'A' + @as(u8, @intCast(x - 26)),
+            else => '0' + @as(u8, @intCast(x - 26 - 26)),
+        };
+    }
+}
+
+test "load_save_preferences" {
+    const gpa = std.testing.allocator;
+    seed();
+
+    var app_name: [20]u8 = undefined;
+    random_string(&app_name);
+
+    const app_org = "engine_test";
+    const filename = "settings.cfg";
+    const data = "file\ndata";
+
+    try save_preference_data(gpa, &app_name, app_org, filename, data);
+    const read = try load_preference_data(gpa, &app_name, app_org, filename, 10000);
+    try expect(read != null);
+    defer gpa.free(read.?);
+    try expectEqualStrings(data, read.?);
+
+    try remove_preference_data(gpa, &app_name, app_org, filename);
+}
+
+const std = @import("std");
+const expectEqualStrings = std.testing.expectEqualStrings;
+const expect = std.testing.expect;
+
 const builtin = @import("builtin");
 const sdl = @import("sdl");
-const std = @import("std");
 const Allocator = std.mem.Allocator;
 const praxis = @import("praxis");
 const Resources = @import("resources").Resources;
 const encode_uid = @import("resources").encode_uid;
 const UniqueWords = @import("resources").UniqueWords;
 const Resource = @import("resources").Resource;
+const random = @import("resources").random;
+const seed = @import("resources").seed;
 const ResourceType = @import("resources").ResourceType;
 const engine = @import("engine.zig");
 const err = engine.err;

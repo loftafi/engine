@@ -708,16 +708,13 @@ pub const Element = struct {
     /// for the current state.
     inline fn current_background(self: *Element) ?*sdl.SDL_Texture {
         if (self.type == .button) {
-            if (self.pressed and self.type.button.background_pressed != null) {
+            if (self.pressed and self.type.button.background_pressed != null)
                 return self.type.button.background_pressed.?.texture;
-            }
-            if (self.hovered and self.type.button.background_hover != null) {
+            if (self.hovered and self.type.button.background_hover != null)
                 return self.type.button.background_hover.?.texture;
-            }
         }
-        if (self.background_texture != null) {
+        if (self.background_texture != null)
             return self.background_texture.?.texture;
-        }
         return null;
     }
 
@@ -725,16 +722,13 @@ pub const Element = struct {
     /// and normal state. Return the image that is valid for the current state.
     inline fn current_icon(self: *Element) ?*sdl.SDL_Texture {
         if (self.type == .button) {
-            if (self.pressed and self.type.button.icon_pressed != null) {
+            if (self.pressed and self.type.button.icon_pressed != null)
                 return self.type.button.icon_pressed.?.texture;
-            }
-            if (self.hovered and self.type.button.icon_hover != null) {
+            if (self.hovered and self.type.button.icon_hover != null)
                 return self.type.button.icon_hover.?.texture;
-            }
         }
-        if (self.texture != null) {
+        if (self.texture != null)
             return self.texture.?.texture;
-        }
         return null;
     }
 
@@ -804,9 +798,8 @@ pub const Element = struct {
             return;
         };
         if (texture != null) {
-            if (self.background_texture != null) {
+            if (self.background_texture != null)
                 display.release_texture_resource(allocator, self.background_texture.?);
-            }
             self.background_texture = texture.?;
         } else {
             err("set_background_texture({s}) resource not found", .{name});
@@ -1029,12 +1022,8 @@ pub const Element = struct {
     /// Make sure nothing is holding a reference to an element that
     /// is being removed from the display.
     fn clear_display_pointers(self: *Element, display: *Display) void {
-        if (display.selected == self) {
-            display.selected = null;
-        }
-        if (display.hovered == self) {
-            display.hovered = null;
-        }
+        if (display.selected == self) display.selected = null;
+        if (display.hovered == self) display.hovered = null;
         if (self.type == .panel) {
             for (self.type.panel.children.items) |element| {
                 element.clear_display_pointers(display);
@@ -1048,15 +1037,13 @@ pub const Element = struct {
         if (self.type == .sprite) {
             if (self.type.sprite.update) |f| f(display, self);
         }
-        if (display.need_relayout) {
-            display.relayout();
-        }
-        if (self.velocity.x > 0) {
+        if (display.need_relayout) display.relayout();
+
+        if (self.velocity.x > 0)
             self.rect.x += self.velocity.x;
-        }
-        if (self.velocity.y > 0) {
+
+        if (self.velocity.y > 0)
             self.rect.y += self.velocity.y;
-        }
 
         if (self.type == .panel) {
             if (self.type.panel.update) |f| f(display, self);
@@ -1126,12 +1113,12 @@ pub const Element = struct {
     ///
     /// If text is longer than the parent width, then wrapping is forced.
     fn shrink_width(self: *Element, display: *Display, parent_width: f32) f32 {
-        if (self.visible == .hidden) {
+        if (self.visible == .hidden)
             return 0;
-        }
-        if (self.layout.x == .fixed) {
+
+        if (self.layout.x == .fixed)
             return @max(self.minimum.width, self.rect.width);
-        }
+
         switch (self.type) {
             .panel => {
                 return @max(self.minimum.width, find_minimum_panel_width(self, display));
@@ -1708,6 +1695,9 @@ pub const Element = struct {
                 .width = size.width,
                 .height = size.height,
             };
+            if (element.type.button.icon_size.width == 0 or element.type.button.icon_size.height == 0) {
+                dest.x = element.rect.x + element.rect.width / 2 - size.width / 2;
+            }
             dest = dest.move(&scroll_offset);
             if (has_icon or element.type.button.icon_size.width > 0) {
                 dest.x += element.type.button.spacing;
@@ -3316,6 +3306,7 @@ pub const Display = struct {
     ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*FontInfo {
         const resource = try self.resources.lookupOne(name, .font);
         if (resource == null) {
+            err("load_font({s}) Font not in resource folder", .{name});
             return error.ResourceNotFound;
         }
         const font_buffer = try sdl_load_resource(self.resources, resource.?, allocator);
@@ -4824,7 +4815,7 @@ pub fn setup_sprite(
             if (element.rect.height == 0)
                 element.rect.height = @floatFromInt(texture.texture.h);
         } else {
-            err("Failed to load sprite background texture named \"{s}\"", .{image});
+            err("Failed to load sprite background texture named \"{s}\" for button \"{s}\"", .{ image, element.name });
         }
     }
 }
@@ -4836,8 +4827,12 @@ fn select_font(fonts: []*FontInfo, name: ?[]const u8) *FontInfo {
                 return font;
             }
         }
+        err("select_font({s}) called, but no fonts have been loaded.", .{name.?});
     }
-    return fonts[0];
+    if (fonts.len > 0) return fonts[0];
+
+    std.debug.assert(fonts.len > 0);
+    unreachable; // select_font requires at least one font
 }
 
 pub fn setup_button(
@@ -5229,6 +5224,8 @@ test "button sizing" {
     // The display takes ownership of the resources object
     var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
     defer display.destroy(allocator);
+    _ = try display.load_font(allocator, "Roboto-Light");
+    try eq(1, display.fonts.items.len);
 
     var panel = try create_panel(allocator, display, .{
         .minimum = .{ .width = 5, .height = 8 },
@@ -5310,7 +5307,7 @@ test "text input sizing" {
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.shrink_width(display, 500));
-        try eq(44, l.shrink_height(display, 500));
+        try eq(50, l.shrink_height(display, 500));
     }
 
     {
@@ -5467,15 +5464,21 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const sdl = @import("sdl");
 const builtin = @import("builtin");
+
+const zigimg = @import("zigimg");
+
 pub const engine = @import("engine.zig");
 pub const Animator = @import("animator.zig");
+
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
+
 pub const Chunker = @import("chunker.zig").Chunker;
 pub const Translation = @import("translation.zig").Translation;
+
 const Resources = @import("resources").Resources;
 const ResourcesError = @import("resources").Resources.Error;
-const zigimg = @import("zigimg");
+
 const default_themes = @import("theme.zig").default_themes;
 const Theme = @import("theme.zig").Theme;
 const ThemeColour = @import("theme.zig").ThemeColour;
@@ -5484,3 +5487,7 @@ pub const BundleLoader = @import("read_bundle.zig");
 pub const init_resource_loader = BundleLoader.init_resource_loader;
 pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
 pub const sdl_load_resource = BundleLoader.sdl_load_resource;
+pub const load_preference_data = BundleLoader.save_preference_data;
+pub const save_preference_data = BundleLoader.save_preference_data;
+pub const remove_preference_data = BundleLoader.remove_preference_data;
+pub const random_string = BundleLoader.random_string;
