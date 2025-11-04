@@ -329,8 +329,8 @@ inline fn read_slice(
     return error.ResourceReadError;
 }
 
-/// Load a preferences data file. Returns null if the file does not
-/// exist. Release the data array after using.
+/// Load a preferences data file from the system standard preferences folder.
+/// Returns null if the file does not exist. Release the data array after using.
 pub fn load_preference_data(
     gpa: Allocator,
     app_name: []const u8,
@@ -415,6 +415,8 @@ pub fn save_preference_data(
     debug("Saved preferences data to {s}", .{temp_filename});
 }
 
+/// Remove a preference data file from the standard system preference
+/// file location.
 pub fn remove_preference_data(
     gpa: Allocator,
     app_name: []const u8,
