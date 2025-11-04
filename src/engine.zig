@@ -5483,7 +5483,7 @@ const default_themes = @import("theme.zig").default_themes;
 const Theme = @import("theme.zig").Theme;
 const ThemeColour = @import("theme.zig").ThemeColour;
 
-pub const BundleLoader = @import("read_bundle.zig");
+pub const BundleLoader = @import("read_write.zig");
 pub const init_resource_loader = BundleLoader.init_resource_loader;
 pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
 pub const sdl_load_resource = BundleLoader.sdl_load_resource;
