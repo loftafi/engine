@@ -368,6 +368,9 @@ pub fn load_preference_data(
     return data;
 }
 
+/// Output preference data to a file inside the OS's preferenence data folder.
+/// First writes data to a temporary file to ensure the data can be completely
+/// written, then replaces the data file with the temporary file.
 pub fn save_preference_data(
     gpa: Allocator,
     app_name: []const u8,
@@ -380,21 +383,36 @@ pub fn save_preference_data(
     const app_name_z = try gpa.dupeZ(u8, app_name);
     defer gpa.free(app_name_z);
 
+    // SDL auto creates the preferences path if it does not yet exist.
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
     const zpath = std.mem.sliceTo(path, 0);
+
     var folder = std.fs.openDirAbsolute(zpath, .{}) catch |e| {
-        warn("Open preferences path failed. {s} {any}", .{ path, e });
+        err("Open preferences path failed. {s} {any}", .{ path, e });
         return error.ResourceWriteError;
     };
-    var file = folder.createFile(filename, .{}) catch |e| {
-        warn("Open preferences file failed. {s} {any}", .{ path, e });
+
+    var temp_filename: [30]u8 = undefined;
+    random_string(&temp_filename);
+
+    var file = folder.createFile(&temp_filename, .{}) catch |e| {
+        err("Create temporary preferences file failed. {s} {any}", .{ path, e });
         return error.ResourceWriteError;
     };
     defer file.close();
     file.writeAll(data) catch |e| {
-        warn("Write preferences file failed. {s} {any}", .{ path, e });
+        err("Write preferences data failed. {s} {any}", .{ path, e });
         return error.ResourceWriteError;
     };
+    debug("Created temporary preferences file: {s}", .{temp_filename});
+
+    folder.rename(&temp_filename, filename) catch |f| {
+        if (f == error.RenameError) {
+            err("Update preferences file '{s}' failed. {any} ({s} -> {s})", .{ filename, f, temp_filename, filename });
+        }
+        return error.ResourceWriteError;
+    };
+    debug("Saved preferences data to {s}", .{temp_filename});
 }
 
 pub fn remove_preference_data(
@@ -461,6 +479,13 @@ test "load_save_preferences" {
     try expect(read != null);
     defer gpa.free(read.?);
     try expectEqualStrings(data, read.?);
+
+    const data2 = "file\ndata2";
+    try save_preference_data(gpa, &app_name, app_org, filename, data2);
+    const read2 = try load_preference_data(gpa, &app_name, app_org, filename, 10000);
+    try expect(read2 != null);
+    defer gpa.free(read2.?);
+    try expectEqualStrings(data2, read2.?);
 
     try remove_preference_data(gpa, &app_name, app_org, filename);
 }
