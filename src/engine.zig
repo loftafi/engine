@@ -2540,6 +2540,20 @@ pub const Display = struct {
 
         debug("Renderers: {}", .{driver_formatter(renderer)});
 
+        debug("Checking for desktop icon", .{});
+        if (try display.resources.lookupOne("desktop icon", .image)) |resource| {
+            var surface: SurfaceInfo = undefined;
+            try display.make_surface_from_resource(resource, allocator, &surface);
+            defer surface.deinit(allocator);
+            if (!sdl.SDL_SetWindowIcon(window, surface.surface)) {
+                info("Did not set desktop icon", .{});
+            } else {
+                debug("Set desktop icon", .{});
+            }
+        } else {
+            err("No 'desktop icon' in resource folder.", .{});
+        }
+
         const pixel_scale = sdl.SDL_GetWindowDisplayScale(window);
         info("WindowDisplayScale: {d}", .{pixel_scale});
 
@@ -3423,7 +3437,11 @@ pub const Display = struct {
     }
 
     /// Load an image from the resource bundle or resource directory.
-    pub fn load_texture_resource(self: *Display, allocator: Allocator, name: []const u8) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!?*TextureInfo {
+    pub fn load_texture_resource(
+        self: *Display,
+        allocator: Allocator,
+        name: []const u8,
+    ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!?*TextureInfo {
         if (name.len == 0) {
             return null;
         }
@@ -3437,44 +3455,75 @@ pub const Display = struct {
         if (resource == null) {
             return null;
         }
-        const buf: []const u8 = try sdl_load_resource(self.resources, resource.?, allocator);
-        defer allocator.free(buf);
+        var si: SurfaceInfo = undefined;
+        try self.make_surface_from_resource(resource.?, allocator, &si);
+        defer si.deinit(allocator);
 
-        var img = zigimg.Image.fromMemory(allocator, buf[0..]) catch |e| {
-            if (e == error.OutOfMemory) return error.OutOfMemory;
-            return error.UnknownImageFormat;
-        };
-        defer img.deinit();
-
-        var row_size: c_int = 0;
-        var sdl_format: sdl.SDL_PixelFormat = sdl.SDL_PIXELFORMAT_UNKNOWN;
-        switch (img.pixels) {
-            //1 => //PIXELFORMAT_UNCOMPRESSED_GRAYSCALE,
-            //2 => //PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA,
-            .rgb24 => {
-                //PIXELFORMAT_UNCOMPRESSED_R8G8B8
-                sdl_format = sdl.SDL_PIXELFORMAT_RGB24;
-                row_size = @intCast(img.width * 3);
-            },
-            .rgba32 => {
-                //PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
-                sdl_format = sdl.SDL_PIXELFORMAT_ABGR8888;
-                row_size = @intCast(img.width * 4);
-            },
-            else => {
-                warn("unknown file format. Loading {s} format {s}", .{ name, @tagName(img.pixels) });
-                return error.UnknownImageFormat;
-            },
-        }
-
-        const img_width: c_int = @intCast(img.width);
-        const img_height: c_int = @intCast(img.height);
-        const surface = sdl.SDL_CreateSurfaceFrom(img_width, img_height, sdl_format, img.pixels.asBytes().ptr, row_size);
-        const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, surface);
+        const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, si.surface);
         const ti = try TextureInfo.create(allocator, name, texture);
         ti.references += 1;
         try self.textures.put(allocator, ti.name, ti);
         return ti;
+    }
+
+    pub const SurfaceInfo = struct {
+        buffer: []const u8,
+        img: zigimg.Image,
+        surface: *sdl.SDL_Surface,
+
+        pub fn deinit(si: *@This(), gpa: Allocator) void {
+            gpa.free(si.buffer);
+            si.img.deinit();
+            sdl.SDL_DestroySurface(si.surface);
+        }
+    };
+
+    pub fn make_surface_from_resource(
+        self: *Display,
+        resource: *Resource,
+        allocator: Allocator,
+        si: *SurfaceInfo,
+    ) error{ OutOfMemory, ResourceReadError, ResourceNotFound, UnknownImageFormat }!void {
+        si.buffer = try sdl_load_resource(self.resources, resource, allocator);
+        errdefer allocator.free(si.buffer);
+        si.img = zigimg.Image.fromMemory(allocator, si.buffer[0..]) catch |e| {
+            if (e == error.OutOfMemory) return error.OutOfMemory;
+            return error.UnknownImageFormat;
+        };
+        errdefer si.img.deinit();
+
+        var row_size: c_int = 0;
+        var sdl_format: sdl.SDL_PixelFormat = sdl.SDL_PIXELFORMAT_UNKNOWN;
+        switch (si.img.pixels) {
+            //1 => //PIXELFORMAT_UNCOMPRESSED_GRAYSCALE,
+            //2 => //PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA,
+            .rgb24 => {
+                sdl_format = sdl.SDL_PIXELFORMAT_RGB24;
+                row_size = @intCast(si.img.width * 3);
+            },
+            .rgba32 => {
+                sdl_format = sdl.SDL_PIXELFORMAT_ABGR8888;
+                row_size = @intCast(si.img.width * 4);
+            },
+            else => {
+                if (resource.filename) |name| {
+                    warn("unknown file format. Loading {s} format {s}", .{ name, @tagName(si.img.pixels) });
+                } else if (resource.sentences.items.len > 0) {
+                    warn("unknown file format. Loading {s} format {s}", .{ resource.sentences.items[0], @tagName(si.img.pixels) });
+                }
+                return error.UnknownImageFormat;
+            },
+        }
+
+        const img_width: c_int = @intCast(si.img.width);
+        const img_height: c_int = @intCast(si.img.height);
+        si.surface = sdl.SDL_CreateSurfaceFrom(
+            img_width,
+            img_height,
+            sdl_format,
+            si.img.pixels.asBytes().ptr,
+            row_size,
+        );
     }
 
     pub fn select_first_element(self: *Display, elements: []*Element) bool {
@@ -5477,6 +5526,7 @@ pub const Chunker = @import("chunker.zig").Chunker;
 pub const Translation = @import("translation.zig").Translation;
 
 const Resources = @import("resources").Resources;
+const Resource = @import("resources").Resource;
 const ResourcesError = @import("resources").Resources.Error;
 
 const default_themes = @import("theme.zig").default_themes;
@@ -5487,7 +5537,7 @@ pub const BundleLoader = @import("read_write.zig");
 pub const init_resource_loader = BundleLoader.init_resource_loader;
 pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
 pub const sdl_load_resource = BundleLoader.sdl_load_resource;
-pub const load_preference_data = BundleLoader.save_preference_data;
+pub const load_preference_data = BundleLoader.load_preference_data;
 pub const save_preference_data = BundleLoader.save_preference_data;
 pub const remove_preference_data = BundleLoader.remove_preference_data;
 pub const random_string = BundleLoader.random_string;
