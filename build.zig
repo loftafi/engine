@@ -82,7 +82,7 @@ pub fn add_translatec_headers(
     switch (target.result.os.tag) {
         .macos => {
             //const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, target.result) orelse
+            const sdk = std.zig.system.darwin.getSdk(b.allocator, &target.result) orelse
                 @panic("macOS SDK is missing");
             std.log.info("engine using macos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
@@ -96,7 +96,7 @@ pub fn add_translatec_headers(
         },
         .ios => {
             //const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, target.result) orelse
+            const sdk = std.zig.system.darwin.getSdk(b.allocator, &target.result) orelse
                 @panic("iOS SDK is missing");
             std.log.info("engine using iphoneos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
@@ -146,7 +146,7 @@ pub fn add_libs(
     // For TranslateC to work, we need the system library headers
     switch (target.result.os.tag) {
         .macos => {
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, target.result) orelse
+            const sdk = std.zig.system.darwin.getSdk(b.allocator, &target.result) orelse
                 @panic("macOS SDK is missing");
             std.log.info("engine using macos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
@@ -159,7 +159,7 @@ pub fn add_libs(
             }) });
         },
         .ios => {
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, target.result) orelse
+            const sdk = std.zig.system.darwin.getSdk(b.allocator, &target.result) orelse
                 @panic("iOS SDK is missing");
             std.log.info("engine using iphoneos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{

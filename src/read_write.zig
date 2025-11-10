@@ -119,7 +119,7 @@ fn guess_separator(base_folder: []const u8) u8 {
 /// Assumes base_folder has a trailing / provided by `SDL_GetBasePath()`
 fn folder_has_file(base_folder: []const u8, expected_file: []const u8) error{ OutOfMemory, ResourceReadError }!bool {
     var path_info: sdl.SDL_PathInfo = undefined;
-    var buffer = std.BoundedArray(u8, 1000){};
+    var buffer = BoundedArray(u8, 1000){};
     buffer.appendSlice(base_folder) catch return error.ResourceReadError;
     if (!std.mem.endsWith(u8, base_folder, "/") and !std.mem.endsWith(u8, base_folder, "\\")) {
         buffer.append(guess_separator(base_folder)) catch return error.ResourceReadError;
@@ -203,7 +203,7 @@ pub fn sdl_load_bundle(
             const name_len: u8 = try read_u8(input);
             try read_slice(input, buffer[0..name_len]);
             const text = try self.arena_allocator.dupe(u8, buffer[0..name_len]);
-            try r.sentences.append(text);
+            try r.sentences.append(self.arena_allocator, text);
         }
         r.bundle_offset = try read_u64(input);
 
@@ -247,7 +247,7 @@ pub fn sdl_read_data(
     }
     if (resource.bundle_offset) |bundle_offset| {
         if (resources.used_resource_list) |*manifest| {
-            try manifest.append(resource);
+            try manifest.append(resources.arena_allocator, resource);
         }
         return try sdl_load_file_byte_slice(allocator, resources.bundle_file, bundle_offset, resource.size);
     }
@@ -499,7 +499,10 @@ const expect = std.testing.expect;
 const builtin = @import("builtin");
 const sdl = @import("sdl");
 const Allocator = std.mem.Allocator;
+
 const praxis = @import("praxis");
+const BoundedArray = praxis.BoundedArray;
+
 const Resources = @import("resources").Resources;
 const encode_uid = @import("resources").encode_uid;
 const UniqueWords = @import("resources").UniqueWords;

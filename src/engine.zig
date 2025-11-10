@@ -1517,6 +1517,8 @@ pub const Element = struct {
             dest.x += scroll_offset.x;
             dest.y += scroll_offset.y;
 
+            if (dest.height <= 0 or dest.width <= 0) return;
+
             // TODO: Sprites might have frames
             const source: sdl.SDL_FRect = .{
                 .x = 0,
@@ -2456,10 +2458,10 @@ pub const Display = struct {
     on_resized: ?*const fn (display: *Display, element: *Element) bool = null,
     event_hook: ?*const fn (display: *Display, e: u32) error{OutOfMemory}!void = null,
 
-    pub fn create(allocator: Allocator, app_name: [:0]const u8, app_version: [:0]const u8, app_id: [:0]const u8, dev_resource_folder: []const u8, translation_filename: []const u8, gui_flags: usize) !*Display {
-        var display = try allocator.create(Display);
-        errdefer allocator.destroy(display);
-        display.allocator = allocator;
+    pub fn create(gpa: Allocator, app_name: [:0]const u8, app_version: [:0]const u8, app_id: [:0]const u8, dev_resource_folder: []const u8, translation_filename: []const u8, gui_flags: usize) !*Display {
+        var display = try gpa.create(Display);
+        errdefer gpa.destroy(display);
+        display.allocator = gpa;
         display.hovered = null;
         display.selected = null;
         display.keyboard_selected = false;
@@ -2513,11 +2515,11 @@ pub const Display = struct {
         }
 
         debug("Initialising resource loader", .{});
-        display.resources = try init_resource_loader(allocator, engine.RESOURCE_BUNDLE_FILENAME, dev_resource_folder);
-        if (try display.resources.lookupOne(translation_filename, .csv)) |resource| {
-            const data = try sdl_load_resource(display.resources, resource, allocator);
-            defer allocator.free(data);
-            try display.translation.load_translation_data(allocator, data);
+        display.resources = try init_resource_loader(gpa, engine.RESOURCE_BUNDLE_FILENAME, dev_resource_folder);
+        if (try display.resources.lookupOne(translation_filename, .csv, gpa)) |resource| {
+            const data = try sdl_load_resource(display.resources, resource, gpa);
+            defer gpa.free(data);
+            try display.translation.load_translation_data(gpa, data);
             debug("Translation file loaded", .{});
         } else {
             err("No translation file found.", .{});
@@ -2538,13 +2540,23 @@ pub const Display = struct {
             return error.graphics_renderer_failed;
         };
 
-        debug("Renderers: {}", .{driver_formatter(renderer)});
+        const current_driver = sdl.SDL_GetRendererName(renderer).?;
+        const count = sdl.SDL_GetNumRenderDrivers();
+        var i: c_int = 0;
+        while (i < count) : (i += 1) {
+            const driver = sdl.SDL_GetRenderDriver(i).?;
+            if (std.mem.orderZ(u8, current_driver, driver) == .eq) {
+                debug("Renderer: {s} (selected)", .{std.mem.span(driver)});
+            } else {
+                debug("Renderers: {s}", .{std.mem.span(driver)});
+            }
+        }
 
         debug("Checking for desktop icon", .{});
-        if (try display.resources.lookupOne("desktop icon", .image)) |resource| {
+        if (try display.resources.lookupOne("desktop icon", .image, gpa)) |resource| {
             var surface: SurfaceInfo = undefined;
-            try display.make_surface_from_resource(resource, allocator, &surface);
-            defer surface.deinit(allocator);
+            try display.make_surface_from_resource(resource, gpa, &surface);
+            defer surface.deinit(gpa);
             if (!sdl.SDL_SetWindowIcon(window, surface.surface)) {
                 info("Did not set desktop icon", .{});
             } else {
@@ -2580,21 +2592,21 @@ pub const Display = struct {
         display.scale = display.pixel_scale / display.user_scale;
 
         // App can accept these keybindings or replace them
-        try display.keybindings.put(allocator, sdl.SDLK_D, toggle_dev_mode);
-        try display.keybindings.put(allocator, sdl.SDLK_K, use_next_theme);
-        try display.keybindings.put(allocator, sdl.SDLK_X, increase_content_size);
-        try display.keybindings.put(allocator, sdl.SDLK_PLUS, increase_content_size);
-        try display.keybindings.put(allocator, sdl.SDLK_EQUALS, increase_content_size);
-        try display.keybindings.put(allocator, sdl.SDLK_MINUS, decrease_content_size);
-        try display.keybindings.put(allocator, sdl.SDLK_KP_PLUS, increase_content_size);
-        try display.keybindings.put(allocator, sdl.SDLK_KP_MINUS, decrease_content_size);
+        try display.keybindings.put(gpa, sdl.SDLK_D, toggle_dev_mode);
+        try display.keybindings.put(gpa, sdl.SDLK_K, use_next_theme);
+        try display.keybindings.put(gpa, sdl.SDLK_X, increase_content_size);
+        try display.keybindings.put(gpa, sdl.SDLK_PLUS, increase_content_size);
+        try display.keybindings.put(gpa, sdl.SDLK_EQUALS, increase_content_size);
+        try display.keybindings.put(gpa, sdl.SDLK_MINUS, decrease_content_size);
+        try display.keybindings.put(gpa, sdl.SDLK_KP_PLUS, increase_content_size);
+        try display.keybindings.put(gpa, sdl.SDLK_KP_MINUS, decrease_content_size);
         if (engine.dev_build) {
-            try display.keybindings.put(allocator, sdl.SDLK_B, make_bundle);
+            try display.keybindings.put(gpa, sdl.SDLK_B, make_bundle);
         }
 
         display.themes = .empty;
         for (&default_themes) |*theme| {
-            try display.themes.append(allocator, theme.*);
+            try display.themes.append(gpa, theme.*);
         }
         display.update_system_theme();
 
@@ -2629,16 +2641,16 @@ pub const Display = struct {
     }
 
     /// Cleanup memory assocaited with this display.
-    pub fn destroy(self: *Display, allocator: Allocator) void {
+    pub fn destroy(self: *Display, gpa: Allocator) void {
         trace("Engine cleanup", .{});
 
-        self.root.deinit(self, allocator);
-        self.themes.deinit(allocator);
+        self.root.deinit(self, gpa);
+        self.themes.deinit(gpa);
 
         for (self.fonts.items) |item| {
-            item.destroy(allocator);
+            item.destroy(gpa);
         }
-        self.fonts.deinit(allocator);
+        self.fonts.deinit(gpa);
 
         var i = self.textures.iterator();
         while (i.next()) |x| {
@@ -2648,23 +2660,23 @@ pub const Display = struct {
                     x.value_ptr.*.references,
                 });
             }
-            x.value_ptr.*.destroy(allocator);
+            x.value_ptr.*.destroy(gpa);
         }
-        self.textures.deinit(allocator);
+        self.textures.deinit(gpa);
         self.resources.destroy();
         for (self.animators.items) |animator| {
-            allocator.destroy(animator);
+            gpa.destroy(animator);
         }
-        self.animators.deinit(allocator);
+        self.animators.deinit(gpa);
 
         sdl.SDL_DestroyRenderer(self.renderer);
         sdl.SDL_DestroyWindow(self.window);
         sdl.TTF_Quit();
         sdl.SDL_Quit();
 
-        self.keybindings.deinit(allocator);
-        self.translation.deinit(allocator);
-        allocator.destroy(self);
+        self.keybindings.deinit(gpa);
+        self.translation.deinit(gpa);
+        gpa.destroy(self);
     }
 
     /// Check that a theme name is a valid theme name. Return a stack
@@ -2885,7 +2897,7 @@ pub const Display = struct {
         std.debug.assert(parent.type == .panel);
         //debug("relayout: {d}x{d}", .{ parent.width, parent.rect.height });
 
-        var expanders = std.BoundedArray(*Element, 10){};
+        var expanders = BoundedArray(*Element, 10){};
         var expander_weights: f32 = 0;
 
         // Make sure this element never exceeds its maximum.
@@ -3028,7 +3040,7 @@ pub const Display = struct {
     inline fn relayout_top_to_bottom(
         _: *Display,
         parent: *Element,
-        expanders: *std.BoundedArray(*Element, 10),
+        expanders: *BoundedArray(*Element, 10),
         expander_weights: f32,
     ) void {
         // Layout each item from top to bottom, initially ignoring
@@ -3151,7 +3163,7 @@ pub const Display = struct {
     inline fn relayout_left_to_right(
         _: *Display,
         parent: *Element,
-        _: *std.BoundedArray(*Element, 10),
+        _: *BoundedArray(*Element, 10),
         _: f32,
     ) void {
         // Draw panel children from top left corner of the panel
@@ -3318,7 +3330,7 @@ pub const Display = struct {
         allocator: Allocator,
         name: []const u8,
     ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*FontInfo {
-        const resource = try self.resources.lookupOne(name, .font);
+        const resource = try self.resources.lookupOne(name, .font, allocator);
         if (resource == null) {
             err("load_font({s}) Font not in resource folder", .{name});
             return error.ResourceNotFound;
@@ -3451,7 +3463,7 @@ pub const Display = struct {
             return texture;
         }
 
-        const resource = try self.resources.lookupOne(name, .image);
+        const resource = try self.resources.lookupOne(name, .image, allocator);
         if (resource == null) {
             return null;
         }
@@ -3473,7 +3485,7 @@ pub const Display = struct {
 
         pub fn deinit(si: *@This(), gpa: Allocator) void {
             gpa.free(si.buffer);
-            si.img.deinit();
+            si.img.deinit(gpa);
             sdl.SDL_DestroySurface(si.surface);
         }
     };
@@ -3490,7 +3502,7 @@ pub const Display = struct {
             if (e == error.OutOfMemory) return error.OutOfMemory;
             return error.UnknownImageFormat;
         };
-        errdefer si.img.deinit();
+        errdefer si.img.deinit(allocator);
 
         var row_size: c_int = 0;
         var sdl_format: sdl.SDL_PixelFormat = sdl.SDL_PIXELFORMAT_UNKNOWN;
@@ -4336,7 +4348,7 @@ pub const Display = struct {
             //};
 
             const base_folder = "/tmp/";
-            var buffer = std.BoundedArray(u8, 1000){};
+            var buffer = BoundedArray(u8, 1000){};
             buffer.appendSlice(base_folder) catch {
                 return std.mem.Allocator.Error.OutOfMemory;
             };
@@ -5100,31 +5112,6 @@ inline fn c_unicode_to_u21(text: [*c]const u8) u21 {
     } catch text[0];
 }
 
-/// Return a formatter that outputs the list of available renderers, and
-/// marking the current renderer that is in use.
-fn driver_formatter(renderer: *sdl.SDL_Renderer) std.fmt.Formatter(list_drivers) {
-    return .{ .data = .{ .renderer = renderer } };
-}
-
-fn list_drivers(
-    context: struct { renderer: *sdl.SDL_Renderer },
-    comptime _: []const u8,
-    _: std.fmt.FormatOptions,
-    writer: anytype,
-) !void {
-    const current_driver = sdl.SDL_GetRendererName(context.renderer).?;
-    const count = sdl.SDL_GetNumRenderDrivers();
-    var i: c_int = 0;
-    while (i < count) : (i += 1) {
-        const driver = sdl.SDL_GetRenderDriver(i).?;
-        if (i != 0) try writer.writeAll(", ");
-        try writer.writeAll(std.mem.span(driver));
-        if (std.mem.orderZ(u8, current_driver, driver) == .eq) {
-            try writer.writeAll(" (selected)");
-        }
-    }
-}
-
 /// SDL provides extra information that is sometimes helpful for debugging, lets print this
 /// information when we are in debug mode.
 ///
@@ -5135,7 +5122,7 @@ fn sdl_log_callback(
     category: c_int,
     priority: sdl.SDL_LogPriority,
     message: [*c]const u8,
-) callconv(.C) void {
+) callconv(.c) void {
     std.log.scoped(.term_scope).debug("SDL ({s}, {s}) {s}", .{
         @tagName(SdlLogCategory.fromInt(category)),
         @tagName(SdlLogPriority.fromInt(priority)),
@@ -5215,18 +5202,20 @@ pub fn log_output(
     comptime format: []const u8,
     args: anytype,
 ) void {
+    var buffer: [1024 * 5]u8 = undefined;
     const prefix = "[" ++ comptime level ++ "] ";
     if (builtin.mode == .Debug) {
         // Log to terminal in debug mode
         std.debug.lockStdErr();
         defer std.debug.unlockStdErr();
-        const stderr = std.io.getStdErr().writer();
+        var stderr_writer = std.fs.File.stderr().writer(&buffer);
+        const stderr = &stderr_writer.interface;
         nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
+        stderr.flush() catch {};
     } else {
         // Log using SDL when in release mode
         if (scope != .term_scope) {
-            var buf: [3000]u8 = undefined;
-            if (std.fmt.bufPrintZ(&buf, prefix ++ format, args)) |f| {
+            if (std.fmt.bufPrintZ(&buffer, prefix ++ format, args)) |f| {
                 sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), f.ptr);
             } else |_| {
                 sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ format);
@@ -5521,6 +5510,7 @@ pub const Animator = @import("animator.zig");
 
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
+const BoundedArray = praxis.BoundedArray;
 
 pub const Chunker = @import("chunker.zig").Chunker;
 pub const Translation = @import("translation.zig").Translation;
