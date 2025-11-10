@@ -1,7 +1,6 @@
 pub const dev_build = (builtin.mode == .Debug);
 pub var dev_mode = false;
 
-pub const CORNER_RADIUS: f32 = 20.0;
 pub const FONT_SIZE: f32 = 22.0;
 pub const FONT_MUL: f32 = 2.0;
 pub const RESOURCE_BUNDLE_FILENAME = "resources.bd";
@@ -248,6 +247,18 @@ pub const Colour = struct {
     a: u8 = 0,
 };
 
+pub const Background = struct {
+    colour: Colour = TRANSPARENT,
+    image: ?*TextureInfo = null,
+    image_name: ?[]const u8 = null,
+
+    // If the background texture has corners, the width of the corner in pixels.
+    image_corner_radius: f32 = 0,
+
+    // If the background texture has corners, how many pixels wide should the corner be rendered on the display.
+    corner_radius: f32 = 0,
+};
+
 pub const TRANSPARENT: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
 pub const WHITE: Colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
 pub const BLACK: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
@@ -264,6 +275,8 @@ pub const Element = struct {
 
     pad: Clip = .{ .top = 0, .left = 0, .right = 0, .bottom = 0 },
     velocity: Vector = .{ .x = 0, .y = 0 },
+
+    // Flip foreground and background images if they are set.
     flip: Flip = .{ .x = false, .y = false },
     visible: Visibility = .visible,
     layout: Layout = .{ .x = .fixed, .y = .fixed },
@@ -280,9 +293,13 @@ pub const Element = struct {
     texture_name: ?[]const u8 = null,
     colour: Colour = WHITE,
 
-    background_colour: Colour = TRANSPARENT,
-    background_texture: ?*TextureInfo = null,
-    background_texture_name: ?[]const u8 = null,
+    background: Background = .{
+        .colour = TRANSPARENT,
+        .image = null,
+        .image_name = null,
+        .corner_radius = 0,
+        .image_corner_radius = 0,
+    },
 
     border_colour: Colour = TRANSPARENT,
     border_width: f32 = 0,
@@ -406,9 +423,9 @@ pub const Element = struct {
             self.texture = null;
         }
 
-        if (self.background_texture) |texture| {
+        if (self.background.image) |texture| {
             display.release_texture_resource(allocator, texture);
-            self.background_texture = null;
+            self.background.image = null;
         }
 
         // Cleanup element type specific attributes
@@ -684,13 +701,13 @@ pub const Element = struct {
             }
         }
         if (self.type == .sprite) {
-            if (self.background_colour.a != 0) {
-                _ = sdl.SDL_SetTextureAlphaMod(texture, self.background_colour.a);
+            if (self.background.colour.a != 0) {
+                _ = sdl.SDL_SetTextureAlphaMod(texture, self.background.colour.a);
                 _ = sdl.SDL_SetTextureColorMod(
                     texture,
-                    self.background_colour.r,
-                    self.background_colour.g,
-                    self.background_colour.b,
+                    self.background.colour.r,
+                    self.background.colour.g,
+                    self.background.colour.b,
                 );
                 return;
             }
@@ -713,8 +730,8 @@ pub const Element = struct {
             if (self.hovered and self.type.button.background_hover != null)
                 return self.type.button.background_hover.?.texture;
         }
-        if (self.background_texture != null)
-            return self.background_texture.?.texture;
+        if (self.background.image != null)
+            return self.background.image.?.texture;
         return null;
     }
 
@@ -798,9 +815,9 @@ pub const Element = struct {
             return;
         };
         if (texture != null) {
-            if (self.background_texture != null)
-                display.release_texture_resource(allocator, self.background_texture.?);
-            self.background_texture = texture.?;
+            if (self.background.image != null)
+                display.release_texture_resource(allocator, self.background.image.?);
+            self.background.image = texture.?;
         } else {
             err("set_background_texture({s}) resource not found", .{name});
         }
@@ -1230,13 +1247,12 @@ pub const Element = struct {
             element.visible = .visible;
         }
 
-        // Any element can have a background texture
-        if (element.type != .button) {
-            if (element.background_texture) |texture| {
-                //if (element.type != .text_input and element.type != .panel and element.type != .button) {
-                //    info("drawing background for {s}", .{@tagName(element.type)});
-                //}
-                // Elements may optionally have a background texture
+        // Elements may optionally have a background texture or a simple
+        // filled background.
+        if (element.background.image) |texture| {
+            // Buttons do not use the background.image or backgroud.image_name
+            // field, so don't draw background image for buttons.
+            if (element.type != .button) {
                 var dest = element.rect.move(&scroll_offset);
                 if (element.flip.x) {
                     dest.x += dest.width;
@@ -1246,30 +1262,31 @@ pub const Element = struct {
                     dest.y += dest.height;
                     dest.height = 0 - dest.height;
                 }
+                var corner: f32 = element.background.corner_radius;
+                if (corner * 2 > dest.height) corner = dest.height / 2;
                 element.apply_background_tint(display, texture.texture);
                 _ = sdl.SDL_RenderTexture9Grid(
                     display.renderer,
                     texture.texture,
                     null,
-                    CORNER_RADIUS,
-                    CORNER_RADIUS,
-                    CORNER_RADIUS,
-                    CORNER_RADIUS,
-                    1.5,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    corner / element.background.image_corner_radius,
                     @ptrCast(&dest),
                 );
             }
-        }
-
-        // Non rectangles and sprites use background_colour to  draw an actual
-        // background.
-        if (element.type != .rectangle and element.type != .sprite and element.background_colour.a > 0) {
+        } else if (element.background.colour.a > 0 and element.type != .rectangle and element.type != .sprite) {
+            // If there is no background image, but there is a background
+            // colour, draw the background as a simple rectangle (except for
+            // sprites and rectangles).
             _ = sdl.SDL_SetRenderDrawColor(
                 display.renderer,
-                element.background_colour.r,
-                element.background_colour.g,
-                element.background_colour.b,
-                element.background_colour.a,
+                element.background.colour.r,
+                element.background.colour.g,
+                element.background.colour.b,
+                element.background.colour.a,
             );
             _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&element.rect));
         }
@@ -1376,7 +1393,7 @@ pub const Element = struct {
         _: ?Clip,
         scroll_offset: Vector,
     ) void {
-        const colour = element.type.rectangle.style.panel(display.theme, element.background_colour);
+        const colour = element.type.rectangle.style.panel(display.theme, element.background.colour);
         _ = sdl.SDL_SetRenderDrawColor(
             display.renderer,
             colour.r,
@@ -1519,6 +1536,15 @@ pub const Element = struct {
 
             if (dest.height <= 0 or dest.width <= 0) return;
 
+            if (element.flip.x) {
+                dest.x += dest.width;
+                dest.width = 0 - dest.width;
+            }
+            if (element.flip.y) {
+                dest.y += dest.height;
+                dest.height = 0 - dest.height;
+            }
+
             // TODO: Sprites might have frames
             const source: sdl.SDL_FRect = .{
                 .x = 0,
@@ -1565,7 +1591,6 @@ pub const Element = struct {
         // Draw the background matching the  current button state
         if (element.texture) |texture| {
             //const radius = @as(f32, @floatFromInt(texture.texture.h >> 1));
-            const radius = 6;
             // Progress bar background
             var dest: Rect = .{
                 .x = element.rect.x + element.pad.left,
@@ -1575,15 +1600,17 @@ pub const Element = struct {
             };
             var tint = display.theme.label_background_colour;
             _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
+            var corner: f32 = element.background.corner_radius;
+            if (corner * 2 > dest.height) corner = dest.height / 2;
             _ = sdl.SDL_RenderTexture9Grid(
                 display.renderer,
                 texture.texture,
                 null,
-                radius,
-                radius,
-                radius,
-                radius,
-                0,
+                element.background.image_corner_radius,
+                element.background.image_corner_radius,
+                element.background.image_corner_radius,
+                element.background.image_corner_radius,
+                corner / element.background.image_corner_radius,
                 @ptrCast(&dest),
             );
 
@@ -1597,11 +1624,11 @@ pub const Element = struct {
                     display.renderer,
                     texture.texture,
                     null,
-                    radius,
-                    radius,
-                    radius,
-                    radius,
-                    0,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    corner / element.background.image_corner_radius,
                     @ptrCast(&dest),
                 );
             }
@@ -1627,16 +1654,18 @@ pub const Element = struct {
                 dest.y += dest.height;
                 dest.height = 0 - dest.height;
             }
+            var corner: f32 = element.background.corner_radius;
+            if (corner * 2 > dest.height) corner = dest.height / 2;
             element.apply_background_tint(display, background_image);
             _ = sdl.SDL_RenderTexture9Grid(
                 display.renderer,
                 background_image,
                 null,
-                CORNER_RADIUS,
-                CORNER_RADIUS,
-                CORNER_RADIUS,
-                CORNER_RADIUS,
-                1.5,
+                element.background.image_corner_radius,
+                element.background.image_corner_radius,
+                element.background.image_corner_radius,
+                element.background.image_corner_radius,
+                corner / element.background.image_corner_radius,
                 @ptrCast(&dest),
             );
             _ = sdl.SDL_RenderTexture(display.renderer, background_image, null, @ptrCast(&dest));
@@ -2446,7 +2475,7 @@ pub const Display = struct {
         .layout = .{ .x = .grows, .y = .grows },
         .child_align = .{ .x = .centre, .y = .start },
         .colour = .{},
-        .background_colour = .{},
+        .background = .{ .colour = .{ .a = 0 } },
         .border_colour = .{},
         .border_width = 0,
         .type = .{ .panel = .{ .direction = .centre, .spacing = 0 } },
@@ -2624,7 +2653,7 @@ pub const Display = struct {
             .layout = .{ .x = .grows, .y = .grows },
             .child_align = .{ .x = .centre, .y = .start },
             .colour = .{},
-            .background_colour = .{},
+            .background = .{ .colour = .{ .a = 0 } },
             .border_colour = .{},
             .border_width = 0,
             .type = .{ .panel = .{ .direction = .centre, .spacing = 0 } },
@@ -4652,7 +4681,7 @@ pub fn setup_rect(
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
     if (element.focus == .unspecified) {
         element.focus = .never_focus;
     }
@@ -4664,7 +4693,7 @@ pub fn setup_panel(
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
 
     if (element.focus == .unspecified) {
         if (element.type.panel.on_click != null) {
@@ -4674,11 +4703,11 @@ pub fn setup_panel(
         }
     }
 
-    if (element.background_texture_name) |name| {
+    if (element.background.image_name) |name| {
         if (try self.load_texture_resource(allocator, name)) |texture| {
-            element.background_texture = texture;
+            element.background.image = texture;
         } else {
-            err("Failed to load panel background texture named \"{s}\"", .{name});
+            err("Failed to load panel background image named \"{s}\"", .{name});
         }
     }
 
@@ -4691,7 +4720,7 @@ pub fn setup_progress_bar(
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
     if (element.focus == .unspecified) {
         element.focus = .never_focus;
     }
@@ -4714,7 +4743,7 @@ pub fn setup_checkbox(
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
     element.type.checkbox.translated = "";
     element.type.checkbox.elements = .empty;
     element.type.checkbox.font = select_font(self.fonts.items, element.type.checkbox.font_name);
@@ -4732,9 +4761,9 @@ pub fn setup_checkbox(
     }
 
     // Is there a background for this checkbox
-    if (element.background_texture_name) |name| {
+    if (element.background.image_name) |name| {
         if (try self.load_texture_resource(allocator, name)) |texture|
-            element.background_texture = texture;
+            element.background.image = texture;
     }
 
     if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
@@ -4758,7 +4787,7 @@ pub fn setup_expander(
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
     element.focus = .never_focus;
 }
 
@@ -4768,7 +4797,7 @@ pub fn setup_label(
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
     element.type.label.translated = "";
     element.type.label.elements = .empty;
     element.type.label.font = select_font(self.fonts.items, element.type.label.font_name);
@@ -4782,9 +4811,9 @@ pub fn setup_label(
     try element.set_text(allocator, self, element.type.label.text, true);
 
     // Is there a background for this label?
-    if (element.background_texture_name) |name| {
+    if (element.background.image_name) |name| {
         if (try self.load_texture_resource(allocator, name)) |texture|
-            element.background_texture = texture;
+            element.background.image = texture;
     }
 
     if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
@@ -4799,7 +4828,7 @@ pub fn setup_text_input(
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
     if (element.focus == .unspecified) {
         element.focus = .can_focus;
     }
@@ -4813,11 +4842,11 @@ pub fn setup_text_input(
         }
     }
 
-    if (element.background_texture_name) |background| {
+    if (element.background.image_name) |background| {
         if (try self.load_texture_resource(allocator, background)) |texture| {
-            element.background_texture = texture;
+            element.background.image = texture;
         } else {
-            err("Failed to load text_input background texture named \"{s}\"", .{background});
+            err("Failed to load text_input background image named \"{s}\"", .{background});
         }
     }
 
@@ -4851,7 +4880,7 @@ pub fn setup_sprite(
     element: *Element,
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
     if (element.focus == .unspecified) {
         element.focus = .accessibility_focus;
     }
@@ -4868,15 +4897,15 @@ pub fn setup_sprite(
         }
     }
 
-    if (element.background_texture_name) |image| {
+    if (element.background.image_name) |image| {
         if (try self.load_texture_resource(allocator, image)) |texture| {
-            element.background_texture = texture;
+            element.background.image = texture;
             if (element.rect.width == 0)
                 element.rect.width = @floatFromInt(texture.texture.w);
             if (element.rect.height == 0)
                 element.rect.height = @floatFromInt(texture.texture.h);
         } else {
-            err("Failed to load sprite background texture named \"{s}\" for button \"{s}\"", .{ image, element.name });
+            err("Failed to load sprite background image named \"{s}\" for button \"{s}\"", .{ image, element.name });
         }
     }
 }
@@ -4903,7 +4932,7 @@ pub fn setup_button(
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.type.button.translated = "";
     element.texture = null;
-    element.background_texture = null;
+    element.background.image = null;
     element.type.button.icon_pressed = null;
     element.type.button.icon_hover = null;
     element.type.button.background_pressed = null;
@@ -4916,8 +4945,8 @@ pub fn setup_button(
     if (element.texture_name != null)
         warn("button named `{s}` has texture_name `{s}`. Buttons use `icon_default_name`", .{ element.name, element.texture_name.? });
 
-    if (element.background_texture_name != null)
-        warn("button named `{s}` has background_texture_name `{s}`. Buttons do not use `background_default_name`", .{ element.name, element.background_texture_name.? });
+    if (element.background.image_name != null)
+        warn("button named `{s}` has background.image_name `{s}`. Buttons do not use `background_default_name`", .{ element.name, element.background.image_name.? });
 
     try element.set_text(allocator, display, element.type.button.text, true);
 
@@ -4951,7 +4980,7 @@ pub fn setup_button(
 
     if (element.type.button.background_default_name) |background_default| {
         if (try display.load_texture_resource(allocator, background_default)) |texture|
-            element.background_texture = texture
+            element.background.image = texture
         else
             err("create_button failed to load background_default resource {s}.", .{background_default});
     }
@@ -4962,8 +4991,8 @@ pub fn setup_button(
         else
             err("create_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
 
-        if (element.type.button.background_pressed == null and element.background_texture != null)
-            element.type.button.background_pressed = element.background_texture.?.clone();
+        if (element.type.button.background_pressed == null and element.background.image != null)
+            element.type.button.background_pressed = element.background.image.?.clone();
     }
 
     if (element.type.button.background_hover_name) |background_hover| {
@@ -4972,8 +5001,8 @@ pub fn setup_button(
         else
             err("create_button background_hover resource `{s}` not loaded.", .{background_hover});
 
-        if (element.type.button.background_hover == null and element.background_texture != null)
-            element.type.button.background_hover = element.background_texture.?.clone();
+        if (element.type.button.background_hover == null and element.background.image != null)
+            element.type.button.background_hover = element.background.image.?.clone();
     }
 }
 
@@ -4985,7 +5014,7 @@ pub fn create_sprite(
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
     const element = try allocator.create(Element);
     element.* = settings;
-    display.setup_element(allocator, element);
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -4997,7 +5026,7 @@ pub fn create_rect(
 ) Allocator.Error!*Element {
     const element = try display.allocator.create(Element);
     element.* = settings;
-    display.setup_element(allocator, element);
+    try display.setup_element(allocator, element);
     return element;
 }
 
@@ -5490,7 +5519,7 @@ test "test_init" {
         .rect = .{ .x = 0, .y = 0, .width = 550, .height = 100 },
         .minimum = .{ .width = 300, .height = 130 },
         .layout = .{ .x = .fixed, .y = .fixed, .position = .float },
-        .background_colour = .{ .r = 99, .g = 150, .b = 50, .a = 255 },
+        .background = .{ .colour = .{ .r = 99, .g = 150, .b = 50, .a = 255 } },
         .type = .{ .rectangle = .{ .style = .background } },
     };
     try panel.add_element(allocator, element);
