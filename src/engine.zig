@@ -1262,20 +1262,24 @@ pub const Element = struct {
                     dest.y += dest.height;
                     dest.height = 0 - dest.height;
                 }
-                var corner: f32 = element.background.corner_radius;
-                if (corner * 2 > dest.height) corner = dest.height / 2;
                 element.apply_background_tint(display, texture.texture);
-                _ = sdl.SDL_RenderTexture9Grid(
-                    display.renderer,
-                    texture.texture,
-                    null,
-                    element.background.image_corner_radius,
-                    element.background.image_corner_radius,
-                    element.background.image_corner_radius,
-                    element.background.image_corner_radius,
-                    corner / element.background.image_corner_radius,
-                    @ptrCast(&dest),
-                );
+                if (element.background.image_corner_radius == 0) {
+                    _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+                } else {
+                    var corner: f32 = element.background.corner_radius;
+                    if (corner * 2 > dest.height) corner = dest.height / 2;
+                    _ = sdl.SDL_RenderTexture9Grid(
+                        display.renderer,
+                        texture.texture,
+                        null,
+                        element.background.image_corner_radius,
+                        element.background.image_corner_radius,
+                        element.background.image_corner_radius,
+                        element.background.image_corner_radius,
+                        corner / element.background.image_corner_radius,
+                        @ptrCast(&dest),
+                    );
+                }
             }
         } else if (element.background.colour.a > 0 and element.type != .rectangle and element.type != .sprite) {
             // If there is no background image, but there is a background
@@ -1602,24 +1606,11 @@ pub const Element = struct {
             _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
             var corner: f32 = element.background.corner_radius;
             if (corner * 2 > dest.height) corner = dest.height / 2;
-            _ = sdl.SDL_RenderTexture9Grid(
-                display.renderer,
-                texture.texture,
-                null,
-                element.background.image_corner_radius,
-                element.background.image_corner_radius,
-                element.background.image_corner_radius,
-                element.background.image_corner_radius,
-                corner / element.background.image_corner_radius,
-                @ptrCast(&dest),
-            );
 
-            if (element.type.progress_bar.progress > 0.01) {
-                // Progress bar foreground
-                dest.width *= element.type.progress_bar.progress;
-                tint = display.theme.placeholder_text_colour;
-                //tint = display.theme.placeholder_text_colour;
-                _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
+            // Progress bar background
+            if (element.background.image_corner_radius == 0) {
+                _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+            } else {
                 _ = sdl.SDL_RenderTexture9Grid(
                     display.renderer,
                     texture.texture,
@@ -1631,6 +1622,28 @@ pub const Element = struct {
                     corner / element.background.image_corner_radius,
                     @ptrCast(&dest),
                 );
+            }
+
+            // Progress bar foreground
+            if (element.type.progress_bar.progress > 0.01) {
+                dest.width *= element.type.progress_bar.progress;
+                tint = display.theme.placeholder_text_colour;
+                _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
+                if (element.background.image_corner_radius == 0) {
+                    _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+                } else {
+                    _ = sdl.SDL_RenderTexture9Grid(
+                        display.renderer,
+                        texture.texture,
+                        null,
+                        element.background.image_corner_radius,
+                        element.background.image_corner_radius,
+                        element.background.image_corner_radius,
+                        element.background.image_corner_radius,
+                        corner / element.background.image_corner_radius,
+                        @ptrCast(&dest),
+                    );
+                }
             }
         } else {
             err("progress bar image missing.", .{});
@@ -1654,21 +1667,24 @@ pub const Element = struct {
                 dest.y += dest.height;
                 dest.height = 0 - dest.height;
             }
-            var corner: f32 = element.background.corner_radius;
-            if (corner * 2 > dest.height) corner = dest.height / 2;
-            element.apply_background_tint(display, background_image);
-            _ = sdl.SDL_RenderTexture9Grid(
-                display.renderer,
-                background_image,
-                null,
-                element.background.image_corner_radius,
-                element.background.image_corner_radius,
-                element.background.image_corner_radius,
-                element.background.image_corner_radius,
-                corner / element.background.image_corner_radius,
-                @ptrCast(&dest),
-            );
-            _ = sdl.SDL_RenderTexture(display.renderer, background_image, null, @ptrCast(&dest));
+            if (element.background.image_corner_radius == 0) {
+                _ = sdl.SDL_RenderTexture(display.renderer, background_image, null, @ptrCast(&dest));
+            } else {
+                var corner: f32 = element.background.corner_radius;
+                if (corner * 2 > dest.height) corner = dest.height / 2;
+                element.apply_background_tint(display, background_image);
+                _ = sdl.SDL_RenderTexture9Grid(
+                    display.renderer,
+                    background_image,
+                    null,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    element.background.image_corner_radius,
+                    corner / element.background.image_corner_radius,
+                    @ptrCast(&dest),
+                );
+            }
         }
 
         // The inner content can contain a button and/or text texture.
