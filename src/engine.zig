@@ -263,6 +263,36 @@ pub const TRANSPARENT: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
 pub const WHITE: Colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
 pub const BLACK: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
+pub const DisplayCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const DisplayGpaCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, gpa: Allocator) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const BoolCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) bool = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const U32Callback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, e: u32) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const VoidCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const UpdateCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) void = null,
+    ptr: *anyopaque = undefined,
+};
+
 /// Describe an element that will be rendered on the screen during a draw
 /// loop. See `ElementType` for the types of elements that may be rendered.
 pub const Element = struct {
@@ -304,7 +334,7 @@ pub const Element = struct {
     border_colour: Colour = TRANSPARENT,
     border_width: f32 = 0,
 
-    on_resized: ?*const fn (display: *Display, element: *Element) bool = null,
+    on_resized: BoolCallback = .{ .func = null },
 
     type: union(ElementType) {
         panel: struct {
@@ -312,8 +342,8 @@ pub const Element = struct {
             direction: LayoutDirection = .centre,
             spacing: f32 = 0,
             style: ThemeColour = .normal,
-            on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
-            update: ?*const fn (display: *Display, element: *Element) void = null,
+            on_click: VoidCallback = .{ .func = null },
+            update: UpdateCallback = .{ .func = null },
             scrollable: Scroller = .{
                 .scroll = .{ .x = false, .y = false },
                 .size = .{ .width = 0, .height = 0 },
@@ -321,8 +351,8 @@ pub const Element = struct {
             overflow: Vector = .{ .x = 0, .y = 0 },
         },
         sprite: struct {
-            on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
-            update: ?*const fn (display: *Display, element: *Element) void = null,
+            on_click: VoidCallback = .{ .func = null },
+            update: UpdateCallback = .{ .func = null },
         },
         label: struct {
             font: *FontInfo = undefined,
@@ -333,7 +363,7 @@ pub const Element = struct {
             line_height: f32 = 1,
             text_size: TextSize = .normal,
             text_colour: ThemeColour = .normal,
-            on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
+            on_click: VoidCallback = .{ .func = null },
         },
         checkbox: struct {
             font: *FontInfo = undefined,
@@ -347,7 +377,7 @@ pub const Element = struct {
             text_colour: ThemeColour = .normal,
             on_texture: ?*TextureInfo = null,
             off_texture: ?*TextureInfo = null,
-            on_change: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
+            on_change: VoidCallback = .{ .func = null },
         },
         text_input: struct {
             font: *FontInfo = undefined,
@@ -360,8 +390,8 @@ pub const Element = struct {
             max_runes: usize = 0,
             cursor_character: usize = 0,
             cursor_pixels: f32 = 0,
-            on_change: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
-            on_submit: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
+            on_change: VoidCallback = .{ .func = null },
+            on_submit: VoidCallback = .{ .func = null },
             placeholder_texture: ?*sdl.SDL_Texture = null,
             placeholder_text: ?[]const u8 = "",
             placeholder_translate: []const u8 = "",
@@ -387,7 +417,7 @@ pub const Element = struct {
             background_hover_name: ?[]const u8 = null,
             background_pressed: ?*TextureInfo = null,
             background_pressed_name: ?[]const u8 = null,
-            on_click: ?*const fn (display: *Display, element: *Element) Allocator.Error!void = null,
+            on_click: VoidCallback = .{ .func = null },
             toggle: ToggleState = .no_toggle,
             style: ThemeColour = .normal,
         },
@@ -978,7 +1008,12 @@ pub const Element = struct {
 
     /// `add_alloc` a child element to this panel and return the element. Only
     /// permitted for the `panel` element type. See also `add_element`
-    pub inline fn add_alloc(self: *Element, allocator: Allocator, display: *Display, conf: Element) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*Element {
+    pub inline fn add_alloc(
+        self: *Element,
+        allocator: Allocator,
+        display: *Display,
+        conf: Element,
+    ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!*Element {
         std.debug.assert(self.type == .panel);
         const child = try allocator.create(Element);
         child.* = conf;
@@ -1052,7 +1087,8 @@ pub const Element = struct {
     /// update function. This is called prior to the `draw` function.
     pub fn update(self: *Element, display: *Display) void {
         if (self.type == .sprite) {
-            if (self.type.sprite.update) |f| f(display, self);
+            if (self.type.sprite.update.func) |f|
+                f(self.type.sprite.update.ptr, display, self);
         }
         if (display.need_relayout) display.relayout();
 
@@ -1063,7 +1099,8 @@ pub const Element = struct {
             self.rect.y += self.velocity.y;
 
         if (self.type == .panel) {
-            if (self.type.panel.update) |f| f(display, self);
+            if (self.type.panel.update.func) |f|
+                f(self.type.panel.update.ptr, display, self);
             for (self.type.panel.children.items) |child| {
                 child.update(display);
             }
@@ -1357,7 +1394,12 @@ pub const Element = struct {
         if (display.selected != null and display.selected == element) {
             if (element.type != .text_input) {
                 if (display.keyboard_selected) {
-                    draw_selection_marker(display, display.renderer, display.theme.cursor_colour, element.rect.move(&scroll_offset));
+                    draw_selection_marker(
+                        display,
+                        display.renderer,
+                        display.theme.cursor_colour,
+                        element.rect.move(&scroll_offset),
+                    );
                 }
             }
         }
@@ -1767,8 +1809,8 @@ pub const Element = struct {
             switch (key) {
                 13, 10 => {
                     _ = sdl.SDL_StopTextInput(display.window);
-                    if (self.type.text_input.on_submit != null) {
-                        try self.type.text_input.on_submit.?(display, self);
+                    if (self.type.text_input.on_submit.func != null) {
+                        try self.type.text_input.on_submit.func.?(self.type.text_input.on_submit.ptr, display, self);
                     }
                     return;
                 },
@@ -1782,7 +1824,10 @@ pub const Element = struct {
                 },
                 else => {
                     if (self.type.text_input.runes.items.len >= self.type.text_input.max_runes) {
-                        trace("Ignoring {u}. Input limited to {d} characters", .{ key, self.type.text_input.max_runes });
+                        trace("Ignoring {u}. Input limited to {d} characters", .{
+                            key,
+                            self.type.text_input.max_runes,
+                        });
                         return;
                     }
                     self.type.text_input.text.appendSlice(allocator, slice) catch {};
@@ -1808,9 +1853,9 @@ pub const Element = struct {
             }
 
             // Optionally, a text_input may have an `on_change` callback function.
-            if (self.type.text_input.on_change) |f| {
+            if (self.type.text_input.on_change.func) |f| {
                 trace("text_input calling on_change", .{});
-                try f(display, self);
+                try f(self.type.text_input.on_change.ptr, display, self);
                 trace("text_input called on_change", .{});
             } else {
                 debug("text_input no on_change", .{});
@@ -1834,33 +1879,33 @@ pub const Element = struct {
                     },
                     .no_toggle, .correct, .incorrect, .locked_off => {},
                 }
-                if (self.type.button.on_click) |f| {
-                    try f(display, self);
+                if (self.type.button.on_click.func) |f| {
+                    try f(self.type.button.on_click.ptr, display, self);
                     return;
                 }
             },
             .panel => {
-                if (self.type.panel.on_click) |f| {
-                    try f(display, self);
+                if (self.type.panel.on_click.func) |f| {
+                    try f(self.type.panel.on_click.ptr, display, self);
                     return;
                 }
             },
             .label => {
-                if (self.type.label.on_click) |f| {
-                    try f(display, self);
+                if (self.type.label.on_click.func) |f| {
+                    try f(self.type.label.on_click.ptr, display, self);
                     return;
                 }
             },
             .sprite => {
-                if (self.type.sprite.on_click) |f| {
-                    try f(display, self);
+                if (self.type.sprite.on_click.func) |f| {
+                    try f(self.type.sprite.on_click.ptr, display, self);
                     return;
                 }
             },
             .checkbox => {
                 self.type.checkbox.checked = !self.type.checkbox.checked;
-                if (self.type.checkbox.on_change) |f| {
-                    try f(display, self);
+                if (self.type.checkbox.on_change.func) |f| {
+                    try f(self.type.checkbox.on_change.ptr, display, self);
                     return;
                 }
             },
@@ -2143,7 +2188,13 @@ inline fn draw_text_elements(
         const size = text_size(display, item.texture, text_height);
         // Would drawing this word overflow?
         if ((x + size.width > x_ending and line_word_count > 0) or is_cr) {
-            element.do_word_alignment(x_start, x, x_ending, children[current_line_start..i], display);
+            element.do_word_alignment(
+                x_start,
+                x,
+                x_ending,
+                children[current_line_start..i],
+                display,
+            );
             // Wrap to next line
             x = element.rect.x + element.pad.left;
             y += size.height;
@@ -2318,7 +2369,11 @@ pub const TextureInfo = struct {
     texture: *sdl.SDL_Texture,
     references: i32,
 
-    pub fn create(allocator: Allocator, name: []const u8, texture: *sdl.SDL_Texture) !*TextureInfo {
+    pub fn create(
+        allocator: Allocator,
+        name: []const u8,
+        texture: *sdl.SDL_Texture,
+    ) !*TextureInfo {
         const texture_info = try allocator.create(TextureInfo);
         texture_info.* = .{
             .name = if (name.len > 0) try allocator.dupe(u8, name) else "",
@@ -2495,15 +2550,23 @@ pub const Display = struct {
         .border_colour = .{},
         .border_width = 0,
         .type = .{ .panel = .{ .direction = .centre, .spacing = 0 } },
-        .on_resized = null,
+        .on_resized = .{ .func = null },
     },
     animators: ArrayListUnmanaged(*Animator) = .empty,
 
-    keybindings: std.AutoHashMapUnmanaged(c_uint, *const fn (display: *Display) Allocator.Error!void) = .empty,
-    on_resized: ?*const fn (display: *Display, element: *Element) bool = null,
-    event_hook: ?*const fn (display: *Display, e: u32) error{OutOfMemory}!void = null,
+    keybindings: std.AutoHashMapUnmanaged(c_uint, DisplayGpaCallback) = .empty,
+    on_resized: BoolCallback,
+    event_hook: U32Callback,
 
-    pub fn create(gpa: Allocator, app_name: [:0]const u8, app_version: [:0]const u8, app_id: [:0]const u8, dev_resource_folder: []const u8, translation_filename: []const u8, gui_flags: usize) !*Display {
+    pub fn create(
+        gpa: Allocator,
+        app_name: [:0]const u8,
+        app_version: [:0]const u8,
+        app_id: [:0]const u8,
+        dev_resource_folder: []const u8,
+        translation_filename: []const u8,
+        gui_flags: usize,
+    ) !*Display {
         var display = try gpa.create(Display);
         errdefer gpa.destroy(display);
         display.allocator = gpa;
@@ -2513,7 +2576,7 @@ pub const Display = struct {
         display.focussed = null;
         display.scrolling = null;
         display.text_height = FONT_SIZE;
-        display.on_resized = null;
+        display.on_resized = .{ .func = null };
         display.current_language = .unknown;
         display.need_relayout = true;
         display.quit = false;
@@ -2521,7 +2584,7 @@ pub const Display = struct {
         display.accessibility = false;
         display.animators = .empty;
         display.keybindings = .empty;
-        display.event_hook = null;
+        display.event_hook = .{ .func = null };
 
         _ = sdl.SDL_SetAppMetadata(app_name, app_version, app_id);
 
@@ -2637,16 +2700,16 @@ pub const Display = struct {
         display.scale = display.pixel_scale / display.user_scale;
 
         // App can accept these keybindings or replace them
-        try display.keybindings.put(gpa, sdl.SDLK_D, toggle_dev_mode);
-        try display.keybindings.put(gpa, sdl.SDLK_K, use_next_theme);
-        try display.keybindings.put(gpa, sdl.SDLK_X, increase_content_size);
-        try display.keybindings.put(gpa, sdl.SDLK_PLUS, increase_content_size);
-        try display.keybindings.put(gpa, sdl.SDLK_EQUALS, increase_content_size);
-        try display.keybindings.put(gpa, sdl.SDLK_MINUS, decrease_content_size);
-        try display.keybindings.put(gpa, sdl.SDLK_KP_PLUS, increase_content_size);
-        try display.keybindings.put(gpa, sdl.SDLK_KP_MINUS, decrease_content_size);
+        try display.keybindings.put(gpa, sdl.SDLK_D, .{ .func = @ptrCast(&toggle_dev_mode), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_K, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_X, .{ .func = @ptrCast(&increase_size), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_PLUS, .{ .func = @ptrCast(&increase_size), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_EQUALS, .{ .func = @ptrCast(&increase_size), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_MINUS, .{ .func = @ptrCast(&decrease_size), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_KP_PLUS, .{ .func = @ptrCast(&increase_size), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_KP_MINUS, .{ .func = @ptrCast(&decrease_size), .ptr = display });
         if (engine.dev_build) {
-            try display.keybindings.put(gpa, sdl.SDLK_B, make_bundle);
+            try display.keybindings.put(gpa, sdl.SDLK_B, .{ .func = @ptrCast(&make_bundle), .ptr = display });
         }
 
         display.themes = .empty;
@@ -2673,7 +2736,7 @@ pub const Display = struct {
             .border_colour = .{},
             .border_width = 0,
             .type = .{ .panel = .{ .direction = .centre, .spacing = 0 } },
-            .on_resized = null,
+            .on_resized = .{ .func = null },
         };
         display.root.rect.width = @as(f32, @floatFromInt(window_width)) * display.pixel_density;
         display.root.rect.height = @as(f32, @floatFromInt(window_height)) * display.pixel_density;
@@ -2803,9 +2866,9 @@ pub const Display = struct {
                 if (element.visible != .visible) {
                     debug("choose_panel({s}) showing panel.", .{name});
                     element.visible = .visible;
-                    if (element.on_resized != null) {
+                    if (element.on_resized.func != null) {
                         self.need_relayout = true;
-                        _ = element.on_resized.?(self, element);
+                        _ = element.on_resized.func.?(element.on_resized.ptr, self, element);
                     }
                 }
             } else {
@@ -2887,14 +2950,20 @@ pub const Display = struct {
             // Root scene/panels get placement before relayout begins.
             if (scene.*.layout.x == .grows) {
                 if (scene.*.maximum.width > 0) {
-                    scene.*.rect.width = @min(display.root.rect.width, scene.*.maximum.width);
+                    scene.*.rect.width = @min(
+                        display.root.rect.width,
+                        scene.*.maximum.width,
+                    );
                 } else {
                     scene.*.rect.width = display.root.rect.width;
                 }
             }
             if (scene.*.layout.y == .grows) {
                 if (scene.*.maximum.height > 0) {
-                    scene.*.rect.height = @min(scene.*.rect.height, scene.*.maximum.height);
+                    scene.*.rect.height = @min(
+                        scene.*.rect.height,
+                        scene.*.maximum.height,
+                    );
                 } else {
                     scene.*.rect.height = display.root.rect.height;
                 }
@@ -2922,8 +2991,8 @@ pub const Display = struct {
             display.propogate_resize_event(scene.*);
             do_relayout(display, scene.*); //TODO: fix
             var did_resize = false;
-            if (display.on_resized) |on_resized| {
-                if (on_resized(display, scene.*)) {
+            if (display.on_resized.func != null) {
+                if (display.on_resized.func.?(display.on_resized.ptr, display, scene.*)) {
                     did_resize = true;
                 }
             }
@@ -3199,7 +3268,10 @@ pub const Display = struct {
                         child.rect.y = new_y;
                         new_y += child.rect.height + parent.type.panel.spacing;
                     }
-                    parent.type.panel.scrollable.size.width = @max(needed_height, parent.rect.height);
+                    parent.type.panel.scrollable.size.width = @max(
+                        needed_height,
+                        parent.rect.height,
+                    );
                 },
             }
         }
@@ -3566,7 +3638,10 @@ pub const Display = struct {
                 if (resource.filename) |name| {
                     warn("unknown file format. Loading {s} format {s}", .{ name, @tagName(si.img.pixels) });
                 } else if (resource.sentences.items.len > 0) {
-                    warn("unknown file format. Loading {s} format {s}", .{ resource.sentences.items[0], @tagName(si.img.pixels) });
+                    warn("unknown file format. Loading {s} format {s}", .{
+                        resource.sentences.items[0],
+                        @tagName(si.img.pixels),
+                    });
                 }
                 return error.UnknownImageFormat;
             },
@@ -3592,7 +3667,7 @@ pub const Display = struct {
                 if (self.select_first_element(element.type.panel.children.items)) {
                     return true;
                 }
-                if (element.type.panel.on_click == null) {
+                if (element.type.panel.on_click.func == null) {
                     continue;
                 }
             }
@@ -3619,7 +3694,11 @@ pub const Display = struct {
         trace("select_next_element() find next element", .{});
         var state = SelectState.no_selectable_items;
         var previous: ?*Element = null;
-        const element = self.do_select_next_element(self.root.type.panel.children.items, &state, &previous);
+        const element = self.do_select_next_element(
+            self.root.type.panel.children.items,
+            &state,
+            &previous,
+        );
         if (element) |found| {
             found.selected(self);
             return;
@@ -3668,7 +3747,7 @@ pub const Display = struct {
                 if (self.do_select_next_element(element.type.panel.children.items, state, previous)) |found| {
                     return found;
                 }
-                if (element.type.panel.on_click == null) {
+                if (element.type.panel.on_click.func == null) {
                     continue;
                 }
             }
@@ -3750,7 +3829,7 @@ pub const Display = struct {
                     return element;
                 }
                 if (is_under_cursor) {
-                    if (element.type.panel.on_click != null) {
+                    if (element.type.panel.on_click.func != null) {
                         return element;
                     }
                     if (element.type.panel.scrollable.scroll.x == true or element.type.panel.scrollable.scroll.y == true) {
@@ -3768,13 +3847,13 @@ pub const Display = struct {
                             return element;
                         }
                     },
-                    .label => if (element.type.label.on_click != null) {
+                    .label => if (element.type.label.on_click.func != null) {
                         return element;
                     },
-                    .sprite => if (element.type.sprite.on_click != null) {
+                    .sprite => if (element.type.sprite.on_click.func != null) {
                         return element;
                     },
-                    .panel => if (is_under_cursor and element.type.panel.on_click != null) {
+                    .panel => if (is_under_cursor and element.type.panel.on_click.func != null) {
                         return element;
                     },
                     .button_bar, .rectangle, .progress_bar, .expander => {},
@@ -3844,7 +3923,7 @@ pub const Display = struct {
 
     inline fn handle_key_up_event(
         display: *Display,
-        allocator: Allocator,
+        gpa: Allocator,
         e: *sdl.SDL_Event,
     ) !void {
         trace("handle_key_up_event({any})", .{e.key.key});
@@ -3922,25 +4001,25 @@ pub const Display = struct {
                         sdl.SDLK_BACKSPACE,
                         sdl.SDLK_DELETE,
                         sdl.SDLK_KP_BACKSPACE,
-                        => try selected.keypress(allocator, display, sdl.SDLK_BACKSPACE, ""),
+                        => try selected.keypress(gpa, display, sdl.SDLK_BACKSPACE, ""),
                         sdl.SDLK_RETURN,
                         sdl.SDLK_KP_ENTER,
                         sdl.SDLK_RETURN2,
                         => {
                             switch (selected.type) {
                                 .text_input => {
-                                    try selected.keypress(allocator, display, 10, "");
+                                    try selected.keypress(gpa, display, 10, "");
                                 },
                                 .button => {
-                                    if (selected.type.button.on_click != null) {
-                                        try selected.type.button.on_click.?(display, selected);
+                                    if (selected.type.button.on_click.func != null) {
+                                        try selected.type.button.on_click.func.?(selected.type.button.on_click.ptr, display, selected);
                                     }
                                 },
                                 else => {},
                             }
                         },
                         sdl.SDLK_ESCAPE => if (display.keybindings.get(sdl.SDLK_ESCAPE)) |f| {
-                            try f(display);
+                            try f.func.?(f.ptr, display, gpa);
                             // s.deselected(display);
                         },
                         else => {},
@@ -3958,7 +4037,11 @@ pub const Display = struct {
         var i = display.keybindings.iterator();
         while (i.next()) |k| {
             if (k.key_ptr.* == e.key.key) {
-                try k.value_ptr.*(display);
+                trace("keypress has special handler: {d}", .{e.key.key});
+                k.value_ptr.*.func.?(k.value_ptr.*.ptr, display, gpa) catch |f| {
+                    trace("keypress handler error: {d} {any}", .{ e.key.key, f });
+                };
+                trace("keypress special handler complete: {d}", .{e.key.key});
             }
         }
     }
@@ -4007,9 +4090,9 @@ pub const Display = struct {
 
     /// Trigger `on_resized` events on each node in the tree.
     fn propogate_resize_event(self: *Display, parent: *Element) void {
-        if (parent.on_resized != null) {
+        if (parent.on_resized.func) |on_resized| {
             if (parent.visible == .visible) {
-                _ = parent.on_resized.?(self, parent);
+                _ = on_resized(parent.on_resized.ptr, self, parent);
             }
         }
         if (parent.type == .panel) {
@@ -4120,8 +4203,8 @@ pub const Display = struct {
             display.hovered = found;
             switch (found.type) {
                 .panel => {
-                    if (found.type.panel.on_click != null) {
-                        try found.type.panel.on_click.?(display, found);
+                    if (found.type.panel.on_click.func != null) {
+                        try found.type.panel.on_click.func.?(found.type.panel.on_click.ptr, display, found);
                     } else if (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y) {
                         display.scrolling = found;
                         display.scroll_start = cursor;
@@ -4316,8 +4399,8 @@ pub const Display = struct {
             sdl.SDL_EVENT_DID_ENTER_FOREGROUND => {},
 
             else => {
-                if (display.event_hook) |eh| {
-                    try eh(display, e.type);
+                if (display.event_hook.func) |eh| {
+                    try eh(display.event_hook.ptr, display, e.type);
                 }
                 // Other SDL events are not handled
             },
@@ -4374,7 +4457,7 @@ pub const Display = struct {
         });
     }
 
-    fn make_bundle(display: *Display) error{OutOfMemory}!void {
+    fn make_bundle(display: *Display, _: *Display) error{OutOfMemory}!void {
         if (!dev_build) {
             return;
         }
@@ -4416,14 +4499,14 @@ pub const Display = struct {
         display: *Display,
         allocator: Allocator,
         parent: *Element,
-        close_fn: fn (display: *Display, _: *Element) Allocator.Error!void,
+        close_fn: VoidCallback,
     ) (error{
         OutOfMemory,
         ResourceNotFound,
         ResourceReadError,
         UnknownImageFormat,
     } || ResourcesError)!*Element {
-        const button = try engine.create_button(
+        return try parent.add_alloc(
             allocator,
             display,
             .{
@@ -4441,11 +4524,9 @@ pub const Display = struct {
                     .on_click = close_fn,
                     .icon_size = .{ .width = 70, .height = 70 },
                 } },
-                .on_resized = back_button_resize,
+                .on_resized = .{ .func = @ptrCast(&back_button_resize), .ptr = display },
             },
         );
-        try parent.add_element(allocator, button);
-        return button;
     }
 
     /// Add an empty panel that keeps a space open in a list of elements.
@@ -4527,18 +4608,6 @@ fn toggle_dev_mode(_: *Display) error{OutOfMemory}!void {
     info("Dev mode: {any}", .{engine.dev_mode});
 }
 
-fn increase_content_size(display: *Display) error{OutOfMemory}!void {
-    display.increase_size();
-}
-
-fn decrease_content_size(display: *Display) error{OutOfMemory}!void {
-    display.decrease_size();
-}
-
-fn use_next_theme(display: *Display) std.mem.Allocator.Error!void {
-    display.rotate_theme();
-}
-
 /// Discover the minimum needed for a particular object.
 ///
 /// If the object has children, a `parent` object must check
@@ -4607,7 +4676,7 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
 
 /// This event handler repositions a back button into the top left corner
 /// when the screen is resized or rotated.
-pub fn back_button_resize(display: *Display, element: *Element) bool {
+pub fn back_button_resize(_: *Display, display: *Display, element: *Element) bool {
     var updated = false;
     if (element.rect.x != display.safe_area.left) {
         element.rect.x = display.safe_area.left;
@@ -4712,7 +4781,7 @@ pub fn setup_panel(
     element.background.image = null;
 
     if (element.focus == .unspecified) {
-        if (element.type.panel.on_click != null) {
+        if (element.type.panel.on_click.func != null) {
             element.focus = .can_focus;
         } else {
             element.focus = .never_focus;
@@ -4819,7 +4888,7 @@ pub fn setup_label(
     element.type.label.font = select_font(self.fonts.items, element.type.label.font_name);
 
     if (element.focus == .unspecified) {
-        if (element.type.label.on_click != null)
+        if (element.type.label.on_click.func != null)
             element.focus = .can_focus
         else
             element.focus = .accessibility_focus;
@@ -4959,10 +5028,16 @@ pub fn setup_button(
         element.focus = .can_focus;
 
     if (element.texture_name != null)
-        warn("button named `{s}` has texture_name `{s}`. Buttons use `icon_default_name`", .{ element.name, element.texture_name.? });
+        warn("button `{s}` has texture_name `{s}`. Buttons use `icon_default_name`", .{
+            element.name,
+            element.texture_name.?,
+        });
 
     if (element.background.image_name != null)
-        warn("button named `{s}` has background.image_name `{s}`. Buttons do not use `background_default_name`", .{ element.name, element.background.image_name.? });
+        warn("button `{s}` has background.image_name `{s}`. Buttons do not use `background.image_name`", .{
+            element.name,
+            element.background.image_name.?,
+        });
 
     try element.set_text(allocator, display, element.type.button.text, true);
 
@@ -4970,7 +5045,10 @@ pub fn setup_button(
         if (try display.load_texture_resource(allocator, icon_default)) |texture| {
             element.texture = texture;
             if (element.type.button.icon_size.width == 0 or element.type.button.icon_size.height == 0)
-                warn("button `{s}` has icon `{s}`, but no icon size.", .{ element.name, icon_default });
+                warn("button `{s}` has icon `{s}`, but no icon size.", .{
+                    element.name,
+                    icon_default,
+                });
         }
     }
 
