@@ -263,13 +263,13 @@ pub const TRANSPARENT: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
 pub const WHITE: Colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
 pub const BLACK: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
-pub const DisplayCallback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display) Allocator.Error!void = null,
+pub const Callback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element, gpa: Allocator) Allocator.Error!void = null,
     ptr: *anyopaque = undefined,
 };
 
-pub const DisplayGpaCallback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display, gpa: Allocator) Allocator.Error!void = null,
+pub const DisplayCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display) Allocator.Error!void = null,
     ptr: *anyopaque = undefined,
 };
 
@@ -280,11 +280,6 @@ pub const BoolCallback = struct {
 
 pub const U32Callback = struct {
     func: ?*const fn (ptr: *anyopaque, display: *Display, e: u32) Allocator.Error!void = null,
-    ptr: *anyopaque = undefined,
-};
-
-pub const VoidCallback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) Allocator.Error!void = null,
     ptr: *anyopaque = undefined,
 };
 
@@ -342,7 +337,7 @@ pub const Element = struct {
             direction: LayoutDirection = .centre,
             spacing: f32 = 0,
             style: ThemeColour = .normal,
-            on_click: VoidCallback = .{ .func = null },
+            on_click: Callback = .{ .func = null },
             update: UpdateCallback = .{ .func = null },
             scrollable: Scroller = .{
                 .scroll = .{ .x = false, .y = false },
@@ -351,7 +346,7 @@ pub const Element = struct {
             overflow: Vector = .{ .x = 0, .y = 0 },
         },
         sprite: struct {
-            on_click: VoidCallback = .{ .func = null },
+            on_click: Callback = .{ .func = null },
             update: UpdateCallback = .{ .func = null },
         },
         label: struct {
@@ -363,7 +358,7 @@ pub const Element = struct {
             line_height: f32 = 1,
             text_size: TextSize = .normal,
             text_colour: ThemeColour = .normal,
-            on_click: VoidCallback = .{ .func = null },
+            on_click: Callback = .{ .func = null },
         },
         checkbox: struct {
             font: *FontInfo = undefined,
@@ -377,7 +372,7 @@ pub const Element = struct {
             text_colour: ThemeColour = .normal,
             on_texture: ?*TextureInfo = null,
             off_texture: ?*TextureInfo = null,
-            on_change: VoidCallback = .{ .func = null },
+            on_change: Callback = .{ .func = null },
         },
         text_input: struct {
             font: *FontInfo = undefined,
@@ -390,8 +385,8 @@ pub const Element = struct {
             max_runes: usize = 0,
             cursor_character: usize = 0,
             cursor_pixels: f32 = 0,
-            on_change: VoidCallback = .{ .func = null },
-            on_submit: VoidCallback = .{ .func = null },
+            on_change: Callback = .{ .func = null },
+            on_submit: Callback = .{ .func = null },
             placeholder_texture: ?*sdl.SDL_Texture = null,
             placeholder_text: ?[]const u8 = "",
             placeholder_translate: []const u8 = "",
@@ -417,7 +412,7 @@ pub const Element = struct {
             background_hover_name: ?[]const u8 = null,
             background_pressed: ?*TextureInfo = null,
             background_pressed_name: ?[]const u8 = null,
-            on_click: VoidCallback = .{ .func = null },
+            on_click: Callback = .{ .func = null },
             toggle: ToggleState = .no_toggle,
             style: ThemeColour = .normal,
         },
@@ -1810,7 +1805,7 @@ pub const Element = struct {
                 13, 10 => {
                     _ = sdl.SDL_StopTextInput(display.window);
                     if (self.type.text_input.on_submit.func != null) {
-                        try self.type.text_input.on_submit.func.?(self.type.text_input.on_submit.ptr, display, self);
+                        try self.type.text_input.on_submit.func.?(self.type.text_input.on_submit.ptr, display, self, allocator);
                     }
                     return;
                 },
@@ -1855,7 +1850,7 @@ pub const Element = struct {
             // Optionally, a text_input may have an `on_change` callback function.
             if (self.type.text_input.on_change.func) |f| {
                 trace("text_input calling on_change", .{});
-                try f(self.type.text_input.on_change.ptr, display, self);
+                try f(self.type.text_input.on_change.ptr, display, self, allocator);
                 trace("text_input called on_change", .{});
             } else {
                 debug("text_input no on_change", .{});
@@ -1865,7 +1860,7 @@ pub const Element = struct {
 
     /// Handle when a user chooses an element like a button, using
     /// the mouse or the keyboard.
-    pub fn chosen(self: *Element, display: *Display) error{OutOfMemory}!void {
+    pub fn chosen(self: *Element, display: *Display, gpa: Allocator) error{OutOfMemory}!void {
         switch (self.type) {
             .button => {
                 switch (self.type.button.toggle) {
@@ -1880,32 +1875,32 @@ pub const Element = struct {
                     .no_toggle, .correct, .incorrect, .locked_off => {},
                 }
                 if (self.type.button.on_click.func) |f| {
-                    try f(self.type.button.on_click.ptr, display, self);
+                    try f(self.type.button.on_click.ptr, display, self, gpa);
                     return;
                 }
             },
             .panel => {
                 if (self.type.panel.on_click.func) |f| {
-                    try f(self.type.panel.on_click.ptr, display, self);
+                    try f(self.type.panel.on_click.ptr, display, self, gpa);
                     return;
                 }
             },
             .label => {
                 if (self.type.label.on_click.func) |f| {
-                    try f(self.type.label.on_click.ptr, display, self);
+                    try f(self.type.label.on_click.ptr, display, self, gpa);
                     return;
                 }
             },
             .sprite => {
                 if (self.type.sprite.on_click.func) |f| {
-                    try f(self.type.sprite.on_click.ptr, display, self);
+                    try f(self.type.sprite.on_click.ptr, display, self, gpa);
                     return;
                 }
             },
             .checkbox => {
                 self.type.checkbox.checked = !self.type.checkbox.checked;
                 if (self.type.checkbox.on_change.func) |f| {
-                    try f(self.type.checkbox.on_change.ptr, display, self);
+                    try f(self.type.checkbox.on_change.ptr, display, self, gpa);
                     return;
                 }
             },
@@ -1914,7 +1909,7 @@ pub const Element = struct {
     }
 
     /// Handle when a user clicks into or tabs into this element.
-    pub fn selected(self: *Element, display: *Display) void {
+    pub fn selected(self: *Element, display: *Display, _: Allocator) void {
         if (self.focus == .never_focus or self.focus == .unspecified) {
             return;
         }
@@ -2554,7 +2549,7 @@ pub const Display = struct {
     },
     animators: ArrayListUnmanaged(*Animator) = .empty,
 
-    keybindings: std.AutoHashMapUnmanaged(c_uint, DisplayGpaCallback) = .empty,
+    keybindings: std.AutoHashMapUnmanaged(c_uint, Callback) = .empty,
     on_resized: BoolCallback,
     event_hook: U32Callback,
 
@@ -3658,13 +3653,13 @@ pub const Display = struct {
         );
     }
 
-    pub fn select_first_element(self: *Display, elements: []*Element) bool {
+    pub fn select_first_element(self: *Display, elements: []*Element, gpa: Allocator) bool {
         for (elements) |element| {
             if (element.visible != .visible) {
                 continue;
             }
             if (element.type == .panel) {
-                if (self.select_first_element(element.type.panel.children.items)) {
+                if (self.select_first_element(element.type.panel.children.items, gpa)) {
                     return true;
                 }
                 if (element.type.panel.on_click.func == null) {
@@ -3677,7 +3672,7 @@ pub const Display = struct {
             if (element.focus == .accessibility_focus and self.accessibility == false) {
                 continue;
             }
-            element.selected(self);
+            element.selected(self, gpa);
             return true;
         }
         return false;
@@ -3690,7 +3685,7 @@ pub const Display = struct {
         selected_item,
     };
 
-    pub fn select_next_element(self: *Display) void {
+    pub fn select_next_element(self: *Display, gpa: Allocator) void {
         trace("select_next_element() find next element", .{});
         var state = SelectState.no_selectable_items;
         var previous: ?*Element = null;
@@ -3700,27 +3695,27 @@ pub const Display = struct {
             &previous,
         );
         if (element) |found| {
-            found.selected(self);
+            found.selected(self, gpa);
             return;
         }
         if (state == .has_selectable_item or state == .found_currently_selected_item) {
-            _ = self.select_first_element(self.root.type.panel.children.items);
+            _ = self.select_first_element(self.root.type.panel.children.items, gpa);
         } else {
             debug("select_next_element() no element found. {s}", .{@tagName(state)});
         }
     }
 
-    pub fn select_previous_element(self: *Display) void {
+    pub fn select_previous_element(self: *Display, gpa: Allocator) void {
         trace("select_previous_element() find previous element", .{});
         var state = SelectState.no_selectable_items;
         var previous: ?*Element = null;
         _ = self.do_select_next_element(self.root.type.panel.children.items, &state, &previous);
         if (previous) |found| {
-            found.selected(self);
+            found.selected(self, gpa);
             return;
         }
         if (state == .has_selectable_item or state == .found_currently_selected_item) {
-            _ = self.select_first_element(self.root.type.panel.children.items);
+            _ = self.select_first_element(self.root.type.panel.children.items, gpa);
         } else {
             debug("select_next_element() no element found. {s}", .{@tagName(state)});
         }
@@ -3870,8 +3865,9 @@ pub const Display = struct {
         return null;
     }
 
-    /// Switch from the current theme to the next theme.
-    pub fn rotate_theme(self: *Display) void {
+    /// Switch from the current theme to the next theme. This is a keypress
+    /// event handler that expects `display`, `element` and `allocator`.
+    pub fn rotate_theme(self: *Display, _: *Display, _: *Element, _: Allocator) void {
         var index: usize = 0;
 
         // Find the current theme
@@ -3929,9 +3925,9 @@ pub const Display = struct {
         trace("handle_key_up_event({any})", .{e.key.key});
         if (e.key.key == sdl.SDLK_TAB) {
             if (e.key.mod == sdl.SDL_KMOD_SHIFT or e.key.mod == sdl.SDL_KMOD_LSHIFT or e.key.mod == sdl.SDL_KMOD_RSHIFT) {
-                display.select_previous_element();
+                display.select_previous_element(gpa);
             } else {
-                display.select_next_element();
+                display.select_next_element(gpa);
             }
             if (display.selected != null) {
                 display.keyboard_selected = true;
@@ -3948,7 +3944,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_KP_SPACE or
                         e.key.key == sdl.SDLK_SPACE)
                     {
-                        try selected.chosen(display);
+                        try selected.chosen(display, gpa);
                         return; // keypress handled
                     }
                 },
@@ -3959,7 +3955,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_KP_SPACE or
                         e.key.key == sdl.SDLK_SPACE)
                     {
-                        try selected.chosen(display);
+                        try selected.chosen(display, gpa);
                         return; // keypress handled
                     }
                 },
@@ -3970,7 +3966,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_KP_SPACE or
                         e.key.key == sdl.SDLK_SPACE)
                     {
-                        try selected.chosen(display);
+                        try selected.chosen(display, gpa);
                         return; // keypress handled
                     }
                 },
@@ -3981,7 +3977,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_KP_SPACE or
                         e.key.key == sdl.SDLK_SPACE)
                     {
-                        try selected.chosen(display);
+                        try selected.chosen(display, gpa);
                         return; // keypress handled
                     }
                 },
@@ -3992,7 +3988,7 @@ pub const Display = struct {
                         e.key.key == sdl.SDLK_KP_SPACE or
                         e.key.key == sdl.SDLK_SPACE)
                     {
-                        try selected.chosen(display);
+                        try selected.chosen(display, gpa);
                         return; // keypress handled
                     }
                 },
@@ -4012,14 +4008,14 @@ pub const Display = struct {
                                 },
                                 .button => {
                                     if (selected.type.button.on_click.func != null) {
-                                        try selected.type.button.on_click.func.?(selected.type.button.on_click.ptr, display, selected);
+                                        try selected.type.button.on_click.func.?(selected.type.button.on_click.ptr, display, selected, gpa);
                                     }
                                 },
                                 else => {},
                             }
                         },
                         sdl.SDLK_ESCAPE => if (display.keybindings.get(sdl.SDLK_ESCAPE)) |f| {
-                            try f.func.?(f.ptr, display, gpa);
+                            try f.func.?(f.ptr, display, &display.root, gpa);
                             // s.deselected(display);
                         },
                         else => {},
@@ -4038,7 +4034,7 @@ pub const Display = struct {
         while (i.next()) |k| {
             if (k.key_ptr.* == e.key.key) {
                 trace("keypress has special handler: {d}", .{e.key.key});
-                k.value_ptr.*.func.?(k.value_ptr.*.ptr, display, gpa) catch |f| {
+                k.value_ptr.*.func.?(k.value_ptr.*.ptr, display, &display.root, gpa) catch |f| {
                     trace("keypress handler error: {d} {any}", .{ e.key.key, f });
                 };
                 trace("keypress special handler complete: {d}", .{e.key.key});
@@ -4165,7 +4161,7 @@ pub const Display = struct {
 
     /// The mouse up event idicates a mouse click, or the end of a mouse
     /// scroll/drag action.
-    inline fn handle_mouse_up_event(display: *Display, _: *sdl.SDL_Event) !void {
+    inline fn handle_mouse_up_event(display: *Display, gpa: Allocator, _: *sdl.SDL_Event) !void {
         var cursor: Vector = undefined;
         _ = sdl.SDL_GetMouseState(&cursor.x, &cursor.y);
         cursor = cursor.multiply(display.pixel_density);
@@ -4199,23 +4195,23 @@ pub const Display = struct {
             .{},
             .clickable,
         )) |found| {
-            found.selected(display);
+            found.selected(display, gpa);
             display.hovered = found;
             switch (found.type) {
                 .panel => {
                     if (found.type.panel.on_click.func != null) {
-                        try found.type.panel.on_click.func.?(found.type.panel.on_click.ptr, display, found);
+                        try found.type.panel.on_click.func.?(found.type.panel.on_click.ptr, display, found, gpa);
                     } else if (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y) {
                         display.scrolling = found;
                         display.scroll_start = cursor;
                         trace("begin scrolling {s} at {any}", .{ found.name, cursor });
                     }
                 },
-                .button => try found.chosen(display),
-                .label => try found.chosen(display),
-                .sprite => try found.chosen(display),
-                .checkbox => try found.chosen(display),
-                .text_input => found.selected(display),
+                .button => try found.chosen(display, gpa),
+                .label => try found.chosen(display, gpa),
+                .sprite => try found.chosen(display, gpa),
+                .checkbox => try found.chosen(display, gpa),
+                .text_input => found.selected(display, gpa),
                 .rectangle, .button_bar, .progress_bar, .expander => {
                     // Not clickable
                 },
@@ -4230,7 +4226,7 @@ pub const Display = struct {
 
     /// Event handler for mouse down events. This begins a scroll event, or converts
     /// to a click on mouse up event later.
-    inline fn handle_mouse_down_event(display: *Display, _: *sdl.SDL_Event) !void {
+    inline fn handle_mouse_down_event(display: *Display, _: Allocator, _: *sdl.SDL_Event) !void {
         var cursor: Vector = undefined;
         _ = sdl.SDL_GetMouseState(&cursor.x, &cursor.y);
         cursor = cursor.multiply(display.pixel_density);
@@ -4378,8 +4374,8 @@ pub const Display = struct {
             },
             sdl.SDL_EVENT_KEY_UP => try display.handle_key_up_event(allocator, e),
             sdl.SDL_EVENT_KEY_DOWN => try display.handle_key_down_event(allocator, e),
-            sdl.SDL_EVENT_MOUSE_BUTTON_DOWN => try display.handle_mouse_down_event(e),
-            sdl.SDL_EVENT_MOUSE_BUTTON_UP => try display.handle_mouse_up_event(e),
+            sdl.SDL_EVENT_MOUSE_BUTTON_DOWN => try display.handle_mouse_down_event(allocator, e),
+            sdl.SDL_EVENT_MOUSE_BUTTON_UP => try display.handle_mouse_up_event(allocator, e),
             sdl.SDL_EVENT_MOUSE_MOTION => try display.handle_mouse_motion_event(e),
 
             sdl.SDL_EVENT_SYSTEM_THEME_CHANGED => display.update_system_theme(),
@@ -4418,7 +4414,8 @@ pub const Display = struct {
         return Scale.from_float(display.user_scale);
     }
 
-    pub fn increase_size(display: *Display) void {
+    /// Keypress event handler expects `display`, `element` and `allocator`.
+    pub fn increase_size(_: *Display, display: *Display, _: *Element, _: Allocator) void {
         display.user_scale = if (display.user_scale == 0.5)
             0.75
         else if (display.user_scale == 0.75)
@@ -4437,7 +4434,8 @@ pub const Display = struct {
         });
     }
 
-    pub fn decrease_size(display: *Display) void {
+    /// Keypress event handler expects `display`, `element` and `allocator`.
+    pub fn decrease_size(display: *Display, _: *Display, _: *Element, _: Allocator) void {
         debug("size = {d}", .{display.user_scale});
         display.user_scale = if (display.user_scale == 0.75)
             if (dev_build or dev_mode) 0.5 else 0.75
@@ -4457,7 +4455,8 @@ pub const Display = struct {
         });
     }
 
-    fn make_bundle(display: *Display, _: *Display) error{OutOfMemory}!void {
+    /// Keypress event handler expects `display`, `element` and `allocator`.
+    fn make_bundle(display: *Display, _: *Display, _: *Element, _: Allocator) error{OutOfMemory}!void {
         if (!dev_build) {
             return;
         }
@@ -4499,7 +4498,7 @@ pub const Display = struct {
         display: *Display,
         allocator: Allocator,
         parent: *Element,
-        close_fn: VoidCallback,
+        close_fn: Callback,
     ) (error{
         OutOfMemory,
         ResourceNotFound,
@@ -4603,7 +4602,7 @@ pub const Display = struct {
     }
 };
 
-fn toggle_dev_mode(_: *Display) error{OutOfMemory}!void {
+fn toggle_dev_mode(_: *Display, _: *Element, _: Allocator) error{OutOfMemory}!void {
     engine.dev_mode = !engine.dev_mode;
     info("Dev mode: {any}", .{engine.dev_mode});
 }
