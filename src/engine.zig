@@ -1860,7 +1860,7 @@ pub const Element = struct {
 
     /// Handle when a user chooses an element like a button, using
     /// the mouse or the keyboard.
-    pub fn chosen(self: *Element, display: *Display, gpa: Allocator) error{OutOfMemory}!void {
+    pub fn chosen(self: *Element, display: *Display, gpa: Allocator) Allocator.Error!void {
         switch (self.type) {
             .button => {
                 switch (self.type.button.toggle) {
