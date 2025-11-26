@@ -1249,9 +1249,8 @@ pub const Element = struct {
 
     /// Draw the current element, along with any children elements.
     pub fn draw(element: *Element, display: *Display, parent_scroll_offset: Vector, parent_clip: ?Clip) void {
-        if (element.visible == .hidden) {
+        if (element.visible == .hidden)
             return;
-        }
 
         const scroll_offset: Vector = element.offset.add(parent_scroll_offset);
 
@@ -1275,9 +1274,8 @@ pub const Element = struct {
                 return;
             }
         }
-        if (element.visible == .culled) {
+        if (element.visible == .culled)
             element.visible = .visible;
-        }
 
         // Elements may optionally have a background texture or a simple
         // filled background.
@@ -1572,8 +1570,7 @@ pub const Element = struct {
                 .width = element.rect.width - element.pad.left - element.pad.right,
                 .height = element.rect.height - element.pad.top - element.pad.bottom,
             };
-            dest.x += scroll_offset.x;
-            dest.y += scroll_offset.y;
+            dest = dest.move(&scroll_offset);
 
             if (dest.height <= 0 or dest.width <= 0) return;
 
@@ -4334,7 +4331,7 @@ pub const Display = struct {
                     found.?.maximum.height,
                 });
                 if (dev_build and dev_mode and found.?.type == .panel) {
-                    trace("entered hover({s} {s}) panel content {d}x{d}.  usable area: {d}x{d}", .{
+                    trace("entered panel hover({s} {s}) panel content {d}x{d}.  usable area: {d}x{d}", .{
                         @tagName(found.?.type),
                         found.?.name,
                         found.?.type.panel.scrollable.size.width,
