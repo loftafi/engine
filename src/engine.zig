@@ -594,155 +594,67 @@ pub const Element = struct {
         if (self.type == .button) {
             switch (self.type.button.style) {
                 .success => {
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.success_button_colour.r,
-                        display.theme.success_button_colour.g,
-                        display.theme.success_button_colour.b,
-                    );
+                    tint_texture(texture, display.theme.success_button_colour);
                     return;
                 },
                 .failed => {
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.failed_button_colour.r,
-                        display.theme.failed_button_colour.g,
-                        display.theme.failed_button_colour.b,
-                    );
+                    tint_texture(texture, display.theme.failed_button_colour);
                     return;
                 },
                 else => {
                     // Otherwise apply toggle colurs if needed
                 },
             }
+
             switch (self.type.button.toggle) {
-                .off, .locked_off => {
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.toggle_button.r,
-                        display.theme.toggle_button.g,
-                        display.theme.toggle_button.b,
-                    );
-                    return;
-                },
-                .on => {
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.toggle_button_picked.r,
-                        display.theme.toggle_button_picked.g,
-                        display.theme.toggle_button_picked.b,
-                    );
-                    return;
-                },
-                .correct => {
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.toggle_button_correct.r,
-                        display.theme.toggle_button_correct.g,
-                        display.theme.toggle_button_correct.b,
-                    );
-                    return;
-                },
-                .incorrect => {
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.toggle_button_incorrect.r,
-                        display.theme.toggle_button_incorrect.g,
-                        display.theme.toggle_button_incorrect.b,
-                    );
-                    return;
-                },
-                .no_toggle => {},
+                .off, .locked_off => tint_texture(texture, display.theme.toggle_button),
+                .on => tint_texture(texture, display.theme.toggle_button_picked),
+                .correct => tint_texture(texture, display.theme.toggle_button_correct),
+                .incorrect => tint_texture(texture, display.theme.toggle_button_incorrect),
+                .no_toggle => tint_texture(texture, engine.WHITE),
             }
+            return;
         }
+
         if (self.type == .panel) {
             switch (self.type.panel.style) {
-                .emphasised => {
-                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.emphasised_panel_colour.a);
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.emphasised_panel_colour.r,
-                        display.theme.emphasised_panel_colour.g,
-                        display.theme.emphasised_panel_colour.b,
-                    );
-                    return;
-                },
-                .success => {
-                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.success_panel_colour.a);
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.success_panel_colour.r,
-                        display.theme.success_panel_colour.g,
-                        display.theme.success_panel_colour.b,
-                    );
-                    return;
-                },
-                .failed => {
-                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.failed_panel_colour.a);
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.failed_panel_colour.r,
-                        display.theme.failed_panel_colour.g,
-                        display.theme.failed_panel_colour.b,
-                    );
-                    return;
-                },
-                .faded => {
-                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.faded_panel_colour.a);
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.faded_panel_colour.r,
-                        display.theme.faded_panel_colour.g,
-                        display.theme.faded_panel_colour.b,
-                    );
-                    return;
-                },
-                .background => {
-                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.background_colour.a);
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.background_colour.r,
-                        display.theme.background_colour.g,
-                        display.theme.background_colour.b,
-                    );
-                    return;
-                },
-                .normal => {
-                    _ = sdl.SDL_SetTextureAlphaMod(texture, display.theme.label_background_colour.a);
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.label_background_colour.r,
-                        display.theme.label_background_colour.g,
-                        display.theme.label_background_colour.b,
-                    );
-                    return;
-                },
+                .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
+                .success => tint_texture(texture, display.theme.success_panel_colour),
+                .failed => tint_texture(texture, display.theme.failed_panel_colour),
+                .faded => tint_texture(texture, display.theme.faded_panel_colour),
+                .background => tint_texture(texture, display.theme.background_colour),
+                .normal => tint_texture(texture, display.theme.label_background_colour),
                 else => {
                     warn(
                         "unhandled panel tint option: {s}",
                         .{@tagName(self.type.panel.style)},
                     );
+                    tint_texture(texture, engine.WHITE);
                 },
             }
+            return;
         }
+
         if (self.type == .sprite) {
             if (self.background.colour.a != 0) {
-                _ = sdl.SDL_SetTextureAlphaMod(texture, self.background.colour.a);
-                _ = sdl.SDL_SetTextureColorMod(
-                    texture,
-                    self.background.colour.r,
-                    self.background.colour.g,
-                    self.background.colour.b,
-                );
-                return;
+                tint_texture(texture, self.background.colour);
+            } else {
+                tint_texture(texture, engine.WHITE);
             }
+            return;
         }
-        _ = sdl.SDL_SetTextureColorMod(
-            texture,
-            display.theme.label_background_colour.r,
-            display.theme.label_background_colour.g,
-            display.theme.label_background_colour.b,
-        );
+
+        if (self.type == .label) {
+            tint_texture(texture, display.theme.label_background_colour);
+            return;
+        }
+
+        tint_texture(texture, engine.WHITE);
+    }
+
+    fn tint_texture(texture: *sdl.SDL_Texture, colour: Colour) void {
+        _ = sdl.SDL_SetTextureAlphaMod(texture, colour.a);
+        _ = sdl.SDL_SetTextureColorMod(texture, colour.r, colour.g, colour.b);
     }
 
     /// An icon may have different background textures for hovered,
@@ -1556,6 +1468,9 @@ pub const Element = struct {
         }
     }
 
+    /// Draw the foreground image `texture` of the sprite loaded from the
+    /// `texture_name` string. Does not draw the `background.image` texture.
+    /// The background image is drawn in the generic background drawing function.
     inline fn draw_sprite(
         element: *Element,
         display: *Display,
@@ -1858,6 +1773,7 @@ pub const Element = struct {
     /// Handle when a user chooses an element like a button, using
     /// the mouse or the keyboard.
     pub fn chosen(self: *Element, display: *Display, gpa: Allocator) Allocator.Error!void {
+        trace("chosen element {s}", .{self.name});
         switch (self.type) {
             .button => {
                 switch (self.type.button.toggle) {
@@ -4962,9 +4878,8 @@ pub fn setup_sprite(
 ) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || ResourcesError)!void {
     element.texture = null;
     element.background.image = null;
-    if (element.focus == .unspecified) {
+    if (element.focus == .unspecified)
         element.focus = .accessibility_focus;
-    }
 
     if (element.texture_name) |image| {
         if (try self.load_texture_resource(allocator, image)) |texture| {
@@ -4989,6 +4904,11 @@ pub fn setup_sprite(
             err("Failed to load sprite background image named \"{s}\" for button \"{s}\"", .{ image, element.name });
         }
     }
+
+    if (element.texture_name != null)
+        trace("sprite {s} fg {s}", .{ element.name, element.texture_name.? });
+    if (element.background.image_name != null)
+        trace("sprite {s} bg {s}", .{ element.name, element.background.image_name.? });
 }
 
 fn select_font(fonts: []*FontInfo, name: ?[]const u8) *FontInfo {
@@ -5292,7 +5212,6 @@ pub const SdlLogCategory = enum(c_int) {
 
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
     if (dev_build and dev_mode) {
-        std.log.debug(format, args);
         log_output("trace", .engine, format, args);
     }
 }
