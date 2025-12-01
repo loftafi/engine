@@ -4164,7 +4164,11 @@ pub const Display = struct {
         }
     }
 
+    /// When the user is dragging a scrollable panel, it starts with an offset
+    /// `value` of zero. If the panel overflows its box, then the offset
+    /// value may decrease to the `min` offset or increase to the `max` offset.
     fn limit_scroll(min: f32, value: f32, max: f32) f32 {
+        std.debug.assert(min <= max);
         if (value < min) return min;
         if (value > max) return max;
         return value;
