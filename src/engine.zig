@@ -1642,9 +1642,8 @@ pub const Element = struct {
             const size = text_size(display, texture, .normal);
 
             // Do we need space between text and icon?
-            if (content_width > 0) {
+            if (content_width > 0)
                 content_width += element.type.button.spacing;
-            }
 
             content_width += size.width;
         }
@@ -4165,6 +4164,12 @@ pub const Display = struct {
         }
     }
 
+    fn limit_scroll(min: f32, value: f32, max: f32) f32 {
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
+    }
+
     /// Event handler for mouse motion
     inline fn handle_mouse_motion_event(display: *Display, _: *sdl.SDL_Event) !void {
         var cursor: Vector = undefined;
@@ -4181,23 +4186,38 @@ pub const Display = struct {
                     // How far has the mouse/finger moved the item
                     element.offset = cursor.minus(display.scroll_start).add(display.scroll_initial_offset);
 
-                    // Clamp offset so we cant scroll past start at all
-                    element.offset.x = @min(element.offset.x, 0);
-                    element.offset.y = @min(element.offset.y, 0);
-
                     // Clamp offset so we cant scroll past end at all
-                    const allowable_x_scroll = @min(0, element.rect.width - panel.scrollable.size.width);
-                    const allowable_y_scroll = @min(0, element.rect.height - panel.scrollable.size.height);
+                    switch (element.child_align.x) {
+                        .centre => {
+                            // allowable scroll offset (negative number)
+                            const allowable_x_scroll = @min(0, element.rect.width - panel.scrollable.size.width) / 2;
+                            element.offset.x = limit_scroll(allowable_x_scroll, element.offset.x, -allowable_x_scroll);
+                        },
+                        else => {
+                            // allowable scroll offset (negative number)
+                            const allowable_x_scroll = @min(0, element.rect.width - panel.scrollable.size.width);
+                            element.offset.x = limit_scroll(allowable_x_scroll, element.offset.x, 0);
+                        },
+                    }
 
-                    element.offset.x = @max(element.offset.x, allowable_x_scroll);
-                    element.offset.y = @max(element.offset.y, allowable_y_scroll);
+                    // Clamp offset so we cant scroll past start at all
+                    switch (element.child_align.y) {
+                        .centre => {
+                            const allowable_y_scroll = @min(0, element.rect.height - panel.scrollable.size.height) / 2;
+                            element.offset.y = limit_scroll(allowable_y_scroll, element.offset.y, -allowable_y_scroll);
+                        },
+                        else => {
+                            const allowable_y_scroll = @min(0, element.rect.height - panel.scrollable.size.height);
+                            element.offset.y = limit_scroll(allowable_y_scroll, element.offset.y, 0);
+                        },
+                    }
 
-                    if (!panel.scrollable.scroll.y) {
+                    if (!panel.scrollable.scroll.y)
                         element.offset.y = 0;
-                    }
-                    if (!panel.scrollable.scroll.x) {
+
+                    if (!panel.scrollable.scroll.x)
                         element.offset.x = 0;
-                    }
+
                     trace("scrolling panel {s}. scrollable.size={d}x{d} panel.size={d}x{d}. draw.offset={d}x{d}", .{
                         element.name,
                         panel.scrollable.size.width,
