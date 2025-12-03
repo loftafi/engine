@@ -56,6 +56,7 @@ pub fn init_resource_loader(
         // Fallback to loading resources from the development resources
         // folder if it is available.
         if (dev_repo.len > 0) {
+            debug("Fallback to loading repo from folder: {s}", .{dev_repo});
             loaded = resources.load_directory(dev_repo) catch |e| {
                 err("error loading repo from {s}. {any}", .{ dev_repo, e });
                 return e;
