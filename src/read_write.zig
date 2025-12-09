@@ -9,20 +9,15 @@ pub fn init_resource_loader(
     allocator: Allocator,
     bundle_filename: []const u8,
     dev_repo: []const u8,
-) error{
-    OutOfMemory,
+) (Allocator.Error || Resources.Error || engine.Error || error{
     ResourceReadError,
     NoResources,
-    ReadMetadataFailed,
-    ReadRepoFileFailed,
-    InvalidResourceUID,
-    MetadataMissing,
     Utf8ExpectedContinuation,
     Utf8OverlongEncoding,
     Utf8EncodesSurrogateHalf,
     Utf8CodepointTooLarge,
     Utf8InvalidStartByte,
-}!*Resources {
+})!*Resources {
     const start = std.time.milliTimestamp();
     var resources = try Resources.create(allocator);
     errdefer resources.destroy();

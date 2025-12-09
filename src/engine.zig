@@ -607,6 +607,10 @@ pub const Element = struct {
                     tint_texture(texture, display.theme.failed_button_colour);
                     return;
                 },
+                .custom => {
+                    tint_texture(texture, self.background.colour);
+                    return;
+                },
                 else => {
                     // Otherwise apply toggle colurs if needed
                 },
@@ -764,6 +768,52 @@ pub const Element = struct {
         } else {
             err("set_background_texture({s}) resource not found", .{name});
         }
+    }
+
+    pub inline fn set_image(
+        self: *Element,
+        gpa: Allocator,
+        display: *Display,
+        repository: *Resources,
+        name: []const u8,
+    ) (Allocator.Error || Resources.Error || engine.Error)!?*TextureInfo {
+        const start = std.time.milliTimestamp();
+        const texture = try display.load_texture_resource_from_repo(gpa, repository, name);
+        if (texture == null) {
+            info("set_image failed to find image resource named \"{s}\"", .{name});
+            return null;
+        }
+        const end = std.time.milliTimestamp();
+        debug("set_image loaded image named \"{s}\" in {d}ms", .{ name, end - start });
+
+        if (self.texture != null) {
+            display.release_texture_resource(gpa, self.texture.?);
+            self.texture = null;
+        }
+        self.texture = texture.?;
+        return texture;
+    }
+
+    pub inline fn set_background_image(
+        self: *Element,
+        gpa: Allocator,
+        display: *Display,
+        repository: *Resources,
+        name: []const u8,
+    ) (Allocator.Error || Resources.Error || engine.Error)!?*TextureInfo {
+        const texture = try display.load_texture_resource_from_repo(gpa, repository, name);
+        if (texture == null) {
+            info("set_image failed to find image resource named \"{s}\"", .{name});
+            return null;
+        }
+        debug("set_background_image loaded image named \"{s}\"", .{name});
+
+        if (self.background.image != null) {
+            display.release_texture_resource(gpa, self.background.image.?);
+            self.background.image = null;
+        }
+        self.background.image = texture.?;
+        return texture;
     }
 
     /// set_text updates the `text` and `translation` fields of labels,
@@ -1484,6 +1534,7 @@ pub const Element = struct {
         _: ?Clip,
         scroll_offset: Vector,
     ) void {
+        //debug("ds {s} {d}x{d}", .{ element.name, element.rect.width, element.rect.height });
         if (element.texture) |texture| {
             var dest: Rect = .{
                 .x = element.rect.x + element.pad.left,
@@ -1622,12 +1673,12 @@ pub const Element = struct {
                 dest.y += dest.height;
                 dest.height = 0 - dest.height;
             }
+            element.apply_background_tint(display, background_image);
             if (element.background.image_corner_radius == 0) {
                 _ = sdl.SDL_RenderTexture(display.renderer, background_image, null, @ptrCast(&dest));
             } else {
                 var corner: f32 = element.background.corner_radius;
                 if (corner * 2 > dest.height) corner = dest.height / 2;
-                element.apply_background_tint(display, background_image);
                 _ = sdl.SDL_RenderTexture9Grid(
                     display.renderer,
                     background_image,
@@ -1683,7 +1734,19 @@ pub const Element = struct {
                     dest.height = 0 - dest.height;
                 }
                 if (element.type.button.style != .custom) {
-                    _ = sdl.SDL_SetTextureColorMod(icon_image, tint.r, tint.g, tint.b);
+                    _ = sdl.SDL_SetTextureColorMod(
+                        icon_image,
+                        tint.r,
+                        tint.g,
+                        tint.b,
+                    );
+                } else {
+                    _ = sdl.SDL_SetTextureColorMod(
+                        icon_image,
+                        element.colour.r,
+                        element.colour.g,
+                        element.colour.b,
+                    );
                 }
                 _ = sdl.SDL_RenderTexture(display.renderer, icon_image, null, @ptrCast(&dest));
             }
@@ -2576,7 +2639,7 @@ pub const Display = struct {
         debug("Checking for desktop icon", .{});
         if (try display.resources.lookupOne("desktop icon", .image, gpa)) |resource| {
             var surface: SurfaceInfo = undefined;
-            try display.make_surface_from_resource(resource, gpa, &surface);
+            try display.make_surface_from_resource(display.resources, resource, gpa, &surface);
             defer surface.deinit(gpa);
             if (!sdl.SDL_SetWindowIcon(window, surface.surface)) {
                 info("Did not set desktop icon", .{});
@@ -3498,10 +3561,56 @@ pub const Display = struct {
             return null;
         }
         var si: SurfaceInfo = undefined;
-        try self.make_surface_from_resource(resource.?, allocator, &si);
+        try self.make_surface_from_resource(self.resources, resource.?, allocator, &si);
         defer si.deinit(allocator);
 
+        const start = std.time.milliTimestamp();
         const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, si.surface);
+        const end = std.time.milliTimestamp();
+        debug("sdl create texture in {d}ms", .{end - start});
+
+        const ti = try TextureInfo.create(allocator, name, texture);
+        ti.references += 1;
+        try self.textures.put(allocator, ti.name, ti);
+        return ti;
+    }
+
+    /// Load an image from the resource bundle or resource directory.
+    pub fn load_texture_resource_from_repo(
+        self: *Display,
+        allocator: Allocator,
+        bucket: *Resources,
+        name: []const u8,
+    ) (Error || Allocator.Error || Resources.Error)!?*TextureInfo {
+        if (name.len == 0) {
+            return null;
+        }
+
+        if (self.textures.get(name)) |texture| {
+            texture.references += 1;
+            return texture;
+        }
+
+        var start = std.time.milliTimestamp();
+        const resource = try bucket.lookupOne(name, .image, allocator);
+        if (resource == null) {
+            return null;
+        }
+        var end = std.time.milliTimestamp();
+        debug("search image named \"{s}\" in {d}ms", .{ name, end - start });
+        start = end;
+
+        var si: SurfaceInfo = undefined;
+        try self.make_surface_from_resource(bucket, resource.?, allocator, &si);
+        defer si.deinit(allocator);
+        end = std.time.milliTimestamp();
+        debug("made surface named \"{s}\" in {d}ms", .{ name, end - start });
+
+        start = std.time.milliTimestamp();
+        const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, si.surface);
+        end = std.time.milliTimestamp();
+        debug("sdl create texture in {d}ms", .{end - start});
+
         const ti = try TextureInfo.create(allocator, name, texture);
         ti.references += 1;
         try self.textures.put(allocator, ti.name, ti);
@@ -3520,13 +3629,14 @@ pub const Display = struct {
         }
     };
 
-    pub fn make_surface_from_resource(
-        self: *Display,
+    fn make_surface_from_resource(
+        _: *Display,
+        bucket: *Resources,
         resource: *Resource,
         allocator: Allocator,
         si: *SurfaceInfo,
     ) (Error || Allocator.Error)!void {
-        si.buffer = try sdl_load_resource(self.resources, resource, allocator);
+        si.buffer = try sdl_load_resource(bucket, resource, allocator);
         errdefer allocator.free(si.buffer);
         si.img = zigimg.Image.fromMemory(allocator, si.buffer[0..]) catch |e| {
             if (e == error.OutOfMemory) return error.OutOfMemory;
