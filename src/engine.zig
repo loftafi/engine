@@ -735,7 +735,7 @@ pub const Element = struct {
         display: *Display,
         name: []const u8,
     ) error{OutOfMemory}!void {
-        const texture = display.load_texture_resource(allocator, name) catch |f| {
+        const texture = display.load_texture(allocator, name) catch |f| {
             err("set_texture({s}) error loading texture. {any}", .{ name, f });
             return;
         };
@@ -757,7 +757,7 @@ pub const Element = struct {
         display: *Display,
         name: []const u8,
     ) error{OutOfMemory}!void {
-        const texture = display.load_texture_resource(allocator, name) catch |f| {
+        const texture = display.load_texture(allocator, name) catch |f| {
             err("set_background_texture({s}) error loading texture. {any}", .{ name, f });
             return;
         };
@@ -778,7 +778,7 @@ pub const Element = struct {
         name: []const u8,
     ) (Allocator.Error || Resources.Error || engine.Error)!?*TextureInfo {
         const start = std.time.milliTimestamp();
-        const texture = try display.load_texture_resource_from_repo(gpa, repository, name);
+        const texture = try display.load_bundle_texture(gpa, repository, name);
         if (texture == null) {
             info("set_image failed to find image resource named \"{s}\"", .{name});
             return null;
@@ -801,7 +801,7 @@ pub const Element = struct {
         repository: *Resources,
         name: []const u8,
     ) (Allocator.Error || Resources.Error || engine.Error)!?*TextureInfo {
-        const texture = try display.load_texture_resource_from_repo(gpa, repository, name);
+        const texture = try display.load_bundle_texture(gpa, repository, name);
         if (texture == null) {
             info("set_image failed to find image resource named \"{s}\"", .{name});
             return null;
@@ -2374,6 +2374,44 @@ pub const TextureInfo = struct {
     }
 };
 
+/// An audio file is held in memory for the entire duration it might be needed.
+///
+/// If an audio file is in use by more than one element, then the `references`
+/// counter keeps track of how many elements are currently depending on
+/// this audio file.
+pub const AudioInfo = struct {
+    name: []const u8,
+    audio: []const u8,
+    references: i32,
+
+    pub fn create(
+        allocator: Allocator,
+        name: []const u8,
+        audio: []const u8,
+    ) !*AudioInfo {
+        const audio_info = try allocator.create(AudioInfo);
+        audio_info.* = .{
+            .name = if (name.len > 0) try allocator.dupe(u8, name) else "",
+            .audio = audio,
+            .references = 0,
+        };
+        debug("loaded audio: {s}", .{name});
+        return audio_info;
+    }
+
+    pub fn destroy(self: *AudioInfo, allocator: Allocator) void {
+        allocator.free(self.audio);
+        if (self.name.len > 0)
+            allocator.free(self.name);
+        allocator.destroy(self);
+    }
+
+    pub fn clone(self: *AudioInfo) *AudioInfo {
+        self.references += 1;
+        return self;
+    }
+};
+
 /// A font is held in memory for the entire duration it might be needed.
 /// Typically this is the lifetime of the app.
 const FontInfo = struct {
@@ -2458,6 +2496,9 @@ pub const Display = struct {
 
     /// Cache of currently loaded textures.
     textures: std.StringHashMapUnmanaged(*TextureInfo),
+
+    /// Cache of currently loaded audio files.
+    audio: std.StringHashMapUnmanaged(*AudioInfo),
 
     /// Four possible theme options are available.
     themes: ArrayListUnmanaged(Theme) = .empty,
@@ -2697,6 +2738,7 @@ pub const Display = struct {
 
         display.fonts = .empty;
         display.textures = .empty;
+        display.audio = .empty;
 
         display.last_draw = std.time.microTimestamp();
         display.last_delta = display.last_draw;
@@ -2748,6 +2790,19 @@ pub const Display = struct {
             x.value_ptr.*.destroy(gpa);
         }
         self.textures.deinit(gpa);
+
+        var a = self.audio.iterator();
+        while (a.next()) |x| {
+            if (x.value_ptr.*.references > 0) {
+                warn("audio file was not deallocated. {s} has {d} references", .{
+                    x.key_ptr.*,
+                    x.value_ptr.*.references,
+                });
+            }
+            x.value_ptr.*.destroy(gpa);
+        }
+        self.audio.deinit(gpa);
+
         self.resources.destroy();
         for (self.animators.items) |animator| {
             gpa.destroy(animator);
@@ -3568,50 +3623,23 @@ pub const Display = struct {
         ti.destroy(allocator);
     }
 
-    /// Load an image from the resource bundle or resource directory.
-    pub fn load_texture_resource(
+    /// Load an image from the default resource bundle.
+    pub inline fn load_texture(
         self: *Display,
-        allocator: Allocator,
+        gpa: Allocator,
         name: []const u8,
     ) (Error || Allocator.Error || Resources.Error)!?*TextureInfo {
-        if (name.len == 0) {
-            return null;
-        }
-
-        if (self.textures.get(name)) |texture| {
-            texture.references += 1;
-            return texture;
-        }
-
-        const resource = try self.resources.lookupOne(name, .image, allocator);
-        if (resource == null) {
-            return null;
-        }
-        var si: SurfaceInfo = undefined;
-        try self.make_surface_from_resource(self.resources, resource.?, allocator, &si);
-        defer si.deinit(allocator);
-
-        const start = std.time.milliTimestamp();
-        const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, si.surface);
-        const end = std.time.milliTimestamp();
-        debug("sdl create texture in {d}ms", .{end - start});
-
-        const ti = try TextureInfo.create(allocator, name, texture);
-        ti.references += 1;
-        try self.textures.put(allocator, ti.name, ti);
-        return ti;
+        return self.load_bundle_texture(gpa, self.resources, name);
     }
 
-    /// Load an image from the resource bundle or resource directory.
-    pub fn load_texture_resource_from_repo(
+    /// Load an image from a specific resource bundle.
+    pub fn load_bundle_texture(
         self: *Display,
-        allocator: Allocator,
-        bucket: *Resources,
+        gpa: Allocator,
+        bundle: *Resources,
         name: []const u8,
     ) (Error || Allocator.Error || Resources.Error)!?*TextureInfo {
-        if (name.len == 0) {
-            return null;
-        }
+        if (name.len == 0) return null;
 
         if (self.textures.get(name)) |texture| {
             texture.references += 1;
@@ -3619,17 +3647,16 @@ pub const Display = struct {
         }
 
         var start = std.time.milliTimestamp();
-        const resource = try bucket.lookupOne(name, .image, allocator);
-        if (resource == null) {
-            return null;
-        }
+        const resource = try bundle.lookupOne(name, .image, gpa);
+        if (resource == null) return null;
+
         var end = std.time.milliTimestamp();
         debug("search image named \"{s}\" in {d}ms", .{ name, end - start });
         start = end;
 
         var si: SurfaceInfo = undefined;
-        try self.make_surface_from_resource(bucket, resource.?, allocator, &si);
-        defer si.deinit(allocator);
+        try self.make_surface_from_resource(bundle, resource.?, gpa, &si);
+        defer si.deinit(gpa);
         end = std.time.milliTimestamp();
         debug("made surface named \"{s}\" in {d}ms", .{ name, end - start });
 
@@ -3638,10 +3665,59 @@ pub const Display = struct {
         end = std.time.milliTimestamp();
         debug("sdl create texture in {d}ms", .{end - start});
 
-        const ti = try TextureInfo.create(allocator, name, texture);
+        const ti = try TextureInfo.create(gpa, name, texture);
         ti.references += 1;
-        try self.textures.put(allocator, ti.name, ti);
+        try self.textures.put(gpa, ti.name, ti);
         return ti;
+    }
+
+    /// Load an image from the default resource bundle.
+    pub inline fn play_resource(
+        self: *Display,
+        gpa: Allocator,
+        name: []const u8,
+    ) (Error || Allocator.Error || Resources.Error)!?*AudioInfo {
+        return self.play_bundle_resource(gpa, self.resources, name);
+    }
+
+    /// Load an image from a specific resource bundle.
+    pub fn play_bundle_resource(
+        self: *Display,
+        gpa: Allocator,
+        bundle: *Resources,
+        name: []const u8,
+    ) (Error || Allocator.Error || Resources.Error)!?*AudioInfo {
+        if (name.len == 0) return null;
+
+        if (self.audio.get(name)) |item| {
+            item.references += 1;
+            return item;
+        }
+
+        var start = std.time.milliTimestamp();
+        const resource = try bundle.lookupOne(name, .audio, gpa);
+        if (resource == null) {
+            debug("search audio named \"{s}\" not found.", .{name});
+            return null;
+        }
+        var end = std.time.milliTimestamp();
+        debug("search audio named \"{s}\" in {d}ms", .{ name, end - start });
+
+        start = end;
+        const audio = try sdl_load_resource(bundle, resource.?, gpa);
+        errdefer gpa.free(audio);
+        end = std.time.milliTimestamp();
+
+        debug("read audio named \"{s}\" size {d} in {d}ms", .{
+            name,
+            audio.len,
+            end - start,
+        });
+
+        const ai = try AudioInfo.create(gpa, name, audio);
+        ai.references += 1;
+        try self.audio.put(gpa, ai.name, ai);
+        return ai;
     }
 
     pub const SurfaceInfo = struct {
@@ -4853,7 +4929,7 @@ pub fn setup_panel(
     }
 
     if (element.background.image_name) |name| {
-        if (try self.load_texture_resource(allocator, name)) |texture| {
+        if (try self.load_texture(allocator, name)) |texture| {
             element.background.image = texture;
         } else {
             err("Failed to load panel background image named \"{s}\"", .{name});
@@ -4879,7 +4955,7 @@ pub fn setup_progress_bar(
         element.type = .{ .progress_bar = .{} };
     }
 
-    if (try self.load_texture_resource(allocator, "rounded progress bar")) |texture| {
+    if (try self.load_texture(allocator, "rounded progress bar")) |texture| {
         element.texture = texture;
     } else {
         err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
@@ -4902,16 +4978,16 @@ pub fn setup_checkbox(
 
     try element.set_text(allocator, self, element.type.checkbox.text, true);
 
-    if (try self.load_texture_resource(allocator, "ios-checkbox-on")) |texture| {
+    if (try self.load_texture(allocator, "ios-checkbox-on")) |texture| {
         element.type.checkbox.on_texture = texture;
     }
-    if (try self.load_texture_resource(allocator, "ios-checkbox-off")) |texture| {
+    if (try self.load_texture(allocator, "ios-checkbox-off")) |texture| {
         element.type.checkbox.off_texture = texture;
     }
 
     // Is there a background for this checkbox
     if (element.background.image_name) |name| {
-        if (try self.load_texture_resource(allocator, name)) |texture|
+        if (try self.load_texture(allocator, name)) |texture|
             element.background.image = texture;
     }
 
@@ -4961,7 +5037,7 @@ pub fn setup_label(
 
     // Is there a background for this label?
     if (element.background.image_name) |name| {
-        if (try self.load_texture_resource(allocator, name)) |texture|
+        if (try self.load_texture(allocator, name)) |texture|
             element.background.image = texture;
     }
 
@@ -4984,7 +5060,7 @@ pub fn setup_text_input(
     element.type.text_input.font = select_font(self.fonts.items, element.type.text_input.font_name);
 
     if (element.type.text_input.icon_texture_name) |icon| {
-        if (try self.load_texture_resource(allocator, icon)) |texture| {
+        if (try self.load_texture(allocator, icon)) |texture| {
             element.texture = texture;
         } else {
             err("Failed to load text_input icon texture named \"{s}\"", .{icon});
@@ -4992,7 +5068,7 @@ pub fn setup_text_input(
     }
 
     if (element.background.image_name) |background| {
-        if (try self.load_texture_resource(allocator, background)) |texture| {
+        if (try self.load_texture(allocator, background)) |texture| {
             element.background.image = texture;
         } else {
             err("Failed to load text_input background image named \"{s}\"", .{background});
@@ -5034,7 +5110,7 @@ pub fn setup_sprite(
         element.focus = .accessibility_focus;
 
     if (element.texture_name) |image| {
-        if (try self.load_texture_resource(allocator, image)) |texture| {
+        if (try self.load_texture(allocator, image)) |texture| {
             element.texture = texture;
             if (element.rect.width == 0)
                 element.rect.width = @floatFromInt(texture.texture.w);
@@ -5046,7 +5122,7 @@ pub fn setup_sprite(
     }
 
     if (element.background.image_name) |image| {
-        if (try self.load_texture_resource(allocator, image)) |texture| {
+        if (try self.load_texture(allocator, image)) |texture| {
             element.background.image = texture;
             if (element.rect.width == 0)
                 element.rect.width = @floatFromInt(texture.texture.w);
@@ -5110,7 +5186,7 @@ pub fn setup_button(
     try element.set_text(allocator, display, element.type.button.text, true);
 
     if (element.type.button.icon_default_name) |icon_default| {
-        if (try display.load_texture_resource(allocator, icon_default)) |texture| {
+        if (try display.load_texture(allocator, icon_default)) |texture| {
             element.texture = texture;
             if (element.type.button.icon_size.width == 0 or element.type.button.icon_size.height == 0)
                 warn("button `{s}` has icon `{s}`, but no icon size.", .{
@@ -5121,7 +5197,7 @@ pub fn setup_button(
     }
 
     if (element.type.button.icon_pressed_name) |icon_pressed| {
-        if (try display.load_texture_resource(allocator, icon_pressed)) |ip|
+        if (try display.load_texture(allocator, icon_pressed)) |ip|
             element.type.button.icon_pressed = ip
         else
             err("create_button failed to load icon_pressed resource {s}.", .{icon_pressed});
@@ -5131,7 +5207,7 @@ pub fn setup_button(
     }
 
     if (element.type.button.icon_hover_name) |icon_hover| {
-        if (try display.load_texture_resource(allocator, icon_hover)) |ih|
+        if (try display.load_texture(allocator, icon_hover)) |ih|
             element.type.button.icon_hover = ih
         else
             err("create_button failed to load icon_default resource {s}.", .{icon_hover});
@@ -5141,14 +5217,14 @@ pub fn setup_button(
     }
 
     if (element.type.button.background_default_name) |background_default| {
-        if (try display.load_texture_resource(allocator, background_default)) |texture|
+        if (try display.load_texture(allocator, background_default)) |texture|
             element.background.image = texture
         else
             err("create_button failed to load background_default resource {s}.", .{background_default});
     }
 
     if (element.type.button.background_pressed_name) |background_pressed| {
-        if (try display.load_texture_resource(allocator, background_pressed)) |bp|
+        if (try display.load_texture(allocator, background_pressed)) |bp|
             element.type.button.background_pressed = bp
         else
             err("create_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
@@ -5158,7 +5234,7 @@ pub fn setup_button(
     }
 
     if (element.type.button.background_hover_name) |background_hover| {
-        if (try display.load_texture_resource(allocator, background_hover)) |bh|
+        if (try display.load_texture(allocator, background_hover)) |bh|
             element.type.button.background_hover = bh
         else
             err("create_button background_hover resource `{s}` not loaded.", .{background_hover});
@@ -5701,6 +5777,7 @@ pub const Animator = @import("animator.zig");
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
 const BoundedArray = praxis.BoundedArray;
+const mixer = @import("mixer");
 
 pub const Chunker = @import("chunker.zig").Chunker;
 pub const Translation = @import("translation.zig").Translation;

@@ -15,6 +15,7 @@ pub fn build(b: *std.Build) void {
     add_libs(b, &target, zigimg_module);
 
     const sdl_module = define_sdl_module(b, &target, &optimize);
+    const mixer_module = define_mixer_module(b, &target, &optimize);
 
     const lib_mod = b.addModule("engine", .{
         .root_source_file = b.path("src/engine.zig"),
@@ -25,6 +26,7 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("resources", resources_module);
     lib_mod.addImport("zigimg", zigimg_module);
     lib_mod.addImport("sdl", sdl_module);
+    lib_mod.addImport("mixer", mixer_module);
 
     link_sdl_framework(b, &target, lib_mod);
 
@@ -43,6 +45,26 @@ pub fn build(b: *std.Build) void {
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+}
+
+fn define_mixer_module(
+    b: *std.Build,
+    target: *const std.Build.ResolvedTarget,
+    optimize: *const std.builtin.OptimizeMode,
+) *std.Build.Module {
+    const sdl_dep = b.dependency("sdl", .{});
+    const headers2 = b.addTranslateC(.{
+        //.root_source_file = ttf_dep.path("libs/SDL3_mixer/SDL_mixer.h"),
+        .root_source_file = b.path("libs/SDL3_mixer/SDL_mixer.h"),
+        .target = target.*,
+        .optimize = optimize.*,
+    });
+    headers2.addIncludePath(sdl_dep.path("include"));
+    const sdl_mix_mod = headers2.addModule("mixer");
+    add_libs(b, target, sdl_mix_mod);
+    add_translatec_headers(b, target, headers2);
+
+    return sdl_mix_mod;
 }
 
 /// Build an SDL module from the SDL3 and SDL3_ttf header files that we
