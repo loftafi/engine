@@ -9,6 +9,11 @@ pub const Error = error{
     ResourceReadError,
     ResourceNotFound,
     UnknownImageFormat,
+    AudioInitFailed,
+    FontInitFailed,
+    GraphicsInitFailed,
+    WindowCreationFailed,
+    GraphicsRendererFailed,
 };
 
 // A vector may represent a position or distance in 2D space.
@@ -2584,7 +2589,7 @@ pub const Display = struct {
         dev_resource_folder: []const u8,
         translation_filename: []const u8,
         gui_flags: usize,
-    ) !*Display {
+    ) (Error || Allocator.Error || Resources.Error || error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte })!*Display {
         var display = try gpa.create(Display);
         errdefer gpa.destroy(display);
         display.allocator = gpa;
@@ -2632,12 +2637,17 @@ pub const Display = struct {
         //if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO | sdl.SDL_INIT_GAMEPAD | sdl.SDL_INIT_JOYSTICK)) {
         if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO)) {
             err("sdl setup failed. {s}", .{sdl.SDL_GetError()});
-            return error.graphics_init_failed;
+            return error.GraphicsInitFailed;
         }
 
         if (!sdl.TTF_Init()) {
             err("ttf setup font failed. {s}", .{sdl.SDL_GetError()});
-            return error.font_init_failed;
+            return error.FontInitFailed;
+        }
+
+        if (!mixer.MIX_Init()) {
+            err("mixer setup font failed. {s}", .{sdl.SDL_GetError()});
+            return error.AudioInitFailed;
         }
 
         debug("Initialising resource loader", .{});
@@ -2658,12 +2668,12 @@ pub const Display = struct {
             sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY | sdl.SDL_WINDOW_RESIZABLE | gui_flags,
         ) orelse {
             err("No Window created. {s}", .{sdl.SDL_GetError()});
-            return error.window_creation_failed;
+            return error.WindowCreationFailed;
         };
 
         const renderer = sdl.SDL_CreateRenderer(window, null) orelse {
             err("No Renderer created. {s}", .{sdl.SDL_GetError()});
-            return error.graphics_renderer_failed;
+            return error.GraphicsRendererFailed;
         };
 
         const current_driver = sdl.SDL_GetRendererName(renderer).?;
@@ -2811,6 +2821,7 @@ pub const Display = struct {
 
         sdl.SDL_DestroyRenderer(self.renderer);
         sdl.SDL_DestroyWindow(self.window);
+        mixer.MIX_Quit();
         sdl.TTF_Quit();
         sdl.SDL_Quit();
 
@@ -3717,6 +3728,7 @@ pub const Display = struct {
         const ai = try AudioInfo.create(gpa, name, audio);
         ai.references += 1;
         try self.audio.put(gpa, ai.name, ai);
+
         return ai;
     }
 
@@ -4943,7 +4955,7 @@ pub fn setup_progress_bar(
     self: *Display,
     allocator: Allocator,
     element: *Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!void {
+) (Error || Allocator.Error || Resources.Error)!void {
     element.texture = null;
     element.background.image = null;
     if (element.focus == .unspecified) {
@@ -4966,7 +4978,7 @@ pub fn setup_checkbox(
     self: *Display,
     allocator: Allocator,
     element: *Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!void {
+) (Error || Allocator.Error || Resources.Error)!void {
     element.texture = null;
     element.background.image = null;
     element.type.checkbox.translated = "";
@@ -5010,7 +5022,7 @@ pub fn setup_expander(
     _: *Display,
     _: Allocator,
     element: *Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!void {
+) (Error || Allocator.Error || Resources.Error)!void {
     element.texture = null;
     element.background.image = null;
     element.focus = .never_focus;
@@ -5020,7 +5032,7 @@ pub fn setup_label(
     self: *Display,
     allocator: Allocator,
     element: *Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!void {
+) (Error || Allocator.Error || Resources.Error)!void {
     element.texture = null;
     element.background.image = null;
     element.type.label.translated = "";
@@ -5051,7 +5063,7 @@ pub fn setup_text_input(
     self: *Display,
     allocator: Allocator,
     element: *Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!void {
+) (Error || Allocator.Error || Resources.Error)!void {
     element.texture = null;
     element.background.image = null;
     if (element.focus == .unspecified) {
@@ -5103,7 +5115,7 @@ pub fn setup_sprite(
     self: *Display,
     allocator: Allocator,
     element: *Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!void {
+) (Error || Allocator.Error || Resources.Error)!void {
     element.texture = null;
     element.background.image = null;
     if (element.focus == .unspecified)
@@ -5158,7 +5170,7 @@ pub fn setup_button(
     display: *Display,
     allocator: Allocator,
     element: *Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!void {
+) (Error || Allocator.Error || Resources.Error)!void {
     element.type.button.translated = "";
     element.texture = null;
     element.background.image = null;
@@ -5249,7 +5261,7 @@ pub fn create_sprite(
     allocator: Allocator,
     display: *Display,
     settings: Element,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat }!*Element {
+) (Error || Allocator.Error || Resources.Error)!*Element {
     const element = try allocator.create(Element);
     element.* = settings;
     try display.setup_element(allocator, element);
@@ -5273,7 +5285,7 @@ pub fn create_label(
     allocator: Allocator,
     display: *Display,
     settings: Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!*Element {
+) (Error || Allocator.Error || Resources.Error)!*Element {
     const element = try display.allocator.create(Element);
     element.* = settings;
     try display.setup_element(allocator, element);
@@ -5285,7 +5297,7 @@ pub fn create_checkbox(
     allocator: Allocator,
     display: *Display,
     settings: Element,
-) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || Resources.Error)!*Element {
+) (Error || Allocator.Error || Resources.Error)!*Element {
     const element = try allocator.create(Element);
     element.* = settings;
     try display.setup_element(allocator, element);
@@ -5297,7 +5309,7 @@ pub fn create_button(
     allocator: Allocator,
     display: *Display,
     settings: Element,
-) (error{ OutOfMemory, UnknownImageFormat, ResourceNotFound, ResourceReadError } || Resources.Error)!*Element {
+) (Error || Allocator.Error || Resources.Error)!*Element {
     const element = try allocator.create(Element);
     element.* = settings;
     try display.setup_element(allocator, element);
@@ -5309,7 +5321,7 @@ pub fn create_text_input(
     allocator: Allocator,
     display: *Display,
     settings: Element,
-) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || Resources.Error)!*Element {
+) (Error || Allocator.Error || Resources.Error)!*Element {
     const element = try allocator.create(Element);
     element.* = settings;
     try display.setup_element(allocator, element);
@@ -5321,7 +5333,7 @@ pub fn create_progress_bar(
     allocator: Allocator,
     display: *Display,
     settings: Element,
-) (error{ OutOfMemory, ResourceNotFound, ResourceReadError, UnknownImageFormat } || Resources.Error)!*Element {
+) (Error || Allocator.Error || Resources.Error)!*Element {
     const element = try allocator.create(Element);
     element.* = settings;
     try display.setup_element(allocator, element);
@@ -5337,7 +5349,7 @@ pub fn create_expander(
     allocator: Allocator,
     display: *Display,
     settings: Element,
-) (error{ ResourceReadError, ResourceNotFound, UnknownImageFormat } || Allocator.Error || Resources.Error)!*Element {
+) (Error || Allocator.Error || Resources.Error)!*Element {
     const element = try allocator.create(Element);
     element.* = settings;
     try display.setup_element(allocator, element);
@@ -5352,7 +5364,7 @@ pub fn create_panel(
     allocator: Allocator,
     display: *Display,
     settings: Element,
-) (error{ OutOfMemory, ResourceReadError, ResourceNotFound, UnknownImageFormat } || Resources.Error)!*Element {
+) (Allocator.Error || Error || Resources.Error)!*Element {
     const element = try allocator.create(Element);
     element.* = settings;
     try display.setup_element(allocator, element);

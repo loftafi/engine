@@ -108,28 +108,16 @@ pub fn add_translatec_headers(
             const sdk = std.zig.system.darwin.getSdk(b.allocator, &target.result) orelse
                 @panic("macOS SDK is missing");
             std.log.info("engine using macos c headers: {s}", .{sdk});
-            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                sdk,
-                "/usr/include",
-            }) });
-            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
-                sdk,
-                "/System/Library/Frameworks",
-            }) });
+            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
+            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
         .ios => {
             //const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.host.result) orelse
             const sdk = std.zig.system.darwin.getSdk(b.allocator, &target.result) orelse
                 @panic("iOS SDK is missing");
             std.log.info("engine using iphoneos c headers: {s}", .{sdk});
-            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                sdk,
-                "/usr/include",
-            }) });
-            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
-                sdk,
-                "/System/Library/Frameworks",
-            }) });
+            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
+            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
         .linux => {
             // When building for android, we need to use the android linux headers
@@ -172,27 +160,15 @@ pub fn add_libs(
             const sdk = std.zig.system.darwin.getSdk(b.allocator, &target.result) orelse
                 @panic("macOS SDK is missing");
             std.log.info("engine using macos c headers: {s}", .{sdk});
-            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                sdk,
-                "/usr/include",
-            }) });
-            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
-                sdk,
-                "/System/Library/Frameworks",
-            }) });
+            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
+            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
         .ios => {
             const sdk = std.zig.system.darwin.getSdk(b.allocator, &target.result) orelse
                 @panic("iOS SDK is missing");
             std.log.info("engine using iphoneos c headers: {s}", .{sdk});
-            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                sdk,
-                "/usr/include",
-            }) });
-            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{
-                sdk,
-                "/System/Library/Frameworks",
-            }) });
+            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
+            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
         .linux => {
             // When building for android, we need to use the android linux headers
@@ -238,6 +214,13 @@ pub fn link_sdl_framework(
             lib.addRPath(b.path("libs/SDL3_ttf.xcframework/macos-arm64_x86_64/"));
             lib.linkFramework("SDL3", .{});
             lib.linkFramework("SDL3_ttf", .{});
+            //lib.addSystemIncludePath(b.path("libs/SDL3_mixer/"));
+            //lib.addSystemFrameworkPath(b.path("libs/SDL3_mixer/"));
+            lib.addLibraryPath(b.path("libs/SDL3_mixer/"));
+            lib.linkSystemLibrary("SDL3_mixer.0.1.0", .{});
+            lib.linkSystemLibrary("vorbis.0.4.9", .{});
+            lib.linkSystemLibrary("ogg.0.8.5", .{});
+            lib.linkSystemLibrary("vorbisfile.3.3.8", .{});
         },
         .ios => {
             if (target.result.abi == .simulator) {

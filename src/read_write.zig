@@ -11,7 +11,6 @@ pub fn init_resource_loader(
     dev_repo: []const u8,
 ) (Allocator.Error || Resources.Error || engine.Error || error{
     ResourceReadError,
-    NoResources,
     Utf8ExpectedContinuation,
     Utf8OverlongEncoding,
     Utf8EncodesSurrogateHalf,
