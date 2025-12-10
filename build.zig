@@ -59,6 +59,7 @@ fn define_sdl_module(
     // doesnt work here.
     const sdl_dep = b.dependency("sdl", .{});
     const ttf_dep = b.dependency("sdl_ttf", .{});
+
     const headers = b.addTranslateC(.{
         .root_source_file = ttf_dep.path("include/SDL3_ttf/SDL_ttf.h"),
         .target = target.*,
@@ -66,10 +67,10 @@ fn define_sdl_module(
     });
     headers.addIncludePath(sdl_dep.path("include"));
     headers.addIncludePath(ttf_dep.path("include"));
-    add_translatec_headers(b, target, headers);
-
     const module = headers.addModule("sdl");
     add_libs(b, target, module);
+    add_translatec_headers(b, target, headers);
+
     return module;
 }
 

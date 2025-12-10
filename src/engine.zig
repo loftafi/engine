@@ -2337,6 +2337,7 @@ const TextElement = struct {
 };
 
 /// A texture is held in memory for the entire duration it might be needed.
+///
 /// If a texture is in use by more than one element, then the `references`
 /// counter keeps track of how many elements are currently depending on
 /// this texture.
@@ -2991,11 +2992,20 @@ pub const Display = struct {
         var expander_weights: f32 = 0;
 
         // Make sure this element never exceeds its maximum.
+        var panel_resized = false;
         if (parent.layout.x == .grows and parent.maximum.width > 0) {
-            parent.rect.width = @min(parent.rect.width, parent.maximum.width);
+            const new_width = @min(parent.rect.width, parent.maximum.width);
+            if (parent.rect.width != new_width) {
+                parent.rect.width = new_width;
+                panel_resized = true;
+            }
         }
         if (parent.layout.y == .grows and parent.maximum.height > 0) {
-            parent.rect.height = @min(parent.rect.height, parent.maximum.height);
+            const new_height = @min(parent.rect.height, parent.maximum.height);
+            if (parent.rect.height != new_height) {
+                parent.rect.height = new_height;
+                panel_resized = true;
+            }
         }
 
         // # Step 1
@@ -3010,6 +3020,7 @@ pub const Display = struct {
             if (element.visible == .hidden) {
                 continue;
             }
+            var child_resized = false;
             if ((dev_build or dev_mode) and element.layout.position == .float) {
                 if (element.layout.x == .grows) {
                     err("floating items cant grow. {s} {s}", .{ element.name, @tagName(element.type) });
@@ -3024,15 +3035,23 @@ pub const Display = struct {
                 .grows => {
                     // Grow to the maximum the parent will allow
                     element.rect.x = 0;
-                    element.rect.width = parent.rect.width - (parent.pad.left + parent.pad.right);
-                    if (element.maximum.width > 0 and element.rect.width > element.maximum.width) {
-                        element.rect.width = element.maximum.width;
+                    var new_width = parent.rect.width - (parent.pad.left + parent.pad.right);
+                    if (element.maximum.width > 0 and new_width > element.maximum.width) {
+                        new_width = element.maximum.width;
+                    }
+                    if (element.rect.width != new_width) {
+                        element.rect.width = new_width;
+                        child_resized = true;
                     }
                 },
                 .shrinks => {
                     // Shrink to the smallest the children will allow
                     // Shrink to the left, centre, or right.
-                    element.rect.width = element.shrink_width(self, parent.rect.width);
+                    const new_width = element.shrink_width(self, parent.rect.width);
+                    if (element.rect.width != new_width) {
+                        element.rect.width = new_width;
+                        child_resized = true;
+                    }
                     switch (element.child_align.x) {
                         .start => element.rect.x = 0,
                         .end => element.rect.x = parent.rect.width - element.rect.width,
@@ -3042,6 +3061,10 @@ pub const Display = struct {
                 .fixed => {
                     // No shrinking or growing applies.
                 },
+            }
+            if (child_resized and element.on_resized.func != null) {
+                debug("element {s} resized. callback = {any}", .{ element.name, element.on_resized.func != null });
+                _ = element.on_resized.func.?(element.on_resized.ptr, self, element);
             }
             switch (element.layout.y) {
                 .grows => {
@@ -3093,6 +3116,10 @@ pub const Display = struct {
             if (child.type == .panel) {
                 self.do_relayout(child);
             }
+        }
+
+        if (panel_resized and parent.on_resized.func != null) {
+            _ = parent.on_resized.func.?(parent.on_resized.ptr, self, parent);
         }
     }
 
