@@ -27,6 +27,7 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("zigimg", zigimg_module);
     lib_mod.addImport("sdl", sdl_module);
     lib_mod.addImport("mixer", mixer_module);
+    lib_mod.addIncludePath(b.path("libs/SDL3_mixer/SDL_mixer.h"));
 
     link_sdl_framework(b, &target, lib_mod);
 
@@ -89,7 +90,9 @@ fn define_sdl_module(
     });
     headers.addIncludePath(sdl_dep.path("include"));
     headers.addIncludePath(ttf_dep.path("include"));
+    headers.addIncludePath(b.path("libs/SDL3_mixer/SDL_mixer.h"));
     const module = headers.addModule("sdl");
+    module.addIncludePath(b.path("libs/SDL3_mixer/SDL_mixer.h"));
     add_libs(b, target, module);
     add_translatec_headers(b, target, headers);
 

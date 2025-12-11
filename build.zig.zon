@@ -17,8 +17,8 @@
             .hash = "zigimg-0.1.0-8_eo2vBrFQBhsrLpexdcDQY-zrlzkyFZfKuYX-Nry6KN",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#abb03450daffae21e39109279a2016422dfe4a1e",
-            .hash = "resources-0.6.1-J0GwIyeeAQAJP26cb9BqhGIgrvMXoOokKtUJpxnes1dc",
+            .url = "git+https://github.com/loftafi/resources.git#53d0a337c8887b5eae493d47f4d21434c564a65d",
+            .hash = "resources-0.6.2-J0GwIz6eAQCC10Z4CUUmIFPk22hnTXFKRuNqWtHVLwxT",
         },
     },
     .paths = .{
