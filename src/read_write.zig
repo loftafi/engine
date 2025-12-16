@@ -9,7 +9,8 @@ pub fn init_resource_loader(
     allocator: Allocator,
     bundle_filename: []const u8,
     dev_repo: []const u8,
-) (Allocator.Error || Resources.Error || engine.Error || error{
+    dev_repo_filter: ?fn (name: []const u8, extension: Resource.Type) bool,
+) (Allocator.Error || Resources.Error || engine.Error || std.fs.Dir.StatError || std.fs.File.StatError || std.fs.File.OpenError || error{
     ResourceReadError,
     Utf8ExpectedContinuation,
     Utf8OverlongEncoding,
@@ -51,7 +52,7 @@ pub fn init_resource_loader(
         // folder if it is available.
         if (dev_repo.len > 0) {
             debug("Fallback to loading repo from folder: {s}", .{dev_repo});
-            loaded = resources.load_directory(dev_repo) catch |e| {
+            loaded = resources.load_directory(dev_repo, dev_repo_filter) catch |e| {
                 err("error loading repo from {s}. {any}", .{ dev_repo, e });
                 return e;
             };

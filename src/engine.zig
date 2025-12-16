@@ -2587,9 +2587,10 @@ pub const Display = struct {
         app_version: [:0]const u8,
         app_id: [:0]const u8,
         dev_resource_folder: []const u8,
+        dev_resource_filter: ?fn (name: []const u8, extension: Resource.Type) bool,
         translation_filename: []const u8,
         gui_flags: usize,
-    ) (Error || Allocator.Error || Resources.Error || error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte })!*Display {
+    ) (Error || Allocator.Error || Resources.Error || engine.Error || error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte } || std.fs.Dir.StatError || std.fs.File.StatError || std.fs.File.OpenError)!*Display {
         var display = try gpa.create(Display);
         errdefer gpa.destroy(display);
         display.allocator = gpa;
@@ -2651,7 +2652,12 @@ pub const Display = struct {
         }
 
         debug("Initialising resource loader", .{});
-        display.resources = try init_resource_loader(gpa, engine.RESOURCE_BUNDLE_FILENAME, dev_resource_folder);
+        display.resources = try init_resource_loader(
+            gpa,
+            engine.RESOURCE_BUNDLE_FILENAME,
+            dev_resource_folder,
+            dev_resource_filter,
+        );
         if (try display.resources.lookupOne(translation_filename, .csv, gpa)) |resource| {
             const data = try sdl_load_resource(display.resources, resource, gpa);
             defer gpa.free(data);
@@ -4652,7 +4658,7 @@ pub const Display = struct {
             };
             info("making resource bundle: {s}", .{buffer.slice()});
 
-            display.resources.save_bundle(buffer.slice(), manifest.items) catch |e| {
+            display.resources.save_bundle(buffer.slice(), manifest.items, .{}, "/tmp") catch |e| {
                 info("save resource bundle failed. {s} {any}", .{ buffer.slice(), e });
             };
         } else {
@@ -5531,14 +5537,14 @@ const eq = std.testing.expectEqual;
 test "init catch" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
+    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
     defer display.destroy(allocator);
 }
 
 test "button sizing" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
+    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
     defer display.destroy(allocator);
     _ = try display.load_font(allocator, "Roboto-Light");
     try eq(1, display.fonts.items.len);
@@ -5603,7 +5609,7 @@ test "button sizing" {
 test "text input sizing" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
+    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
     defer display.destroy(allocator);
 
     // Add test font so we can test label layout
@@ -5751,7 +5757,7 @@ test "text input sizing" {
 
 test "test_init" {
     const allocator = std.testing.allocator;
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", "test translation", 0);
+    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
     defer display.destroy(allocator);
     var panel = try create_panel(allocator, display, .{
         .rect = .{ .width = 500, .height = 200 },
