@@ -284,6 +284,11 @@ pub const DisplayCallback = struct {
     ptr: *anyopaque = undefined,
 };
 
+pub const PanelChangeCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, from: ?*Element, to: *Element, gpa: Allocator) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
 pub const BoolCallback = struct {
     func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) bool = null,
     ptr: *anyopaque = undefined,
@@ -2474,6 +2479,7 @@ pub const TextSize = enum {
 pub const Display = struct {
     window: *sdl.SDL_Window,
     renderer: *sdl.SDL_Renderer,
+    mix: *mixer.MIX_Mixer,
     allocator: Allocator,
     quit: bool = false,
     need_relayout: bool = true,
@@ -2580,6 +2586,7 @@ pub const Display = struct {
     keybindings: std.AutoHashMapUnmanaged(c_uint, Callback) = .empty,
     on_resized: BoolCallback,
     event_hook: U32Callback,
+    on_panel_change: PanelChangeCallback,
 
     pub fn create(
         gpa: Allocator,
@@ -2601,6 +2608,7 @@ pub const Display = struct {
         display.scrolling = null;
         display.text_height = FONT_SIZE;
         display.on_resized = .{ .func = null };
+        display.on_panel_change = .{ .func = null };
         display.current_language = .unknown;
         display.need_relayout = true;
         display.quit = false;
@@ -2647,9 +2655,22 @@ pub const Display = struct {
         }
 
         if (!mixer.MIX_Init()) {
-            err("mixer setup font failed. {s}", .{sdl.SDL_GetError()});
+            err("mixer setup failed. {s}", .{sdl.SDL_GetError()});
             return error.AudioInitFailed;
         }
+        const a: mixer.SDL_AudioSpec = .{
+            .freq = 44100,
+            .format = mixer.SDL_AUDIO_S16LE,
+            .channels = 2,
+        };
+
+        const md = mixer.MIX_CreateMixerDevice(mixer.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &a);
+        if (md == null) {
+            err("create mixer device failed. {s}", .{sdl.SDL_GetError()});
+            return error.AudioInitFailed;
+        }
+        display.mix = md.?;
+        //mixer.MIX_SetMasterGain(display.mix, DEFAULT_SOUND_VOLUME);
 
         debug("Initialising resource loader", .{});
         display.resources = try init_resource_loader(
@@ -2827,6 +2848,7 @@ pub const Display = struct {
 
         sdl.SDL_DestroyRenderer(self.renderer);
         sdl.SDL_DestroyWindow(self.window);
+        mixer.MIX_DestroyMixer(self.mix);
         mixer.MIX_Quit();
         sdl.TTF_Quit();
         sdl.SDL_Quit();
@@ -2898,26 +2920,32 @@ pub const Display = struct {
     /// Mark a top level panel as visible, and all other
     /// top level panels as not visible. The visibility of the
     /// _background_ and _menu_ panel is not altered.
-    pub fn choose_panel(self: *Display, name: []const u8) void {
+    pub fn choose_panel(self: *Display, gpa: Allocator, name: []const u8) void {
+        const old_panel = self.current_panel();
+
         var found = false;
         try self.update_screen_metrics(false);
         for (self.root.type.panel.children.items) |element| {
-            if (element.type != .panel) {
-                continue;
-            }
-            if (std.mem.eql(u8, "background", element.name)) {
-                continue;
-            }
-            if (std.mem.eql(u8, "menu", element.name)) {
-                continue;
-            }
+            if (element.type != .panel) continue;
+            if (std.mem.eql(u8, "background", element.name)) continue;
+            if (std.mem.eql(u8, "menu", element.name)) continue;
+
             if (std.mem.eql(u8, name, element.name)) {
                 if (element.visible != .visible) {
-                    debug("choose_panel({s}) showing panel.", .{name});
+                    if (old_panel) |old| {
+                        debug("choose panel. {s} -> {s}", .{ old.name, name });
+                    } else {
+                        debug("choose panel. ... -> {s}", .{name});
+                    }
                     element.visible = .visible;
                     if (element.on_resized.func != null) {
                         self.need_relayout = true;
                         _ = element.on_resized.func.?(element.on_resized.ptr, self, element);
+                    }
+                    if (self.on_panel_change.func) |f| {
+                        f(self.on_panel_change.ptr, self, old_panel, element, gpa) catch |e| {
+                            trace("panel handler error. to {s} {any}", .{ element.name, e });
+                        };
                     }
                 }
             } else {
@@ -2951,7 +2979,6 @@ pub const Display = struct {
                 continue;
             }
             if (element.visible == .visible) {
-                debug("current_panel() found panel {s}.", .{element.name});
                 return element;
             }
         }
@@ -3704,38 +3731,54 @@ pub const Display = struct {
         bundle: *Resources,
         name: []const u8,
     ) (Error || Allocator.Error || Resources.Error)!?*AudioInfo {
-        if (name.len == 0) return null;
-
-        if (self.audio.get(name)) |item| {
-            item.references += 1;
-            return item;
-        }
-
-        var start = std.time.milliTimestamp();
-        const resource = try bundle.lookupOne(name, .audio, gpa);
-        if (resource == null) {
-            debug("search audio named \"{s}\" not found.", .{name});
+        if (name.len == 0) {
+            err("play_bundle_resource(\"{s}\") resource name empty", .{name});
             return null;
         }
-        var end = std.time.milliTimestamp();
-        debug("search audio named \"{s}\" in {d}ms", .{ name, end - start });
 
-        start = end;
-        const audio = try sdl_load_resource(bundle, resource.?, gpa);
-        errdefer gpa.free(audio);
-        end = std.time.milliTimestamp();
+        // Load audio from memory cache if possible
+        var item: ?*AudioInfo = null;
+        if (self.audio.get(name)) |i| {
+            i.references += 1;
+            item = i;
+        } else {
+            // Load audio from resource bundle
+            var start = std.time.milliTimestamp();
+            const resource = try bundle.lookupOne(name, .audio, gpa);
+            if (resource == null) {
+                err("search audio named \"{s}\" not found.", .{name});
+                return null;
+            }
+            var end = std.time.milliTimestamp();
+            debug("search audio named \"{s}\" in {d}ms", .{ name, end - start });
 
-        debug("read audio named \"{s}\" size {d} in {d}ms", .{
-            name,
-            audio.len,
-            end - start,
-        });
+            start = end;
+            const audio = try sdl_load_resource(bundle, resource.?, gpa);
+            errdefer gpa.free(audio);
+            end = std.time.milliTimestamp();
 
-        const ai = try AudioInfo.create(gpa, name, audio);
-        ai.references += 1;
-        try self.audio.put(gpa, ai.name, ai);
+            debug("read audio named \"{s}\" size {d} in {d}ms", .{
+                name,
+                audio.len,
+                end - start,
+            });
 
-        return ai;
+            const ai = try AudioInfo.create(gpa, name, audio);
+            ai.references += 1;
+            try self.audio.put(gpa, ai.name, ai);
+            item = ai;
+        }
+
+        const amem = mixer.SDL_IOFromConstMem(item.?.audio.ptr, item.?.audio.len);
+        const buff = mixer.MIX_LoadAudio_IO(self.mix, amem, true, true);
+        if (buff == null) {
+            err("loadaudio_io for \"{s}\" failed", .{name});
+            return null;
+        }
+
+        _ = mixer.MIX_PlayAudio(self.mix, buff.?);
+
+        return item;
     }
 
     pub const SurfaceInfo = struct {
