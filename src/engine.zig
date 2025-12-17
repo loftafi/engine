@@ -2393,26 +2393,39 @@ pub const AudioInfo = struct {
     name: []const u8,
     audio: []const u8,
     references: i32,
+    resource: ?*Resource,
+    autorelease: Retain,
+
+    pub const empty = .{
+        .name = "",
+        .audio = "",
+        .references = 0,
+        .resource = null,
+        .autorelease = .autorelease,
+    };
 
     pub fn create(
         allocator: Allocator,
         name: []const u8,
         audio: []const u8,
+        autorelease: Retain,
     ) !*AudioInfo {
+        std.debug.assert(audio.len > 0);
         const audio_info = try allocator.create(AudioInfo);
         audio_info.* = .{
             .name = if (name.len > 0) try allocator.dupe(u8, name) else "",
             .audio = audio,
-            .references = 0,
+            .references = if (autorelease == .autorelease) 0 else 1,
+            .resource = null,
+            .autorelease = autorelease,
         };
         debug("loaded audio: {s}", .{name});
         return audio_info;
     }
 
     pub fn destroy(self: *AudioInfo, allocator: Allocator) void {
-        allocator.free(self.audio);
-        if (self.name.len > 0)
-            allocator.free(self.name);
+        if (self.audio.len > 0) allocator.free(self.audio);
+        if (self.name.len > 0) allocator.free(self.name);
         allocator.destroy(self);
     }
 
@@ -2452,6 +2465,11 @@ const FontInfo = struct {
         allocator.free(self.name);
         allocator.destroy(self);
     }
+};
+
+pub const Retain = enum {
+    autorelease,
+    retain,
 };
 
 pub const TextSize = enum {
@@ -2830,7 +2848,7 @@ pub const Display = struct {
 
         var a = self.audio.iterator();
         while (a.next()) |x| {
-            if (x.value_ptr.*.references > 0) {
+            if (x.value_ptr.*.references > 0 and x.value_ptr.*.autorelease == .autorelease) {
                 warn("audio file was not deallocated. {s} has {d} references", .{
                     x.key_ptr.*,
                     x.value_ptr.*.references,
@@ -3720,8 +3738,10 @@ pub const Display = struct {
         self: *Display,
         gpa: Allocator,
         name: []const u8,
+        autorelease: Retain,
+        volume: f32,
     ) (Error || Allocator.Error || Resources.Error)!?*AudioInfo {
-        return self.play_bundle_resource(gpa, self.resources, name);
+        return self.play_bundle_resource(gpa, self.resources, name, autorelease, volume);
     }
 
     /// Load an image from a specific resource bundle.
@@ -3730,6 +3750,8 @@ pub const Display = struct {
         gpa: Allocator,
         bundle: *Resources,
         name: []const u8,
+        autorelease: Retain,
+        volume: f32,
     ) (Error || Allocator.Error || Resources.Error)!?*AudioInfo {
         if (name.len == 0) {
             err("play_bundle_resource(\"{s}\") resource name empty", .{name});
@@ -3739,6 +3761,11 @@ pub const Display = struct {
         // Load audio from memory cache if possible
         var item: ?*AudioInfo = null;
         if (self.audio.get(name)) |i| {
+            if (autorelease == .retain and i.autorelease == .autorelease) {
+                // This audio item is converting to permanent memory
+                i.autorelease = .retain;
+                i.references += 1;
+            }
             i.references += 1;
             item = i;
         } else {
@@ -3763,8 +3790,9 @@ pub const Display = struct {
                 end - start,
             });
 
-            const ai = try AudioInfo.create(gpa, name, audio);
+            const ai = try AudioInfo.create(gpa, name, audio, autorelease);
             ai.references += 1;
+            ai.resource = resource;
             try self.audio.put(gpa, ai.name, ai);
             item = ai;
         }
@@ -3776,7 +3804,19 @@ pub const Display = struct {
             return null;
         }
 
-        _ = mixer.MIX_PlayAudio(self.mix, buff.?);
+        const track = mixer.MIX_CreateTrack(self.mix);
+        if (track == null) {
+            err("create track for \"{s}\" failed", .{name});
+            return null;
+        }
+        _ = mixer.MIX_SetTrackAudio(track, buff.?);
+        _ = mixer.MIX_SetTrackGain(track, volume);
+        //_ = mixer.MIX_SetTrackStoppedCallback(track, cb: ?*const fn (?*anyopaque, ?*struct_MIX_Track) void, userdata: ?*anyopaque);
+        _ = mixer.MIX_PlayTrack(
+            track,
+            0, // used to request looping or play starting point
+        );
+        //_ = mixer.MIX_PlayAudio(self.mix, buff.?);
 
         return item;
     }
