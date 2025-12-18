@@ -109,6 +109,11 @@ pub const LayoutSize = enum {
     shrinks,
 };
 
+pub const Fit = enum {
+    stretch,
+    fill,
+};
+
 /// An element is ignored when it is hidden. An element is drawn when it is
 /// visible. An element is culled when it is visible, but not currently inside
 /// thd drawable area on the screen.
@@ -364,6 +369,7 @@ pub const Element = struct {
         sprite: struct {
             on_click: Callback = .{ .func = null },
             update: UpdateCallback = .{ .func = null },
+            scale: Fit = .stretch,
         },
         label: struct {
             font: *FontInfo = undefined,
@@ -1566,12 +1572,54 @@ pub const Element = struct {
             }
 
             // TODO: Sprites might have frames
-            const source: sdl.SDL_FRect = .{
-                .x = 0,
-                .y = 0,
-                .w = @as(f32, @floatFromInt(texture.texture.w)),
-                .h = @as(f32, @floatFromInt(texture.texture.h)),
-            };
+
+            // Stretch the full image onto the drawing area
+            const image_width = @as(f32, @floatFromInt(texture.texture.w));
+            const image_height = @as(f32, @floatFromInt(texture.texture.h));
+            var source: sdl.SDL_FRect = undefined;
+            switch (element.type.sprite.scale) {
+                .stretch => {
+                    source = .{
+                        .x = 0,
+                        .y = 0,
+                        .w = image_width,
+                        .h = image_height,
+                    };
+                },
+                .fill => {
+                    // We need a slice of the source image that fits the
+                    // ratio of the destination area.
+                    const dst_scale: f32 = element.rect.width / element.rect.height;
+                    const src_scale: f32 = image_width / image_height;
+                    if (src_scale >= dst_scale) {
+                        // Slice off some width
+                        source = .{
+                            .x = 0,
+                            .y = 0,
+                            .h = image_height,
+                            .w = image_height * dst_scale,
+                        };
+                        source.x = (image_width - source.w) / 2;
+                    } else {
+                        // Slice off some height
+                        source = .{
+                            .x = 0,
+                            .y = 0,
+                            .w = image_width,
+                            .h = image_width / dst_scale,
+                        };
+                        source.y = (image_height - source.h) / 2;
+                    }
+                    err("img={d}x{d} scale={d} src={d}x{d}", .{
+                        image_width,
+                        image_height,
+                        dst_scale,
+                        source.w,
+                        source.h,
+                    });
+                },
+            }
+
             //const source: Rect = .{
             //    .x = 0,
             //    .y = 0,
@@ -2612,7 +2660,7 @@ pub const Display = struct {
         app_version: [:0]const u8,
         app_id: [:0]const u8,
         dev_resource_folder: []const u8,
-        dev_resource_filter: ?fn (name: []const u8, extension: Resource.Type) bool,
+        dev_resource_filter: ?fn (name: []const u8, extension: FileType) bool,
         translation_filename: []const u8,
         gui_flags: usize,
     ) (Error || Allocator.Error || Resources.Error || engine.Error || error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte } || std.fs.Dir.StatError || std.fs.File.StatError || std.fs.File.OpenError)!*Display {
@@ -5885,6 +5933,7 @@ pub const Translation = @import("translation.zig").Translation;
 
 const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
+const FileType = @import("resources").FileType;
 
 const default_themes = @import("theme.zig").default_themes;
 const Theme = @import("theme.zig").Theme;

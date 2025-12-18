@@ -9,7 +9,7 @@ pub fn init_resource_loader(
     allocator: Allocator,
     bundle_filename: []const u8,
     dev_repo: []const u8,
-    dev_repo_filter: ?fn (name: []const u8, extension: Resource.Type) bool,
+    dev_repo_filter: ?fn (name: []const u8, extension: FileType) bool,
 ) (Allocator.Error || Resources.Error || engine.Error || std.fs.Dir.StatError || std.fs.File.StatError || std.fs.File.OpenError || error{
     ResourceReadError,
     Utf8ExpectedContinuation,
@@ -505,7 +505,7 @@ const UniqueWords = @import("resources").UniqueWords;
 const Resource = @import("resources").Resource;
 const random = @import("resources").random;
 const seed = @import("resources").seed;
-const ResourceType = @import("resources").ResourceType;
+const FileType = @import("resources").FileType;
 const engine = @import("engine.zig");
 const err = engine.err;
 const warn = engine.warn;
