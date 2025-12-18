@@ -592,19 +592,13 @@ pub const Element = struct {
         return true;
     }
 
-    inline fn button_tint(self: *Element, theme: *Theme) Colour {
-        if (self.type.button.style == .success) {
-            return theme.success_text_colour;
-        }
-        if (self.type.button.style == .failed) {
-            return theme.failed_text_colour;
-        }
-        if (self.pressed) {
-            return theme.tinted_text_colour;
-        }
-        if (self.hovered) {
-            return theme.tinted_text_colour;
-        }
+    inline fn button_text_tint(self: *Element, theme: *Theme) Colour {
+        if (self.type.button.style == .success) return theme.success_text_colour;
+        if (self.type.button.style == .failed) return theme.failed_text_colour;
+        if (self.type.button.style == .custom) return self.colour;
+        if (self.pressed) return theme.tinted_text_colour;
+        if (self.hovered) return theme.tinted_text_colour;
+
         return theme.text_colour;
     }
 
@@ -624,7 +618,8 @@ pub const Element = struct {
                     return;
                 },
                 .custom => {
-                    tint_texture(texture, self.background.colour);
+                    if (self.background.colour.a != engine.TRANSPARENT.a)
+                        tint_texture(texture, self.background.colour);
                     return;
                 },
                 else => {
@@ -1610,13 +1605,6 @@ pub const Element = struct {
                         };
                         source.y = (image_height - source.h) / 2;
                     }
-                    err("img={d}x{d} scale={d} src={d}x{d}", .{
-                        image_width,
-                        image_height,
-                        dst_scale,
-                        source.w,
-                        source.h,
-                    });
                 },
             }
 
@@ -1770,7 +1758,7 @@ pub const Element = struct {
             .end => element.rect.width - content_width,
         };
 
-        const tint = element.button_tint(display.theme);
+        const tint = element.button_text_tint(display.theme);
         var has_icon = false;
         if (element.current_icon()) |icon_image| {
             has_icon = true;
