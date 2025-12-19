@@ -805,6 +805,17 @@ pub const Element = struct {
         return texture;
     }
 
+    pub inline fn clear_image(
+        self: *Element,
+        gpa: Allocator,
+        display: *Display,
+    ) void {
+        if (self.texture != null) {
+            display.release_texture_resource(gpa, self.texture.?);
+            self.texture = null;
+        }
+    }
+
     pub inline fn set_background_image(
         self: *Element,
         gpa: Allocator,
@@ -825,6 +836,17 @@ pub const Element = struct {
         }
         self.background.image = texture.?;
         return texture;
+    }
+
+    pub inline fn clear_background_image(
+        self: *Element,
+        gpa: Allocator,
+        display: *Display,
+    ) void {
+        if (self.background.image != null) {
+            display.release_texture_resource(gpa, self.background.image.?);
+            self.background.image = null;
+        }
     }
 
     /// set_text updates the `text` and `translation` fields of labels,
@@ -3353,12 +3375,12 @@ pub const Display = struct {
         // do start/centre/end alignment.
         if (expanders.len > 0) {
             // Relayout the children with expanders
-            trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
-                parent.name,
-                expanders.len,
-                needed_height,
-                parent.rect.height,
-            });
+            //trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
+            //    parent.name,
+            //    expanders.len,
+            //    needed_height,
+            //    parent.rect.height,
+            //});
 
             if (parent.rect.height > needed_height) {
                 const spare_height = parent.rect.height - needed_height;
@@ -3368,10 +3390,10 @@ pub const Display = struct {
                     }
                     const percent = expander.type.expander.weight / expander_weights;
                     expander.rect.height = @trunc(spare_height * percent);
-                    trace("   expander: weight {d} given: {d}", .{
-                        percent,
-                        expander.rect.height,
-                    });
+                    //trace("   expander: weight {d} given: {d}", .{
+                    //    percent,
+                    //    expander.rect.height,
+                    //});
                 }
                 var new_y: f32 = parent.rect.y + parent.pad.top;
                 for (parent.type.panel.children.items) |child| {
@@ -3560,8 +3582,8 @@ pub const Display = struct {
                     old.start_time,
                     old.end_time,
                 });
-                if (old.on_end) |callback| {
-                    callback(display, old.target);
+                if (old.on_end.func) |callback| {
+                    try callback(old.on_end.ptr, display, old.target, display.allocator);
                 }
                 display.allocator.destroy(old);
             } else {
@@ -3644,7 +3666,14 @@ pub const Display = struct {
 
     /// Add an animator that points to a currently active/valid element.
     /// The element must not be destroyed for the lifetime of the animation.
-    pub inline fn add_animator(self: *Display, allocator: Allocator, animator: Animator) error{OutOfMemory}!void {
+    pub inline fn add_animator(self: *Display, allocator: Allocator, animator: Animator) Allocator.Error!void {
+        //err("add animator: {t} {d}x{d} -> {d}x{d}", .{
+        //    animator.mode,
+        //    animator.start.x,
+        //    animator.start.y,
+        //    animator.end.x,
+        //    animator.end.y,
+        //});
         var new_animator = try allocator.create(Animator);
         new_animator.* = animator;
         new_animator.setup = false;
