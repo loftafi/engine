@@ -39,6 +39,9 @@ pub const Theme = struct {
     toggle_button_picked: Colour,
     toggle_button_correct: Colour,
     toggle_button_incorrect: Colour,
+
+    progress_bar_background: Colour,
+    progress_bar_foreground: Colour,
 };
 
 pub const ThemeColour = enum {
@@ -103,6 +106,8 @@ pub const default_themes = [5]Theme{
         .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
+        .progress_bar_background = .{ .r = 31, .g = 34, .b = 48, .a = 255 },
+        .progress_bar_foreground = .{ .r = 132, .g = 142, .b = 172, .a = 255 },
     },
     .{
         .tag = "midnight",
@@ -126,6 +131,8 @@ pub const default_themes = [5]Theme{
         .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
+        .progress_bar_background = .{ .r = 47, .g = 58, .b = 69, .a = 255 },
+        .progress_bar_foreground = .{ .r = 146, .g = 146, .b = 175, .a = 255 },
     },
 
     .{
@@ -150,6 +157,8 @@ pub const default_themes = [5]Theme{
         .toggle_button_picked = .{ .r = 157, .g = 138, .b = 118, .a = 255 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
         .toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 },
+        .progress_bar_background = .{ .r = 210, .g = 200, .b = 190, .a = 255 },
+        .progress_bar_foreground = .{ .r = 128, .g = 128, .b = 85, .a = 255 },
     },
 
     .{
@@ -174,6 +183,8 @@ pub const default_themes = [5]Theme{
         .toggle_button_picked = .{ .r = 131, .g = 142, .b = 149, .a = 255 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
         .toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 },
+        .progress_bar_background = .{ .r = 217, .g = 230, .b = 242, .a = 255 },
+        .progress_bar_foreground = .{ .r = 104, .g = 104, .b = 114, .a = 255 },
     },
     .{
         .tag = "garden",
@@ -197,6 +208,8 @@ pub const default_themes = [5]Theme{
         .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
+        .progress_bar_background = .{ .r = 86, .g = 150, .b = 114, .a = 255 },
+        .progress_bar_foreground = .{ .r = 136, .g = 194, .b = 136, .a = 255 },
     },
 };
 

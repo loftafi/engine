@@ -337,6 +337,8 @@ pub const Element = struct {
 
     texture: ?*TextureInfo = null,
     texture_name: ?[]const u8 = null,
+
+    style: ThemeColour = .normal,
     colour: Colour = WHITE,
 
     background: Background = .{
@@ -357,7 +359,6 @@ pub const Element = struct {
             children: ArrayListUnmanaged(*Element) = .empty,
             direction: LayoutDirection = .centre,
             spacing: f32 = 0,
-            style: ThemeColour = .normal,
             on_click: Callback = .{ .func = null },
             update: UpdateCallback = .{ .func = null },
             scrollable: Scroller = .{
@@ -413,9 +414,7 @@ pub const Element = struct {
             placeholder_text: ?[]const u8 = "",
             placeholder_translate: []const u8 = "",
         },
-        rectangle: struct {
-            style: ThemeColour = .normal,
-        },
+        rectangle: struct {},
         button: struct {
             font: *FontInfo = undefined,
             font_name: ?[]const u8 = null,
@@ -436,7 +435,6 @@ pub const Element = struct {
             background_pressed_name: ?[]const u8 = null,
             on_click: Callback = .{ .func = null },
             toggle: ToggleState = .no_toggle,
-            style: ThemeColour = .normal,
         },
         button_bar: struct {},
         progress_bar: struct {
@@ -593,9 +591,9 @@ pub const Element = struct {
     }
 
     inline fn button_text_tint(self: *Element, theme: *Theme) Colour {
-        if (self.type.button.style == .success) return theme.success_text_colour;
-        if (self.type.button.style == .failed) return theme.failed_text_colour;
-        if (self.type.button.style == .custom) return self.colour;
+        if (self.style == .success) return theme.success_text_colour;
+        if (self.style == .failed) return theme.failed_text_colour;
+        if (self.style == .custom) return self.colour;
         if (self.pressed) return theme.tinted_text_colour;
         if (self.hovered) return theme.tinted_text_colour;
 
@@ -608,7 +606,7 @@ pub const Element = struct {
         texture: *sdl.SDL_Texture,
     ) void {
         if (self.type == .button) {
-            switch (self.type.button.style) {
+            switch (self.style) {
                 .success => {
                     tint_texture(texture, display.theme.success_button_colour);
                     return;
@@ -638,7 +636,7 @@ pub const Element = struct {
         }
 
         if (self.type == .panel) {
-            switch (self.type.panel.style) {
+            switch (self.style) {
                 .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
                 .success => tint_texture(texture, display.theme.success_panel_colour),
                 .failed => tint_texture(texture, display.theme.failed_panel_colour),
@@ -648,7 +646,7 @@ pub const Element = struct {
                 else => {
                     warn(
                         "unhandled panel tint option: {s}",
-                        .{@tagName(self.type.panel.style)},
+                        .{@tagName(self.style)},
                     );
                     tint_texture(texture, engine.WHITE);
                 },
@@ -1433,7 +1431,7 @@ pub const Element = struct {
         _: ?Clip,
         scroll_offset: Vector,
     ) void {
-        const colour = element.type.rectangle.style.panel(display.theme, element.background.colour);
+        const colour = element.style.panel(display.theme, element.background.colour);
         _ = sdl.SDL_SetRenderDrawColor(
             display.renderer,
             colour.r,
@@ -1668,15 +1666,15 @@ pub const Element = struct {
     inline fn draw_progress_bar(element: *Element, display: *Display, _: Vector, _: ?Clip) void {
         // Draw the background matching the  current button state
         if (element.texture) |texture| {
-            //const radius = @as(f32, @floatFromInt(texture.texture.h >> 1));
             // Progress bar background
+            var tint = display.theme.progress_bar_background;
             var dest: Rect = .{
                 .x = element.rect.x + element.pad.left,
                 .y = element.rect.y + element.pad.top,
                 .width = element.rect.width - element.pad.left - element.pad.right,
                 .height = element.rect.height - element.pad.top - element.pad.bottom,
             };
-            var tint = display.theme.label_background_colour;
+            _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
             _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
             var corner: f32 = element.background.corner_radius;
             if (corner * 2 > dest.height) corner = dest.height / 2;
@@ -1700,8 +1698,9 @@ pub const Element = struct {
 
             // Progress bar foreground
             if (element.type.progress_bar.progress > 0.01) {
+                tint = display.theme.progress_bar_foreground;
                 dest.width *= element.type.progress_bar.progress;
-                tint = display.theme.placeholder_text_colour;
+                _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
                 _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
                 if (element.background.image_corner_radius == 0) {
                     _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
@@ -1801,7 +1800,7 @@ pub const Element = struct {
                     dest.y += dest.height;
                     dest.height = 0 - dest.height;
                 }
-                if (element.type.button.style != .custom) {
+                if (element.style != .custom) {
                     _ = sdl.SDL_SetTextureColorMod(
                         icon_image,
                         tint.r,
@@ -5923,7 +5922,8 @@ test "test_init" {
         .minimum = .{ .width = 300, .height = 130 },
         .layout = .{ .x = .fixed, .y = .fixed, .position = .float },
         .background = .{ .colour = .{ .r = 99, .g = 150, .b = 50, .a = 255 } },
-        .type = .{ .rectangle = .{ .style = .background } },
+        .style = .background,
+        .type = .{ .rectangle = .{} },
     };
     try panel.add_element(allocator, element);
     try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
