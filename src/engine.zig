@@ -779,6 +779,8 @@ pub const Element = struct {
         }
     }
 
+    /// Replace the current image texture with a a texture from a resource
+    /// bundle. Returns null if the resource name does not exist.
     pub inline fn set_image(
         self: *Element,
         gpa: Allocator,
@@ -794,6 +796,7 @@ pub const Element = struct {
         }
         const end = std.time.milliTimestamp();
         debug("set_image loaded image named \"{s}\" in {d}ms", .{ name, end - start });
+        self.texture_name = name;
 
         if (self.texture != null) {
             display.release_texture_resource(gpa, self.texture.?);
