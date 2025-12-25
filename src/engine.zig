@@ -3285,9 +3285,9 @@ pub const Display = struct {
         parent.type.panel.scrollable.size.width = parent.minimum.width;
         parent.type.panel.scrollable.size.height = parent.minimum.height;
         switch (parent.type.panel.direction) {
-            .left_to_right => relayout_left_to_right(self, parent, &expanders, expander_weights),
-            .top_to_bottom => relayout_top_to_bottom(self, parent, &expanders, expander_weights),
-            .centre => relayout_centre(self, parent),
+            .left_to_right => place_children_left_to_right(self, parent, &expanders, expander_weights),
+            .top_to_bottom => place_children_top_to_bottom(self, parent, &expanders, expander_weights),
+            .centre => place_children_centred(self, parent),
         }
 
         // Descend into child elements to allow child panels to also resize.
@@ -3301,7 +3301,7 @@ pub const Display = struct {
         }
     }
 
-    inline fn relayout_centre(_: *Display, parent: *Element) void {
+    inline fn place_children_centred(_: *Display, parent: *Element) void {
         // First pass just does a layout assuming top/left positioning.
         for (parent.type.panel.children.items) |child| {
             if (child.layout.position == .float) continue;
@@ -3328,7 +3328,7 @@ pub const Display = struct {
         //parent.type.panel.scrollable.size.height = @max(needed_height, parent.height);
     }
 
-    inline fn relayout_top_to_bottom(
+    inline fn place_children_top_to_bottom(
         _: *Display,
         parent: *Element,
         expanders: *BoundedArray(*Element, 10),
@@ -3454,7 +3454,7 @@ pub const Display = struct {
         }
     }
 
-    inline fn relayout_left_to_right(
+    inline fn place_children_left_to_right(
         _: *Display,
         parent: *Element,
         _: *BoundedArray(*Element, 10),
