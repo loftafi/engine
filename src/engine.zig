@@ -112,6 +112,7 @@ pub const LayoutSize = enum {
 pub const Fit = enum {
     stretch,
     fill,
+    fit,
 };
 
 /// An element is ignored when it is hidden. An element is drawn when it is
@@ -1595,6 +1596,25 @@ pub const Element = struct {
                         .w = image_width,
                         .h = image_height,
                     };
+                },
+                .fit => {
+                    source = .{
+                        .x = 0,
+                        .y = 0,
+                        .w = image_width,
+                        .h = image_height,
+                    };
+                    // Don't fill the destination area. Slice off
+                    // some of the destination area.
+                    const dst_scale: f32 = element.rect.width / element.rect.height;
+                    const src_scale: f32 = image_width / image_height;
+                    if (src_scale >= dst_scale) {
+                        // image too wide, hight will have blank space
+                        dest.height = dest.width * src_scale;
+                    } else {
+                        // image too tall/high, width will have blank space
+                        dest.width = dest.height * src_scale;
+                    }
                 },
                 .fill => {
                     // We need a slice of the source image that fits the
