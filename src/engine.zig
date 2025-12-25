@@ -3302,22 +3302,29 @@ pub const Display = struct {
     }
 
     inline fn place_children_centred(_: *Display, parent: *Element) void {
+        const parent_width = parent.rect.width - parent.pad.left - parent.pad.right;
+        const parent_height = parent.rect.height - parent.pad.top - parent.pad.bottom;
+
         // First pass just does a layout assuming top/left positioning.
         for (parent.type.panel.children.items) |child| {
             if (child.layout.position == .float) continue;
             if (child.visible == .hidden) continue;
             if (child.type == .expander) continue;
 
-            child.rect.x = parent.rect.width / 2 - child.rect.width / 2;
-            child.rect.y = parent.rect.height / 2 - child.rect.height / 2;
+            child.rect.x = parent.rect.x + parent.pad.left + (parent_width / 2 - child.rect.width / 2);
+            child.rect.y = parent.rect.y + parent.pad.top + (parent_height / 2 - child.rect.height / 2);
             if (dev_build or dev_mode) {
-                err("relayout centre {s} puts child {s} size={d}x{d} at={d}x{d}", .{
+                err("in parent {s} ({d}x{d} {d}x{d}) centre {s} at={d}x{d} size={d}x{d}", .{
                     parent.name,
+                    parent.rect.x,
+                    parent.rect.y,
+                    parent.rect.width,
+                    parent.rect.height,
                     child.name,
-                    child.rect.width,
-                    child.rect.height,
                     child.rect.x,
                     child.rect.y,
+                    child.rect.width,
+                    child.rect.height,
                 });
             }
         }
