@@ -164,18 +164,10 @@ pub const Scale = enum(u8) {
     /// Map a floating number representing the user interface scale
     /// back to the enum value. `.normal = 1`.
     pub fn from_float(value: f32) Scale {
-        if (value == 0.5) {
-            return .tiny;
-        }
-        if (value == 0.75) {
-            return .small;
-        }
-        if (value == 1.25) {
-            return .large;
-        }
-        if (value == 1.5) {
-            return .extra_large;
-        }
+        if (value == 0.5) return .tiny;
+        if (value == 0.75) return .small;
+        if (value == 1.25) return .large;
+        if (value == 1.5) return .extra_large;
         return .normal;
     }
 
@@ -3084,8 +3076,8 @@ pub const Display = struct {
         try display.draw();
     }
 
-    /// Relayout the size and position of all elements on
-    /// the display.
+    /// Apply the relayout algorithm to the currently visible root
+    /// panels/scenes, then descend to relayout each of the child panels.
     pub fn relayout(display: *Display) void {
         display.need_relayout = false;
 
@@ -3122,49 +3114,52 @@ pub const Display = struct {
                     scene.*.rect.height = display.root.rect.height;
                 }
             }
-            if (scene.*.layout.x == .shrinks and scene.*.minimum.width > 0) {
-                // Root panels don't shrink past the width requested.
+            // Clamp minimum width and height
+            if (scene.*.layout.x == .shrinks and scene.*.minimum.width > 0)
                 scene.*.rect.width = @max(scene.*.rect.width, scene.*.minimum.width);
-            }
-            if (scene.*.layout.y == .shrinks and scene.*.maximum.height > 0) {
-                // Root panels don't shrink past the width requested.
+            if (scene.*.layout.y == .shrinks and scene.*.maximum.height > 0)
                 scene.*.rect.height = @max(scene.*.rect.height, scene.*.minimum.height);
-            }
+
+            // Place panel at start, centre or end.
             switch (scene.*.child_align.x) {
                 .start => scene.*.rect.x = 0,
                 .end => scene.*.rect.x = display.root.rect.width - scene.*.rect.width,
-                else => scene.*.rect.x = display.root.rect.width / 2 - scene.*.rect.width / 2,
+                .centre => scene.*.rect.x = display.root.rect.width / 2 - scene.*.rect.width / 2,
             }
             switch (scene.*.child_align.y) {
                 .start => scene.*.rect.y = 0,
                 .end => scene.*.rect.y = display.root.rect.height - scene.*.rect.height,
-                else => scene.*.rect.y = display.root.rect.height / 2 - scene.*.rect.height / 2,
+                .centre => scene.*.rect.y = display.root.rect.height / 2 - scene.*.rect.height / 2,
             }
 
-            do_relayout(display, scene.*);
+            // After root panel sizes are established, the child elements
+            // are layed out inside the panel.
+            relayout_panel(display, scene.*);
             display.propogate_resize_event(scene.*);
-            do_relayout(display, scene.*); //TODO: fix
+            relayout_panel(display, scene.*); //TODO: fix
+
+            // Children are given opportunity to resize themselves
+            // in response to the resize event.
             var did_resize = false;
             if (display.on_resized.func != null) {
                 if (display.on_resized.func.?(display.on_resized.ptr, display, scene.*)) {
                     did_resize = true;
                 }
             }
-
-            if (did_resize) {
-                do_relayout(display, scene.*);
-            }
+            if (did_resize)
+                relayout_panel(display, scene.*);
 
             scene.*.pad = user_pad;
         }
     }
 
-    /// Starting with the root parent panel, recursively layout each element
-    /// and child panel.
-    fn do_relayout(self: *Display, parent: *Element) void {
+    /// Relayout the contents of an individual panel that is sitting
+    /// somewhere n the tree below the root panel (scene).
+    fn relayout_panel(self: *Display, parent: *Element) void {
         std.debug.assert(parent.type == .panel);
-        //debug("relayout: {d}x{d}", .{ parent.width, parent.rect.height });
 
+        // Keep track of each expander in the panel. At the end, expand
+        // each expander according to the leftover space.
         var expanders = BoundedArray(*Element, 10){};
         var expander_weights: f32 = 0;
 
@@ -3189,14 +3184,13 @@ pub const Display = struct {
         //
         // Children of this panel are either fixed positioned, growing, or shrinking.
         //
-        // Fixed elements are not touched, they retain their requested size.
-        // Shrinking elements shrink to the space they need.
-        // Growing elements grow to the width or height of the parent.
+        // - `.fixed` elements are not altered, keep retain their requested `rect` size.
+        // - `.shrinks` elements shrink to the `minimum` space they need.
+        // - `.grows` enlarges the width or height of the parent `rect`.
         //
         for (parent.type.panel.children.items) |element| {
-            if (element.visible == .hidden) {
-                continue;
-            }
+            if (element.visible == .hidden) continue;
+
             var child_resized = false;
             if ((dev_build or dev_mode) and element.layout.position == .float) {
                 if (element.layout.x == .grows) {
@@ -3210,7 +3204,7 @@ pub const Display = struct {
             }
             switch (element.layout.x) {
                 .grows => {
-                    // Grow to the maximum the parent will allow
+                    // Grow to the parent width, not including padding.
                     element.rect.x = 0;
                     var new_width = parent.rect.width - (parent.pad.left + parent.pad.right);
                     if (element.maximum.width > 0 and new_width > element.maximum.width) {
@@ -3222,13 +3216,13 @@ pub const Display = struct {
                     }
                 },
                 .shrinks => {
-                    // Shrink to the smallest the children will allow
-                    // Shrink to the left, centre, or right.
+                    // Shrink to the smallest the children will allow.
                     const new_width = element.shrink_width(self, parent.rect.width);
                     if (element.rect.width != new_width) {
                         element.rect.width = new_width;
                         child_resized = true;
                     }
+                    // Shrink to the left, centre, or right.
                     switch (element.child_align.x) {
                         .start => element.rect.x = 0,
                         .end => element.rect.x = parent.rect.width - element.rect.width,
@@ -3239,13 +3233,10 @@ pub const Display = struct {
                     // No shrinking or growing applies.
                 },
             }
-            if (child_resized and element.on_resized.func != null) {
-                debug("element {s} resized. callback = {any}", .{ element.name, element.on_resized.func != null });
-                _ = element.on_resized.func.?(element.on_resized.ptr, self, element);
-            }
+
             switch (element.layout.y) {
                 .grows => {
-                    // Grow to the maximum the parent will allow
+                    // Grow to the parent height, not including padding.
                     element.rect.y = 0;
                     element.rect.height = parent.rect.height - (parent.pad.top + parent.pad.bottom);
                     if (element.maximum.height > 0 and element.rect.height > element.maximum.height) {
@@ -3254,7 +3245,11 @@ pub const Display = struct {
                 },
                 .shrinks => {
                     // Shrink to the smallest the children will allow
-                    element.rect.height = element.shrink_height(self, parent.rect.width);
+                    const new_height = element.shrink_height(self, parent.rect.width);
+                    if (element.rect.height != new_height) {
+                        element.rect.height = new_height;
+                        child_resized = true;
+                    }
                     switch (element.child_align.y) {
                         .start => element.rect.y = 0,
                         .end => element.rect.y = parent.rect.height - element.rect.height,
@@ -3265,6 +3260,12 @@ pub const Display = struct {
                     // No shrinking or growing applies.
                 },
             }
+
+            if (child_resized and element.on_resized.func != null) {
+                debug("element {s} resized. callback = {any}", .{ element.name, element.on_resized.func != null });
+                _ = element.on_resized.func.?(element.on_resized.ptr, self, element);
+            }
+
             if (element.type == .expander) {
                 expanders.appendAssumeCapacity(element);
                 expander_weights += element.type.expander.weight;
@@ -3289,10 +3290,10 @@ pub const Display = struct {
             .centre => relayout_centre(self, parent),
         }
 
+        // Descend into child elements to allow child panels to also resize.
         for (parent.type.panel.children.items) |child| {
-            if (child.type == .panel) {
-                self.do_relayout(child);
-            }
+            if (child.type == .panel)
+                self.relayout_panel(child);
         }
 
         if (panel_resized and parent.on_resized.func != null) {
@@ -3303,14 +3304,10 @@ pub const Display = struct {
     inline fn relayout_centre(_: *Display, parent: *Element) void {
         // First pass just does a layout assuming top/left positioning.
         for (parent.type.panel.children.items) |child| {
-            if (child.visible == .hidden) {
-                // Layout the clipped and visible items,
-                // but not the hidden items.
-                continue;
-            }
-            if (child.layout.position == .float) {
-                continue;
-            }
+            if (child.layout.position == .float) continue;
+            if (child.visible == .hidden) continue;
+            if (child.type == .expander) continue;
+
             child.rect.x = parent.rect.width / 2 - child.rect.width / 2;
             child.rect.y = parent.rect.height / 2 - child.rect.height / 2;
             if (dev_build or dev_mode) {
