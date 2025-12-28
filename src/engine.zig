@@ -245,7 +245,6 @@ pub const ElementType = enum {
     text_input,
     rectangle,
     button,
-    button_bar,
     progress_bar,
     expander,
 };
@@ -378,15 +377,15 @@ pub const Element = struct {
             on_click: Callback = .{ .func = null },
         },
         checkbox: struct {
+            checked: bool = false,
             font: *FontInfo = undefined,
             font_name: ?[]const u8 = null,
-            checked: bool = false,
-            translated: []const u8 = "",
-            text: []const u8 = "",
-            elements: ArrayListUnmanaged(TextElement) = .empty,
-            line_height: f32 = 1,
             text_size: TextSize = .normal,
             text_colour: ThemeColour = .normal,
+            text: []const u8 = "",
+            translated: []const u8 = "",
+            elements: ArrayListUnmanaged(TextElement) = .empty,
+            line_height: f32 = 1,
             on_texture: ?*TextureInfo = null,
             off_texture: ?*TextureInfo = null,
             on_change: Callback = .{ .func = null },
@@ -430,7 +429,6 @@ pub const Element = struct {
             on_click: Callback = .{ .func = null },
             toggle: ToggleState = .no_toggle,
         },
-        button_bar: struct {},
         progress_bar: struct {
             progress: f32 = 0,
         },
@@ -526,9 +524,6 @@ pub const Element = struct {
                 if (i.*.background_pressed) |texture| {
                     display.release_texture_resource(allocator, texture);
                 }
-            },
-            .button_bar => {
-                //
             },
         }
     }
@@ -1333,7 +1328,6 @@ pub const Element = struct {
             },
             .progress_bar => draw_progress_bar(element, display, parent_scroll_offset, parent_clip),
             .expander => {},
-            else => {},
         }
 
         // Draw a border around an element if a border is specified, or
@@ -1968,7 +1962,7 @@ pub const Element = struct {
                     return;
                 }
             },
-            .button_bar, .progress_bar, .text_input, .rectangle, .expander => {},
+            .progress_bar, .text_input, .rectangle, .expander => {},
         }
     }
 
@@ -4227,7 +4221,7 @@ pub const Display = struct {
                     .panel => if (is_under_cursor and element.type.panel.on_click.func != null) {
                         return element;
                     },
-                    .button_bar, .rectangle, .progress_bar, .expander => {},
+                    .rectangle, .progress_bar, .expander => {},
                 }
             } else if (query == .scrollable) {
                 //debug("check cursor scrollable {s} {s}", .{ @tagName(element.type), element.name });
@@ -4588,7 +4582,7 @@ pub const Display = struct {
                 .sprite => try found.chosen(display, gpa),
                 .checkbox => try found.chosen(display, gpa),
                 .text_input => found.selected(display, gpa),
-                .rectangle, .button_bar, .progress_bar, .expander => {
+                .rectangle, .progress_bar, .expander => {
                     // Not clickable
                 },
             }
@@ -4983,7 +4977,6 @@ pub const Display = struct {
             .progress_bar => try setup_progress_bar(self, allocator, element),
             .expander => try setup_expander(self, allocator, element),
             .text_input => try setup_text_input(self, allocator, element),
-            else => unreachable,
         }
     }
 };
