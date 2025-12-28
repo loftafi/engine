@@ -149,6 +149,7 @@ pub const LayoutDirection = enum {
     //right_to_left,
     //bottom_to_top,
     centre,
+    left_to_right_wrap,
 };
 
 /// The `normal` scale is designed for a regular person with regular
@@ -3305,8 +3306,9 @@ pub const Display = struct {
         parent.type.panel.scrollable.size.width = parent.minimum.width;
         parent.type.panel.scrollable.size.height = parent.minimum.height;
         switch (parent.type.panel.direction) {
-            .left_to_right => place_children_left_to_right(self, parent, &expanders, expander_weights),
-            .top_to_bottom => place_children_top_to_bottom(self, parent, &expanders, expander_weights),
+            .left_to_right => place_children_left_to_right(self, parent, expanders.slice(), expander_weights),
+            .left_to_right_wrap => place_children_left_to_right_wrap(self, parent),
+            .top_to_bottom => place_children_top_to_bottom(self, parent, expanders.slice(), expander_weights),
             .centre => place_children_centred(self, parent),
         }
 
@@ -3333,7 +3335,7 @@ pub const Display = struct {
 
             child.rect.x = parent.rect.x + parent.pad.left + (parent_width / 2 - child.rect.width / 2);
             child.rect.y = parent.rect.y + parent.pad.top + (parent_height / 2 - child.rect.height / 2);
-            if (dev_build or dev_mode) {
+            if (dev_build and dev_mode) {
                 err("in parent {s} ({d}x{d} {d}x{d}) centre {s} at={d}x{d} size={d}x{d}", .{
                     parent.name,
                     parent.rect.x,
@@ -3358,7 +3360,7 @@ pub const Display = struct {
     inline fn place_children_top_to_bottom(
         _: *Display,
         parent: *Element,
-        expanders: *BoundedArray(*Element, 10),
+        expanders: []*Element,
         expander_weights: f32,
     ) void {
         // Layout each item from top to bottom, initially ignoring
@@ -3410,7 +3412,7 @@ pub const Display = struct {
 
             if (parent.rect.height > needed_height) {
                 const spare_height = parent.rect.height - needed_height;
-                for (expanders.slice()) |expander| {
+                for (expanders) |expander| {
                     if (expander.type.expander.weight <= 0) {
                         continue;
                     }
@@ -3481,15 +3483,15 @@ pub const Display = struct {
         }
     }
 
+    /// Draw panel children from top left corner of the panel
+    /// assuming no scrolling of the child elements. Offsets
+    /// applied at runtime.
     inline fn place_children_left_to_right(
         _: *Display,
         parent: *Element,
-        _: *BoundedArray(*Element, 10),
+        _: []*Element,
         _: f32,
     ) void {
-        // Draw panel children from top left corner of the panel
-        // assuming no scrolling of the child elements. Offsets
-        // applied at runtime.
         var current: Vector = .{
             .x = parent.rect.x + parent.pad.left,
             .y = parent.rect.y + parent.pad.top,
@@ -3564,6 +3566,57 @@ pub const Display = struct {
                 parent.type.panel.scrollable.size.width = @max(needed_width, parent.rect.width);
             },
         }
+    }
+
+    // Draw panel children from top left corner of the panel
+    // assuming no scrolling of the child elements. Offsets
+    // applied at runtime. Track the height of each element
+    // so wrapping can occur down to the next line.
+    inline fn place_children_left_to_right_wrap(
+        _: *Display,
+        parent: *Element,
+    ) void {
+        var current: Vector = .{
+            .x = parent.rect.x + parent.pad.left,
+            .y = parent.rect.y + parent.pad.top,
+        };
+
+        // Track how much hight the current line needs
+        var line_height: f32 = 0;
+
+        // Draw along the line, and wrap when we hit the end of the line
+        const line_end: f32 = parent.rect.x + parent.rect.width - parent.pad.right;
+
+        var i: usize = 0;
+        for (parent.type.panel.children.items) |child| {
+            if (child.visible == .hidden) continue;
+            if (child.layout.position == .float) continue;
+            if (child.type == .expander) continue;
+
+            // Spacing is inserted before all items except the first item in a line/row
+            if (i > 0)
+                current.x += parent.type.panel.spacing;
+            i += 1;
+
+            if (current.x + child.rect.width > line_end) {
+                current.x = parent.rect.x + parent.pad.left;
+                current.y += line_height + parent.type.panel.spacing;
+                line_height = 0;
+                i = 0;
+                //TODO: We could y grow the elements that want grow.
+                //TODO We could centre the items on this line `parent.child_align.x`
+            }
+
+            child.rect.x = current.x;
+            child.rect.y = current.y;
+            current.x += child.rect.width;
+            const item_height = @max(child.rect.height, child.minimum.height);
+            line_height = @max(item_height, line_height);
+        }
+        current.y += parent.pad.bottom;
+        const needed_height = current.y - parent.rect.y;
+        parent.type.panel.scrollable.size.height = @max(needed_height, parent.rect.height);
+        //const overflow_height = parent.rect.height - needed_height;
     }
 
     pub fn set_language(display: *Display, allocator: Allocator, language: Lang) !void {
@@ -4986,7 +5039,7 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
             return result;
         },
 
-        .centre, .left_to_right => {
+        .centre, .left_to_right, .left_to_right_wrap => {
             // centred all together
             // a, next to b, next c.
             //
@@ -5044,18 +5097,15 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
             var minimum_needed: f32 = parent.pad.left + parent.pad.right;
             var first = true;
             for (parent.type.panel.children.items) |element| {
-                if (element.layout.position == .float) {
-                    continue;
-                }
-                if (element.visible == .hidden) {
-                    continue;
-                }
-                if (first) {
-                    first = false;
-                } else {
-                    // Add spacing before next element, if needed
+                if (element.layout.position == .float) continue;
+                if (element.visible == .hidden) continue;
+
+                // Add space between each element.
+                if (first)
+                    first = false
+                else
                     minimum_needed += parent.type.panel.spacing;
-                }
+
                 const width = element.shrink_width(display, parent.rect.width);
                 minimum_needed += width;
             }
@@ -5066,6 +5116,29 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
             }
             result = @max(result, parent.minimum.width);
             return result;
+        },
+        .left_to_right_wrap => {
+            var minimum_needed: f32 = parent.pad.left + parent.pad.right;
+            var first = true;
+            for (parent.type.panel.children.items) |element| {
+                if (element.layout.position == .float) continue;
+                if (element.visible == .hidden) continue;
+
+                // Add space between each element.
+                if (first)
+                    first = false
+                else
+                    minimum_needed += parent.type.panel.spacing;
+
+                const width = element.shrink_width(display, parent.rect.width);
+                minimum_needed = @max(minimum_needed, width);
+            }
+            // Bound to the minimum/maximum width
+            minimum_needed += parent.pad.left + parent.pad.right;
+            if (parent.maximum.width > 0 and parent.maximum.width < minimum_needed) {
+                minimum_needed = parent.maximum.width;
+            }
+            return @max(minimum_needed, parent.minimum.width);
         },
         .centre, .top_to_bottom => {
             // a, centred upon b, centred upon c
