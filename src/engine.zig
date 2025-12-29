@@ -985,7 +985,7 @@ pub const Element = struct {
     }
 
     /// `add` a child element to this panel and return the element. Only
-    /// permitted for the `panel` element type. See also `add_element`
+    /// permitted for the `panel` element type.
     pub inline fn add(self: *Element, allocator: Allocator, child: *Element) error{OutOfMemory}!*Element {
         std.debug.assert(self.type == .panel);
         try self.type.panel.children.append(allocator, child);
@@ -993,7 +993,7 @@ pub const Element = struct {
     }
 
     /// `add_alloc` a child element to this panel and return the element. Only
-    /// permitted for the `panel` element type. See also `add_element`
+    /// permitted for the `panel` element type.
     pub inline fn add_alloc(
         self: *Element,
         allocator: Allocator,
@@ -1006,13 +1006,6 @@ pub const Element = struct {
         try display.setup_element(allocator, child);
         try self.type.panel.children.append(allocator, child);
         return child;
-    }
-
-    /// `add_element` adds a child element to this panel and does
-    /// not return the child pointer. Only permitted for the `panel`
-    /// element type.
-    pub inline fn add_element(self: *Element, allocator: Allocator, child: *Element) error{OutOfMemory}!void {
-        _ = try self.add(allocator, child);
     }
 
     /// Use `insert_element` to insert a child element in a specific location
@@ -3759,16 +3752,19 @@ pub const Display = struct {
 
     /// Attach a child element to the main display panel (root) element. The
     /// main display panel should only contain panels as children
-    pub inline fn add_element(self: *Display, allocator: Allocator, element: *Element) error{OutOfMemory}!void {
-        //std.debug.assert(element.type == .panel);
+    pub inline fn add_panel(
+        self: *Display,
+        allocator: Allocator,
+        element: Element,
+    ) (Allocator.Error || Resources.Error || Error)!*Element {
         if (element.type != .panel) {
             warn("parent display should contan panels. Not {s} {s}", .{
                 @tagName(element.type),
                 element.name,
             });
-            return;
+            unreachable; // add_panel only accepts panels
         }
-        try self.root.type.panel.children.append(allocator, element);
+        return self.root.add_alloc(allocator, self, element);
     }
 
     /// Convert a text string into an image that is sent as a texture to
@@ -5794,7 +5790,7 @@ test "button sizing" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try display.add_element(allocator, panel);
+    try display.add_panel(allocator, panel);
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
@@ -5811,7 +5807,7 @@ test "button sizing" {
     button.layout.y = .shrinks;
     try eq(42, button.shrink_width(display, 500));
     try eq(41, button.shrink_height(display, 500));
-    try panel.add_element(allocator, button);
+    _ = try panel.add(allocator, button);
     display.relayout();
     try eq(42, panel.shrink_width(display, 500));
     try eq(42, button.rect.width);
@@ -5967,7 +5963,7 @@ test "text input sizing" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try display.add_element(allocator, panel);
+    try display.add_panel(allocator, panel);
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
@@ -5975,7 +5971,7 @@ test "text input sizing" {
     panel.layout.y = .shrinks;
     label.layout.x = .grows;
     label.layout.y = .shrinks;
-    try panel.add_element(allocator, label);
+    _ = try panel.add(allocator, label);
     label.pad.top = 0;
     label.pad.bottom = 0;
     display.relayout();
@@ -6005,7 +6001,7 @@ test "test_init" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try display.add_element(allocator, panel);
+    try display.add_panel(allocator, panel);
 
     try eq(1, display.root.type.panel.children.items.len);
     const element = try allocator.create(Element);
@@ -6018,7 +6014,7 @@ test "test_init" {
         .style = .background,
         .type = .{ .rectangle = .{} },
     };
-    try panel.add_element(allocator, element);
+    _ = try panel.add(allocator, element);
     try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
 }
 
