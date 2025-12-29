@@ -145,11 +145,22 @@ pub const LayoutAlign = enum {
 /// top to bottom, or every item is drawn in the centre.
 pub const LayoutDirection = enum {
     top_to_bottom,
+
+    /// Place all items along the top, from left to right
     left_to_right,
+
+    /// Place items along the top, but wrap if you reach
+    /// the end of the line.
+    left_to_right_wrap,
+
     //right_to_left,
     //bottom_to_top,
+
+    /// Place all items centred in the middle of a panel
     centre,
-    left_to_right_wrap,
+
+    /// Place all items in the top left
+    top_left,
 };
 
 /// The `normal` scale is designed for a regular person with regular
@@ -986,15 +997,7 @@ pub const Element = struct {
 
     /// `add` a child element to this panel and return the element. Only
     /// permitted for the `panel` element type.
-    pub inline fn add(self: *Element, allocator: Allocator, child: *Element) error{OutOfMemory}!*Element {
-        std.debug.assert(self.type == .panel);
-        try self.type.panel.children.append(allocator, child);
-        return child;
-    }
-
-    /// `add_alloc` a child element to this panel and return the element. Only
-    /// permitted for the `panel` element type.
-    pub inline fn add_alloc(
+    pub inline fn add(
         self: *Element,
         allocator: Allocator,
         display: *Display,
@@ -3297,6 +3300,7 @@ pub const Display = struct {
             .left_to_right_wrap => place_children_left_to_right_wrap(self, parent),
             .top_to_bottom => place_children_top_to_bottom(self, parent, expanders.slice(), expander_weights),
             .centre => place_children_centred(self, parent),
+            .top_left => place_children_top_left(self, parent),
         }
 
         // Descend into child elements to allow child panels to also resize.
@@ -3342,6 +3346,16 @@ pub const Display = struct {
         //const needed_height = current.y - parent.y;
         //const overflow_height = (parent.y + parent.height) - current.y;
         //parent.type.panel.scrollable.size.height = @max(needed_height, parent.height);
+    }
+
+    inline fn place_children_top_left(_: *Display, parent: *Element) void {
+        for (parent.type.panel.children.items) |child| {
+            if (child.layout.position == .float) continue;
+            if (child.visible == .hidden) continue;
+            if (child.type == .expander) continue;
+            child.rect.x = parent.rect.x + parent.pad.left;
+            child.rect.y = parent.rect.y + parent.pad.top;
+        }
     }
 
     inline fn place_children_top_to_bottom(
@@ -3764,7 +3778,7 @@ pub const Display = struct {
             });
             unreachable; // add_panel only accepts panels
         }
-        return self.root.add_alloc(allocator, self, element);
+        return self.root.add(allocator, self, element);
     }
 
     /// Convert a text string into an image that is sent as a texture to
@@ -3805,6 +3819,10 @@ pub const Display = struct {
     /// elements. This releases a texture, only when all references to
     /// a texture no longer exist.
     pub fn release_texture_resource(self: *Display, allocator: Allocator, ti: *TextureInfo) void {
+        if (ti.references == 0) {
+            err("Attempt to release resource with no references", .{});
+            return;
+        }
         ti.references -= 1;
         if (ti.references != 0) {
             if (ti.references < 0) {
@@ -4891,7 +4909,7 @@ pub const Display = struct {
         parent: *Element,
         close_fn: Callback,
     ) (Error || Allocator.Error || Resources.Error)!*Element {
-        return try parent.add_alloc(
+        return try parent.add(
             allocator,
             display,
             .{
@@ -4921,17 +4939,13 @@ pub const Display = struct {
         parent: *Element,
         size: f32,
     ) (Error || Allocator.Error || Resources.Error)!*Element {
-        return try parent.add(allocator, try engine.create_panel(
-            allocator,
-            display,
-            .{
-                .name = "spacer",
-                .rect = .{ .width = size, .height = size },
-                .layout = .{ .x = .shrinks, .y = .shrinks },
-                .minimum = .{ .width = size, .height = size },
-                .type = .{ .panel = .{} },
-            },
-        ));
+        return try parent.add(allocator, display, .{
+            .name = "spacer",
+            .rect = .{ .width = size, .height = size },
+            .layout = .{ .x = .shrinks, .y = .shrinks },
+            .minimum = .{ .width = size, .height = size },
+            .type = .{ .panel = .{} },
+        });
     }
 
     /// Add a label with generic settings needed for a paragraph.
@@ -4943,7 +4957,7 @@ pub const Display = struct {
         name: []const u8,
         text: []const u8,
     ) (Error || Allocator.Error || Resources.Error)!void {
-        _ = try parent.add_alloc(allocator, display, .{
+        _ = try parent.add(allocator, display, .{
             .name = name,
             .focus = .accessibility_focus,
             .rect = .{ .x = 250, .y = 50, .width = 500, .height = 80 },
@@ -5028,7 +5042,7 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
             return result;
         },
 
-        .centre, .left_to_right, .left_to_right_wrap => {
+        .centre, .left_to_right, .left_to_right_wrap, .top_left => {
             // centred all together
             // a, next to b, next c.
             //
@@ -5129,7 +5143,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
             }
             return @max(minimum_needed, parent.minimum.width);
         },
-        .centre, .top_to_bottom => {
+        .centre, .top_to_bottom, .top_left => {
             // a, centred upon b, centred upon c
             // a, then b underneath, thn c underneath...
             //
@@ -5785,29 +5799,28 @@ test "button sizing" {
     _ = try display.load_font(allocator, "Roboto-Light");
     try eq(1, display.fonts.items.len);
 
-    var panel = try create_panel(allocator, display, .{
+    const panel = try display.add_panel(allocator, .{
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try display.add_panel(allocator, panel);
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
-    const button = try create_button(allocator, display, .{
+    var button = try panel.add(allocator, display, .{
         .visible = .visible,
         .rect = .{ .width = 50, .height = 50 },
         .minimum = .{ .width = 42, .height = 41 },
         .maximum = .{ .width = 82, .height = 81 },
         .type = .{ .button = .{ .text = "" } },
     });
+    display.relayout();
     try eq(50, button.shrink_width(display, 500));
     try eq(50, button.shrink_height(display, 500));
     button.layout.x = .shrinks;
     button.layout.y = .shrinks;
     try eq(42, button.shrink_width(display, 500));
     try eq(41, button.shrink_height(display, 500));
-    _ = try panel.add(allocator, button);
     display.relayout();
     try eq(42, panel.shrink_width(display, 500));
     try eq(42, button.rect.width);
@@ -5957,13 +5970,12 @@ test "text input sizing" {
     label.layout.x = .grows;
     try eq(91, @round(label.shrink_width(display, 500)));
 
-    var panel = try create_panel(allocator, display, .{
+    var panel = try display.add_panel(allocator, .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try display.add_panel(allocator, panel);
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
@@ -5971,7 +5983,7 @@ test "text input sizing" {
     panel.layout.y = .shrinks;
     label.layout.x = .grows;
     label.layout.y = .shrinks;
-    _ = try panel.add(allocator, label);
+    _ = try panel.add(allocator, display, label);
     label.pad.top = 0;
     label.pad.bottom = 0;
     display.relayout();
@@ -5995,17 +6007,15 @@ test "test_init" {
     const allocator = std.testing.allocator;
     var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
     defer display.destroy(allocator);
-    var panel = try create_panel(allocator, display, .{
+    var panel = try display.add_panel(allocator, .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try display.add_panel(allocator, panel);
 
     try eq(1, display.root.type.panel.children.items.len);
-    const element = try allocator.create(Element);
-    element.* = .{
+    _ = try panel.add(allocator, .{
         .name = "menu_bg",
         .rect = .{ .x = 0, .y = 0, .width = 550, .height = 100 },
         .minimum = .{ .width = 300, .height = 130 },
@@ -6013,8 +6023,7 @@ test "test_init" {
         .background = .{ .colour = .{ .r = 99, .g = 150, .b = 50, .a = 255 } },
         .style = .background,
         .type = .{ .rectangle = .{} },
-    };
-    _ = try panel.add(allocator, element);
+    });
     try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
 }
 
