@@ -736,6 +736,12 @@ pub const Element = struct {
         }
     }
 
+    pub inline fn set_visibility(self: *Element, display: *Display, visible: Visibility) void {
+        if (self.visible == visible) return;
+        self.visible = visible;
+        display.need_relayout = true;
+    }
+
     /// set_texture replaces the current texture of an element with a new
     /// texture found in the resource bucket.
     pub inline fn set_texture(
@@ -1016,12 +1022,26 @@ pub const Element = struct {
     pub inline fn insert_element(
         self: *Element,
         allocator: Allocator,
+        display: *Display,
+        conf: Element,
         location: usize,
-        child: *Element,
     ) error{OutOfMemory}!void {
         std.debug.assert(self.type == .panel);
         std.debug.assert(location <= self.type.panel.children.items.len);
+        const child = try allocator.create(Element);
+        child.* = conf;
+        try display.setup_element(allocator, child);
         try self.type.panel.children.insert(allocator, location, child);
+        return child;
+    }
+
+    pub inline fn swap(self: *Element, from: usize, to: usize) void {
+        std.debug.assert(self.type == .panel);
+        std.debug.assert(from < self.type.panel.children.items.len);
+        std.debug.assert(to < self.type.panel.children.items.len);
+        const s = self.type.panel.children.items[from];
+        self.type.panel.children.items[from] = self.type.panel.children.items[to];
+        self.type.panel.children.items[to] = s;
     }
 
     /// Use `remove_element_at` to attach a child element in a specific location
@@ -1602,9 +1622,23 @@ pub const Element = struct {
                     if (src_scale >= dst_scale) {
                         // image too wide, hight will have blank space
                         dest.height = dest.width * src_scale;
+                        // sprite is drawn at top of its rect, unless a
+                        // different child alignment is chosen.
+                        switch (element.child_align.y) {
+                            .start => {}, // already at top
+                            .centre => dest.y += (element.rect.height - dest.height) / 2,
+                            .end => dest.y += (element.rect.height - dest.height),
+                        }
                     } else {
                         // image too tall/high, width will have blank space
                         dest.width = dest.height * src_scale;
+                        // sprite is drawn at start/left of its rect, unless
+                        // a different child alignment is chosen.
+                        switch (element.child_align.x) {
+                            .start => {}, // already at top
+                            .centre => dest.x += (element.rect.width - dest.width) / 2,
+                            .end => dest.x += (element.rect.width - dest.width),
+                        }
                     }
                 },
                 .fill => {
