@@ -948,7 +948,7 @@ pub const Element = struct {
                     if (self.layout.y == .shrinks or self.layout.y == .grows) {
                         // Generate the image textures for each word and the locations they
                         // should be rendered.
-                        draw_text_elements(self, display, .{ .x = 0, .y = 0 }, null, false);
+                        draw_label(self, display, .{ .x = 0, .y = 0 }, null, false);
                     }
                 }
             },
@@ -976,8 +976,8 @@ pub const Element = struct {
                     if (self.layout.y == .shrinks or self.layout.y == .grows) {
                         // Simulate a draw of this element to see how many
                         // lines it would take.
-                        // TODO: dont need draw_text_elements?
-                        draw_text_elements(self, display, .{ .x = 0, .y = 0 }, null, false);
+                        // TODO: dont need draw_label?
+                        draw_label(self, display, .{ .x = 0, .y = 0 }, null, false);
                     }
                 }
             },
@@ -1339,9 +1339,7 @@ pub const Element = struct {
             .text_input => draw_text_input(element, display, parent_scroll_offset, parent_clip),
             .sprite => draw_sprite(element, display, parent_scroll_offset, parent_clip, scroll_offset),
             .rectangle => draw_rectangle_element(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-            .label => if (element.type.label.text.len > 0) {
-                draw_text_elements(element, display, scroll_offset, parent_clip, true);
-            },
+            .label => draw_label(element, display, scroll_offset, parent_clip, true),
             .progress_bar => draw_progress_bar(element, display, parent_scroll_offset, parent_clip),
             .expander => {},
         }
@@ -1683,7 +1681,7 @@ pub const Element = struct {
     inline fn draw_checkbox(element: *Element, display: *Display, _: Vector, _: ?Clip, scroll_offset: Vector) void {
         const checkbox = display.checkbox();
         // Output checkbox text.
-        draw_text_elements(element, display, scroll_offset, null, true);
+        draw_label(element, display, scroll_offset, null, true);
         var dest: Rect = .{
             .x = element.rect.x + element.rect.width - checkbox.width - element.pad.left,
             .y = element.rect.y + (element.rect.height / 2) - (checkbox.height / 2),
@@ -2224,7 +2222,7 @@ inline fn text_size(display: *Display, texture: *sdl.SDL_Texture, size: TextSize
 ///
 /// If the text is centred or right aligned, then each line must be pushed along
 /// by a certain offset amount.
-inline fn draw_text_elements(
+inline fn draw_label(
     element: *Element,
     display: *Display,
     scroll_offset: Vector,
@@ -2232,6 +2230,9 @@ inline fn draw_text_elements(
     comptime render: bool,
 ) void {
     std.debug.assert(element.type == .label or element.type == .checkbox);
+
+    if (element.type == .label and element.type.label.text.len == 0) return;
+    if (element.type == .checkbox and element.type.checkbox.text.len == 0) return;
 
     var x: f32 = element.rect.x + element.pad.left;
     var y: f32 = element.rect.y + element.pad.top;
@@ -2370,7 +2371,7 @@ pub const MinMax = struct {
 };
 
 /// Calculate the width of this element by examining each of the child
-/// elements. This is a cut down version of draw_text_elements but
+/// elements. This is a cut down version of draw_label but
 /// without the overhead of things like text justifications.
 inline fn text_elements_size(
     element: *Element,
