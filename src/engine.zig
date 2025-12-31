@@ -384,7 +384,6 @@ pub const Element = struct {
             elements: ArrayListUnmanaged(TextElement) = .empty,
             line_height: f32 = 1,
             text_size: TextSize = .normal,
-            text_colour: ThemeColour = .normal,
             on_click: Callback = .{ .func = null },
         },
         checkbox: struct {
@@ -392,7 +391,6 @@ pub const Element = struct {
             font: *FontInfo = undefined,
             font_name: ?[]const u8 = null,
             text_size: TextSize = .normal,
-            text_colour: ThemeColour = .normal,
             text: []const u8 = "",
             translated: []const u8 = "",
             elements: ArrayListUnmanaged(TextElement) = .empty,
@@ -2253,11 +2251,6 @@ inline fn draw_label(
         .checkbox => element.type.checkbox.elements.items,
         else => unreachable,
     };
-    const text_colour = switch (element.type) {
-        .label => element.type.label.text_colour,
-        .checkbox => element.type.checkbox.text_colour,
-        else => unreachable,
-    };
 
     const word_spacing = display.text_height * display.scale * text_height.height() / 4.0;
 
@@ -2326,7 +2319,7 @@ inline fn draw_label(
             }
 
             // Only render text if display parameter is provided
-            const current_colour = text_colour.text(display.theme, element.colour);
+            const current_colour = element.style.text(display.theme, element.colour);
             _ = sdl.SDL_SetTextureColorMod(
                 item.texture,
                 current_colour.r,
@@ -4994,6 +4987,7 @@ pub const Display = struct {
     ) (Error || Allocator.Error || Resources.Error)!void {
         _ = try parent.add(allocator, display, .{
             .name = name,
+            .style = .normal,
             .focus = .accessibility_focus,
             .rect = .{ .x = 250, .y = 50, .width = 500, .height = 80 },
             .layout = .{ .y = .shrinks, .x = .grows },
@@ -5002,7 +4996,6 @@ pub const Display = struct {
                 .text = text,
                 .translated = "",
                 .text_size = size,
-                .text_colour = .normal,
             } },
         });
     }
