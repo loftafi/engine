@@ -1617,7 +1617,7 @@ pub const Element = struct {
                     const src_scale: f32 = image_width / image_height;
                     if (src_scale >= dst_scale) {
                         // image too wide, hight will have blank space
-                        dest.height = dest.width * src_scale;
+                        dest.height = dest.width / src_scale;
                         // sprite is drawn at top of its rect, unless a
                         // different child alignment is chosen.
                         switch (element.child_align.y) {
@@ -1664,13 +1664,8 @@ pub const Element = struct {
                 },
             }
 
-            //const source: Rect = .{
-            //    .x = 0,
-            //    .y = 0,
-            //    .width = @as(f32, @floatFromInt(texture.texture.w)),
-            //    .height = @as(f32, @floatFromInt(texture.texture.h)),
-            //};
-            //_ = sdl.SDL_RenderTexture(display.renderer, texture.texture, &source, @ptrCast(&dest));
+            if (element.style == .custom)
+                tint_texture(texture.texture, element.colour);
 
             _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, @ptrCast(&source), @ptrCast(&dest));
         }
@@ -3622,9 +3617,7 @@ pub const Display = struct {
             if (child.layout.position == .float) continue;
             if (child.type == .expander) continue;
 
-            // Spacing is inserted before all items except the first item in a line/row
-            if (i > 0)
-                current.x += parent.type.panel.spacing;
+            current.x += parent.type.panel.spacing;
             i += 1;
 
             if (current.x + child.rect.width > line_end) {
