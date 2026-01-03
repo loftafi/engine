@@ -3617,7 +3617,8 @@ pub const Display = struct {
             if (child.layout.position == .float) continue;
             if (child.type == .expander) continue;
 
-            current.x += parent.type.panel.spacing;
+            if (i > 0)
+                current.x += parent.type.panel.spacing;
             i += 1;
 
             if (current.x + child.rect.width > line_end) {
