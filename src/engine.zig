@@ -6023,7 +6023,16 @@ test "text input sizing" {
         try eq(88, l.shrink_height(display, 115));
     }
 
-    const label = try create_label(allocator, display, .{
+    var panel = try display.add_panel(allocator, .{
+        .rect = .{ .width = 500, .height = 200 },
+        .minimum = .{ .width = 5, .height = 8 },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    });
+    try eq(5, panel.shrink_width(display, 500));
+    try eq(8, panel.shrink_height(display, 500));
+
+    var label = try panel.add(allocator, display, .{
         .name = "hello",
         .rect = .{ .width = 500, .height = 60 },
         .minimum = .{ .width = 300, .height = 100 },
@@ -6031,6 +6040,7 @@ test "text input sizing" {
         .type = .{ .label = .{ .text = "Hello world" } },
         .layout = .{ .x = .fixed, .y = .fixed },
     });
+
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
     try eq(500, label.shrink_width(display, 500));
     try eq(100, label.shrink_height(display, 500));
@@ -6044,20 +6054,11 @@ test "text input sizing" {
     label.layout.x = .grows;
     try eq(91, @round(label.shrink_width(display, 500)));
 
-    var panel = try display.add_panel(allocator, .{
-        .rect = .{ .width = 500, .height = 200 },
-        .minimum = .{ .width = 5, .height = 8 },
-        .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
-        .layout = .{ .x = .shrinks, .y = .shrinks },
-    });
-    try eq(5, panel.shrink_width(display, 500));
-    try eq(8, panel.shrink_height(display, 500));
-
     panel.layout.x = .shrinks;
     panel.layout.y = .shrinks;
     label.layout.x = .grows;
     label.layout.y = .shrinks;
-    _ = try panel.add(allocator, display, label.*);
+
     label.pad.top = 0;
     label.pad.bottom = 0;
     display.relayout();
@@ -6069,6 +6070,7 @@ test "text input sizing" {
         label.maximum.width,
         label.maximum.height,
     });
+
     // Two words wrapped, so the with is the width of the longest word.
     try eq(401, @round(label.rect.width)); // Label has 401 as maximum
     try eq(500, @trunc(panel.rect.width));

@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.8.3",
+    .version = "0.9.0",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
@@ -17,8 +17,8 @@
             .hash = "zigimg-0.1.0-8_eo2vBrFQBhsrLpexdcDQY-zrlzkyFZfKuYX-Nry6KN",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#b65dd592bc1fb1eadbb5b1b6ca8cf8015ee8a669",
-            .hash = "resources-0.7.5-J0GwI0o7AgAv3hn0V03TUNxFQBnPSlKv85pkJDd2boL4",
+            .url = "git+https://github.com/loftafi/resources.git#a2e19ef2f160fa6b2f604f4be9ea74d46220a3a0",
+            .hash = "resources-0.8.0-J0GwI0A7AgDmjLZCTHb_b6QF49HOtRUwcRTJ4jHVXBFF",
         },
     },
     .paths = .{
