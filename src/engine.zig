@@ -5,6 +5,7 @@ pub const FONT_SIZE: f32 = 22.0;
 pub const FONT_MUL: f32 = 2.0;
 pub const RESOURCE_BUNDLE_FILENAME = "resources.bd";
 
+/// Errors specific to engine module
 pub const Error = error{
     ResourceReadError,
     ResourceNotFound,
@@ -16,11 +17,12 @@ pub const Error = error{
     GraphicsRendererFailed,
 };
 
-// A vector may represent a position or distance in 2D space.
+/// A vector may represent a position or distance in 2D space.
 pub const Vector = struct {
     x: f32 = 0,
     y: f32 = 0,
 
+    /// Add the x and y value from the `other` vector to this vector.
     pub fn add(self: Vector, other: Vector) Vector {
         return Vector{
             .x = self.x + other.x,
@@ -28,6 +30,7 @@ pub const Vector = struct {
         };
     }
 
+    /// Subtract the x and y value from the `other` vector to this vector.
     pub fn minus(self: Vector, other: Vector) Vector {
         return Vector{
             .x = self.x - other.x,
@@ -35,6 +38,7 @@ pub const Vector = struct {
         };
     }
 
+    /// Multiply the x and y value from the `other` vector to this vector.
     pub fn multiply(self: Vector, value: f32) Vector {
         return Vector{
             .x = self.x * value,
@@ -50,10 +54,11 @@ pub const Rect = extern struct {
     width: f32 = 0,
     height: f32 = 0,
 
-    pub fn move(self: *Rect, l: *const Vector) Rect {
+    /// Add the x and y value from the `other` vector to this vector.
+    pub fn move(self: *Rect, offset: *const Vector) Rect {
         return .{
-            .x = self.x + l.x,
-            .y = self.y + l.y,
+            .x = self.x + offset.x,
+            .y = self.y + offset.y,
             .width = self.width,
             .height = self.height,
         };
@@ -110,8 +115,19 @@ pub const LayoutSize = enum {
 };
 
 pub const Fit = enum {
+    /// Stretch the image texture to the exact width and height of the
+    /// `element.rect`.
     stretch,
+
+    /// Maintaining the image aspect ratio, enlarge the textue image to
+    /// the full width and height of the `element.rect`, and crop off
+    /// any overflow.
     fill,
+
+    /// Maintaining the image aspect ratio, enlarge the texture image to
+    /// exactly fit within the boundary of the `element.rect` This will leave
+    /// some horizontal or vertical space. Use `child_align` to place
+    /// the texture at the `start`, `centre` or `end` of the element rect.
     fit,
 };
 
@@ -144,9 +160,10 @@ pub const LayoutAlign = enum {
 /// Elements inside elements may be drawn from left to right,
 /// top to bottom, or every item is drawn in the centre.
 pub const LayoutDirection = enum {
+    /// Starting at the top, place each element under the previous element.
     top_to_bottom,
 
-    /// Place all items along the top, from left to right
+    /// Place all items along the top, from left to right.
     left_to_right,
 
     /// Place items along the top, but wrap if you reach
@@ -156,10 +173,10 @@ pub const LayoutDirection = enum {
     //right_to_left,
     //bottom_to_top,
 
-    /// Place all items centred in the middle of a panel
+    /// Place _all_ items in the centre of this panel.
     centre,
 
-    /// Place all items in the top left
+    /// Place _all_ items in the top left of the panel.
     top_left,
 };
 
@@ -269,13 +286,20 @@ pub const Colour = struct {
 
 pub const Background = struct {
     colour: Colour = TRANSPARENT,
-    image: ?*TextureInfo = null,
+
+    /// Load an `image` resource by indicating the name of the image
+    /// exactly as it appears in the resource bundle.
     image_name: ?[]const u8 = null,
 
-    // If the background texture has corners, the width of the corner in pixels.
+    /// The `image` variable is filled on initialisation, by searching for
+    /// the `image_name` inside the resource bundle, and loading the data into
+    /// this `image`.
+    image: ?*TextureInfo = null,
+
+    /// If the background texture has corners, the width of the corner in pixels.
     image_corner_radius: f32 = 0,
 
-    // If the background texture has corners, how many pixels wide should the corner be rendered on the display.
+    /// If the background texture has corners, how many pixels wide should the corner be rendered on the display.
     corner_radius: f32 = 0,
 };
 
@@ -316,23 +340,51 @@ pub const UpdateCallback = struct {
 /// Describe an element that will be rendered on the screen during a draw
 /// loop. See `ElementType` for the types of elements that may be rendered.
 pub const Element = struct {
+    /// The `name` is not intended to be shown to the user. This name can
+    /// be used by log and debug code to describe the element.
     name: []const u8 = "",
 
+    /// Usually the `visibie` value is `.hidden` or `.visible`. If the
+    /// element is inside a scroll panel, `.visible` elements may become
+    /// `.clipped` when they are _visible_ do not need to be drawn.
+    visible: Visibility = .visible,
+
+    /// The size and posiiton if this element. If this element is
+    /// inside the element heirachy, the position and size is automatically
+    /// updated when the window is updated or resized. The `layout` variable
+    /// determins if these values are automatically updated or remain fixed.
     rect: Rect = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
+
+    /// If this element is inside the element heirachy, this is a hard
+    /// limit on how small the `rect` may be.
+    minimum: Size = .{ .width = 0, .height = 0 },
+
+    /// If this element is inside the element heirachy, this is a hard
+    /// limit on how large the `rect` may be.
+    maximum: Size = .{ .width = 0, .height = 0 },
+
+    /// The `layout` settings determine if the `rect` is a fixed size
+    /// and position, or if the `rect` size and position is autoatically
+    /// updated inside the element heirachy.
+    layout: Layout = .{ .x = .fixed, .y = .fixed },
+
+    /// Panels contain child elements, and text elmeents contain words, and
+    /// sprites contain an image. the `child_align` setting indicates if the
+    /// child contents are drawn at the start, centre or end of this element.
+    child_align: ChildLayout = .{ .x = .start, .y = .start },
 
     /// Scroll panels use 'offset` to track how far it has scrolled.
     offset: Vector = .{ .x = 0, .y = 0 },
 
+    /// Padding is used to add space _inside_ the `rect` of this element.
     pad: Clip = .{ .top = 0, .left = 0, .right = 0, .bottom = 0 },
+
+    /// Sprites that don't move have zero velocity. Sprites with a velocity
+    /// move every frame according to the current velocity.
     velocity: Vector = .{ .x = 0, .y = 0 },
 
-    // Flip foreground and background images if they are set.
+    /// Flip foreground and background images if they are set.
     flip: Flip = .{ .x = false, .y = false },
-    visible: Visibility = .visible,
-    layout: Layout = .{ .x = .fixed, .y = .fixed },
-    child_align: ChildLayout = .{ .x = .start, .y = .start },
-    minimum: Size = .{ .width = 0, .height = 0 },
-    maximum: Size = .{ .width = 0, .height = 0 },
 
     pressed: bool = false,
     focussed: bool = false,
@@ -6005,7 +6057,7 @@ test "text input sizing" {
     panel.layout.y = .shrinks;
     label.layout.x = .grows;
     label.layout.y = .shrinks;
-    _ = try panel.add(allocator, display, label);
+    _ = try panel.add(allocator, display, label.*);
     label.pad.top = 0;
     label.pad.bottom = 0;
     display.relayout();
@@ -6037,7 +6089,7 @@ test "test_init" {
     });
 
     try eq(1, display.root.type.panel.children.items.len);
-    _ = try panel.add(allocator, .{
+    _ = try panel.add(allocator, display, .{
         .name = "menu_bg",
         .rect = .{ .x = 0, .y = 0, .width = 550, .height = 100 },
         .minimum = .{ .width = 300, .height = 130 },
