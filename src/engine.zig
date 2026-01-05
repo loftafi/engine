@@ -1674,7 +1674,7 @@ pub const Element = struct {
                         // different child alignment is chosen.
                         switch (element.child_align.y) {
                             .start => {}, // already at top
-                            .centre => dest.y += (element.rect.height - dest.height) / 2,
+                            .centre => dest.y += ((element.rect.height - dest.height) / 2) - element.pad.top,
                             .end => dest.y += (element.rect.height - dest.height),
                         }
                     } else {
@@ -1684,7 +1684,7 @@ pub const Element = struct {
                         // a different child alignment is chosen.
                         switch (element.child_align.x) {
                             .start => {}, // already at top
-                            .centre => dest.x += (element.rect.width - dest.width) / 2,
+                            .centre => dest.x += ((element.rect.width - dest.width) / 2) - element.pad.left,
                             .end => dest.x += (element.rect.width - dest.width),
                         }
                     }
