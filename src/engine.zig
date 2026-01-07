@@ -693,6 +693,7 @@ pub const Element = struct {
                 .faded => tint_texture(texture, display.theme.faded_panel_colour),
                 .background => tint_texture(texture, display.theme.background_colour),
                 .normal => tint_texture(texture, display.theme.label_background_colour),
+                .custom => tint_texture(texture, self.background.colour),
                 else => {
                     warn(
                         "unhandled panel tint option: {s}",
@@ -1075,7 +1076,7 @@ pub const Element = struct {
         display: *Display,
         conf: Element,
         location: usize,
-    ) error{OutOfMemory}!void {
+    ) (Error || Allocator.Error || Resources.Error)!*Element {
         std.debug.assert(self.type == .panel);
         std.debug.assert(location <= self.type.panel.children.items.len);
         const child = try allocator.create(Element);
@@ -2505,7 +2506,7 @@ pub const TextureInfo = struct {
             .texture = texture,
             .references = 0,
         };
-        debug("loaded texture: {s}", .{name});
+        trace("loaded texture: {s}", .{name});
         return texture_info;
     }
 
@@ -3348,7 +3349,7 @@ pub const Display = struct {
             }
 
             if (child_resized and element.on_resized.func != null) {
-                debug("element {s} resized. callback = {any}", .{ element.name, element.on_resized.func != null });
+                trace("element {s} resized. callback = {any}", .{ element.name, element.on_resized.func != null });
                 _ = element.on_resized.func.?(element.on_resized.ptr, self, element);
             }
 
@@ -3909,6 +3910,28 @@ pub const Display = struct {
         trace("free texture \"{s}\" (now)", .{ti.name});
         _ = self.textures.remove(ti.name);
         ti.destroy(allocator);
+    }
+
+    /// A texture resource may be referenced by multiple on screen
+    /// elements. This releases a texture, only when all references to
+    /// a texture no longer exist.
+    pub fn release_audio_resource(self: *Display, allocator: Allocator, ai: *AudioInfo) void {
+        if (ai.references == 0) {
+            err("Attempt to release resource with no references", .{});
+            return;
+        }
+        ai.references -= 1;
+        if (ai.references != 0) {
+            if (ai.references < 0) {
+                err("free audio \"{s}\" (duplicate free)", .{ai.name});
+            } else {
+                trace("free audio \"{s}\" (not yet {d})", .{ ai.name, ai.references });
+            }
+            return;
+        }
+        trace("free audio \"{s}\" (now)", .{ai.name});
+        _ = self.audio.remove(ai.name);
+        ai.destroy(allocator);
     }
 
     /// Load an image from the default resource bundle.
