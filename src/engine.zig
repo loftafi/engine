@@ -3402,20 +3402,6 @@ pub const Display = struct {
 
             child.rect.x = parent.rect.x + parent.pad.left + (parent_width / 2 - child.rect.width / 2);
             child.rect.y = parent.rect.y + parent.pad.top + (parent_height / 2 - child.rect.height / 2);
-            if (dev_build and dev_mode) {
-                err("in parent {s} ({d}x{d} {d}x{d}) centre {s} at={d}x{d} size={d}x{d}", .{
-                    parent.name,
-                    parent.rect.x,
-                    parent.rect.y,
-                    parent.rect.width,
-                    parent.rect.height,
-                    child.name,
-                    child.rect.x,
-                    child.rect.y,
-                    child.rect.width,
-                    child.rect.height,
-                });
-            }
         }
         //TODO: Im not sure scroller detection is needed here or not
 
