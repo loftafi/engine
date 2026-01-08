@@ -262,6 +262,7 @@ pub const ToggleState = enum {
     correct,
     incorrect,
     locked_off,
+    disabled,
 };
 
 /// Describe the type of each element in the elment tree.
@@ -482,11 +483,15 @@ pub const Element = struct {
             icon_hover_name: ?[]const u8 = null,
             icon_pressed: ?*TextureInfo = null,
             icon_pressed_name: ?[]const u8 = null,
+            icon_disabled: ?*TextureInfo = null,
+            icon_disabled_name: ?[]const u8 = null,
             background_default_name: ?[]const u8 = null,
             background_hover: ?*TextureInfo = null,
             background_hover_name: ?[]const u8 = null,
             background_pressed: ?*TextureInfo = null,
             background_pressed_name: ?[]const u8 = null,
+            background_disabled: ?*TextureInfo = null,
+            background_disabled_name: ?[]const u8 = null,
             on_click: Callback = .{ .func = null },
             toggle: ToggleState = .no_toggle,
         },
@@ -680,7 +685,7 @@ pub const Element = struct {
                 .on => tint_texture(texture, display.theme.toggle_button_picked),
                 .correct => tint_texture(texture, display.theme.toggle_button_correct),
                 .incorrect => tint_texture(texture, display.theme.toggle_button_incorrect),
-                .no_toggle => tint_texture(texture, engine.WHITE),
+                .no_toggle, .disabled => tint_texture(texture, engine.WHITE),
             }
             return;
         }
@@ -732,6 +737,8 @@ pub const Element = struct {
     /// for the current state.
     inline fn current_background(self: *Element) ?*sdl.SDL_Texture {
         if (self.type == .button) {
+            if (self.type.button.toggle == .disabled)
+                return self.type.button.background_disabled.?.texture;
             if (self.pressed and self.type.button.background_pressed != null)
                 return self.type.button.background_pressed.?.texture;
             if (self.hovered and self.type.button.background_hover != null)
@@ -2004,7 +2011,12 @@ pub const Element = struct {
                         debug("toggle {s} on", .{self.name});
                         self.type.button.toggle = .on;
                     },
-                    .no_toggle, .correct, .incorrect, .locked_off => {},
+                    .no_toggle,
+                    .correct,
+                    .incorrect,
+                    .locked_off,
+                    .disabled,
+                    => {},
                 }
                 if (self.type.button.on_click.func) |f| {
                     try f(self.type.button.on_click.ptr, display, self, gpa);
@@ -4305,7 +4317,7 @@ pub const Display = struct {
                 switch (element.type) {
                     .text_input, .checkbox => return element,
                     .button => {
-                        if (element.type.button.toggle == .no_toggle or element.type.button.toggle == .on or element.type.button.toggle == .off) {
+                        if (element.type.button.toggle == .no_toggle or element.type.button.toggle == .on or element.type.button.toggle == .off or element.type.button.toggle == .disabled) {
                             return element;
                         }
                     },
@@ -5515,8 +5527,10 @@ pub fn setup_button(
     element.background.image = null;
     element.type.button.icon_pressed = null;
     element.type.button.icon_hover = null;
+    element.type.button.icon_disabled = null;
     element.type.button.background_pressed = null;
     element.type.button.background_hover = null;
+    element.type.button.background_disabled = null;
     element.type.button.font = select_font(display.fonts.items, element.type.button.font_name);
 
     if (element.focus == .unspecified)
@@ -5551,7 +5565,7 @@ pub fn setup_button(
         if (try display.load_texture(allocator, icon_pressed)) |ip|
             element.type.button.icon_pressed = ip
         else
-            err("create_button failed to load icon_pressed resource {s}.", .{icon_pressed});
+            err("setup_button failed to load icon_pressed resource {s}.", .{icon_pressed});
 
         if (element.type.button.icon_pressed == null and element.texture != null)
             element.type.button.icon_pressed = element.texture.?.clone();
@@ -5561,24 +5575,34 @@ pub fn setup_button(
         if (try display.load_texture(allocator, icon_hover)) |ih|
             element.type.button.icon_hover = ih
         else
-            err("create_button failed to load icon_default resource {s}.", .{icon_hover});
+            err("setup_button failed to load icon_hover resource {s}.", .{icon_hover});
 
         if (element.type.button.icon_hover == null and element.texture != null)
             element.type.button.icon_hover = element.texture.?.clone();
+    }
+
+    if (element.type.button.icon_disabled_name) |icon_disabled| {
+        if (try display.load_texture(allocator, icon_disabled)) |ih|
+            element.type.button.icon_disabled = ih
+        else
+            err("setup_button failed to load icon_disabled resource {s}.", .{icon_disabled});
+
+        if (element.type.button.icon_disabled == null and element.texture != null)
+            element.type.button.icon_disabled = element.texture.?.clone();
     }
 
     if (element.type.button.background_default_name) |background_default| {
         if (try display.load_texture(allocator, background_default)) |texture|
             element.background.image = texture
         else
-            err("create_button failed to load background_default resource {s}.", .{background_default});
+            err("setup_button failed to load background_default resource {s}.", .{background_default});
     }
 
     if (element.type.button.background_pressed_name) |background_pressed| {
         if (try display.load_texture(allocator, background_pressed)) |bp|
             element.type.button.background_pressed = bp
         else
-            err("create_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
+            err("setup_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
 
         if (element.type.button.background_pressed == null and element.background.image != null)
             element.type.button.background_pressed = element.background.image.?.clone();
@@ -5588,10 +5612,20 @@ pub fn setup_button(
         if (try display.load_texture(allocator, background_hover)) |bh|
             element.type.button.background_hover = bh
         else
-            err("create_button background_hover resource `{s}` not loaded.", .{background_hover});
+            err("setup_button background_hover resource `{s}` not loaded.", .{background_hover});
 
         if (element.type.button.background_hover == null and element.background.image != null)
             element.type.button.background_hover = element.background.image.?.clone();
+    }
+
+    if (element.type.button.background_disabled_name) |background_disabled| {
+        if (try display.load_texture(allocator, background_disabled)) |bh|
+            element.type.button.background_disabled = bh
+        else
+            err("setup_button background_disabled resource `{s}` not loaded.", .{background_disabled});
+
+        if (element.type.button.background_disabled == null and element.background.image != null)
+            element.type.button.background_disabled = element.background.image.?.clone();
     }
 }
 
