@@ -2503,29 +2503,27 @@ const TextElement = struct {
 /// counter keeps track of how many elements are currently depending on
 /// this texture.
 pub const TextureInfo = struct {
-    name: []const u8,
+    uid: u64,
     texture: *sdl.SDL_Texture,
     references: i32,
 
     pub fn create(
         allocator: Allocator,
-        name: []const u8,
+        uid: u64,
         texture: *sdl.SDL_Texture,
     ) !*TextureInfo {
         const texture_info = try allocator.create(TextureInfo);
         texture_info.* = .{
-            .name = if (name.len > 0) try allocator.dupe(u8, name) else "",
+            .uid = uid,
             .texture = texture,
             .references = 0,
         };
-        trace("loaded texture: {s}", .{name});
+        trace("loaded texture: {d}", .{uid});
         return texture_info;
     }
 
     pub fn destroy(self: *TextureInfo, allocator: Allocator) void {
         sdl.SDL_DestroyTexture(self.texture);
-        if (self.name.len > 0)
-            allocator.free(self.name);
         allocator.destroy(self);
     }
 
@@ -2675,7 +2673,7 @@ pub const Display = struct {
     current_language: Lang = .unknown,
 
     /// Cache of currently loaded textures.
-    textures: std.StringHashMapUnmanaged(*TextureInfo),
+    textures: std.AutoHashMapUnmanaged(u64, *TextureInfo),
 
     /// Cache of currently loaded audio files.
     audio: std.StringHashMapUnmanaged(*AudioInfo),
@@ -2988,7 +2986,7 @@ pub const Display = struct {
         var i = self.textures.iterator();
         while (i.next()) |x| {
             if (x.value_ptr.*.references > 0) {
-                warn("texture was not deallocated. {s} has {d} references", .{
+                warn("texture was not deallocated. {d} has {d} references", .{
                     x.key_ptr.*,
                     x.value_ptr.*.references,
                 });
@@ -3899,14 +3897,14 @@ pub const Display = struct {
         ti.references -= 1;
         if (ti.references != 0) {
             if (ti.references < 0) {
-                err("free texture \"{s}\" (duplicate free)", .{ti.name});
+                err("free texture \"{d}\" (duplicate free)", .{ti.uid});
             } else {
-                trace("free texture \"{s}\" (not yet {d})", .{ ti.name, ti.references });
+                trace("free texture \"{d}\" (not yet {d})", .{ ti.uid, ti.references });
             }
             return;
         }
-        trace("free texture \"{s}\" (now)", .{ti.name});
-        _ = self.textures.remove(ti.name);
+        trace("free texture \"{d}\" (now)", .{ti.uid});
+        _ = self.textures.remove(ti.uid);
         ti.destroy(allocator);
     }
 
@@ -3950,14 +3948,15 @@ pub const Display = struct {
     ) (Error || Allocator.Error || Resources.Error)!?*TextureInfo {
         if (name.len == 0) return null;
 
-        if (self.textures.get(name)) |texture| {
-            texture.references += 1;
-            return texture;
-        }
-
         var start = std.time.milliTimestamp();
         const resource = try bundle.lookupOne(name, .image, gpa);
         if (resource == null) return null;
+
+        if (self.textures.get(resource.?.uid)) |texture| {
+            debug("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
+            texture.references += 1;
+            return texture;
+        }
 
         var end = std.time.milliTimestamp();
         debug("search image named \"{s}\" in {d}ms", .{ name, end - start });
@@ -3974,9 +3973,9 @@ pub const Display = struct {
         end = std.time.milliTimestamp();
         debug("sdl create texture in {d}ms", .{end - start});
 
-        const ti = try TextureInfo.create(gpa, name, texture);
+        const ti = try TextureInfo.create(gpa, resource.?.uid, texture);
         ti.references += 1;
-        try self.textures.put(gpa, ti.name, ti);
+        try self.textures.put(gpa, ti.uid, ti);
         return ti;
     }
 
