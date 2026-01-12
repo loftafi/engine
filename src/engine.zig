@@ -1057,6 +1057,7 @@ pub const Element = struct {
                 warn("set_text({s}) invalid for {s}", .{ @tagName(self.type), new_text });
             },
         }
+        if (self.visible != .hidden) display.need_relayout = true;
     }
 
     /// `add` a child element to this panel and return the element. Only
@@ -1072,6 +1073,8 @@ pub const Element = struct {
         child.* = conf;
         try display.setup_element(allocator, child);
         try self.type.panel.children.append(allocator, child);
+        if (child.visible != .hidden and self.visible != .hidden)
+            display.need_relayout = true;
         return child;
     }
 
@@ -1090,6 +1093,8 @@ pub const Element = struct {
         child.* = conf;
         try display.setup_element(allocator, child);
         try self.type.panel.children.insert(allocator, location, child);
+        if (child.visible != .hidden and self.visible != .hidden)
+            display.need_relayout = true;
         return child;
     }
 
@@ -1104,10 +1109,11 @@ pub const Element = struct {
 
     /// Use `remove_element_at` to attach a child element in a specific location
     /// in this panel. Only permitted for the `panel` element type.
-    pub inline fn remove_element_at(self: *Element, location: usize) *Element {
+    pub inline fn remove_element_at(self: *Element, display: *Display, location: usize) *Element {
         std.debug.assert(self.type == .panel);
         std.debug.assert(location < self.type.panel.children.items.len);
         const item = self.type.panel.children.orderedRemove(location);
+        if (item.visible != .hidden) display.need_relayout = true;
         return item;
     }
 
@@ -1124,6 +1130,7 @@ pub const Element = struct {
             if (self.type.panel.children.items[i] == child) {
                 const item = self.type.panel.children.orderedRemove(i);
                 debug("removed panel {s}", .{item.name});
+                if (item.visible != .hidden) display.need_relayout = true;
                 return item;
             }
         }
