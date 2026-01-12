@@ -3415,7 +3415,10 @@ pub const Display = struct {
         for (parent.type.panel.children.items) |child| {
             if (child.layout.position == .float) continue;
             if (child.visible == .hidden) continue;
-            if (child.type == .expander) continue;
+            if (child.type == .expander) {
+                warn("expander panel '{s}' ignored due to centre layout.", .{parent.name});
+                continue;
+            }
 
             child.rect.x = parent.rect.x + parent.pad.left + (parent_width / 2 - child.rect.width / 2);
             child.rect.y = parent.rect.y + parent.pad.top + (parent_height / 2 - child.rect.height / 2);
@@ -3431,7 +3434,10 @@ pub const Display = struct {
         for (parent.type.panel.children.items) |child| {
             if (child.layout.position == .float) continue;
             if (child.visible == .hidden) continue;
-            if (child.type == .expander) continue;
+            if (child.type == .expander) {
+                warn("expander panel '{s}' ignored due to centre layout.", .{parent.name});
+                continue;
+            }
             child.rect.x = parent.rect.x + parent.pad.left;
             child.rect.y = parent.rect.y + parent.pad.top;
         }
@@ -3451,20 +3457,20 @@ pub const Display = struct {
         };
         var i: usize = 0;
         for (parent.type.panel.children.items) |child| {
-            if (child.visible == .hidden) {
-                // Layout the clipped and visible items,
-                // but not the hidden items.
-                continue;
-            }
-            if (child.layout.position == .float) {
-                continue;
-            }
-            if (i > 0) {
+            // Layout the clipped and visible items, but not the hidden items.
+            if (child.visible == .hidden) continue;
+            if (child.layout.position == .float) continue;
+
+            // Only apply spacing in-between items
+            if (i > 0)
                 current.y += parent.type.panel.spacing;
-            }
+
             child.rect.x = current.x;
             child.rect.y = current.y;
-            current.y += child.rect.height;
+
+            if (child.type != .expander)
+                current.y += child.rect.height;
+
             i += 1;
             if (child.layout.x == .grows) {
                 child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
@@ -3483,14 +3489,15 @@ pub const Display = struct {
         // do start/centre/end alignment.
         if (expanders.len > 0) {
             // Relayout the children with expanders
-            //trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
-            //    parent.name,
-            //    expanders.len,
-            //    needed_height,
-            //    parent.rect.height,
-            //});
+            trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
+                parent.name,
+                expanders.len,
+                needed_height,
+                parent.rect.height,
+            });
 
             if (parent.rect.height > needed_height) {
+                // Give each expander a percentage of the spare height area
                 const spare_height = parent.rect.height - needed_height;
                 for (expanders) |expander| {
                     if (expander.type.expander.weight <= 0) {
@@ -3498,23 +3505,26 @@ pub const Display = struct {
                     }
                     const percent = expander.type.expander.weight / expander_weights;
                     expander.rect.height = @trunc(spare_height * percent);
-                    //trace("   expander: weight {d} given: {d}", .{
-                    //    percent,
-                    //    expander.rect.height,
-                    //});
+                    trace("   expander: weight {d} given: {d}", .{
+                        percent,
+                        expander.rect.height,
+                    });
                 }
+                // Re-update each child panels y position based on the
+                // update to each expanders size.
                 var new_y: f32 = parent.rect.y + parent.pad.top;
                 for (parent.type.panel.children.items) |child| {
                     // Relayout top to bottom using expander sizes
-                    if (child.visible == .hidden) {
-                        // Layout the clipped and visible items,
-                        // but not the hidden items.
-                        continue;
-                    }
-                    if (child.layout.position != .float) {
-                        child.rect.y = new_y;
-                        new_y += child.rect.height + parent.type.panel.spacing;
-                    }
+                    if (child.visible == .hidden) continue;
+                    if (child.layout.position == .float) continue;
+                    child.rect.y = new_y;
+                    new_y += child.rect.height + parent.type.panel.spacing;
+                    trace("expanding. {t} {s} y={d} height={d}", .{
+                        child.type,
+                        child.name,
+                        child.rect.y,
+                        child.rect.height,
+                    });
                 }
             }
         } else {
@@ -3569,8 +3579,8 @@ pub const Display = struct {
     inline fn place_children_left_to_right(
         _: *Display,
         parent: *Element,
-        _: []*Element,
-        _: f32,
+        expanders: []*Element,
+        expanders_weight: f32,
     ) void {
         var current: Vector = .{
             .x = parent.rect.x + parent.pad.left,
@@ -3578,21 +3588,20 @@ pub const Display = struct {
         };
         var i: usize = 0;
         for (parent.type.panel.children.items) |child| {
-            if (child.visible == .hidden) {
-                // Layout the clipped and visible items,
-                // but not the hidden items.
-                continue;
-            }
-            if (child.layout.position == .float) {
-                continue;
-            }
-            if (i > 0) {
-                // Spacing before all items except the first
+            // Layout the clipped and visible items, but not the hidden items.
+            if (child.visible == .hidden) continue;
+            if (child.layout.position == .float) continue;
+
+            // Only apply spacing in-between items
+            if (i > 0)
                 current.x += parent.type.panel.spacing;
-            }
+
             child.rect.x = current.x;
             child.rect.y = current.y;
-            current.x += child.rect.width;
+
+            if (child.type != .expander)
+                current.x += child.rect.width;
+
             i += 1;
             if (child.layout.y == .grows) {
                 child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
@@ -3606,6 +3615,12 @@ pub const Display = struct {
         parent.type.panel.scrollable.size.width = @max(needed_width, parent.rect.width);
 
         //info(" left to right layout {s} {s} - need {d} overflow {d}", .{ parent.name, @tagName(parent.type), needed_width, overflow_width });
+
+        if (expanders.len > 0 or expanders_weight > 0) {
+            // TODO: Apply expanders. Left_to_right doesnt currently support
+            // expanders. Transfer top_to_bottom expander code here
+            warn("panel {s} left to right doesnt support expanders", .{parent.name});
+        }
 
         // If there is remaining space at end of children, maybe we
         // need to centre or right align.
