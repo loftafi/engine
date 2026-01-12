@@ -410,6 +410,7 @@ pub const Element = struct {
     border_width: f32 = 0,
 
     on_resized: BoolCallback = .{ .func = null },
+    on_visibility: Callback = .{ .func = null },
 
     type: union(ElementType) {
         panel: struct {
@@ -794,10 +795,13 @@ pub const Element = struct {
         }
     }
 
-    pub inline fn set_visibility(self: *Element, display: *Display, visible: Visibility) void {
+    pub inline fn set_visibility(self: *Element, display: *Display, visible: Visibility) Allocator.Error!void {
         if (self.visible == visible) return;
         self.visible = visible;
         display.need_relayout = true;
+        if (self.on_visibility.func != null) {
+            try self.on_visibility.func.?(self.on_visibility.ptr, display, self, display.allocator);
+        }
     }
 
     /// set_texture replaces the current texture of an element with a new
@@ -2754,6 +2758,7 @@ pub const Display = struct {
         .border_width = 0,
         .type = .{ .panel = .{ .direction = .centre, .spacing = 0 } },
         .on_resized = .{ .func = null },
+        .on_visibility = .{ .func = null },
     },
     animators: ArrayListUnmanaged(*Animator) = .empty,
 
@@ -2967,6 +2972,7 @@ pub const Display = struct {
             .border_width = 0,
             .type = .{ .panel = .{ .direction = .centre, .spacing = 0 } },
             .on_resized = .{ .func = null },
+            .on_visibility = .{ .func = null },
         };
         display.root.rect.width = @as(f32, @floatFromInt(window_width)) * display.pixel_density;
         display.root.rect.height = @as(f32, @floatFromInt(window_height)) * display.pixel_density;
@@ -3094,7 +3100,7 @@ pub const Display = struct {
     /// Mark a top level panel as visible, and all other
     /// top level panels as not visible. The visibility of the
     /// _background_ and _menu_ panel is not altered.
-    pub fn choose_panel(self: *Display, gpa: Allocator, name: []const u8) void {
+    pub fn choose_panel(self: *Display, gpa: Allocator, name: []const u8) Allocator.Error!void {
         const old_panel = self.current_panel();
 
         var found = false;
@@ -3111,7 +3117,7 @@ pub const Display = struct {
                     } else {
                         debug("choose panel. ... -> {s}", .{name});
                     }
-                    element.visible = .visible;
+                    try element.set_visibility(self, .visible);
                     if (element.on_resized.func != null) {
                         self.need_relayout = true;
                         _ = element.on_resized.func.?(element.on_resized.ptr, self, element);
@@ -3125,7 +3131,7 @@ pub const Display = struct {
             } else {
                 if (element.visible != .hidden) {
                     debug("choose_panel({s}) hiding panel {s}.", .{ name, element.name });
-                    element.visible = .hidden;
+                    try element.set_visibility(self, .hidden);
                 }
             }
             found = true;
