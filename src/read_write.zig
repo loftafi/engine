@@ -123,10 +123,11 @@ fn folder_has_file(base_folder: []const u8, expected_file: []const u8) error{ Ou
     buffer.appendSlice(expected_file) catch return error.ResourceReadError;
     buffer.append(0) catch return error.ResourceReadError;
     if (sdl.SDL_GetPathInfo(buffer.slice().ptr, &path_info)) {
+        trace("folder_has_file() check file {s} exists return=true", .{buffer.slice()});
         return true;
     }
     // Either the file doesn't exist or an error occurred
-    debug("File not found {s}", .{buffer.slice()});
+    trace("folder_has_file() check file {s} exists return=false", .{buffer.slice()});
     return false;
 }
 /// Try and load using SDL first, otherwise, use the normal resource loader.
@@ -360,7 +361,7 @@ pub fn load_preference_data(
         warn("Read preferences file failed. {s} {any}", .{ path, e });
         return error.ResourceReadError;
     };
-    debug("read filename={s} bytes={d}", .{ filename, data.len });
+    trace("read filename={s} returned bytes={d}", .{ filename, data.len });
     return data;
 }
 
@@ -408,7 +409,7 @@ pub fn save_preference_data(
         }
         return error.ResourceWriteError;
     };
-    debug("Saved preferences data to {s}", .{temp_filename});
+    info("Saved preferences data. Moved contents from={s} to={s}", .{ temp_filename, filename });
 }
 
 /// Remove a preference data file from the standard system preference
@@ -511,3 +512,4 @@ const err = engine.err;
 const warn = engine.warn;
 const info = engine.info;
 const debug = engine.debug;
+const trace = engine.debug;

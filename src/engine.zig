@@ -2065,21 +2065,19 @@ pub const Element = struct {
 
     /// Handle when a user clicks into or tabs into this element.
     pub fn selected(self: *Element, display: *Display, _: Allocator) void {
-        if (self.focus == .never_focus or self.focus == .unspecified) {
-            return;
-        }
-        if (display.selected != null and self != display.selected) {
+        if (self.focus == .never_focus or self.focus == .unspecified) return;
+
+        if (display.selected != null and self != display.selected)
             display.selected.?.deselected(display);
-        }
+
         display.selected = self;
 
         const content = self.describe_content();
-        debug("selected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
+        trace("selected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
 
         // Enter editing mode if we just selected a text element
-        if (self.type == .text_input) {
+        if (self.type == .text_input)
             _ = sdl.SDL_StartTextInput(display.window);
-        }
     }
 
     /// Describe content for a screen reader
@@ -2766,17 +2764,18 @@ pub const Display = struct {
 
         const current_driver = sdl.SDL_GetRendererName(renderer).?;
         const count = sdl.SDL_GetNumRenderDrivers();
+        var renderer_info: ArrayListUnmanaged(u8) = .empty;
+        defer renderer_info.deinit(gpa);
         var i: c_int = 0;
         while (i < count) : (i += 1) {
             const driver = sdl.SDL_GetRenderDriver(i).?;
-            if (std.mem.orderZ(u8, current_driver, driver) == .eq) {
-                info("Renderer: {s} (selected)", .{std.mem.span(driver)});
-            } else {
-                info("Renderers: {s}", .{std.mem.span(driver)});
-            }
+            try renderer_info.print(gpa, " {s}", .{std.mem.span(driver)});
+            if (std.mem.orderZ(u8, current_driver, driver) == .eq)
+                try renderer_info.appendSlice(gpa, " (selected)");
         }
+        info("Renderer:{s}", .{renderer_info.items});
 
-        debug("Checking for desktop icon", .{});
+        trace("Checking for desktop icon", .{});
         if (try display.resources.lookupOne("desktop icon", .image, gpa)) |resource| {
             var surface: SurfaceInfo = undefined;
             try display.make_surface_from_resource(display.resources, resource, gpa, &surface);
@@ -2784,7 +2783,7 @@ pub const Display = struct {
             if (!sdl.SDL_SetWindowIcon(window, surface.surface)) {
                 err("Failed to set set desktop icon", .{});
             } else {
-                debug("Set desktop icon", .{});
+                trace("Successfully set desktop icon", .{});
             }
         } else {
             err("No 'desktop icon' in resource bundle.", .{});
@@ -2995,9 +2994,9 @@ pub const Display = struct {
             if (std.mem.eql(u8, name, element.name)) {
                 if (element.visible != .visible) {
                     if (old_panel) |old| {
-                        debug("choose panel. {s} -> {s}", .{ old.name, name });
+                        info("choose panel. {s} -> {s}", .{ old.name, name });
                     } else {
-                        debug("choose panel. ... -> {s}", .{name});
+                        info("choose panel. ___ -> {s}", .{name});
                     }
                     try element.set_visibility(self, .visible);
                     if (element.on_resized.func != null) {
@@ -3011,6 +3010,7 @@ pub const Display = struct {
                     }
                 }
             } else {
+                // Other panels not matching `name` are hidden.
                 if (element.visible != .hidden) {
                     debug("choose_panel({s}) hiding panel {s}.", .{ name, element.name });
                     try element.set_visibility(self, .hidden);
@@ -3022,8 +3022,8 @@ pub const Display = struct {
             selected.deselected(self);
         }
         self.update_screen_metrics(true);
-        if (!found) {
-            warn("choose_panel({s}) did not find panel.", .{name});
+        if (!found and name.len > 0) {
+            warn("choose_panel() did not find panel. name={s}", .{name});
         }
     }
 
@@ -3031,20 +3031,12 @@ pub const Display = struct {
     /// the background or menu panel.
     pub fn current_panel(self: *Display) ?*Element {
         for (self.root.type.panel.children.items) |element| {
-            if (element.type != .panel) {
-                continue;
-            }
-            if (std.mem.eql(u8, "background", element.name)) {
-                continue;
-            }
-            if (std.mem.eql(u8, "menu", element.name)) {
-                continue;
-            }
-            if (element.visible == .visible) {
-                return element;
-            }
+            if (element.type != .panel) continue;
+            if (std.mem.eql(u8, "background", element.name)) continue;
+            if (std.mem.eql(u8, "menu", element.name)) continue;
+            if (element.visible == .visible) return element;
         }
-        warn("current_panel() did not find panel.", .{});
+        trace("current_panel() did not find panel.", .{});
         return null;
     }
 
