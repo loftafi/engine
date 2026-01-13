@@ -51,7 +51,7 @@ pub fn init_resource_loader(
         // Fallback to loading resources from the development resources
         // folder if it is available.
         if (dev_repo.len > 0) {
-            debug("Fallback to loading repo from folder: {s}", .{dev_repo});
+            warn("Fallback to loading repo from folder: {s}", .{dev_repo});
             loaded = resources.load_directory(dev_repo, dev_repo_filter) catch |e| {
                 err("error loading repo from {s}. {any}", .{ dev_repo, e });
                 return e;
@@ -342,10 +342,10 @@ pub fn load_preference_data(
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
     const zpath = std.mem.sliceTo(path, 0);
     var folder = std.fs.openDirAbsolute(zpath, .{}) catch |e| {
-        warn("Open preferences path failed. {s} {any}", .{ path, e });
+        warn("Open preferences path failed. path={s} error={any}", .{ path, e });
         return null;
     };
-    debug("Preferences path: {s} for {s}", .{ zpath, filename });
+    info("Preferences path: {s} for {s}", .{ zpath, filename });
     var file = folder.openFile(filename, .{}) catch |e| {
         if (e == error.FileNotFound) {
             info("Preferences file not yet created.", .{});
@@ -355,12 +355,12 @@ pub fn load_preference_data(
         return error.ResourceReadError;
     };
     defer file.close();
-    debug("start reading {s}", .{filename});
+    debug("start reading filename={s}", .{filename});
     const data = file.readToEndAlloc(gpa, max_file_size) catch |e| {
         warn("Read preferences file failed. {s} {any}", .{ path, e });
         return error.ResourceReadError;
     };
-    debug("read {s} size = {d}", .{ filename, data.len });
+    debug("read filename={s} bytes={d}", .{ filename, data.len });
     return data;
 }
 

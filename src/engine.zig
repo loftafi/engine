@@ -2103,7 +2103,7 @@ pub const Element = struct {
     /// Handle when a user clicks or tabs out of this element.
     pub fn deselected(self: *Element, display: *Display) void {
         const content = self.describe_content();
-        debug("deselected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
+        trace("deselected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
 
         if (self.type == .text_input) {
             _ = sdl.SDL_StopTextInput(display.window);
@@ -3981,7 +3981,7 @@ pub const Display = struct {
         if (resource == null) return null;
 
         if (self.textures.get(resource.?.uid)) |texture| {
-            debug("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
+            trace("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
             texture.references += 1;
             return texture;
         }
@@ -5850,47 +5850,127 @@ pub const SdlLogCategory = enum(c_int) {
     }
 };
 
+/// A `trace` message can be used liberally and should only be used for
+/// log messages in programs that are under active development. Is never
+/// included in a production ready build of an application.
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
-    if (dev_build and dev_mode) {
-        log_output("trace", .engine, format, args);
-    }
+    if (dev_build)
+        if (dev_mode)
+            log_output(.trace, .engine, format, args);
 }
 
+/// A `debug` message should only be used when it is generally useful for
+/// helping track down abnormal program behaviour. A debug message is usually
+/// interesting even in a production ready build of an application.
+///
+/// Examples of this would include: reporting when a user changes their font
+/// size or screen resolution to allow support staff to understand what
+/// actions might have lead to an unexpected program state.
 pub inline fn debug(comptime format: []const u8, args: anytype) void {
     if (dev_build or dev_mode) {
-        log_output_handler(std.log.Level.debug, .engine, format, args);
+        log_output_handler(.debug, .engine, format, args);
     }
 }
 
+/// Log general information that might be useful for collection or human
+/// review at some point in the future.
+///
+/// Examples of this might include reporting creation of a new user account.
 pub inline fn info(comptime format: []const u8, args: anytype) void {
-    log_output_handler(std.log.Level.info, .engine, format, args);
+    log_output_handler(.info, .engine, format, args);
 }
 
+/// A `notice` info log message is like a regular `info` log message but
+/// it may be particularly important and might need to be brought to the
+/// attention of a human at a higher priority than a regular `info` message.
+///
+/// Examples of this might be reporting the normal activity of creation
+/// of a new user account, but with an IP address of a country that is not
+/// expected to be accessing the application.
+pub inline fn notice(comptime format: []const u8, args: anytype) void {
+    log_output_handler(.notice, .engine, format, args);
+}
+
+/// A `warn` indicates something unexpected or unusual that might not
+/// be an error.
 pub inline fn warn(comptime format: []const u8, args: anytype) void {
-    log_output_handler(std.log.Level.warn, .engine, format, args);
+    log_output_handler(.warn, .engine, format, args);
 }
 
+/// An `err` indicates abnormal behaviour that requires attention at
+/// some point in the future, but might not be urgent. An error would _not_
+/// typically be linked to an SMS or pager system for developer review. Use
+/// this when you do _not_ need support staff to be immediately notified.
+///
+/// Examples of this might include: an app that cant find an image resource
+/// to display but will continue to function correctly;
 pub inline fn err(comptime format: []const u8, args: anytype) void {
-    log_output_handler(std.log.Level.err, .engine, format, args);
+    log_output_handler(.err, .engine, format, args);
 }
 
+/// An `alert` is an error that may require immediate or high priority
+/// human attention. An alert would typically be linked to an SMS or
+/// pager system. Only use this if support staff should be woken up in the
+/// middle of the night to resolve this.
+///
+/// Examples of this might include: a web server unable to contact the
+/// database; or actvity that is indicative of a security intrusion.
+pub inline fn alert(comptime format: []const u8, args: anytype) void {
+    log_output_handler(.alert, .engine, format, args);
+}
+
+/// A log level enum that adds `trace`, `notice`, and `alert`
+///
+/// Zig log levels allow `err` but dont allow flagging an error `alert`
+/// that requires immediate action/intervention.
+/// Zig also does not distinguish between a general info log message and an
+/// info `notice` that might require immediate action.
+pub const LogLevel = enum {
+    trace,
+    debug,
+    info,
+    notice,
+    warn,
+    err,
+    alert,
+};
+
+/// Write a log message to stderr in debug mode or to SDL in release mode
 pub fn log_output(
-    comptime level: []const u8,
+    comptime level: LogLevel,
     comptime scope: @Type(.enum_literal),
     comptime format: []const u8,
     args: anytype,
 ) void {
     var buffer: [1024 * 5]u8 = undefined;
-    const prefix = "[" ++ comptime level ++ "] ";
+    var stderr_writer = std.fs.File.stderr().writer(&buffer);
+    const stderr = &stderr_writer.interface;
+
     if (builtin.mode == .Debug) {
+        const prefix = switch (level) {
+            .trace => "\x1B[90m[\x1B[1mtrace\x1B[22m] ",
+            .debug => "\x1B[34m[\x1B[1mdebug\x1B[22m] ",
+            .info => "\x1B[36m[\x1B[1minfo\x1B[22m] ",
+            .notice => "\x1B[91m[\x1B[1minfo\x1B[22m] ",
+            .warn => "\x1B[33m[\x1B[1mwarn\x1B[22m] ",
+            .err => "\x1B[31m[\x1B[1merror\x1B[22m] ",
+            .alert => "\x1B[31m[\x1B[1malert\x1B[22m] ",
+        };
         // Log to terminal in debug mode
         std.debug.lockStdErr();
         defer std.debug.unlockStdErr();
-        var stderr_writer = std.fs.File.stderr().writer(&buffer);
-        const stderr = &stderr_writer.interface;
-        nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
+        nosuspend stderr.print(prefix ++ format ++ "\x1B[0m\n", args) catch return;
         stderr.flush() catch {};
     } else {
+        const prefix = switch (level) {
+            .trace => "[trace] ",
+            .debug => "[debug] ",
+            .info => "[info] ",
+            .notice => "[info] ",
+            .warn => "[warn] ",
+            .err => "[error] ",
+            .alert => "[alert] ",
+        };
         // Log using SDL when in release mode
         if (scope != .term_scope) {
             if (std.fmt.bufPrintZ(&buffer, prefix ++ format, args)) |f| {
@@ -5902,19 +5982,27 @@ pub fn log_output(
     }
 }
 
+/// Tell zig to pass log messages to a custom `log_output_handler`
+pub const std_options: std.Options = .{
+    .log_level = .debug,
+    .logFn = log_output_handler,
+};
+
+/// Zig log output handler captures zig log calls
 pub fn log_output_handler(
     comptime level: std.log.Level,
     comptime scope: @Type(.enum_literal),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    log_output(level.asText(), scope, format, args);
+    // Map the limit zig log options to proper log levels.
+    switch (level) {
+        .debug => log_output(.debug, scope, format, args),
+        .info => log_output(.info, scope, format, args),
+        .warn => log_output(.warn, scope, format, args),
+        .err => log_output(.err, scope, format, args),
+    }
 }
-
-pub const std_options: std.Options = .{
-    .log_level = .debug,
-    .logFn = log_output_handler,
-};
 
 test "sdl_log_priority" {
     try std.testing.expectEqual(.info, SdlLogPriority.fromInt(sdl.SDL_LOG_PRIORITY_INFO));
