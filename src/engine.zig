@@ -2661,6 +2661,7 @@ pub const Display = struct {
     allocator: Allocator,
     quit: bool = false,
     need_relayout: bool = true,
+    old_safe_area: sdl.SDL_Rect = undefined,
     accessibility: bool = false,
     last_draw: i64 = 0,
     last_delta: i64 = 0,
@@ -2979,7 +2980,7 @@ pub const Display = struct {
         display.root.texture = null;
         display.root.type.panel.children = .empty;
 
-        try display.update_screen_metrics(true);
+        display.update_screen_metrics(true);
 
         return display;
     }
@@ -3104,7 +3105,7 @@ pub const Display = struct {
         const old_panel = self.current_panel();
 
         var found = false;
-        try self.update_screen_metrics(false);
+        self.update_screen_metrics(false);
         for (self.root.type.panel.children.items) |element| {
             if (element.type != .panel) continue;
             if (std.mem.eql(u8, "background", element.name)) continue;
@@ -3139,7 +3140,7 @@ pub const Display = struct {
         if (self.selected) |selected| {
             selected.deselected(self);
         }
-        try self.update_screen_metrics(true);
+        self.update_screen_metrics(true);
         if (!found) {
             warn("choose_panel({s}) did not find panel.", .{name});
         }
@@ -3987,19 +3988,19 @@ pub const Display = struct {
         }
 
         var end = std.time.milliTimestamp();
-        debug("search image named \"{s}\" in {d}ms", .{ name, end - start });
+        trace("search image named \"{s}\" in {d}ms", .{ name, end - start });
         start = end;
 
         var si: SurfaceInfo = undefined;
         try self.make_surface_from_resource(bundle, resource.?, gpa, &si);
         defer si.deinit(gpa);
         end = std.time.milliTimestamp();
-        debug("made surface named \"{s}\" in {d}ms", .{ name, end - start });
+        trace("made surface named \"{s}\" in {d}ms", .{ name, end - start });
 
         start = std.time.milliTimestamp();
         const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, si.surface);
         end = std.time.milliTimestamp();
-        debug("sdl create texture in {d}ms", .{end - start});
+        trace("sdl create texture in {d}ms", .{end - start});
 
         const ti = try TextureInfo.create(gpa, resource.?.uid, texture);
         ti.references += 1;
@@ -4556,7 +4557,7 @@ pub const Display = struct {
 
     /// Refresh the window size information, then refresh the
     /// safe area information.
-    pub inline fn update_screen_metrics(display: *Display, forced: bool) !void {
+    pub inline fn update_screen_metrics(display: *Display, forced: bool) void {
         var updated = false;
 
         var rwidth: c_int = 0;
@@ -4566,6 +4567,9 @@ pub const Display = struct {
             updated = true;
         if (display.root.rect.height != @as(f32, @floatFromInt(rheight)))
             updated = true;
+
+        if (!updated) return;
+
         if (updated or dev_build or dev_mode) {
             debug("current display size {d}x{d} -=> new display size {d}x{d}", .{
                 display.root.rect.width,
@@ -4607,60 +4611,79 @@ pub const Display = struct {
     /// Handle events that impact the usable area of the screen.
     fn recalculate_safe_area(self: *Display) bool {
         var area: sdl.SDL_Rect = undefined;
-        var updated = false;
-        if (sdl.SDL_GetRenderSafeArea(self.renderer, &area)) {
+        if (!sdl.SDL_GetRenderSafeArea(self.renderer, &area)) {
+            err("SDL_GetRenderSafeArea() failed", .{});
+            return false;
+        }
+
+        if (self.old_safe_area.x != area.x or
+            self.old_safe_area.y != area.y or
+            self.old_safe_area.w != area.w or
+            self.old_safe_area.h != area.h)
+        {
+            // Log when change is detected
             info("System reported safe area: {d}x{d} {d}x{d}", .{
                 area.x,
                 area.y,
                 area.w,
                 area.h,
             });
+            self.old_safe_area = area;
+        }
 
-            // SDL_GetRenderSafeArea returns physical display pixels, not
-            // window pretend pixels.
-            const left_pad = @as(f32, @floatFromInt(area.x));
-            const right_pad = self.root.rect.width - left_pad - @as(f32, @floatFromInt(area.w));
-            var top_pad = @as(f32, @floatFromInt(area.y));
-            var bottom_pad = self.root.rect.height - top_pad - @as(f32, @floatFromInt(area.h));
+        // SDL_GetRenderSafeArea returns physical display pixels, not
+        // window pretend pixels.
+        const left_pad = @as(f32, @floatFromInt(area.x));
+        const right_pad = self.root.rect.width - left_pad - @as(f32, @floatFromInt(area.w));
+        var top_pad = @as(f32, @floatFromInt(area.y));
+        var bottom_pad = self.root.rect.height - top_pad - @as(f32, @floatFromInt(area.h));
 
-            if (builtin.abi.isAndroid()) {
-                if (top_pad > 0 and bottom_pad > 0) {
-                    if (top_pad > bottom_pad) {
-                        info("Android safe area hack {d},{d} -=> {d},{d}", .{
-                            top_pad, bottom_pad,
-                            0,       bottom_pad,
-                        });
-                        top_pad = 0;
-                    } else {
-                        info("Android safe area hack {d},{d} -=> {d},{d}", .{
-                            top_pad, bottom_pad,
-                            top_pad, 0,
-                        });
-                        bottom_pad = 0;
-                    }
+        if (builtin.abi.isAndroid()) {
+            if (top_pad > 0 and bottom_pad > 0) {
+                if (top_pad > bottom_pad) {
+                    info("Android safe area hack {d},{d} -=> {d},{d}", .{
+                        top_pad, bottom_pad,
+                        0,       bottom_pad,
+                    });
+                    top_pad = 0;
+                } else {
+                    info("Android safe area hack {d},{d} -=> {d},{d}", .{
+                        top_pad, bottom_pad,
+                        top_pad, 0,
+                    });
+                    bottom_pad = 0;
                 }
             }
+        }
 
-            if (self.safe_area.left != left_pad) updated = true;
-            if (self.safe_area.top != top_pad) updated = true;
-            if (self.safe_area.right != right_pad) updated = true;
-            if (self.safe_area.bottom != bottom_pad) updated = true;
+        var updated = false;
+        if (!std.math.approxEqAbs(f32, self.safe_area.left, left_pad, 0.01)) updated = true;
+        if (!std.math.approxEqAbs(f32, self.safe_area.top, top_pad, 0.01)) updated = true;
+        if (!std.math.approxEqAbs(f32, self.safe_area.right, right_pad, 0.01)) updated = true;
+        if (!std.math.approxEqAbs(f32, self.safe_area.bottom, bottom_pad, 0.01)) updated = true;
 
-            if (updated or (dev_build and dev_mode)) {
-                // Log the padding numbers in css/border ordering
-                info("safe area changed: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
-                    self.safe_area.left,  self.safe_area.top,
-                    self.safe_area.right, self.safe_area.bottom,
-                    left_pad,             top_pad,
-                    right_pad,            bottom_pad,
-                });
-                self.safe_area.left = left_pad;
-                self.safe_area.right = right_pad;
-                self.safe_area.top = top_pad;
-                self.safe_area.bottom = bottom_pad;
-            }
-        } else {
-            err("SDL_GetRenderSafeArea() failed", .{});
+        if (updated) {
+            info("safe area changed: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
+                self.safe_area.left,  self.safe_area.top,
+                self.safe_area.right, self.safe_area.bottom,
+                left_pad,             top_pad,
+                right_pad,            bottom_pad,
+            });
+            self.safe_area.left = left_pad;
+            self.safe_area.right = right_pad;
+            self.safe_area.top = top_pad;
+            self.safe_area.bottom = bottom_pad;
+        } else if (dev_build and dev_mode) {
+            info("current safe area: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
+                self.safe_area.left,  self.safe_area.top,
+                self.safe_area.right, self.safe_area.bottom,
+                left_pad,             top_pad,
+                right_pad,            bottom_pad,
+            });
+            self.safe_area.left = left_pad;
+            self.safe_area.right = right_pad;
+            self.safe_area.top = top_pad;
+            self.safe_area.bottom = bottom_pad;
         }
         return updated;
     }
@@ -4914,7 +4937,7 @@ pub const Display = struct {
             sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED,
             sdl.SDL_EVENT_DISPLAY_ORIENTATION,
             sdl.SDL_EVENT_WINDOW_SAFE_AREA_CHANGED,
-            => try display.update_screen_metrics(false),
+            => display.update_screen_metrics(false),
 
             sdl.SDL_EVENT_QUIT => display.end_main_loop(),
 
