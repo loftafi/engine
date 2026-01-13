@@ -295,7 +295,7 @@ pub const Background = struct {
     /// The `image` variable is filled on initialisation, by searching for
     /// the `image_name` inside the resource bundle, and loading the data into
     /// this `image`.
-    image: ?*TextureInfo = null,
+    image: ?*Texture = null,
 
     /// If the background texture has corners, the width of the corner in pixels.
     image_corner_radius: f32 = 0,
@@ -392,7 +392,7 @@ pub const Element = struct {
     hovered: bool = false,
     focus: FocusOption = .unspecified,
 
-    texture: ?*TextureInfo = null,
+    texture: ?*Texture = null,
     texture_name: ?[]const u8 = null,
 
     style: ThemeColour = .normal,
@@ -431,7 +431,7 @@ pub const Element = struct {
             scale: Fit = .stretch,
         },
         label: struct {
-            font: *FontInfo = undefined,
+            font: *Font = undefined,
             font_name: ?[]const u8 = null,
             text: []const u8 = "",
             translated: []const u8 = "",
@@ -442,19 +442,19 @@ pub const Element = struct {
         },
         checkbox: struct {
             checked: bool = false,
-            font: *FontInfo = undefined,
+            font: *Font = undefined,
             font_name: ?[]const u8 = null,
             text_size: TextSize = .normal,
             text: []const u8 = "",
             translated: []const u8 = "",
             elements: ArrayListUnmanaged(TextElement) = .empty,
             line_height: f32 = 1,
-            on_texture: ?*TextureInfo = null,
-            off_texture: ?*TextureInfo = null,
+            on_texture: ?*Texture = null,
+            off_texture: ?*Texture = null,
             on_change: Callback = .{ .func = null },
         },
         text_input: struct {
-            font: *FontInfo = undefined,
+            font: *Font = undefined,
             font_name: ?[]const u8 = null,
             texture: ?*sdl.SDL_Texture = null,
             initial_text: ?[]const u8 = "",
@@ -472,7 +472,7 @@ pub const Element = struct {
         },
         rectangle: struct {},
         button: struct {
-            font: *FontInfo = undefined,
+            font: *Font = undefined,
             font_name: ?[]const u8 = null,
             text: []const u8 = "",
             translated: []const u8 = "",
@@ -480,18 +480,18 @@ pub const Element = struct {
             icon_size: Size = .{ .width = 0, .height = 0 },
             spacing: f32 = 0,
             icon_default_name: ?[]const u8 = null,
-            icon_hover: ?*TextureInfo = null,
+            icon_hover: ?*Texture = null,
             icon_hover_name: ?[]const u8 = null,
-            icon_pressed: ?*TextureInfo = null,
+            icon_pressed: ?*Texture = null,
             icon_pressed_name: ?[]const u8 = null,
-            icon_disabled: ?*TextureInfo = null,
+            icon_disabled: ?*Texture = null,
             icon_disabled_name: ?[]const u8 = null,
             background_default_name: ?[]const u8 = null,
-            background_hover: ?*TextureInfo = null,
+            background_hover: ?*Texture = null,
             background_hover_name: ?[]const u8 = null,
-            background_pressed: ?*TextureInfo = null,
+            background_pressed: ?*Texture = null,
             background_pressed_name: ?[]const u8 = null,
-            background_disabled: ?*TextureInfo = null,
+            background_disabled: ?*Texture = null,
             background_disabled_name: ?[]const u8 = null,
             on_click: Callback = .{ .func = null },
             toggle: ToggleState = .no_toggle,
@@ -855,7 +855,7 @@ pub const Element = struct {
         display: *Display,
         repository: *Resources,
         name: []const u8,
-    ) (Allocator.Error || Resources.Error || engine.Error)!?*TextureInfo {
+    ) (Allocator.Error || Resources.Error || engine.Error)!?*Texture {
         const start = std.time.milliTimestamp();
         const texture = try display.load_bundle_texture(gpa, repository, name);
         if (texture == null) {
@@ -891,7 +891,7 @@ pub const Element = struct {
         display: *Display,
         repository: *Resources,
         name: []const u8,
-    ) (Allocator.Error || Resources.Error || engine.Error)!?*TextureInfo {
+    ) (Allocator.Error || Resources.Error || engine.Error)!?*Texture {
         const texture = try display.load_bundle_texture(gpa, repository, name);
         if (texture == null) {
             info("set_image failed to find image resource named \"{s}\"", .{name});
@@ -2508,125 +2508,6 @@ const TextElement = struct {
     location: Rect,
 };
 
-/// A texture is held in memory for the entire duration it might be needed.
-///
-/// If a texture is in use by more than one element, then the `references`
-/// counter keeps track of how many elements are currently depending on
-/// this texture.
-pub const TextureInfo = struct {
-    uid: u64,
-    texture: *sdl.SDL_Texture,
-    references: i32,
-
-    pub fn create(
-        allocator: Allocator,
-        uid: u64,
-        texture: *sdl.SDL_Texture,
-    ) !*TextureInfo {
-        const texture_info = try allocator.create(TextureInfo);
-        texture_info.* = .{
-            .uid = uid,
-            .texture = texture,
-            .references = 0,
-        };
-        trace("loaded texture: {d}", .{uid});
-        return texture_info;
-    }
-
-    pub fn destroy(self: *TextureInfo, allocator: Allocator) void {
-        sdl.SDL_DestroyTexture(self.texture);
-        allocator.destroy(self);
-    }
-
-    pub fn clone(self: *TextureInfo) *TextureInfo {
-        self.references += 1;
-        return self;
-    }
-};
-
-/// An audio file is held in memory for the entire duration it might be needed.
-///
-/// If an audio file is in use by more than one element, then the `references`
-/// counter keeps track of how many elements are currently depending on
-/// this audio file.
-pub const AudioInfo = struct {
-    name: []const u8,
-    audio: []const u8,
-    references: i32,
-    resource: ?*Resource,
-    autorelease: Retain,
-
-    pub const empty = .{
-        .name = "",
-        .audio = "",
-        .references = 0,
-        .resource = null,
-        .autorelease = .autorelease,
-    };
-
-    pub fn create(
-        allocator: Allocator,
-        name: []const u8,
-        audio: []const u8,
-        autorelease: Retain,
-    ) !*AudioInfo {
-        std.debug.assert(audio.len > 0);
-        const audio_info = try allocator.create(AudioInfo);
-        audio_info.* = .{
-            .name = if (name.len > 0) try allocator.dupe(u8, name) else "",
-            .audio = audio,
-            .references = if (autorelease == .autorelease) 0 else 1,
-            .resource = null,
-            .autorelease = autorelease,
-        };
-        debug("loaded audio: {s}", .{name});
-        return audio_info;
-    }
-
-    pub fn destroy(self: *AudioInfo, allocator: Allocator) void {
-        if (self.audio.len > 0) allocator.free(self.audio);
-        if (self.name.len > 0) allocator.free(self.name);
-        allocator.destroy(self);
-    }
-
-    pub fn clone(self: *AudioInfo) *AudioInfo {
-        self.references += 1;
-        return self;
-    }
-};
-
-/// A font is held in memory for the entire duration it might be needed.
-/// Typically this is the lifetime of the app.
-const FontInfo = struct {
-    name: []const u8,
-    font: *sdl.TTF_Font,
-    font_buffer: []const u8,
-
-    pub fn create(
-        allocator: Allocator,
-        name: []const u8,
-        font: *sdl.TTF_Font,
-        raw_data: []const u8,
-    ) !*FontInfo {
-        const font_info = try allocator.create(FontInfo);
-        font_info.* = .{
-            .name = try allocator.dupe(u8, name),
-            .font = font,
-            .font_buffer = raw_data,
-        };
-        debug("loaded font: {s}", .{sdl.TTF_GetFontFamilyName(font_info.font)});
-        return font_info;
-    }
-
-    pub fn destroy(self: *FontInfo, allocator: Allocator) void {
-        sdl.TTF_CloseFont(self.font);
-        debug("unloaded font: {s}", .{self.name});
-        allocator.free(self.font_buffer);
-        allocator.free(self.name);
-        allocator.destroy(self);
-    }
-};
-
 pub const Retain = enum {
     autorelease,
     retain,
@@ -2677,7 +2558,7 @@ pub const Display = struct {
     resources: *Resources,
 
     /// A list of all active fonts loaded from the resources bundle.
-    fonts: ArrayListUnmanaged(*FontInfo) = .empty,
+    fonts: ArrayListUnmanaged(*Font) = .empty,
 
     /// Translates the default provided text into a specific language
     /// using a csv translation file
@@ -2685,10 +2566,10 @@ pub const Display = struct {
     current_language: Lang = .unknown,
 
     /// Cache of currently loaded textures.
-    textures: std.AutoHashMapUnmanaged(u64, *TextureInfo),
+    textures: std.AutoHashMapUnmanaged(u64, *Texture),
 
     /// Cache of currently loaded audio files.
-    audio: std.StringHashMapUnmanaged(*AudioInfo),
+    audio: std.StringHashMapUnmanaged(*Audio),
 
     /// Four possible theme options are available.
     themes: ArrayListUnmanaged(Theme) = .empty,
@@ -2863,9 +2744,9 @@ pub const Display = struct {
             const data = try sdl_load_resource(display.resources, resource, gpa);
             defer gpa.free(data);
             try display.translation.load_translation_data(gpa, data);
-            debug("Translation file loaded", .{});
+            debug("Translation file '{s}' loaded", .{translation_filename});
         } else {
-            err("No translation file found.", .{});
+            err("Translation file '{s}' not found.", .{translation_filename});
         }
 
         const window = sdl.SDL_CreateWindow(
@@ -2879,7 +2760,7 @@ pub const Display = struct {
         };
 
         const renderer = sdl.SDL_CreateRenderer(window, null) orelse {
-            err("No Renderer created. {s}", .{sdl.SDL_GetError()});
+            err("No Renderer initialised. {s}", .{sdl.SDL_GetError()});
             return error.GraphicsRendererFailed;
         };
 
@@ -2889,9 +2770,9 @@ pub const Display = struct {
         while (i < count) : (i += 1) {
             const driver = sdl.SDL_GetRenderDriver(i).?;
             if (std.mem.orderZ(u8, current_driver, driver) == .eq) {
-                debug("Renderer: {s} (selected)", .{std.mem.span(driver)});
+                info("Renderer: {s} (selected)", .{std.mem.span(driver)});
             } else {
-                debug("Renderers: {s}", .{std.mem.span(driver)});
+                info("Renderers: {s}", .{std.mem.span(driver)});
             }
         }
 
@@ -2901,12 +2782,12 @@ pub const Display = struct {
             try display.make_surface_from_resource(display.resources, resource, gpa, &surface);
             defer surface.deinit(gpa);
             if (!sdl.SDL_SetWindowIcon(window, surface.surface)) {
-                info("Did not set desktop icon", .{});
+                err("Failed to set set desktop icon", .{});
             } else {
                 debug("Set desktop icon", .{});
             }
         } else {
-            err("No 'desktop icon' in resource folder.", .{});
+            err("No 'desktop icon' in resource bundle.", .{});
         }
 
         const pixel_scale = sdl.SDL_GetWindowDisplayScale(window);
@@ -3804,7 +3685,7 @@ pub const Display = struct {
         self: *Display,
         allocator: Allocator,
         name: []const u8,
-    ) (Error || Allocator.Error || Resources.Error)!*FontInfo {
+    ) (Error || Allocator.Error || Resources.Error)!*Font {
         const resource = try self.resources.lookupOne(name, .font, allocator);
         if (resource == null) {
             err("load_font({s}) Font not in resource folder", .{name});
@@ -3832,7 +3713,7 @@ pub const Display = struct {
         };
         //sdl.TTF_SetFontHinting(myfont, 0);
 
-        const font_info = try FontInfo.create(allocator, name, myfont, font_buffer);
+        const font_info = try Font.create(allocator, name, myfont, font_buffer);
         errdefer font_info.destroy(allocator);
         try self.fonts.append(allocator, font_info);
 
@@ -3883,7 +3764,7 @@ pub const Display = struct {
 
     /// Convert a text string into an image that is sent as a texture to
     /// the graphics card.
-    fn generate_text_texture(self: *Display, text: []const u8, myfont: *FontInfo) ?*sdl.SDL_Texture {
+    fn generate_text_texture(self: *Display, text: []const u8, myfont: *Font) ?*sdl.SDL_Texture {
 
         // Step 1: Create a surface (a bitmap) that holds the text.
         //
@@ -3918,7 +3799,7 @@ pub const Display = struct {
     /// A texture resource may be referenced by multiple on screen
     /// elements. This releases a texture, only when all references to
     /// a texture no longer exist.
-    pub fn release_texture_resource(self: *Display, allocator: Allocator, ti: *TextureInfo) void {
+    pub fn release_texture_resource(self: *Display, allocator: Allocator, ti: *Texture) void {
         if (ti.references == 0) {
             err("Attempt to release resource with no references", .{});
             return;
@@ -3940,7 +3821,7 @@ pub const Display = struct {
     /// A texture resource may be referenced by multiple on screen
     /// elements. This releases a texture, only when all references to
     /// a texture no longer exist.
-    pub fn release_audio_resource(self: *Display, allocator: Allocator, ai: *AudioInfo) void {
+    pub fn release_audio_resource(self: *Display, allocator: Allocator, ai: *Audio) void {
         if (ai.references == 0) {
             err("Attempt to release resource with no references", .{});
             return;
@@ -3964,7 +3845,7 @@ pub const Display = struct {
         self: *Display,
         gpa: Allocator,
         name: []const u8,
-    ) (Error || Allocator.Error || Resources.Error)!?*TextureInfo {
+    ) (Error || Allocator.Error || Resources.Error)!?*Texture {
         return self.load_bundle_texture(gpa, self.resources, name);
     }
 
@@ -3974,7 +3855,7 @@ pub const Display = struct {
         gpa: Allocator,
         bundle: *Resources,
         name: []const u8,
-    ) (Error || Allocator.Error || Resources.Error)!?*TextureInfo {
+    ) (Error || Allocator.Error || Resources.Error)!?*Texture {
         if (name.len == 0) return null;
 
         var start = std.time.milliTimestamp();
@@ -4002,7 +3883,7 @@ pub const Display = struct {
         end = std.time.milliTimestamp();
         trace("sdl create texture in {d}ms", .{end - start});
 
-        const ti = try TextureInfo.create(gpa, resource.?.uid, texture);
+        const ti = try Texture.create(gpa, resource.?.uid, texture);
         ti.references += 1;
         try self.textures.put(gpa, ti.uid, ti);
         return ti;
@@ -4015,7 +3896,7 @@ pub const Display = struct {
         name: []const u8,
         autorelease: Retain,
         volume: f32,
-    ) (Error || Allocator.Error || Resources.Error)!?*AudioInfo {
+    ) (Error || Allocator.Error || Resources.Error)!?*Audio {
         return self.play_bundle_resource(gpa, self.resources, name, autorelease, volume);
     }
 
@@ -4027,14 +3908,14 @@ pub const Display = struct {
         name: []const u8,
         autorelease: Retain,
         volume: f32,
-    ) (Error || Allocator.Error || Resources.Error)!?*AudioInfo {
+    ) (Error || Allocator.Error || Resources.Error)!?*Audio {
         if (name.len == 0) {
             err("play_bundle_resource(\"{s}\") resource name empty", .{name});
             return null;
         }
 
         // Load audio from memory cache if possible
-        var item: ?*AudioInfo = null;
+        var item: ?*Audio = null;
         if (self.audio.get(name)) |i| {
             if (autorelease == .retain and i.autorelease == .autorelease) {
                 // This audio item is converting to permanent memory
@@ -4065,7 +3946,7 @@ pub const Display = struct {
                 end - start,
             });
 
-            const ai = try AudioInfo.create(gpa, name, audio, autorelease);
+            const ai = try Audio.create(gpa, name, audio, autorelease);
             ai.references += 1;
             ai.resource = resource;
             try self.audio.put(gpa, ai.name, ai);
@@ -5552,7 +5433,7 @@ pub fn setup_sprite(
         trace("sprite {s} bg {s}", .{ element.name, element.background.image_name.? });
 }
 
-fn select_font(fonts: []*FontInfo, name: ?[]const u8) *FontInfo {
+fn select_font(fonts: []*Font, name: ?[]const u8) *Font {
     if (name) |font_name| {
         for (fonts) |font| {
             if (std.mem.eql(u8, font.name, font_name)) {
@@ -5973,9 +5854,9 @@ pub fn log_output(
         const prefix = switch (level) {
             .trace => "\x1B[90m[\x1B[1mtrace\x1B[22m] ",
             .debug => "\x1B[34m[\x1B[1mdebug\x1B[22m] ",
-            .info => "\x1B[36m[\x1B[1minfo\x1B[22m] ",
+            .info => "\x1B[36m[\x1B[1minfo\x1B[22m]  ",
             .notice => "\x1B[91m[\x1B[1minfo\x1B[22m] ",
-            .warn => "\x1B[33m[\x1B[1mwarn\x1B[22m] ",
+            .warn => "\x1B[33m[\x1B[1mwarn\x1B[22m]  ",
             .err => "\x1B[31m[\x1B[1merror\x1B[22m] ",
             .alert => "\x1B[31m[\x1B[1malert\x1B[22m] ",
         };
@@ -6294,6 +6175,9 @@ const zigimg = @import("zigimg");
 
 pub const engine = @import("engine.zig");
 pub const Animator = @import("animator.zig");
+pub const Font = @import("font.zig");
+pub const Texture = @import("texture.zig");
+pub const Audio = @import("audio.zig");
 
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
