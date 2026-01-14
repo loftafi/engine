@@ -971,6 +971,7 @@ pub const Element = struct {
         });
         if (std.mem.eql(u8, new_translated, old_translated) and !forced) {
             // Don't update if nothing changed
+            // TODO: This should not be needed
             return;
         }
 
@@ -986,7 +987,7 @@ pub const Element = struct {
                     try self.type.text_input.text.appendSlice(allocator, new_text);
                     self.text_data_to_runes(allocator);
                     if (display.generate_text_texture(self.type.text_input.text.items, self.type.text_input.font)) |texture| {
-                        self.type.text_input.cursor_pixels = text_size(display, texture, .normal).width;
+                        self.type.text_input.cursor_pixels = TextSize.normal.pixel_size(display, texture).width;
                         self.type.text_input.texture = texture;
                         self.type.text_input.cursor_character = self.type.text_input.runes.items.len;
                     } else {
@@ -1113,6 +1114,7 @@ pub const Element = struct {
         return child;
     }
 
+    /// Swap the ordering of two child elements belonging to this panel.
     pub inline fn swap(self: *Element, from: usize, to: usize) void {
         std.debug.assert(self.type == .panel);
         std.debug.assert(from < self.type.panel.children.items.len);
@@ -1270,7 +1272,7 @@ pub const Element = struct {
                 }
 
                 if (self.type.button.text_texture) |t| {
-                    const size = text_size(display, t, .normal);
+                    const size = TextSize.normal.pixel_size(display, t);
                     width += size.width;
                 }
                 return @max(self.minimum.width, width);
@@ -1482,6 +1484,7 @@ pub const Element = struct {
         }
     }
 
+    /// Draw the contents of a panel.
     inline fn draw_panel(
         element: *Element,
         display: *Display,
@@ -1509,6 +1512,7 @@ pub const Element = struct {
         }
     }
 
+    /// Draw a basic rectangle.
     inline fn draw_rectangle_element(
         element: *Element,
         display: *Display,
@@ -1528,6 +1532,8 @@ pub const Element = struct {
         _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&dest));
     }
 
+    /// Draw a text input box along with any text or cursor that
+    /// may appear inside the text input box.
     inline fn draw_text_input(
         element: *Element,
         display: *Display,
@@ -1562,7 +1568,6 @@ pub const Element = struct {
         }
 
         if (element.texture) |texture| {
-            //const size = text_size(display, texture.texture, .normal);
             const icon_size = element.rect.height - element.pad.top - element.pad.bottom;
             // Draw the text
             var dest: Rect = .{
@@ -1591,7 +1596,7 @@ pub const Element = struct {
 
         if (element.type.text_input.text.items.len > 0) {
             if (element.type.text_input.texture) |texture| {
-                const size = text_size(display, texture, .normal);
+                const size = .normal.pixel_size(display, texture);
                 // Draw the text
                 var dest: Rect = .{
                     .x = @round(x),
@@ -1615,7 +1620,7 @@ pub const Element = struct {
             }
         } else {
             if (element.type.text_input.placeholder_texture) |texture| {
-                const size = text_size(display, texture, .normal);
+                const size = .normal.pixel_size(display, texture);
                 // Draw the placeholder text
                 var dest: Rect = .{
                     .x = @round(x),
@@ -1753,6 +1758,7 @@ pub const Element = struct {
         }
     }
 
+    /// Draw a radio box combined with a text label.
     inline fn draw_checkbox(element: *Element, display: *Display, _: Vector, _: ?Clip, scroll_offset: Vector) void {
         const checkbox = display.checkbox();
         // Output checkbox text.
@@ -1776,6 +1782,7 @@ pub const Element = struct {
         }
     }
 
+    /// Draw a progress bar.
     inline fn draw_progress_bar(element: *Element, display: *Display, _: Vector, _: ?Clip) void {
         // Draw the background matching the  current button state
         if (element.texture) |texture| {
@@ -1836,6 +1843,9 @@ pub const Element = struct {
         }
     }
 
+    /// Draw a button with its text and/or icon. Mouse hover, mouse click
+    /// and the disabled status may change the picture or icon
+    /// displayed in the button.
     inline fn draw_button(element: *Element, display: *Display, _: Vector, _: ?Clip, scroll_offset: Vector) void {
         // Draw the background matching the  current button state
         if (element.current_background()) |background_image| {
@@ -1876,7 +1886,7 @@ pub const Element = struct {
         // The inner content can contain a button and/or text texture.
         var content_width = element.type.button.icon_size.width;
         if (element.type.button.text_texture) |texture| {
-            const size = text_size(display, texture, .normal);
+            const size = .normal.pixel_size(display, texture);
 
             // Do we need space between text and icon?
             if (content_width > 0)
@@ -1932,7 +1942,7 @@ pub const Element = struct {
             }
         }
         if (element.type.button.text_texture) |texture| {
-            const size = text_size(display, texture, .normal);
+            const size = .normal.pixel_size(display, texture);
             var dest: Rect = .{
                 .x = element.rect.x + element.type.button.icon_size.width + element.pad.left + content_offset,
                 .y = element.rect.y + (element.rect.height / 2.0) - (size.height / 2),
@@ -2001,7 +2011,7 @@ pub const Element = struct {
                 if (display.generate_text_texture(self.type.text_input.text.items, self.type.text_input.font)) |texture| {
                     self.type.text_input.texture = texture;
                     // For now, the cursor position is simply the end of the text.
-                    self.type.text_input.cursor_pixels = text_size(display, texture, .normal).width;
+                    self.type.text_input.cursor_pixels = .normal.pixel_size(display, texture).width;
                 }
             } else {
                 self.type.text_input.cursor_pixels = 0;
@@ -2121,7 +2131,7 @@ pub const Element = struct {
         display.selected = null;
     }
 
-    pub fn text_runes_to_data(self: *Element, allocator: Allocator) void {
+    fn text_runes_to_data(self: *Element, allocator: Allocator) void {
         std.debug.assert(self.type == .text_input);
         self.type.text_input.text.clearRetainingCapacity();
         for (self.type.text_input.runes.items) |rune| {
@@ -2135,7 +2145,7 @@ pub const Element = struct {
         }
     }
 
-    pub fn text_data_to_runes(self: *Element, allocator: Allocator) void {
+    fn text_data_to_runes(self: *Element, allocator: Allocator) void {
         std.debug.assert(self.type == .text_input);
         self.type.text_input.runes.clearRetainingCapacity();
         var v = std.unicode.Utf8View.init(self.type.text_input.text.items) catch {
@@ -2159,13 +2169,6 @@ pub const Element = struct {
         if (self.type.text_input.cursor_character > self.type.text_input.runes.items.len) {
             self.type.text_input.cursor_character = self.type.text_input.runes.items.len;
             cursor_slice = self.type.text_input.text.items.len;
-        }
-
-        if (dev_build) {
-            //debug(
-            //    "text to runes cursor {d} {d}",
-            //    .{ self.type.text_input.cursor_character, cursor_slice },
-            //);
         }
     }
 
@@ -2285,14 +2288,6 @@ inline fn draw_rectangle(
     }
 }
 
-inline fn text_size(display: *Display, texture: *sdl.SDL_Texture, size: TextSize) Size {
-    const height = display.text_height * display.scale * size.height();
-    return .{
-        .height = height,
-        .width = height * @as(f32, @floatFromInt(texture.*.w)) / @as(f32, @floatFromInt(texture.*.h)),
-    };
-}
-
 /// Calculate the layout of all elements, and optionally render every element.
 ///
 /// Normally text is converted to an image and rendered left to right, starting
@@ -2342,7 +2337,7 @@ inline fn draw_label(
 
     for (children, 0..) |*item, i| {
         const is_cr = item.text != null and item.text.?.len == 1 and item.text.?[0] == '\n';
-        const size = text_size(display, item.texture, text_height);
+        const size = text_height.pixel_size(display, item.texture);
         // Would drawing this word overflow?
         if ((x + size.width > x_ending and line_word_count > 0) or is_cr) {
             element.do_word_alignment(
@@ -2478,7 +2473,7 @@ inline fn text_elements_size(
     var line_word_count: usize = 0;
 
     for (children, 0..) |item, i| {
-        const size = text_size(display, item.texture, text_height);
+        const size = text_height.pixel_size(display, item.texture);
 
         mm.min_width = @max(size.width, mm.min_width);
         mm.min_height = @max(size.height, mm.min_height);
@@ -2536,6 +2531,14 @@ pub const TextSize = enum {
             .heading => 1.5,
             .subheading => 1.25,
             .footnote => 0.75,
+        };
+    }
+
+    pub fn pixel_size(size: TextSize, display: *const Display, texture: *const sdl.SDL_Texture) Size {
+        const height_adjusted = display.text_height * display.scale * size.height();
+        return .{
+            .height = height_adjusted,
+            .width = height_adjusted * @as(f32, @floatFromInt(texture.*.w)) / @as(f32, @floatFromInt(texture.*.h)),
         };
     }
 };
