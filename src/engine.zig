@@ -795,6 +795,9 @@ pub const Element = struct {
         }
     }
 
+    /// Show or hide this element. If the visibliity is changed a relayout
+    /// will be triggerd, and the `on_visibility` callback will be triggered
+    /// if a callback is specified.
     pub inline fn set_visibility(self: *Element, display: *Display, visible: Visibility) Allocator.Error!void {
         if (self.visible == visible) return;
         self.visible = visible;
@@ -804,8 +807,11 @@ pub const Element = struct {
         }
     }
 
-    /// set_texture replaces the current texture of an element with a new
-    /// texture found in the resource bucket.
+    /// Replace the foreground texture with an image resource found
+    /// in the default resource bundle.
+    ///
+    /// `set_texture` is only valid on elements that permit a
+    /// foreground texture.
     pub inline fn set_texture(
         self: *Element,
         allocator: Allocator,
@@ -826,8 +832,8 @@ pub const Element = struct {
         }
     }
 
-    /// Replace the current background texture with another image resource
-    /// found in the resource bundle.
+    /// Replace the current background texture with an image resource
+    /// found in the default resource bundle.
     ///
     /// `set_background_texture` is only valid on elements that permit a
     /// background texture.
@@ -877,6 +883,7 @@ pub const Element = struct {
         return texture;
     }
 
+    /// Remove the foreground texture if a texture has been set.
     pub inline fn clear_image(
         self: *Element,
         gpa: Allocator,
@@ -910,6 +917,7 @@ pub const Element = struct {
         return texture;
     }
 
+    /// Remove the background texture if a texture has been set.
     pub inline fn clear_background_image(
         self: *Element,
         gpa: Allocator,
