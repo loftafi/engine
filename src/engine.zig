@@ -826,8 +826,11 @@ pub const Element = struct {
         }
     }
 
-    /// set_texture replaces the current texture of an element with a new
-    /// texture found in the resource bucket.
+    /// Replace the current background texture with another image resource
+    /// found in the resource bundle.
+    ///
+    /// `set_background_texture` is only valid on elements that permit a
+    /// background texture.
     pub inline fn set_background_texture(
         self: *Element,
         allocator: Allocator,
