@@ -474,6 +474,7 @@ pub const Element = struct {
         button: struct {
             font: *Font = undefined,
             font_name: ?[]const u8 = null,
+            text_size: TextSize = .normal,
             text: []const u8 = "",
             translated: []const u8 = "",
             text_texture: ?*sdl.SDL_Texture = null,
@@ -1272,7 +1273,7 @@ pub const Element = struct {
                 }
 
                 if (self.type.button.text_texture) |t| {
-                    const size = TextSize.normal.pixel_size(display, t);
+                    const size = self.type.button.text_size.pixel_size(display, t);
                     width += size.width;
                 }
                 return @max(self.minimum.width, width);
@@ -1596,7 +1597,7 @@ pub const Element = struct {
 
         if (element.type.text_input.text.items.len > 0) {
             if (element.type.text_input.texture) |texture| {
-                const size = .normal.pixel_size(display, texture);
+                const size = TextSize.normal.pixel_size(display, texture);
                 // Draw the text
                 var dest: Rect = .{
                     .x = @round(x),
@@ -1620,7 +1621,7 @@ pub const Element = struct {
             }
         } else {
             if (element.type.text_input.placeholder_texture) |texture| {
-                const size = .normal.pixel_size(display, texture);
+                const size = TextSize.normal.pixel_size(display, texture);
                 // Draw the placeholder text
                 var dest: Rect = .{
                     .x = @round(x),
@@ -1886,7 +1887,7 @@ pub const Element = struct {
         // The inner content can contain a button and/or text texture.
         var content_width = element.type.button.icon_size.width;
         if (element.type.button.text_texture) |texture| {
-            const size = .normal.pixel_size(display, texture);
+            const size = element.type.button.text_size.pixel_size(display, texture);
 
             // Do we need space between text and icon?
             if (content_width > 0)
@@ -1942,7 +1943,7 @@ pub const Element = struct {
             }
         }
         if (element.type.button.text_texture) |texture| {
-            const size = .normal.pixel_size(display, texture);
+            const size = element.type.button.text_size.pixel_size(display, texture);
             var dest: Rect = .{
                 .x = element.rect.x + element.type.button.icon_size.width + element.pad.left + content_offset,
                 .y = element.rect.y + (element.rect.height / 2.0) - (size.height / 2),
@@ -2011,7 +2012,7 @@ pub const Element = struct {
                 if (display.generate_text_texture(self.type.text_input.text.items, self.type.text_input.font)) |texture| {
                     self.type.text_input.texture = texture;
                     // For now, the cursor position is simply the end of the text.
-                    self.type.text_input.cursor_pixels = .normal.pixel_size(display, texture).width;
+                    self.type.text_input.cursor_pixels = TextSize.normal.pixel_size(display, texture).width;
                 }
             } else {
                 self.type.text_input.cursor_pixels = 0;
@@ -5468,6 +5469,7 @@ pub fn setup_button(
     element.type.button.background_pressed = null;
     element.type.button.background_hover = null;
     element.type.button.background_disabled = null;
+    element.type.button.text_size = .normal;
     element.type.button.font = select_font(display.fonts.items, element.type.button.font_name);
 
     if (element.focus == .unspecified)
