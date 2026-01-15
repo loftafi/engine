@@ -1020,11 +1020,6 @@ pub const Element = struct {
                             });
                         }
                     }
-                    if (self.layout.y == .shrinks or self.layout.y == .grows) {
-                        // Generate the image textures for each word and the locations they
-                        // should be rendered.
-                        draw_label(self, display, .{ .x = 0, .y = 0 }, null, false);
-                    }
                 }
             },
             .checkbox => {
@@ -1047,12 +1042,6 @@ pub const Element = struct {
                                 .location = .{}, // Location of each element is unknown at this point
                             });
                         }
-                    }
-                    if (self.layout.y == .shrinks or self.layout.y == .grows) {
-                        // Simulate a draw of this element to see how many
-                        // lines it would take.
-                        // TODO: dont need draw_label?
-                        draw_label(self, display, .{ .x = 0, .y = 0 }, null, false);
                     }
                 }
             },
@@ -1208,15 +1197,10 @@ pub const Element = struct {
                 // would take. This is done when the label is created but also
                 // needs to be done here as the width of the label may have changed.
                 switch (self.layout.y) {
-                    .shrinks => {
-                        const mm = text_elements_size(self, display, parent_width);
-                        //err("{s} {s} use shrink height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
-                        return @max(self.minimum.height, mm.max_height);
-                    },
-                    .grows => {
-                        const mm = text_elements_size(self, display, parent_width);
+                    .shrinks, .grows => {
+                        self.layout_label(display, parent_width);
                         //err("{s} {s} use grows height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
-                        return @max(self.minimum.height, mm.max_height);
+                        return self.rect.height;
                     },
                     .fixed => {
                         //err("{s} {s} use fixed height {d} (parent_width={d})", .{ self.name, @tagName(self.type), self.height, parent_width });
@@ -1286,15 +1270,11 @@ pub const Element = struct {
                     .shrinks, .grows => {
                         // Growing or shrinking, our task here is to find
                         // the minimum that would be needed.
-                        const mm = text_elements_size(self, display, parent_width);
-                        const choose = @max(mm.min_width, self.minimum.width);
-                        //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                        return choose;
+                        self.layout_label(display, parent_width);
+                        return self.rect.width;
                     },
                     .fixed => {
-                        const choose = @min(@max(self.rect.width, self.minimum.width), self.maximum.width);
-                        //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                        return choose;
+                        return self.rect.width;
                     },
                 }
             },
@@ -1303,15 +1283,13 @@ pub const Element = struct {
                     .shrinks, .grows => {
                         // Growing or shrinking, our task here is to find
                         // the minimum that would be needed.
-                        const mm = text_elements_size(self, display, parent_width);
-                        const choose = @max(mm.min_width, self.minimum.width);
+                        self.layout_label(display, parent_width);
                         //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                        return choose + self.pad.left + display.checkbox().width;
+                        return self.rect.width + self.pad.left + display.checkbox().width;
                     },
                     .fixed => {
-                        const choose = @min(@max(self.rect.width, self.minimum.width), self.maximum.width);
                         //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                        return choose;
+                        return self.rect.width;
                     },
                 }
             },
@@ -1416,14 +1394,14 @@ pub const Element = struct {
         }
 
         switch (element.type) {
-            .panel => draw_panel(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-            .button => draw_button(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-            .checkbox => draw_checkbox(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-            .text_input => draw_text_input(element, display, parent_scroll_offset, parent_clip),
-            .sprite => draw_sprite(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-            .rectangle => draw_rectangle_element(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-            .label => draw_label(element, display, scroll_offset, parent_clip, true),
-            .progress_bar => draw_progress_bar(element, display, parent_scroll_offset, parent_clip),
+            .panel => element.draw_panel(display, parent_scroll_offset, parent_clip, scroll_offset),
+            .button => element.draw_button(display, parent_scroll_offset, parent_clip, scroll_offset),
+            .checkbox => element.draw_checkbox(display, parent_scroll_offset, parent_clip, scroll_offset),
+            .text_input => element.draw_text_input(display, parent_scroll_offset, parent_clip),
+            .sprite => element.draw_sprite(display, parent_scroll_offset, parent_clip, scroll_offset),
+            .rectangle => element.draw_rectangle_element(display, parent_scroll_offset, parent_clip, scroll_offset),
+            .label => element.draw_label(display, parent_scroll_offset, parent_clip),
+            .progress_bar => element.draw_progress_bar(display, parent_scroll_offset, parent_clip),
             .expander => {},
         }
 
@@ -1449,8 +1427,20 @@ pub const Element = struct {
                     element.rect,
                     .{},
                 );
-            }
-            if (element.type == .button) {
+            } else if (element.type == .label) {
+                var pad_line = element.rect.move(&scroll_offset);
+                pad_line.x += element.pad.left;
+                pad_line.y += element.pad.top;
+                pad_line.width -= (element.pad.left + element.pad.right);
+                pad_line.height -= (element.pad.top + element.pad.bottom);
+                draw_rectangle(
+                    display.renderer,
+                    2,
+                    display.theme.faded_text_colour,
+                    pad_line,
+                    .{},
+                );
+            } else if (element.type == .button) {
                 // inner padding line
                 colour = display.theme.tinted_text_colour;
                 draw_rectangle(display.renderer, 2, colour, .{
@@ -1759,11 +1749,204 @@ pub const Element = struct {
         }
     }
 
+    /// Calculate the layout of all elements, and optionally render every element.
+    ///
+    /// Normally text is converted to an image and rendered left to right, starting
+    /// at the top left corner of the element (including padding).
+    ///
+    /// If the text is centred or right aligned, then each line must be pushed along
+    /// by a certain offset amount.
+    inline fn draw_label(
+        element: *Element,
+        display: *Display,
+        scroll_offset: Vector,
+        parent_clip: ?Clip,
+    ) void {
+        std.debug.assert(element.type == .label or element.type == .checkbox);
+
+        const children = switch (element.type) {
+            .label => element.type.label.elements.items,
+            .checkbox => element.type.checkbox.elements.items,
+            else => unreachable,
+        };
+        var loc = Vector{
+            .x = element.rect.x + element.pad.left + scroll_offset.x,
+            .y = element.rect.y + element.pad.top + scroll_offset.y,
+        };
+        for (children) |*item| {
+            const pos = item.location.move(&loc);
+            if (parent_clip) |clip| {
+                if (pos.x + pos.width < clip.left) continue;
+                if (pos.y + pos.height + 1 < clip.top) continue;
+                if (pos.x > clip.right) continue;
+                if (pos.y > clip.bottom) continue;
+            }
+
+            // Only render text if display parameter is provided
+            const current_colour = element.style.text(display.theme, element.colour);
+            _ = sdl.SDL_SetTextureColorMod(
+                item.texture,
+                current_colour.r,
+                current_colour.g,
+                current_colour.b,
+            );
+            _ = sdl.SDL_SetTextureAlphaMod(item.texture, current_colour.a);
+            _ = sdl.SDL_RenderTexture(
+                display.renderer,
+                item.texture,
+                null,
+                @ptrCast(&pos),
+            );
+        }
+    }
+
+    /// Calculate the layout of all elements, and optionally render every element.
+    ///
+    /// Normally text is converted to an image and rendered left to right, starting
+    /// at the top left corner of the element (including padding).
+    ///
+    /// If the text is centred or right aligned, then each line must be pushed along
+    /// by a certain offset amount.
+    inline fn layout_label(
+        element: *Element,
+        display: *Display,
+        max_parent_width: f32,
+    ) void {
+        std.debug.assert(element.type == .label or element.type == .checkbox);
+
+        if (element.type == .label and element.type.label.text.len == 0) return;
+        if (element.type == .checkbox and element.type.checkbox.text.len == 0) return;
+
+        const text_height = switch (element.type) {
+            .label => element.type.label.text_size,
+            .checkbox => element.type.checkbox.text_size,
+            else => unreachable,
+        };
+        const children = switch (element.type) {
+            .label => element.type.label.elements.items,
+            .checkbox => element.type.checkbox.elements.items,
+            else => unreachable,
+        };
+
+        // Track the minimum needed width. Remember the longest line. Include
+        // any left/right padding.
+        var needed_width: f32 = 0;
+
+        const word_spacing = display.text_height * display.scale * text_height.height() / 3.5;
+
+        var x: f32 = 0;
+        var y: f32 = 0;
+
+        const wrap_at: f32 = word_wrap_line(element, display, max_parent_width);
+
+        // A line must have at least one word before a line break is inserted
+        // otherwise we are just drawing pointless broken blank lines.
+        var line_word_count: usize = 0;
+        var current_child: usize = 0;
+
+        for (children, 0..) |*item, i| {
+            const is_cr = item.text != null and item.text.?.len == 1 and item.text.?[0] == '\n';
+            const size = text_height.pixel_size(display, item.texture);
+            // Would drawing this word overflow?
+            if ((x + size.width > wrap_at and line_word_count > 0) or is_cr) {
+                element.do_word_alignment(x, wrap_at, children[current_child..i]);
+                needed_width = @max(needed_width, x);
+                // Wrap to next line
+                x = 0;
+                y += size.height;
+                line_word_count = 0;
+                current_child = i;
+            }
+
+            if (line_word_count > 0 and !is_cr) x += word_spacing;
+
+            item.location = .{
+                .x = @round(x),
+                .y = @round(y),
+                .width = if (is_cr) 0 else size.width,
+                .height = size.height,
+            };
+
+            if (!is_cr) x += size.width;
+            if (!is_cr) line_word_count += 1;
+        }
+        needed_width = @max(needed_width, x);
+
+        if (children.len > 0) {
+            if (current_child != children.len) {
+                element.do_word_alignment(x, wrap_at, children[current_child..children.len]);
+                const size = text_height.pixel_size(display, children[current_child].texture);
+                y += size.height;
+            }
+        }
+
+        // Add y padding at the bottom so that we can calculate the final height.
+        var needed_height = y + element.pad.top + element.pad.bottom;
+        needed_height = @ceil(needed_height);
+
+        switch (element.layout.y) {
+            .shrinks => {
+                // Shrinkable means take the smallest size it needs
+                element.rect.height = @max(needed_height, element.minimum.height);
+                if (element.maximum.height > 0)
+                    element.rect.height = @min(element.rect.height, element.maximum.height);
+            },
+            .grows => {
+                // Growable must use at least the size it needs
+                element.rect.height = @max(needed_height, element.minimum.height);
+                if (element.maximum.height > 0)
+                    element.rect.height = @min(element.rect.height, element.maximum.height);
+            },
+            .fixed => {
+                // Fixed sized objects are ignored by the layout
+                // algorithm. Keep the requested fixed height.
+            },
+        }
+
+        needed_width += element.pad.left + element.pad.right;
+        needed_width = @ceil(needed_width);
+
+        switch (element.layout.x) {
+            .shrinks => {
+                // Shrinkable means take the smallest size it needs
+                element.rect.width = @max(needed_width, element.minimum.width);
+                if (element.maximum.width > 0)
+                    element.rect.width = @min(element.rect.width, element.maximum.width);
+            },
+            .grows => {
+                // Growable must use at least the size it needs
+                element.rect.width = @max(needed_width, element.minimum.width);
+                element.rect.width = @max(element.rect.width, max_parent_width);
+                if (element.maximum.width > 0)
+                    element.rect.width = @min(element.rect.width, element.maximum.width);
+            },
+            .fixed => {
+                // Fixed sized objects are ignored by the layout
+                // algorithm. Keep the reqeusted fixed width.
+            },
+        }
+
+        const t = switch (element.type) {
+            .button => element.type.button.translated,
+            .label => element.type.label.translated,
+            .checkbox => element.type.checkbox.translated,
+            else => "",
+        };
+        trace("label {s} {t} \"{s}\" wrap={d} need={d} selected={d} (max_parent_width={d})", .{
+            element.name,
+            element.layout.x,
+            t,
+            wrap_at,
+            needed_width,
+            element.rect.width,
+            max_parent_width,
+        });
+    }
+
     /// Draw a radio box combined with a text label.
     inline fn draw_checkbox(element: *Element, display: *Display, _: Vector, _: ?Clip, scroll_offset: Vector) void {
         const checkbox = display.checkbox();
-        // Output checkbox text.
-        draw_label(element, display, scroll_offset, null, true);
+        element.draw_label(display, scroll_offset, null);
         var dest: Rect = .{
             .x = element.rect.x + element.rect.width - checkbox.width - element.pad.left,
             .y = element.rect.y + (element.rect.height / 2) - (checkbox.height / 2),
@@ -2173,46 +2356,34 @@ pub const Element = struct {
         }
     }
 
+    /// Align a single line of TextElement's belonging to a label
+    /// or a checkbox.
     inline fn do_word_alignment(
         element: *Element,
-        _: f32,
-        x: f32,
-        x_ending: f32,
+        line_width: f32,
+        element_width: f32,
         children: []TextElement,
-        _: ?*Display,
     ) void {
-        // At end of line, do we need to centre or right align?
-        const trailing_pixel_space = x_ending - x;
+        // How much whitespace was left over at the end of this line.
+        const trailing_whitespace = element_width - line_width;
 
-        if (dev_build and dev_mode) {
-            //debug("align line: {s} {s} {d}-{d} {d} (parent width {d})", .{
-            //    element.name,
-            //    @tagName(element.child_align.x),
-            //    x_start,
-            //    x_ending,
-            //    trailing_pixel_space,
-            //    element.width,
-            //});
-        }
+        if (trailing_whitespace <= 0) return;
 
-        if (trailing_pixel_space > 0) {
-            switch (element.child_align.x) {
-                .start => {
-                    // No adjustment needed
-                },
-                .centre => {
-                    const adjust_by = trailing_pixel_space / 2;
-                    for (children) |*child| {
-                        child.location.x += adjust_by;
-                    }
-                },
-                .end => {
-                    const adjust_by = trailing_pixel_space;
-                    for (children) |*child| {
-                        child.location.x += adjust_by;
-                    }
-                },
-            }
+        switch (element.child_align.x) {
+            .start => {
+                // No adjustment needed
+                return;
+            },
+            .centre => {
+                // Shuffle words into centre
+                const adjust_by = trailing_whitespace / 2;
+                for (children) |*child| child.location.x += adjust_by;
+            },
+            .end => {
+                // Shuffle words to the end
+                const adjust_by = trailing_whitespace;
+                for (children) |*child| child.location.x += adjust_by;
+            },
         }
     }
 };
@@ -2289,221 +2460,20 @@ inline fn draw_rectangle(
     }
 }
 
-/// Calculate the layout of all elements, and optionally render every element.
-///
-/// Normally text is converted to an image and rendered left to right, starting
-/// at the top left corner of the element (including padding).
-///
-/// If the text is centred or right aligned, then each line must be pushed along
-/// by a certain offset amount.
-inline fn draw_label(
-    element: *Element,
-    display: *Display,
-    scroll_offset: Vector,
-    parent_clip: ?Clip,
-    comptime render: bool,
-) void {
-    std.debug.assert(element.type == .label or element.type == .checkbox);
+/// Calculate how many pixels of text we can draw until we must wrap to
+/// the next line. By default the width is whatever the parent element
+/// has room for.
+fn word_wrap_line(element: *Element, display: *Display, max_parent_width: f32) f32 {
+    var element_padding = element.pad.left + element.pad.right;
+    if (element.type == .checkbox) element_padding += display.checkbox().width;
 
-    if (element.type == .label and element.type.label.text.len == 0) return;
-    if (element.type == .checkbox and element.type.checkbox.text.len == 0) return;
-
-    var x: f32 = element.rect.x + element.pad.left;
-    var y: f32 = element.rect.y + element.pad.top;
-    const x_start: f32 = @floor(x);
-
-    const x_ending = switch (element.type) {
-        .checkbox => @ceil(element.rect.x + element.rect.width - element.pad.right - display.checkbox().width),
-        .label => @ceil(element.rect.x + element.rect.width - element.pad.right),
-        else => unreachable,
-    } + 1; // +1 to allow tiny overflow into border to avoid wrapping.
-    const text_height = switch (element.type) {
-        .label => element.type.label.text_size,
-        .checkbox => element.type.checkbox.text_size,
-        else => unreachable,
-    };
-    const children = switch (element.type) {
-        .label => element.type.label.elements.items,
-        .checkbox => element.type.checkbox.elements.items,
-        else => unreachable,
+    // If a fixed width is specified, clamp to the fixed width
+    const wrap = switch (element.layout.x) {
+        .grows, .fixed => @max(max_parent_width, element.maximum.width) - element_padding,
+        .shrinks => @max(max_parent_width, element.minimum.width) - element_padding,
     };
 
-    const word_spacing = display.text_height * display.scale * text_height.height() / 4.0;
-
-    var lines: usize = 0;
-    // A line must have at least one word before a line break is inserted
-    // otherwise we are just drawing pointless broken blank lines.
-    var line_word_count: usize = 0;
-    var current_line_start: usize = 0;
-
-    for (children, 0..) |*item, i| {
-        const is_cr = item.text != null and item.text.?.len == 1 and item.text.?[0] == '\n';
-        const size = text_height.pixel_size(display, item.texture);
-        // Would drawing this word overflow?
-        if ((x + size.width > x_ending and line_word_count > 0) or is_cr) {
-            element.do_word_alignment(
-                x_start,
-                x,
-                x_ending,
-                children[current_line_start..i],
-                display,
-            );
-            // Wrap to next line
-            x = element.rect.x + element.pad.left;
-            y += size.height;
-            lines += 1;
-            line_word_count = 0;
-            current_line_start = i;
-        }
-        if (line_word_count > 0 and !is_cr) {
-            x += word_spacing;
-        }
-        item.location = .{
-            .x = @round(x + scroll_offset.x),
-            .y = @round(y + scroll_offset.y),
-            .width = if (is_cr) 0 else size.width,
-            .height = size.height,
-        };
-        if (!is_cr) x += size.width;
-        if (!is_cr) line_word_count += 1;
-    }
-
-    if (children.len > 0) {
-        if (current_line_start != children.len) {
-            element.do_word_alignment(x_start, x, x_ending, children[current_line_start..children.len], display);
-        }
-        // Wrap the currently drawn line by its height.
-        const height = display.text_height * display.scale * text_height.height();
-        y += height;
-    }
-
-    if (render) {
-        for (children) |*item| {
-            if (parent_clip) |clip| {
-                if (item.location.x + item.location.width < clip.left) {
-                    continue;
-                }
-                if (item.location.y + item.location.height + 1 < clip.top) {
-                    continue;
-                }
-                if (item.location.x > clip.right) {
-                    continue;
-                }
-                if (item.location.y > clip.bottom) {
-                    continue;
-                }
-            }
-
-            // Only render text if display parameter is provided
-            const current_colour = element.style.text(display.theme, element.colour);
-            _ = sdl.SDL_SetTextureColorMod(
-                item.texture,
-                current_colour.r,
-                current_colour.g,
-                current_colour.b,
-            );
-            _ = sdl.SDL_SetTextureAlphaMod(item.texture, current_colour.a);
-            _ = sdl.SDL_RenderTexture(
-                display.renderer,
-                item.texture,
-                null,
-                @ptrCast(&item.location),
-            );
-        }
-    }
-
-    // Add y padding at the bottom so that we can calculate the final height.
-    y += element.pad.bottom;
-
-    const final_height: f32 = y - element.rect.y;
-    switch (element.layout.y) {
-        .shrinks => {
-            // Shrinkable means take the smallest size it needs
-            element.rect.height = final_height;
-        },
-        .grows => {
-            // Growable must use at least the size it needs
-            element.rect.height = @max(final_height, element.rect.height);
-        },
-        .fixed => {
-            // Fixed sized objects are ignored by the layout
-            // algorithm
-        },
-    }
-}
-
-pub const MinMax = struct {
-    min_width: f32 = 0.0,
-    min_height: f32 = 0.0,
-    max_width: f32 = 0.0,
-    max_height: f32 = 0.0,
-};
-
-/// Calculate the width of this element by examining each of the child
-/// elements. This is a cut down version of draw_label but
-/// without the overhead of things like text justifications.
-inline fn text_elements_size(
-    element: *Element,
-    display: *Display,
-    max_parent_width: f32,
-) MinMax {
-    var mm: MinMax = .{};
-    var x: f32 = 0;
-    var y: f32 = 0;
-
-    var max_width = max_parent_width - (element.pad.left + element.pad.right);
-    if (element.type == .checkbox) {
-        max_width -= display.checkbox().width;
-    }
-
-    const text_height: TextSize = if (element.type == .label)
-        element.type.label.text_size
-    else
-        element.type.checkbox.text_size;
-
-    const children = if (element.type == .label)
-        element.type.label.elements.items
-    else
-        element.type.checkbox.elements.items;
-
-    const word_spacing = display.text_height * display.scale * text_height.height() / 3.0;
-
-    var lines: usize = 0;
-    // A line must have at least one word before a line break is inserted
-    // otherwise we are just drawing pointless broken blank lines.
-    var line_word_count: usize = 0;
-
-    for (children, 0..) |item, i| {
-        const size = text_height.pixel_size(display, item.texture);
-
-        mm.min_width = @max(size.width, mm.min_width);
-        mm.min_height = @max(size.height, mm.min_height);
-        if (i > 0) {
-            mm.max_width += word_spacing;
-        }
-        mm.max_width += size.width;
-
-        // Would drawing this word overflow?
-        if (x + size.width > max_width and line_word_count > 0) {
-            // Wrap to next line
-            x = 0;
-            y += size.height;
-            lines += 1;
-            line_word_count = 0;
-        }
-        line_word_count += 1;
-        x += size.width + word_spacing;
-    }
-
-    // Add the height of the line currently being drawn.
-    const height = display.text_height * display.scale * text_height.height();
-    y += height;
-
-    mm.min_width += element.pad.left + element.pad.right;
-    mm.max_width += element.pad.left + element.pad.right;
-    mm.min_height += element.pad.top + element.pad.bottom;
-    mm.max_height = y + element.pad.top + element.pad.bottom;
-    return mm;
+    return wrap;
 }
 
 const TextElement = struct {
@@ -3190,6 +3160,8 @@ pub const Display = struct {
         for (parent.type.panel.children.items) |element| {
             if (element.visible == .hidden) continue;
 
+            const available_width = parent.rect.width - parent.pad.left - parent.pad.right;
+
             var child_resized = false;
             if ((dev_build or dev_mode) and element.layout.position == .float) {
                 if (element.layout.x == .grows) {
@@ -3216,7 +3188,7 @@ pub const Display = struct {
                 },
                 .shrinks => {
                     // Shrink to the smallest the children will allow.
-                    const new_width = element.shrink_width(self, parent.rect.width);
+                    const new_width = element.shrink_width(self, available_width);
                     if (element.rect.width != new_width) {
                         element.rect.width = new_width;
                         child_resized = true;
@@ -3244,7 +3216,7 @@ pub const Display = struct {
                 },
                 .shrinks => {
                     // Shrink to the smallest the children will allow
-                    const new_height = element.shrink_height(self, parent.rect.width);
+                    const new_height = element.shrink_height(self, available_width);
                     if (element.rect.height != new_height) {
                         element.rect.height = new_height;
                         child_resized = true;
@@ -5038,12 +5010,11 @@ fn toggle_dev_mode(_: *Display, _: *Element, _: Allocator) error{OutOfMemory}!vo
 /// If parent stacks children left-to-right simply find the tallest item.
 fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
     std.debug.assert(parent.type == .panel);
-    if (parent.visible == .hidden) {
-        return 0;
-    }
-    if (parent.layout.position == .float) {
-        return 0;
-    }
+    if (parent.visible == .hidden) return 0;
+    if (parent.layout.position == .float) return 0;
+
+    const available_width = parent.rect.width - parent.pad.left - parent.pad.right;
+
     switch (parent.type.panel.direction) {
         .top_to_bottom => {
             // a, above b, above c. (top to bottom)
@@ -5051,19 +5022,15 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
             // Add the size needed for each inline child.
             var first = true;
             for (parent.type.panel.children.items) |element| {
-                if (element.layout.position == .float) {
-                    continue;
-                }
-                if (element.visible == .hidden) {
-                    continue;
-                }
+                if (element.layout.position == .float) continue;
+                if (element.visible == .hidden) continue;
                 if (first) {
                     first = false;
                 } else {
                     // Add spacing before next element, if needed
                     minimum_needed += parent.type.panel.spacing;
                 }
-                const height = element.shrink_height(display, parent.rect.width);
+                const height = element.shrink_height(display, available_width);
                 minimum_needed += height;
             }
             // Bound to the minimum/maximum height
@@ -5085,7 +5052,7 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
                 if (element.layout.position == .float) {
                     continue;
                 }
-                const height = element.shrink_height(display, parent.rect.width);
+                const height = element.shrink_height(display, available_width);
                 if (height > minimum_needed) {
                     minimum_needed = height;
                 }
@@ -5119,12 +5086,11 @@ pub fn back_button_resize(_: *Display, display: *Display, element: *Element) boo
 /// If parent fills children top-to-bottom simply find the widest item.
 fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
     std.debug.assert(parent.type == .panel);
-    if (parent.visible == .hidden) {
-        return 0;
-    }
-    if (parent.layout.position == .float) {
-        return 0;
-    }
+    if (parent.visible == .hidden) return 0;
+    if (parent.layout.position == .float) return 0;
+
+    const available_width = parent.rect.width - parent.pad.left - parent.pad.right;
+
     switch (parent.type.panel.direction) {
         .left_to_right => {
             // a, next to b, next to c. (left to right)
@@ -5142,7 +5108,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
                 else
                     minimum_needed += parent.type.panel.spacing;
 
-                const width = element.shrink_width(display, parent.rect.width);
+                const width = element.shrink_width(display, available_width);
                 minimum_needed += width;
             }
             // Bound to the minimum/maximum width
@@ -5166,7 +5132,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
                 else
                     minimum_needed += parent.type.panel.spacing;
 
-                const width = element.shrink_width(display, parent.rect.width);
+                const width = element.shrink_width(display, available_width);
                 minimum_needed = @max(minimum_needed, width);
             }
             // Bound to the minimum/maximum width
@@ -5183,13 +5149,10 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
             // Need to just find maximum width item
             var minimum_needed: f32 = 0;
             for (parent.type.panel.children.items) |element| {
-                if (element.layout.position == .float) {
-                    continue;
-                }
-                if (element.visible == .hidden) {
-                    continue;
-                }
-                const width = element.shrink_width(display, parent.rect.width);
+                if (element.layout.position == .float) continue;
+                if (element.visible == .hidden) continue;
+
+                const width = element.shrink_width(display, available_width);
                 //debug("seek min width {s} {s} min={d}", .{ element.name, @tagName(element.type), width });
                 if (width > minimum_needed) {
                     minimum_needed = width;
