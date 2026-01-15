@@ -1844,12 +1844,13 @@ pub const Element = struct {
         var line_word_count: usize = 0;
         var current_child: usize = 0;
 
+        // Lay down each word one by one and wrap before we hit the
+        // `wrap_at` boundary.
         for (children, 0..) |*item, i| {
             const is_cr = item.text != null and item.text.?.len == 1 and item.text.?[0] == '\n';
             const size = text_height.pixel_size(display, item.texture);
             // Would drawing this word overflow?
             if ((x + size.width > wrap_at and line_word_count > 0) or is_cr) {
-                element.do_word_alignment(x, wrap_at, children[current_child..i]);
                 needed_width = @max(needed_width, x);
                 // Wrap to next line
                 x = 0;
@@ -1874,7 +1875,6 @@ pub const Element = struct {
 
         if (children.len > 0) {
             if (current_child != children.len) {
-                element.do_word_alignment(x, wrap_at, children[current_child..children.len]);
                 const size = text_height.pixel_size(display, children[current_child].texture);
                 y += size.height;
             }
@@ -1924,6 +1924,32 @@ pub const Element = struct {
                 // Fixed sized objects are ignored by the layout
                 // algorithm. Keep the reqeusted fixed width.
             },
+        }
+
+        // Align words to centre or right if requested.
+        if (children.len == 0) return;
+        if (element.child_align.x == .centre or element.child_align.x == .end) {
+            var line_start: usize = 0;
+            var line_end: usize = 0;
+            while (true) : (line_end += 1) {
+                if (line_end + 1 == children.len) {
+                    element.do_word_alignment(
+                        children[line_end].location.x + children[line_end].location.width,
+                        element.rect.width,
+                        children[line_start .. line_end + 1],
+                    );
+                    break;
+                }
+                if (children[line_end].location.x >= children[line_end + 1].location.x) {
+                    element.do_word_alignment(
+                        children[line_end].location.x + children[line_end].location.width,
+                        element.rect.width,
+                        children[line_start .. line_end + 1],
+                    );
+                    line_start = line_end + 1;
+                    continue;
+                }
+            }
         }
 
         const t = switch (element.type) {
