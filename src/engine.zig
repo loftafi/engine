@@ -1850,7 +1850,7 @@ pub const Element = struct {
             const is_cr = item.text != null and item.text.?.len == 1 and item.text.?[0] == '\n';
             const size = text_height.pixel_size(display, item.texture);
             // Would drawing this word overflow?
-            if ((x + size.width > wrap_at and line_word_count > 0) or is_cr) {
+            if ((x + word_spacing + size.width > wrap_at and line_word_count > 0) or is_cr) {
                 needed_width = @max(needed_width, x);
                 // Wrap to next line
                 x = 0;
