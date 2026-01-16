@@ -1230,12 +1230,11 @@ pub const Element = struct {
         return @max(self.minimum.height, height);
     }
 
-    /// Shrink to the smallest width this object is desires to
-    /// shrink to. That could mean shrinking to the size needed by
-    /// children elements, or growing to the full width of the parent.
-    ///
-    /// If text is longer than the parent width, then wrapping is forced.
-    fn shrink_width(self: *Element, display: *Display, parent_width: f32) f32 {
+    /// Return the smallest width this element permits.
+    /// .
+    /// Some elements grow to the `parent_width`, which is usually the
+    /// `parent.rect.width` minus any internal padding.
+    fn shrink_width(self: *Element, display: *Display, parent_inner_width: f32) f32 {
         if (self.visible == .hidden)
             return 0;
 
@@ -1247,20 +1246,22 @@ pub const Element = struct {
                 return @max(self.minimum.width, find_minimum_panel_width(self, display));
             },
             .button => {
-                var width: f32 = self.pad.left + self.pad.right;
+                // Buttons may contain padding, icon, text, and icon-text spacing.
+                var needed_width: f32 = self.pad.left + self.pad.right;
 
-                width += self.type.button.icon_size.width;
+                needed_width += self.type.button.icon_size.width;
 
-                // Do we need to pad between icon and text?
+                // If button has icon _and_ text, add button spacing
                 if (self.type.button.icon_size.width > 0 and self.type.button.text.len > 0) {
-                    width += self.type.button.spacing;
+                    needed_width += self.type.button.spacing;
                 }
 
+                // Add the width of the button text
                 if (self.type.button.text_texture) |t| {
                     const size = self.type.button.text_size.pixel_size(display, t);
-                    width += size.width;
+                    needed_width += size.width;
                 }
-                return @max(self.minimum.width, width);
+                return @max(self.minimum.width, needed_width);
             },
             .expander => {
                 return self.minimum.width;
@@ -1270,7 +1271,7 @@ pub const Element = struct {
                     .shrinks, .grows => {
                         // Growing or shrinking, our task here is to find
                         // the minimum that would be needed.
-                        self.layout_label(display, parent_width);
+                        self.layout_label(display, parent_inner_width);
                         return self.rect.width;
                     },
                     .fixed => {
@@ -1283,7 +1284,7 @@ pub const Element = struct {
                     .shrinks, .grows => {
                         // Growing or shrinking, our task here is to find
                         // the minimum that would be needed.
-                        self.layout_label(display, parent_width);
+                        self.layout_label(display, parent_inner_width);
                         //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
                         return self.rect.width + self.pad.left + display.checkbox().width;
                     },
@@ -1810,7 +1811,7 @@ pub const Element = struct {
     inline fn layout_label(
         element: *Element,
         display: *Display,
-        max_parent_width: f32,
+        parent_inner_width: f32,
     ) void {
         std.debug.assert(element.type == .label or element.type == .checkbox);
 
@@ -1837,7 +1838,7 @@ pub const Element = struct {
         var x: f32 = 0;
         var y: f32 = 0;
 
-        const wrap_at: f32 = word_wrap_line(element, display, max_parent_width);
+        const wrap_at: f32 = word_wrap_line(element, display, parent_inner_width);
 
         // A line must have at least one word before a line break is inserted
         // otherwise we are just drawing pointless broken blank lines.
@@ -1916,7 +1917,7 @@ pub const Element = struct {
             .grows => {
                 // Growable must use at least the size it needs
                 element.rect.width = @max(needed_width, element.minimum.width);
-                element.rect.width = @max(element.rect.width, max_parent_width);
+                element.rect.width = @max(element.rect.width, parent_inner_width);
                 if (element.maximum.width > 0)
                     element.rect.width = @min(element.rect.width, element.maximum.width);
             },
@@ -1965,7 +1966,7 @@ pub const Element = struct {
             wrap_at,
             needed_width,
             element.rect.width,
-            max_parent_width,
+            parent_inner_width,
         });
     }
 
@@ -5178,11 +5179,18 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
                 if (element.layout.position == .float) continue;
                 if (element.visible == .hidden) continue;
 
-                const width = element.shrink_width(display, available_width);
-                //debug("seek min width {s} {s} min={d}", .{ element.name, @tagName(element.type), width });
-                if (width > minimum_needed) {
-                    minimum_needed = width;
+                const child_width = element.shrink_width(display, available_width);
+                if (false) {
+                    debug("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
+                        parent.name,
+                        element.name,
+                        element.type,
+                        minimum_needed,
+                        child_width,
+                        available_width,
+                    });
                 }
+                minimum_needed = @max(minimum_needed, child_width);
             }
             const chose = @max(parent.minimum.width, minimum_needed + (parent.pad.left + parent.pad.right));
             return chose;
