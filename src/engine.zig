@@ -3631,7 +3631,7 @@ pub const Display = struct {
     }
 
     /// Update and draw all elements on the display.
-    pub fn draw(display: *Display) !void {
+    pub fn draw(display: *Display) Allocator.Error!void {
         const now = std.time.microTimestamp();
         display.last_delta = now - display.last_draw;
         display.last_draw = now;
@@ -3639,7 +3639,7 @@ pub const Display = struct {
         var i: usize = 0;
         while (i < display.animators.items.len) {
             const animator = display.animators.items[i];
-            const done = animator.animate(display, now);
+            const done = try animator.animate(display, now);
             // TODO: relayout is not always needed
             display.need_relayout = true;
             if (done) {

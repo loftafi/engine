@@ -5,11 +5,16 @@
 
 pub const Mode = enum {
     move,
-    fade_in,
-    fade_out,
+    colour,
+    background_colour,
+
+    /// Change the visibility of an element at the start and/or end
+    /// of the animation.
+    visibility,
+
+    /// Take no action for the duration of the animation, except
+    /// call the `on_end` function when the animation completes.
     pause,
-    appear,
-    hide,
 };
 
 pub const Ease = enum {
@@ -24,11 +29,28 @@ pub const Ease = enum {
     stretch,
 };
 
-target: *Element,
-mode: Mode = .move,
+mode: union(Mode) {
+    move: struct {
+        start: Rect = undefined,
+        end: Rect = undefined,
+    },
+    colour: struct {
+        start: Colour = undefined,
+        end: Colour = undefined,
+    },
+    background_colour: struct {
+        start: Colour = undefined,
+        end: Colour = undefined,
+    },
+    visibility: struct {
+        start: Visibility = undefined,
+        end: Visibility = undefined,
+    },
+    pause: struct {},
+},
+
 movement: Ease = .ease,
-start: Rect = undefined,
-end: Rect = undefined,
+target: *Element,
 duration: i64 = 0, // number of nanoseconds to animate over
 on_end: engine.Callback = .{ .func = null },
 
@@ -40,9 +62,10 @@ end_time: i64 = 0,
 /// When an animation starts, an `Ease` formula calculates the current
 /// position/adjustment of an `Element` based on the `start_time` and expected
 /// `end_time` of the animation.
-pub fn animate(self: *Self, display: *Display, current_time: i64) bool {
-    _ = display;
-
+///
+/// Animators may change visibility of an element, so the animate event may
+/// return errors associated with a visibility change.
+pub fn animate(self: *Self, display: *Display, current_time: i64) Allocator.Error!bool {
     if (!self.setup) {
         self.setup = true;
         self.start_time = current_time;
@@ -62,88 +85,75 @@ pub fn animate(self: *Self, display: *Display, current_time: i64) bool {
         .pause => {
             // no action needed
         },
-        .move => {
+        .move => |m| {
             switch (self.movement) {
                 .ease => {
-                    self.target.rect.x = ease(self.start.x, self.end.x, step, self.duration);
-                    self.target.rect.y = ease(self.start.y, self.end.y, step, self.duration);
-                    self.target.rect.width = ease(self.start.width, self.end.width, step, self.duration);
-                    self.target.rect.height = ease(self.start.height, self.end.height, step, self.duration);
+                    self.target.rect.x = ease_float(f32, m.start.x, m.end.x, step, self.duration);
+                    self.target.rect.y = ease_float(f32, m.start.y, m.end.y, step, self.duration);
+                    self.target.rect.width = ease_float(f32, m.start.width, m.end.width, step, self.duration);
+                    self.target.rect.height = ease_float(f32, m.start.height, m.end.height, step, self.duration);
                 },
                 .bounce => {
-                    self.target.rect.x = bounce(self.start.x, self.end.x, step, self.duration);
-                    self.target.rect.y = bounce(self.start.y, self.end.y, step, self.duration);
-                    self.target.rect.width = bounce(self.start.width, self.end.width, step, self.duration);
-                    self.target.rect.height = bounce(self.start.height, self.end.height, step, self.duration);
+                    self.target.rect.x = bounce_float(f32, m.start.x, m.end.x, step, self.duration);
+                    self.target.rect.y = bounce_float(f32, m.start.y, m.end.y, step, self.duration);
+                    self.target.rect.width = bounce_float(f32, m.start.width, m.end.width, step, self.duration);
+                    self.target.rect.height = bounce_float(f32, m.start.height, m.end.height, step, self.duration);
                 },
                 .linear => {
-                    self.target.rect.x = lerp(self.start.x, self.end.x, step, self.duration);
-                    self.target.rect.y = lerp(self.start.y, self.end.y, step, self.duration);
-                    self.target.rect.width = lerp(self.start.width, self.end.width, step, self.duration);
-                    self.target.rect.height = lerp(self.start.height, self.end.height, step, self.duration);
+                    self.target.rect.x = lerp_float(f32, m.start.x, m.end.x, step, self.duration);
+                    self.target.rect.y = lerp_float(f32, m.start.y, m.end.y, step, self.duration);
+                    self.target.rect.width = lerp_float(f32, m.start.width, m.end.width, step, self.duration);
+                    self.target.rect.height = lerp_float(f32, m.start.height, m.end.height, step, self.duration);
                 },
                 .stretch => {
-                    self.target.rect.x = stretch(self.start.x, -self.end.x, step, self.duration);
-                    self.target.rect.y = stretch(self.start.y, -self.end.y, step, self.duration);
-                    self.target.rect.width = stretch(self.start.width, self.end.width * 2, step, self.duration);
-                    self.target.rect.height = stretch(self.start.height, self.end.height * 2, step, self.duration);
+                    self.target.rect.x = stretch_float(f32, m.start.x, -m.end.x, step, self.duration);
+                    self.target.rect.y = stretch_float(f32, m.start.y, -m.end.y, step, self.duration);
+                    self.target.rect.width = stretch_float(f32, m.start.width, m.end.width * 2, step, self.duration);
+                    self.target.rect.height = stretch_float(f32, m.start.height, m.end.height * 2, step, self.duration);
                 },
             }
         },
-        .appear => {
-            self.target.visible = .visible;
+        .visibility => {
+            self.target.visible = self.mode.visibility.start;
         },
-        .hide => {
-            self.target.visible = .hidden;
-        },
-        .fade_in => {
+        .colour => |m| {
             switch (self.movement) {
-                .ease => {
-                    self.target.colour.a = @as(u8, @intFromFloat(ease(0, 255, step, 255)));
-                },
-                .bounce => {
-                    self.target.colour.a = @as(u8, @intFromFloat(bounce(0, 255, step, 255)));
-                },
-                .stretch => {
-                    self.target.colour.a = @as(u8, @intFromFloat(stretch(0, 255, step, 255)));
-                },
-                .linear => {
-                    self.target.colour.a = @as(u8, @intFromFloat(lerp(0, 255, step, 255)));
-                },
+                .ease => self.target.colour.a = ease_int(u8, m.start.a, m.end.a, step, self.duration),
+                .bounce => self.target.colour.a = bounce_int(u8, m.start.a, m.end.a, step, self.duration),
+                .stretch => self.target.colour.a = stretch_int(u8, m.start.a, m.end.a, step, self.duration),
+                .linear => self.target.colour.a = lerp_int(u8, m.start.a, m.end.a, step, self.duration),
             }
         },
-        .fade_out => {
+        .background_colour => |m| {
             switch (self.movement) {
-                .ease => {
-                    self.target.colour.a = @as(u8, @intFromFloat(ease(255, 0, step, 255)));
-                },
-                .bounce => {
-                    self.target.colour.a = @as(u8, @intFromFloat(bounce(255, 0, step, 255)));
-                },
-                .stretch => {
-                    self.target.colour.a = @as(u8, @intFromFloat(stretch(255, 0, step, 255)));
-                },
-                .linear => {
-                    self.target.colour.a = @as(u8, @intFromFloat(lerp(255, 0, step, 255)));
-                },
+                .ease => self.target.background.colour.a = ease_int(u8, m.start.a, m.end.a, step, self.duration),
+                .bounce => self.target.background.colour.a = bounce_int(u8, m.start.a, m.end.a, step, self.duration),
+                .stretch => self.target.background.colour.a = stretch_int(u8, m.start.a, m.end.a, step, self.duration),
+                .linear => self.target.background.colour.a = lerp_int(u8, m.start.a, m.end.a, step, self.duration),
             }
         },
     }
 
     if (current_time > self.end_time) {
-        if (self.mode == .fade_out) {
-            self.target.visible = .hidden;
-        }
-        if (self.mode == .move) {
-            if (self.movement == .stretch) {
-                self.target.rect.x = self.start.x;
-                self.target.rect.y = self.start.y;
-                self.target.rect.width = self.start.width;
-                self.target.rect.height = self.start.height;
-            } else {
-                self.target.rect.x = self.end.x;
-                self.target.rect.y = self.end.y;
-            }
+        // At end of animation, clamp to end value
+        switch (self.mode) {
+            .visibility => |m| {
+                try self.target.set_visibility(display, m.end);
+            },
+            .move => |m| {
+                if (self.movement == .stretch) {
+                    self.target.rect.x = m.start.x;
+                    self.target.rect.y = m.start.y;
+                    self.target.rect.width = m.start.width;
+                    self.target.rect.height = m.start.height;
+                } else {
+                    self.target.rect.x = m.end.x;
+                    self.target.rect.y = m.end.y;
+                }
+            },
+            .colour => |m| self.target.colour.a = m.end.a,
+            .background_colour => |m| self.target.colour.a = m.end.a,
+            .pause => {},
         }
         return true;
     }
@@ -151,26 +161,34 @@ pub fn animate(self: *Self, display: *Display, current_time: i64) bool {
     return false;
 }
 
-inline fn lerp(start: f32, end: f32, step: i64, total_steps: i64) f32 {
-    return end - ((end - start) * (@as(f32, @floatFromInt(step)) / @as(f32, @floatFromInt(total_steps))));
+fn lerp_float(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
+    return end - (((end - start) * (@as(T, @floatFromInt(step))) / @as(T, @floatFromInt(total_steps))));
 }
 
-inline fn stretch(start: f32, middle: f32, step: i64, total_steps: i64) f32 {
-    const pos: f32 = @min(@as(f32, @floatFromInt(step)) / @as(f32, @floatFromInt(total_steps)), 1.0);
+fn lerp_int(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
+    return end - @as(T, @intCast(@divFloor(@as(i64, (end - start)) * step, total_steps)));
+}
+
+inline fn stretch_float(comptime T: type, start: T, middle: T, step: i64, total_steps: i64) T {
+    const pos: f32 = @min(@as(T, @floatFromInt(step)) / @as(T, @floatFromInt(total_steps)), 1.0);
     return start + (1 - @abs(1 - (2 * pos))) * middle;
     //return start + @sin(@as(f32, @floatFromInt(step)) * (PI / @as(f32, @floatFromInt(total_steps)))) * middle;
+}
+
+inline fn stretch_int(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
+    return @as(T, @intFromFloat(stretch_float(f32, @floatFromInt(start), @floatFromInt(end), step, total_steps)));
 }
 
 const FLOAT_EPSILON: f32 = 0.00001;
 const PI: f32 = std.math.pi;
 
-inline fn bounce(start: f32, _end: f32, step: i64, total_steps: i64) f32 {
-    var value = @as(f32, @floatFromInt(total_steps - step)) / @as(f32, @floatFromInt(total_steps));
+inline fn bounce_float(comptime T: type, start: T, _end: T, step: i64, total_steps: i64) T {
+    var value = @as(T, @floatFromInt(total_steps - step)) / @as(T, @floatFromInt(total_steps));
     const end = _end - start;
-    const d: f32 = 1;
-    const p: f32 = d * 0.3;
-    var s: f32 = 0;
-    var a: f32 = 0;
+    const d: T = 1;
+    const p: T = d * 0.3;
+    var s: T = 0;
+    var a: T = 0;
 
     if (@abs(value) < FLOAT_EPSILON) {
         return start;
@@ -191,26 +209,36 @@ inline fn bounce(start: f32, _end: f32, step: i64, total_steps: i64) f32 {
     return result;
 }
 
-inline fn ease(start: f32, end: f32, step: i64, total_steps: i64) f32 {
-    var value = @as(f32, @floatFromInt(total_steps - step)) / @as(f32, @floatFromInt(total_steps));
+inline fn bounce_int(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
+    return @as(T, @intFromFloat(bounce_float(f32, @floatFromInt(start), @floatFromInt(end), step, total_steps)));
+}
+
+inline fn ease_float(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
+    // `step` ranges between 0 to `total_steps`, `value` ranges from 2 to 0
+    var value = @as(T, @floatFromInt(total_steps - step)) / @as(T, @floatFromInt(total_steps));
     value = value * 2;
-    const p = end - start;
 
     if (value < 1) {
-        const result = p * 0.5 * value * value + start;
-        //debug("ease {d}->{d} -- {d}", .{ start, end, result });
-        return result;
+        const offset = (end - start) * value * value / 2;
+        return start + offset;
     } else {
         value -= 1;
-        const result = p * -0.5 * (value * (value - 2) - 1) + start;
-        //debug("ease {d}->{d} -- {d}", .{ start, end, result });
-        return result;
+        const offset = (end - start) * (value * (value - 2) - 1) / -2;
+        return start + offset;
     }
 }
 
+inline fn ease_int(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
+    // `step` ranges between 0 to `total_steps`, `value` ranges from 256 to 0
+    return @as(T, @intFromFloat(ease_float(f32, @floatFromInt(start), @floatFromInt(end), step, total_steps)));
+}
+
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const engine = @import("engine.zig");
 const Rect = engine.Rect;
+const Visibility = engine.Visibility;
+const Colour = engine.Colour;
 const Element = engine.Element;
 const Display = engine.Display;
 const Self = @This();
@@ -224,11 +252,11 @@ const eq = std.testing.expectEqual;
 test "stretch formula" {
 
     // Button top left
-    try eq(100, stretch(100, -10, 0, 10));
-    try eq(100, stretch(100, -10, 10, 10));
-    try eq(90, stretch(100, -10, 5, 10));
+    try eq(100, stretch_float(f32, 100, -10, 0, 10));
+    try eq(100, stretch_float(f32, 100, -10, 10, 10));
+    try eq(90, stretch_float(f32, 100, -10, 5, 10));
     // Button size
-    try eq(200, stretch(200, 20, 0, 10));
-    try eq(200, stretch(200, 20, 10, 10));
-    try eq(220, stretch(200, 20, 5, 10));
+    try eq(200, stretch_int(u8, 200, 20, 0, 10));
+    try eq(200, stretch_int(u8, 200, 20, 10, 10));
+    try eq(220, stretch_int(u8, 200, 20, 5, 10));
 }
