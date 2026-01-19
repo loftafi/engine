@@ -244,9 +244,9 @@ pub const Box = struct {};
 
 pub const FocusOption = enum(u2) {
     unspecified,
-    /// never_focus allow tab into or activation with a mouse
+    /// never_focus don't allow _tab into_ or _hover over_
     never_focus,
-    /// can_focus
+    /// can_focus allow _tab into_ or _hover over_ with a mouse.
     can_focus,
     /// accessibility_focus is used to indicate screen readers may tab
     /// into this element to inspect it. Use to describe important
@@ -794,6 +794,19 @@ pub const Element = struct {
                 info("set_placeholder_text({s}.{s}) invalid", .{ @tagName(self.type), text });
             },
         }
+    }
+
+    // Find the avaialble inner width of this element.
+    pub inline fn available_width(self: *const Element) f32 {
+        const padding = self.pad.left - self.pad.right;
+        var available = self.rect.width - padding;
+
+        if (self.maximum.width > 0)
+            available = @min(self.maximum.width - padding, available);
+
+        available = @max(available, self.minimum.width - padding);
+
+        return available;
     }
 
     /// Show or hide this element. If the visibliity is changed a relayout
@@ -3187,7 +3200,7 @@ pub const Display = struct {
         for (parent.type.panel.children.items) |element| {
             if (element.visible == .hidden) continue;
 
-            const available_width = parent.rect.width - parent.pad.left - parent.pad.right;
+            const available_width = parent.available_width();
 
             var child_resized = false;
             if ((dev_build or dev_mode) and element.layout.position == .float) {
@@ -3349,14 +3362,14 @@ pub const Display = struct {
             .x = parent.rect.x + parent.pad.left,
             .y = parent.rect.y + parent.pad.top,
         };
-        var i: usize = 0;
+        var first = true;
         for (parent.type.panel.children.items) |child| {
             // Layout the clipped and visible items, but not the hidden items.
             if (child.visible == .hidden) continue;
             if (child.layout.position == .float) continue;
 
             // Only apply spacing in-between items
-            if (i > 0)
+            if (!first and child.type != .expander)
                 current.y += parent.type.panel.spacing;
 
             child.rect.x = current.x;
@@ -3365,12 +3378,12 @@ pub const Display = struct {
             if (child.type != .expander)
                 current.y += child.rect.height;
 
-            i += 1;
+            if (child.type != .expander) first = false;
+
             if (child.layout.x == .grows) {
                 child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
-                if (child.maximum.width > 0 and child.rect.width > child.maximum.width) {
-                    child.rect.width = child.maximum.width;
-                }
+                if (child.maximum.width > 0)
+                    child.rect.width = @min(child.maximum.width, child.rect.width);
             }
         }
         const needed_height = current.y - parent.rect.y - parent.pad.top;
@@ -3381,7 +3394,7 @@ pub const Display = struct {
 
         // If there are expanders, expand them, otherwise,
         // do start/centre/end alignment.
-        if (expanders.len > 0) {
+        if (expanders.len > 0 or expander_weights > 0) {
             // Relayout the children with expanders
             trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
                 parent.name,
@@ -3389,14 +3402,12 @@ pub const Display = struct {
                 needed_height,
                 parent.rect.height,
             });
-
             if (parent.rect.height > needed_height) {
                 // Give each expander a percentage of the spare height area
                 const spare_height = parent.rect.height - needed_height;
                 for (expanders) |expander| {
-                    if (expander.type.expander.weight <= 0) {
-                        continue;
-                    }
+                    if (expander.type.expander.weight <= 0) continue;
+
                     const percent = expander.type.expander.weight / expander_weights;
                     expander.rect.height = @trunc(spare_height * percent);
                     trace("   expander: weight {d} given: {d}", .{
@@ -3407,12 +3418,16 @@ pub const Display = struct {
                 // Re-update each child panels y position based on the
                 // update to each expanders size.
                 var new_y: f32 = parent.rect.y + parent.pad.top;
+                first = true;
                 for (parent.type.panel.children.items) |child| {
                     // Relayout top to bottom using expander sizes
                     if (child.visible == .hidden) continue;
                     if (child.layout.position == .float) continue;
+                    if (!first and child.type != .expander)
+                        new_y += parent.type.panel.spacing;
                     child.rect.y = new_y;
-                    new_y += child.rect.height + parent.type.panel.spacing;
+                    new_y += child.rect.height;
+                    if (child.type != .expander) first = false;
                     trace("expanding. {t} {s} y={d} height={d}", .{
                         child.type,
                         child.name,
@@ -3429,34 +3444,30 @@ pub const Display = struct {
                 .centre => {
                     // Align from top to work out how much space is left
                     var new_y: f32 = parent.rect.y + parent.pad.top + (overflow_height / 2.0);
+                    first = true;
                     for (parent.type.panel.children.items) |child| {
-                        if (child.visible == .hidden) {
-                            // Layout the clipped and visible items,
-                            // but not the hidden items.
-                            continue;
-                        }
-                        if (child.layout.position == .float) {
-                            continue;
-                        }
+                        if (child.visible == .hidden) continue;
+                        if (child.layout.position == .float) continue;
+                        if (!first and child.type != .expander)
+                            new_y += parent.type.panel.spacing;
                         child.rect.y = new_y;
-                        new_y += child.rect.height + parent.type.panel.spacing;
+                        new_y += child.rect.height;
+                        if (child.type != .expander) first = false;
                     }
                 },
                 .end => {
                     // Workout the offset between the initial draw position
                     // and the overflow (underflow) to adjust for.
                     var new_y: f32 = parent.rect.y + parent.pad.top + overflow_height;
+                    first = true;
                     for (parent.type.panel.children.items) |child| {
-                        if (child.visible == .hidden) {
-                            // Layout the clipped and visible items,
-                            // but not the hidden items.
-                            continue;
-                        }
-                        if (child.layout.position == .float) {
-                            continue;
-                        }
+                        if (child.visible == .hidden) continue;
+                        if (child.layout.position == .float) continue;
+                        if (!first and child.type != .expander)
+                            new_y += parent.type.panel.spacing;
                         child.rect.y = new_y;
-                        new_y += child.rect.height + parent.type.panel.spacing;
+                        new_y += child.rect.height;
+                        if (child.type != .expander) first = false;
                     }
                     parent.type.panel.scrollable.size.width = @max(
                         needed_height,
@@ -3474,20 +3485,19 @@ pub const Display = struct {
         _: *Display,
         parent: *Element,
         expanders: []*Element,
-        expanders_weight: f32,
+        expander_weights: f32,
     ) void {
         var current: Vector = .{
             .x = parent.rect.x + parent.pad.left,
             .y = parent.rect.y + parent.pad.top,
         };
-        var i: usize = 0;
+        // On first pass, we don't know the stretch size of the expanders
+        // so first pass ignores expander width to find only the "needed" space.
+        var first = true;
         for (parent.type.panel.children.items) |child| {
-            // Layout the clipped and visible items, but not the hidden items.
             if (child.visible == .hidden) continue;
             if (child.layout.position == .float) continue;
-
-            // Only apply spacing in-between items
-            if (i > 0)
+            if (!first and child.type != .expander)
                 current.x += parent.type.panel.spacing;
 
             child.rect.x = current.x;
@@ -3496,64 +3506,95 @@ pub const Display = struct {
             if (child.type != .expander)
                 current.x += child.rect.width;
 
-            i += 1;
+            if (child.type != .expander) first = false;
+
             if (child.layout.y == .grows) {
                 child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
-                if (child.maximum.height > 0 and child.rect.height > child.maximum.height) {
-                    child.rect.height = child.maximum.height;
-                }
+                if (child.maximum.height > 0)
+                    child.rect.height = @min(child.maximum.height, child.rect.height);
             }
         }
         const needed_width = current.x - parent.rect.x - parent.pad.left;
         const overflow_width = (parent.rect.x + parent.rect.width - parent.pad.right) - current.x;
         parent.type.panel.scrollable.size.width = @max(needed_width, parent.rect.width);
 
-        //info(" left to right layout {s} {s} - need {d} overflow {d}", .{ parent.name, @tagName(parent.type), needed_width, overflow_width });
+        // On second pass, we can add in the expanders.
+        if (expanders.len > 0 or expander_weights > 0) {
+            trace("expanders: {s} has {any} expanders.  needed_width={d} available_width={d}", .{
+                parent.name,
+                expanders.len,
+                needed_width,
+                parent.rect.width,
+            });
+            if (parent.rect.width > needed_width) {
+                // Give each expander a percentage of the spare width area
+                const spare_width = parent.rect.width - needed_width;
+                for (expanders) |expander| {
+                    if (expander.type.expander.weight <= 0) continue;
 
-        if (expanders.len > 0 or expanders_weight > 0) {
-            // TODO: Apply expanders. Left_to_right doesnt currently support
-            // expanders. Transfer top_to_bottom expander code here
-            warn("panel {s} left to right doesnt support expanders", .{parent.name});
-        }
+                    const percent = expander.type.expander.weight / expander_weights;
+                    expander.rect.width = @trunc(spare_width * percent);
+                    trace("   expander: weight {d} given: {d}", .{
+                        percent,
+                        expander.rect.width,
+                    });
+                }
+                // Re-update each child panels x position based on the
+                // update to each expanders size.
+                var new_x: f32 = parent.rect.x + parent.pad.left;
+                first = true;
+                for (parent.type.panel.children.items) |child| {
+                    // Relayout left to right using expander sizes
+                    if (child.visible == .hidden) continue;
+                    if (child.layout.position == .float) continue;
+                    if (!first and child.type != .expander)
+                        new_x += parent.type.panel.spacing;
+                    child.rect.x = new_x;
+                    new_x += child.rect.width;
+                    if (child.type != .expander) first = false;
 
-        // If there is remaining space at end of children, maybe we
-        // need to centre or right align.
-        switch (parent.child_align.x) {
-            .start => {},
-            .centre => {
-                // Align from left to work out how much space is left
-                var new_x: f32 = parent.rect.x + parent.pad.left + (overflow_width / 2.0);
-                for (parent.type.panel.children.items) |child| {
-                    if (child.visible == .hidden) {
-                        // Layout the clipped and visible items,
-                        // but not the hidden items.
-                        continue;
-                    }
-                    if (child.layout.position == .float) {
-                        continue;
-                    }
-                    child.rect.x = new_x;
-                    new_x += child.rect.width + parent.type.panel.spacing;
+                    trace("expanding. {t} {s} x={d} width={d}", .{
+                        child.type,
+                        child.name,
+                        child.rect.x,
+                        child.rect.width,
+                    });
                 }
-            },
-            .end => {
-                // Workout the offset between the initial draw position
-                // and the overflow (underflow) to adjust for.
-                var new_x: f32 = parent.rect.x + parent.pad.left + overflow_width;
-                for (parent.type.panel.children.items) |child| {
-                    if (child.visible == .hidden) {
-                        // Layout the clipped and visible items,
-                        // but not the hidden items.
-                        continue;
+            }
+        } else {
+            // Alternatively, if there are no expanders, we can align
+            // the children.
+            //
+            // If there is remaining space at end of children, maybe we
+            // need to centre or right align.
+            switch (parent.child_align.x) {
+                .start => {},
+                .centre => {
+                    // Align from top to work out how much space is left
+                    var new_x: f32 = parent.rect.x + parent.pad.left + (overflow_width / 2.0);
+                    for (parent.type.panel.children.items) |child| {
+                        if (child.visible == .hidden) continue;
+                        if (child.layout.position == .float) continue;
+                        child.rect.x = new_x;
+                        new_x += child.rect.width + parent.type.panel.spacing;
                     }
-                    if (child.layout.position == .float) {
-                        continue;
+                },
+                .end => {
+                    // Workout the offset between the initial draw position
+                    // and the overflow (underflow) to adjust for.
+                    var new_x: f32 = parent.rect.x + parent.pad.left + overflow_width;
+                    for (parent.type.panel.children.items) |child| {
+                        if (child.visible == .hidden) continue;
+                        if (child.layout.position == .float) continue;
+                        child.rect.x = new_x;
+                        new_x += child.rect.width + parent.type.panel.spacing;
                     }
-                    child.rect.x = new_x;
-                    new_x += child.rect.width + parent.type.panel.spacing;
-                }
-                parent.type.panel.scrollable.size.width = @max(needed_width, parent.rect.width);
-            },
+                    parent.type.panel.scrollable.size.width = @max(
+                        needed_width,
+                        parent.rect.width,
+                    );
+                },
+            }
         }
     }
 
@@ -3576,21 +3617,21 @@ pub const Display = struct {
         // Draw along the line, and wrap when we hit the end of the line
         const line_end: f32 = parent.rect.x + parent.rect.width - parent.pad.right;
 
-        var i: usize = 0;
+        var first = true;
         for (parent.type.panel.children.items) |child| {
             if (child.visible == .hidden) continue;
             if (child.layout.position == .float) continue;
-            if (child.type == .expander) continue;
 
-            if (i > 0)
+            if (!first and child.type != .expander)
                 current.x += parent.type.panel.spacing;
-            i += 1;
+
+            if (child.type != .expander) first = false;
 
             if (current.x + child.rect.width > line_end) {
                 current.x = parent.rect.x + parent.pad.left;
                 current.y += line_height + parent.type.panel.spacing;
                 line_height = 0;
-                i = 0;
+                first = true;
                 //TODO: We could y grow the elements that want grow.
                 //TODO We could centre the items on this line `parent.child_align.x`
             }
@@ -4198,13 +4239,11 @@ pub const Display = struct {
         while (i > 0) : (i -= 1) {
             const element: *Element = elements[i - 1];
             //debug("seek={s} visible={any} {s} {s}", .{ @tagName(query), element.visible, @tagName(element.type), element.name });
-            if (element.visible != .visible) {
-                continue;
-            }
+            if (element.visible != .visible) continue;
+
             const is_under_cursor = element.at_point(cursor, scroll_offset);
-            if (!is_under_cursor and element.type != .panel) {
-                continue;
-            }
+            if (!is_under_cursor and element.type != .panel) continue;
+
             //debug("under cursor {s}.{s}", .{ @tagName(element.type), element.name });
             if (element.type == .panel) {
                 const so = scroll_offset.add(element.offset);
@@ -4214,20 +4253,25 @@ pub const Display = struct {
             }
             // This item is under the cursor
             if (query == .any) {
-                if (element.type != .panel) {
-                    return element;
-                }
+                // Search for any element
+                if (element.focus == .never_focus) continue;
+
+                // Panels get special handling,
+                if (element.type != .panel) return element;
+
                 if (is_under_cursor) {
-                    if (element.type.panel.on_click.func != null) {
+                    if (element.type.panel.on_click.func != null)
                         return element;
-                    }
-                    if (element.type.panel.scrollable.scroll.x == true or element.type.panel.scrollable.scroll.y == true) {
+
+                    if (element.type.panel.scrollable.scroll.x == true or element.type.panel.scrollable.scroll.y == true)
                         return element;
-                    }
                 }
             }
+
             if (query == .clickable) {
-                // Only clickable things
+                // Search only clickable elements
+                if (element.focus == .never_focus) continue;
+
                 //debug("under cursor clickable {s} {s}", .{ @tagName(element.type), element.name });
                 switch (element.type) {
                     .text_input, .checkbox => return element,
@@ -5040,7 +5084,7 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
     if (parent.visible == .hidden) return 0;
     if (parent.layout.position == .float) return 0;
 
-    const available_width = parent.rect.width - parent.pad.left - parent.pad.right;
+    const available_width = parent.available_width();
 
     switch (parent.type.panel.direction) {
         .top_to_bottom => {
@@ -5051,6 +5095,7 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
             for (parent.type.panel.children.items) |element| {
                 if (element.layout.position == .float) continue;
                 if (element.visible == .hidden) continue;
+                if (element.type == .expander) continue;
                 if (first) {
                     first = false;
                 } else {
@@ -5076,13 +5121,11 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
             // Just need to know the highest/tallest child.
             var minimum_needed: f32 = 0;
             for (parent.type.panel.children.items) |element| {
-                if (element.layout.position == .float) {
-                    continue;
-                }
+                if (element.layout.position == .float) continue;
+
                 const height = element.shrink_height(display, available_width);
-                if (height > minimum_needed) {
+                if (height > minimum_needed)
                     minimum_needed = height;
-                }
             }
             return minimum_needed + (parent.pad.top + parent.pad.bottom);
         },
@@ -5116,7 +5159,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
     if (parent.visible == .hidden) return 0;
     if (parent.layout.position == .float) return 0;
 
-    const available_width = parent.rect.width - parent.pad.left - parent.pad.right;
+    const available_width = parent.available_width();
 
     switch (parent.type.panel.direction) {
         .left_to_right => {
@@ -5128,6 +5171,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
             for (parent.type.panel.children.items) |element| {
                 if (element.layout.position == .float) continue;
                 if (element.visible == .hidden) continue;
+                if (element.type == .expander) continue;
 
                 // Add space between each element.
                 if (first)
@@ -5139,12 +5183,10 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
                 minimum_needed += width;
             }
             // Bound to the minimum/maximum width
-            var result = minimum_needed;
-            if (parent.maximum.width > 0 and parent.maximum.width < minimum_needed) {
-                result = parent.maximum.width;
-            }
-            result = @max(result, parent.minimum.width);
-            return result;
+            if (parent.maximum.width > 0)
+                minimum_needed = @min(parent.maximum.width, minimum_needed);
+
+            return @max(minimum_needed, parent.minimum.width);
         },
         .left_to_right_wrap => {
             var minimum_needed: f32 = parent.pad.left + parent.pad.right;
@@ -5152,6 +5194,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
             for (parent.type.panel.children.items) |element| {
                 if (element.layout.position == .float) continue;
                 if (element.visible == .hidden) continue;
+                if (element.type == .expander) continue;
 
                 // Add space between each element.
                 if (first)
@@ -5163,10 +5206,8 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
                 minimum_needed = @max(minimum_needed, width);
             }
             // Bound to the minimum/maximum width
-            minimum_needed += parent.pad.left + parent.pad.right;
-            if (parent.maximum.width > 0 and parent.maximum.width < minimum_needed) {
-                minimum_needed = parent.maximum.width;
-            }
+            if (parent.maximum.width > 0)
+                minimum_needed = @min(parent.maximum.width, minimum_needed);
             return @max(minimum_needed, parent.minimum.width);
         },
         .centre, .top_to_bottom, .top_left => {
@@ -5178,6 +5219,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
             for (parent.type.panel.children.items) |element| {
                 if (element.layout.position == .float) continue;
                 if (element.visible == .hidden) continue;
+                if (element.type == .expander) continue;
 
                 const child_width = element.shrink_width(display, available_width);
                 if (false) {
@@ -5192,8 +5234,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
                 }
                 minimum_needed = @max(minimum_needed, child_width);
             }
-            const chose = @max(parent.minimum.width, minimum_needed + (parent.pad.left + parent.pad.right));
-            return chose;
+            return @max(parent.minimum.width, minimum_needed + (parent.pad.left + parent.pad.right));
         },
     }
 }
