@@ -1949,7 +1949,7 @@ pub const Element = struct {
                 if (line_end + 1 == children.len) {
                     element.do_word_alignment(
                         children[line_end].location.x + children[line_end].location.width,
-                        element.rect.width,
+                        element.rect.width - element.pad.left - element.pad.right,
                         children[line_start .. line_end + 1],
                     );
                     break;
@@ -1957,7 +1957,7 @@ pub const Element = struct {
                 if (children[line_end].location.x >= children[line_end + 1].location.x) {
                     element.do_word_alignment(
                         children[line_end].location.x + children[line_end].location.width,
-                        element.rect.width,
+                        element.rect.width - element.pad.left - element.pad.right,
                         children[line_start .. line_end + 1],
                     );
                     line_start = line_end + 1;
