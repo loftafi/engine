@@ -15,6 +15,9 @@ pub const Mode = enum {
     /// Take no action for the duration of the animation, except
     /// call the `on_end` function when the animation completes.
     pause,
+
+    /// Slide the value of a progress bar
+    progress_bar,
 };
 
 pub const Ease = enum {
@@ -47,6 +50,10 @@ mode: union(Mode) {
         end: Visibility = undefined,
     },
     pause: struct {},
+    progress_bar: struct {
+        start: f32 = 0,
+        end: f32 = 0,
+    },
 },
 
 movement: Ease = .ease,
@@ -116,6 +123,14 @@ pub fn animate(self: *Self, display: *Display, current_time: i64) Allocator.Erro
         .visibility => {
             self.target.visible = self.mode.visibility.start;
         },
+        .progress_bar => |m| {
+            switch (self.movement) {
+                .ease => self.target.type.progress_bar.progress = ease_float(f32, m.start, m.end, step, self.duration),
+                .bounce => self.target.type.progress_bar.progress = bounce_float(f32, m.start, m.end, step, self.duration),
+                .stretch => self.target.type.progress_bar.progress = stretch_float(f32, m.start, m.end, step, self.duration),
+                .linear => self.target.type.progress_bar.progress = lerp_float(f32, m.start, m.end, step, self.duration),
+            }
+        },
         .colour => |m| {
             switch (self.movement) {
                 .ease => self.target.colour.a = ease_int(u8, m.start.a, m.end.a, step, self.duration),
@@ -151,6 +166,7 @@ pub fn animate(self: *Self, display: *Display, current_time: i64) Allocator.Erro
                     self.target.rect.y = m.end.y;
                 }
             },
+            .progress_bar => |m| self.target.type.progress_bar.progress = m.end,
             .colour => |m| self.target.colour.a = m.end.a,
             .background_colour => |m| self.target.colour.a = m.end.a,
             .pause => {},

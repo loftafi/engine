@@ -93,7 +93,7 @@ pub const Scroller = struct {
 
 /// Describe how a child element sits inside a parent element.
 pub const Layout = struct {
-    position: LayoutMode = .unspecified,
+    position: LayoutMode = .@"inline",
     x: LayoutSize = .shrinks,
     y: LayoutSize = .shrinks,
 };
@@ -140,11 +140,12 @@ pub const Visibility = enum {
     hidden,
 };
 
-/// An element lives inside its parent panel and takes
-/// a position relative to its parefnt panel, unless
-/// it has a floating position.
+/// The `x` and `y` position of an element is either automatically
+/// generated `inline` relative to its parent and sibiling elements;
+/// or the `x` and `y` position is manually specified to `float` freely
+/// outside of the element tree.
 pub const LayoutMode = enum {
-    unspecified,
+    @"inline",
     float,
 };
 
@@ -178,6 +179,9 @@ pub const LayoutDirection = enum {
 
     /// Place _all_ items in the top left of the panel.
     top_left,
+
+    /// Place _all_ items in the top right of the panel.
+    top_right,
 };
 
 /// The `normal` scale is designed for a regular person with regular
@@ -2659,6 +2663,7 @@ pub const Display = struct {
         .child_align = .{ .x = .centre, .y = .start },
         .colour = .{},
         .background = .{ .colour = .{ .a = 0 } },
+        .pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 },
         .border_colour = .{},
         .border_width = 0,
         .type = .{ .panel = .{ .direction = .centre, .spacing = 0 } },
@@ -3301,6 +3306,7 @@ pub const Display = struct {
             .top_to_bottom => place_children_top_to_bottom(self, parent, expanders.slice(), expander_weights),
             .centre => place_children_centred(self, parent),
             .top_left => place_children_top_left(self, parent),
+            .top_right => place_children_top_right(self, parent),
         }
 
         // Descend into child elements to allow child panels to also resize.
@@ -3342,10 +3348,23 @@ pub const Display = struct {
             if (child.layout.position == .float) continue;
             if (child.visible == .hidden) continue;
             if (child.type == .expander) {
-                warn("expander panel '{s}' ignored due to centre layout.", .{parent.name});
+                warn("expander panel '{s}' ignored due to top_left layout.", .{parent.name});
                 continue;
             }
             child.rect.x = parent.rect.x + parent.pad.left;
+            child.rect.y = parent.rect.y + parent.pad.top;
+        }
+    }
+
+    inline fn place_children_top_right(_: *Display, parent: *Element) void {
+        for (parent.type.panel.children.items) |child| {
+            if (child.layout.position == .float) continue;
+            if (child.visible == .hidden) continue;
+            if (child.type == .expander) {
+                warn("expander panel '{s}' ignored due to top_right layout.", .{parent.name});
+                continue;
+            }
+            child.rect.x = parent.rect.x + parent.rect.width - parent.pad.right - child.rect.width;
             child.rect.y = parent.rect.y + parent.pad.top;
         }
     }
@@ -5114,7 +5133,7 @@ fn find_minimum_panel_height(parent: *const Element, display: *Display) f32 {
             return result;
         },
 
-        .centre, .left_to_right, .left_to_right_wrap, .top_left => {
+        .centre, .left_to_right, .left_to_right_wrap, .top_left, .top_right => {
             // centred all together
             // a, next to b, next c.
             //
@@ -5210,7 +5229,7 @@ fn find_minimum_panel_width(parent: *const Element, display: *Display) f32 {
                 minimum_needed = @min(parent.maximum.width, minimum_needed);
             return @max(minimum_needed, parent.minimum.width);
         },
-        .centre, .top_to_bottom, .top_left => {
+        .centre, .top_to_bottom, .top_left, .top_right => {
             // a, centred upon b, centred upon c
             // a, then b underneath, thn c underneath...
             //
