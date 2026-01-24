@@ -221,24 +221,12 @@ pub const Scale = enum(u8) {
     pub fn parse(value: []const u8) Scale {
         var buf: [40]u8 = undefined;
         const text = std.ascii.lowerString(&buf, value);
-        if (std.mem.eql(u8, text, @tagName(.unknown))) {
-            return .unknown;
-        }
-        if (std.mem.eql(u8, text, @tagName(.tiny))) {
-            return .tiny;
-        }
-        if (std.mem.eql(u8, text, @tagName(.small))) {
-            return .small;
-        }
-        if (std.mem.eql(u8, text, @tagName(.normal))) {
-            return .normal;
-        }
-        if (std.mem.eql(u8, text, @tagName(.large))) {
-            return .large;
-        }
-        if (std.mem.eql(u8, text, @tagName(.extra_large))) {
-            return .extra_large;
-        }
+        if (std.mem.eql(u8, text, @tagName(.unknown))) return .unknown;
+        if (std.mem.eql(u8, text, @tagName(.tiny))) return .tiny;
+        if (std.mem.eql(u8, text, @tagName(.small))) return .small;
+        if (std.mem.eql(u8, text, @tagName(.normal))) return .normal;
+        if (std.mem.eql(u8, text, @tagName(.large))) return .large;
+        if (std.mem.eql(u8, text, @tagName(.extra_large))) return .extra_large;
         return .unknown;
     }
 };
@@ -621,32 +609,16 @@ pub const Element = struct {
             (self.type.panel.scrollable.scroll.x or self.type.panel.scrollable.scroll.y))
         {
             // Scrollable panels live at their pre-scroll-offset location.
-            if (cursor.x < point.x) {
-                return false;
-            }
-            if (cursor.y < point.y) {
-                return false;
-            }
-            if (cursor.x > point.x + self.rect.width) {
-                return false;
-            }
-            if (cursor.y > point.y + self.rect.height) {
-                return false;
-            }
+            if (cursor.x < point.x) return false;
+            if (cursor.y < point.y) return false;
+            if (cursor.x > point.x + self.rect.width) return false;
+            if (cursor.y > point.y + self.rect.height) return false;
         } else {
             const current = point.add(self.offset).add(parent_scroll_offset);
-            if (cursor.x < current.x) {
-                return false;
-            }
-            if (cursor.y < current.y) {
-                return false;
-            }
-            if (cursor.x > current.x + self.rect.width) {
-                return false;
-            }
-            if (cursor.y > current.y + self.rect.height) {
-                return false;
-            }
+            if (cursor.x < current.x) return false;
+            if (cursor.y < current.y) return false;
+            if (cursor.x > current.x + self.rect.width) return false;
+            if (cursor.y > current.y + self.rect.height) return false;
         }
         return true;
     }
@@ -2910,8 +2882,8 @@ pub const Display = struct {
         var i = self.textures.iterator();
         while (i.next()) |x| {
             if (x.value_ptr.*.references > 0) {
-                warn("texture was not deallocated. {d} has {d} references", .{
-                    x.key_ptr.*,
+                warn("texture was not deallocated. {f} has {d} references", .{
+                    uid_writer(u64, x.key_ptr.*),
                     x.value_ptr.*.references,
                 });
             }
@@ -6252,6 +6224,7 @@ const mixer = @import("mixer");
 pub const Chunker = @import("chunker.zig").Chunker;
 pub const Translation = @import("translation.zig").Translation;
 
+const uid_writer = @import("resources").uid_writer;
 const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
 const FileType = @import("resources").FileType;
