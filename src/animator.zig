@@ -2,6 +2,7 @@
 //! `Element` along a requested movement path for a specific `duration`.
 //!
 //! Visual examples of each movement path: https://easings.net
+const Animator = @This();
 
 pub const Mode = enum {
     move,
@@ -72,7 +73,7 @@ end_time: i64 = 0,
 ///
 /// Animators may change visibility of an element, so the animate event may
 /// return errors associated with a visibility change.
-pub fn animate(self: *Self, display: *Display, current_time: i64) Allocator.Error!bool {
+pub fn animate(self: *Animator, display: *Display, current_time: i64) Allocator.Error!bool {
     if (!self.setup) {
         self.setup = true;
         self.start_time = current_time;
@@ -251,13 +252,16 @@ inline fn ease_int(comptime T: type, start: T, end: T, step: i64, total_steps: i
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+
+const element = @import("element.zig");
+const Element = element.Element;
+const Visibility = element.Visibility;
+const Rect = element.Rect;
+
+const Colour = @import("theme.zig").Colour;
+
 const engine = @import("engine.zig");
-const Rect = engine.Rect;
-const Visibility = engine.Visibility;
-const Colour = engine.Colour;
-const Element = engine.Element;
 const Display = engine.Display;
-const Self = @This();
 const err = engine.err;
 const warn = engine.warn;
 const info = engine.info;
