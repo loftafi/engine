@@ -587,6 +587,43 @@ pub const Element = struct {
         }
     }
 
+    /// Change the default font belonging to this element
+    pub inline fn set_font(
+        self: *Element,
+        display: *Display,
+        name: []const u8,
+    ) Allocator.Error!void {
+        const which: **Font = switch (self.type) {
+            .button => &self.type.button.font,
+            .label => &self.type.label.font,
+            .checkbox => &self.type.checkbox.font,
+            .text_input => &self.type.text_input.font,
+            else => {
+                warn("set_font invalid on element {t} {s}", .{ self.type, self.name });
+                return;
+            },
+        };
+        const fname: *?[]const u8 = switch (self.type) {
+            .button => &self.type.button.font_name,
+            .label => &self.type.label.font_name,
+            .checkbox => &self.type.checkbox.font_name,
+            .text_input => &self.type.text_input.font_name,
+            else => {
+                warn("set_font invalid on element {t} {s}", .{ self.type, self.name });
+                return;
+            },
+        };
+
+        for (display.fonts.items) |font| {
+            if (std.mem.eql(u8, name, font.name)) {
+                which.* = font;
+                fname.* = name;
+                return;
+            }
+        }
+        warn("requested unknown font {s} on element {t} {s}", .{ name, self.type, self.name });
+    }
+
     /// set_text updates the `text` and `translation` fields of labels,
     /// checkboxes and buttons, and regenerates the grahpics/image
     /// textures for each word if the text was changed or `forced`

@@ -1218,6 +1218,9 @@ pub const Display = struct {
         allocator: Allocator,
         name: []const u8,
     ) (Error || Allocator.Error || Resources.Error)!*Font {
+        assert(self.pixel_scale > 0);
+        assert(self.text_height > 0);
+
         const resource = try self.resources.lookupOne(name, .font, allocator);
         if (resource == null) {
             err("load_font({s}) Font not in resource folder", .{name});
@@ -1243,6 +1246,23 @@ pub const Display = struct {
             });
             return error.ResourceReadError;
         };
+        const font_ascent = sdl.TTF_GetFontAscent(myfont);
+        const font_height = sdl.TTF_GetFontHeight(myfont);
+        const font_descent = sdl.TTF_GetFontDescent(myfont);
+        const font_size = sdl.TTF_GetFontSize(myfont);
+
+        info("font '{s}' ascent={d} descent={d} height={d}, font_pixel_height={d} font_size={d} pixel_scale={d} user_scale={d} scale={d} screen_size={d}", .{
+            name,
+            font_ascent,
+            font_descent,
+            font_height,
+            font_pixel_height,
+            font_size,
+            self.pixel_scale,
+            self.user_scale,
+            self.scale,
+            self.text_height * self.scale,
+        });
         //sdl.TTF_SetFontHinting(myfont, 0);
 
         const font_info = try Font.create(allocator, name, myfont, font_buffer);
@@ -2686,7 +2706,10 @@ pub const TextSize = enum {
     /// Return the pixel height of the text based on the display pixel
     /// density and the requested height scale.
     pub fn pixel_size(self: TextSize, display: *const Display, texture: *const sdl.SDL_Texture) Size {
+
+        // How tall the text should actually appear on the screen
         const height_adjusted = display.text_height * display.scale * self.height();
+
         return .{
             .height = height_adjusted,
             .width = height_adjusted * @as(f32, @floatFromInt(texture.*.w)) / @as(f32, @floatFromInt(texture.*.h)),
@@ -3686,6 +3709,7 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const sdl = @import("sdl");
 const builtin = @import("builtin");
+const assert = std.debug.assert;
 
 const zigimg = @import("zigimg");
 
