@@ -41,6 +41,12 @@ pub const Display = struct {
     /// A list of all active fonts loaded from the resources bundle.
     fonts: ArrayListUnmanaged(*Font) = .empty,
 
+    font: struct {
+        default: *Font,
+        english: *Font,
+        greek: *Font,
+    },
+
     /// Translates the default provided text into a specific language
     /// using a csv translation file
     translation: Translation,
@@ -1268,6 +1274,12 @@ pub const Display = struct {
         const font_info = try Font.create(allocator, name, myfont, font_buffer);
         errdefer font_info.destroy(allocator);
         try self.fonts.append(allocator, font_info);
+
+        if (self.fonts.items.len == 1) {
+            self.font.default = font_info;
+            self.font.english = font_info;
+            self.font.greek = font_info;
+        }
 
         if (self.fonts.items.len > 1) {
             const i = self.fonts.items.len - 2;

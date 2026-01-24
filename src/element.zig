@@ -704,14 +704,27 @@ pub const Element = struct {
                 self.type.label.translated = new_translated;
                 if (self.type.label.translated.len > 0) {
                     var data = Chunker.init(self.type.label.translated);
-                    while (data.next()) |text| {
-                        if (display.generate_text_texture(text, self.type.label.font)) |texture| {
-                            try self.type.label.elements.append(allocator, .{
-                                .text = text,
-                                .width = @floatFromInt(texture.*.w),
-                                .texture = texture,
-                                .location = .{}, // Location of each element is unknown at this point
-                            });
+                    if (self.type.label.font_name) |_| {
+                        while (data.next(display)) |word| {
+                            if (display.generate_text_texture(word.text, self.type.label.font)) |texture| {
+                                try self.type.label.elements.append(allocator, .{
+                                    .text = word.text,
+                                    .width = @floatFromInt(texture.*.w),
+                                    .texture = texture,
+                                    .font = word.font,
+                                });
+                            }
+                        }
+                    } else {
+                        while (data.next(display)) |word| {
+                            if (display.generate_text_texture(word.text, word.font)) |texture| {
+                                try self.type.label.elements.append(allocator, .{
+                                    .text = word.text,
+                                    .width = @floatFromInt(texture.*.w),
+                                    .texture = texture,
+                                    .font = word.font,
+                                });
+                            }
                         }
                     }
                 }
@@ -727,14 +740,27 @@ pub const Element = struct {
                 if (self.type.checkbox.translated.len > 0) {
                     self.type.checkbox.elements.clearRetainingCapacity();
                     var data = Chunker.init(self.type.checkbox.translated);
-                    while (data.next()) |text| {
-                        if (display.generate_text_texture(text, self.type.checkbox.font)) |texture| {
-                            try self.type.checkbox.elements.append(allocator, .{
-                                .text = text,
-                                .width = @floatFromInt(texture.*.w),
-                                .texture = texture,
-                                .location = .{}, // Location of each element is unknown at this point
-                            });
+                    if (self.type.checkbox.font_name) |_| {
+                        while (data.next(display)) |text| {
+                            if (display.generate_text_texture(text.text, self.type.checkbox.font)) |texture| {
+                                try self.type.checkbox.elements.append(allocator, .{
+                                    .text = text.text,
+                                    .width = @floatFromInt(texture.*.w),
+                                    .texture = texture,
+                                    .font = text.font,
+                                });
+                            }
+                        }
+                    } else {
+                        while (data.next(display)) |text| {
+                            if (display.generate_text_texture(text.text, text.font)) |texture| {
+                                try self.type.checkbox.elements.append(allocator, .{
+                                    .text = text.text,
+                                    .width = @floatFromInt(texture.*.w),
+                                    .texture = texture,
+                                    .font = text.font,
+                                });
+                            }
                         }
                     }
                 }
@@ -1542,7 +1568,7 @@ pub const Element = struct {
         // Lay down each word one by one and wrap before we hit the
         // `wrap_at` boundary.
         for (children, 0..) |*item, i| {
-            const is_cr = item.text != null and item.text.?.len == 1 and item.text.?[0] == '\n';
+            const is_cr = item.text.len == 1 and item.text[0] == '\n';
             const size = text_height.pixel_size(display, item.texture);
             // Would drawing this word overflow?
             if ((x + word_spacing + size.width > wrap_at and line_word_count > 0) or is_cr) {
@@ -2296,11 +2322,12 @@ pub const Background = struct {
     corner_radius: f32 = 0,
 };
 
-const TextElement = struct {
-    text: ?[]const u8,
-    width: f32, // compared to default height
+pub const TextElement = struct {
+    text: []const u8 = "",
+    font: *Font,
+    width: f32 = 0, // compared to default height
     texture: *sdl.SDL_Texture,
-    location: Rect,
+    location: Rect = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
 };
 
 /// A vector may represent a position or distance in 2D space.
