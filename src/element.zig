@@ -58,7 +58,7 @@ pub const Element = struct {
     style: ThemeColour = .normal,
     colour: Colour = Colour.WHITE,
 
-    background: engine.Background = .{
+    background: Background = .{
         .colour = Colour.TRANSPARENT,
         .image = null,
         .image_name = null,
@@ -2238,6 +2238,25 @@ pub const Element = struct {
             },
         }
     }
+};
+
+pub const Background = struct {
+    colour: Colour = Colour.TRANSPARENT,
+
+    /// Load an `image` resource by indicating the name of the image
+    /// exactly as it appears in the resource bundle.
+    image_name: ?[]const u8 = null,
+
+    /// The `image` variable is filled on initialisation, by searching for
+    /// the `image_name` inside the resource bundle, and loading the data into
+    /// this `image`.
+    image: ?*Texture = null,
+
+    /// If the background texture has corners, the width of the corner in pixels.
+    image_corner_radius: f32 = 0,
+
+    /// If the background texture has corners, how many pixels wide should the corner be rendered on the display.
+    corner_radius: f32 = 0,
 };
 
 const TextElement = struct {

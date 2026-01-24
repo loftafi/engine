@@ -17,158 +17,6 @@ pub const Error = error{
     GraphicsRendererFailed,
 };
 
-pub const Background = struct {
-    colour: Colour = Colour.TRANSPARENT,
-
-    /// Load an `image` resource by indicating the name of the image
-    /// exactly as it appears in the resource bundle.
-    image_name: ?[]const u8 = null,
-
-    /// The `image` variable is filled on initialisation, by searching for
-    /// the `image_name` inside the resource bundle, and loading the data into
-    /// this `image`.
-    image: ?*Texture = null,
-
-    /// If the background texture has corners, the width of the corner in pixels.
-    image_corner_radius: f32 = 0,
-
-    /// If the background texture has corners, how many pixels wide should the corner be rendered on the display.
-    corner_radius: f32 = 0,
-};
-
-pub const Callback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element, gpa: Allocator) Allocator.Error!void = null,
-    ptr: *anyopaque = undefined,
-};
-
-pub const DisplayCallback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display) Allocator.Error!void = null,
-    ptr: *anyopaque = undefined,
-};
-
-pub const PanelChangeCallback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display, from: ?*Element, to: *Element, gpa: Allocator) Allocator.Error!void = null,
-    ptr: *anyopaque = undefined,
-};
-
-pub const BoolCallback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) bool = null,
-    ptr: *anyopaque = undefined,
-};
-
-pub const U32Callback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display, e: u32) Allocator.Error!void = null,
-    ptr: *anyopaque = undefined,
-};
-
-pub const UpdateCallback = struct {
-    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) void = null,
-    ptr: *anyopaque = undefined,
-};
-
-/// Draw a visual indication that an element is currently selected.
-pub fn draw_selection_marker(
-    display: *Display,
-    renderer: *sdl.SDL_Renderer,
-    colour: Colour,
-    rect: Rect,
-) void {
-    const border_width = 2 * display.user_scale;
-    if (border_width > 0 and colour.a > 0) {
-        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        var dest: Rect = .{
-            .x = rect.x,
-            .y = rect.y + rect.height + border_width,
-            .width = rect.width,
-            .height = border_width,
-        };
-        if (rect.width > border_width * 16) {
-            dest.width -= border_width * 8;
-            dest.x += border_width * 4;
-        }
-        _ = sdl.SDL_SetRenderDrawColor(
-            renderer,
-            colour.r,
-            colour.g,
-            colour.b,
-            colour.a,
-        );
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-    }
-}
-
-/// Draw an outline of a rectangle. Used in debug mode to highlight where
-/// items appear on the screen.
-pub fn draw_rectangle(
-    renderer: *sdl.SDL_Renderer,
-    border_width: f32,
-    colour: Colour,
-    rect: Rect,
-    scroll_offset: Vector,
-) void {
-    if (border_width > 0 and colour.a > 0) {
-        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        var dest: Rect = .{
-            .x = rect.x,
-            .y = rect.y,
-            .width = rect.width,
-            .height = border_width,
-        };
-        dest.x += scroll_offset.x;
-        dest.y += scroll_offset.y;
-        _ = sdl.SDL_SetRenderDrawColor(
-            renderer,
-            colour.r,
-            colour.g,
-            colour.b,
-            colour.a,
-        );
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-        dest.y = rect.y + rect.height - border_width;
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-        var dest2: Rect = .{
-            .x = rect.x,
-            .y = rect.y,
-            .width = border_width,
-            .height = rect.height,
-        };
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
-        dest2.x = rect.x + rect.width - border_width;
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
-    }
-}
-
-pub const Retain = enum {
-    autorelease,
-    retain,
-};
-
-pub const TextSize = enum {
-    small,
-    normal,
-    subheading,
-    heading,
-    footnote,
-
-    pub fn height(self: TextSize) f32 {
-        return switch (self) {
-            .small => 0.75,
-            .normal => 1.0,
-            .heading => 1.5,
-            .subheading => 1.25,
-            .footnote => 0.75,
-        };
-    }
-
-    pub fn pixel_size(size: TextSize, display: *const Display, texture: *const sdl.SDL_Texture) Size {
-        const height_adjusted = display.text_height * display.scale * size.height();
-        return .{
-            .height = height_adjusted,
-            .width = height_adjusted * @as(f32, @floatFromInt(texture.*.w)) / @as(f32, @floatFromInt(texture.*.h)),
-        };
-    }
-};
-
 /// Display describes how to draw all visual elements onto the main
 /// application window. Typically one app has one display window.
 /// Typically a display consists of one or more panels. A background
@@ -184,11 +32,6 @@ pub const Display = struct {
     accessibility: bool = false,
     last_draw: i64 = 0,
     last_delta: i64 = 0,
-
-    // Text height in pixels _before_ display scaling. i.e.
-    // 16 on normal screens,
-    // 32 on retina screens (16 * 2)
-    text_height: f32 = FONT_SIZE,
 
     /// A list of read only resources is loaded from a resource
     /// bundle, or an on disk development directory. This may
@@ -244,11 +87,15 @@ pub const Display = struct {
     /// i.e. A button might light up when the mouse hovers above it.
     hovered: ?*Element = null,
 
-    /// iOS and retina mac displays report the mouse position according
-    /// to traditional dimensions (i.e. 1920x1080) rather than actual
-    /// pixels (i.e. 3840x2160). A mouse/tap at 100x100, must be
-    /// translated to the physical pixel/element position of 200x200.
-    pixel_density: f32 = 1,
+    // Text height in pixels _before_ display scaling. For example, you may
+    // choose the `text_height` to be a standard 16 pixels across all device
+    // types. If a device has a double or triple pixel density, internally the
+    // engine might be drawing your content at 32 (double) or 48 (triple) the
+    // number of pixels.
+    //
+    // The `text_height`may therefore be modified by the `pixel_scale` and/or
+    // `user_scale` value.
+    text_height: f32 = FONT_SIZE,
 
     /// On some devices, the reported screen size and physical pixel size
     /// may be different. The scale variable is used to convert between
@@ -258,6 +105,8 @@ pub const Display = struct {
     /// 2.0 = Retina display,     width = 1920, pixel width = 3840.
     /// 3.0 = iPhone 16 display,  width =  393, pixel width = 1179.
     ///
+    /// If the text height is 16 pixels, but the device has a retina display
+    /// the actual text height will be `text_height` * `pixel_scale`.
     pixel_scale: f32 = 0,
 
     /// Used when user adjusts the global size of the interface
@@ -265,6 +114,12 @@ pub const Display = struct {
 
     /// The actual scale is the pixel_scale * user_scale
     scale: f32 = 0,
+
+    /// iOS and retina mac displays report the mouse position according
+    /// to traditional dimensions (i.e. 1920x1080) rather than actual
+    /// pixels (i.e. 3840x2160). A mouse/tap at 100x100, must be
+    /// translated to the physical pixel/element position of 200x200.
+    pixel_density: f32 = 1,
 
     root: Element = .{
         .name = "root",
@@ -1405,13 +1260,6 @@ pub const Display = struct {
     /// Add an animator that points to a currently active/valid element.
     /// The element must not be destroyed for the lifetime of the animation.
     pub inline fn add_animator(self: *Display, allocator: Allocator, animator: Animator) Allocator.Error!void {
-        //err("add animator: {t} {d}x{d} -> {d}x{d}", .{
-        //    animator.mode,
-        //    animator.start.x,
-        //    animator.start.y,
-        //    animator.end.x,
-        //    animator.end.y,
-        //});
         var new_animator = try allocator.create(Animator);
         new_animator.* = animator;
         new_animator.setup = false;
@@ -2695,12 +2543,156 @@ pub const Display = struct {
             .text_input => try setup_text_input(self, allocator, element),
         }
     }
+
+    /// Keypress `Callback` handler to toggle dev mode.
+    fn toggle_dev_mode(_: *Display, _: *Element, _: Allocator) Allocator.Error!void {
+        engine.dev_mode = !engine.dev_mode;
+        info("Dev mode: {any}", .{engine.dev_mode});
+    }
 };
 
-fn toggle_dev_mode(_: *Display, _: *Element, _: Allocator) error{OutOfMemory}!void {
-    engine.dev_mode = !engine.dev_mode;
-    info("Dev mode: {any}", .{engine.dev_mode});
+pub const Callback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element, gpa: Allocator) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const DisplayCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const PanelChangeCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, from: ?*Element, to: *Element, gpa: Allocator) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const BoolCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) bool = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const U32Callback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, e: u32) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+};
+
+pub const UpdateCallback = struct {
+    func: ?*const fn (ptr: *anyopaque, display: *Display, element: *Element) void = null,
+    ptr: *anyopaque = undefined,
+};
+
+/// Draw a visual indication that an element is currently selected.
+pub fn draw_selection_marker(
+    display: *Display,
+    renderer: *sdl.SDL_Renderer,
+    colour: Colour,
+    rect: Rect,
+) void {
+    const border_width = 2 * display.user_scale;
+    if (border_width > 0 and colour.a > 0) {
+        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        var dest: Rect = .{
+            .x = rect.x,
+            .y = rect.y + rect.height + border_width,
+            .width = rect.width,
+            .height = border_width,
+        };
+        if (rect.width > border_width * 16) {
+            dest.width -= border_width * 8;
+            dest.x += border_width * 4;
+        }
+        _ = sdl.SDL_SetRenderDrawColor(
+            renderer,
+            colour.r,
+            colour.g,
+            colour.b,
+            colour.a,
+        );
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
+    }
 }
+
+/// Draw an outline of a rectangle. Used in debug mode to highlight where
+/// items appear on the screen.
+pub fn draw_rectangle(
+    renderer: *sdl.SDL_Renderer,
+    border_width: f32,
+    colour: Colour,
+    rect: Rect,
+    scroll_offset: Vector,
+) void {
+    if (border_width > 0 and colour.a > 0) {
+        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        var dest: Rect = .{
+            .x = rect.x,
+            .y = rect.y,
+            .width = rect.width,
+            .height = border_width,
+        };
+        dest.x += scroll_offset.x;
+        dest.y += scroll_offset.y;
+        _ = sdl.SDL_SetRenderDrawColor(
+            renderer,
+            colour.r,
+            colour.g,
+            colour.b,
+            colour.a,
+        );
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
+        dest.y = rect.y + rect.height - border_width;
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
+        var dest2: Rect = .{
+            .x = rect.x,
+            .y = rect.y,
+            .width = border_width,
+            .height = rect.height,
+        };
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
+        dest2.x = rect.x + rect.width - border_width;
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
+    }
+}
+
+/// When the display loads a resource, it may be retained for as long as
+/// there is a reference held to this resource. Alternatively, a resource
+/// may be marked as retained, effectively causing it to be cached until a
+/// manual release is requested.
+pub const Retain = enum {
+    autorelease,
+    retain,
+};
+
+/// Elements that contain text can specify which pre-defined height the
+/// text should be rendered at.
+pub const TextSize = enum {
+    small,
+    normal,
+    subheading,
+    heading,
+    footnote,
+
+    /// Return the height of the text relative to the `normal`
+    /// text height for this display.
+    pub fn height(self: TextSize) f32 {
+        return switch (self) {
+            .small => 0.75,
+            .normal => 1.0,
+            .heading => 1.5,
+            .subheading => 1.25,
+            .footnote => 0.75,
+        };
+    }
+
+    /// Return the pixel height of the text based on the display pixel
+    /// density and the requested height scale.
+    pub fn pixel_size(self: TextSize, display: *const Display, texture: *const sdl.SDL_Texture) Size {
+        const height_adjusted = display.text_height * display.scale * self.height();
+        return .{
+            .height = height_adjusted,
+            .width = height_adjusted * @as(f32, @floatFromInt(texture.*.w)) / @as(f32, @floatFromInt(texture.*.h)),
+        };
+    }
+};
 
 /// This event handler repositions a back button into the top left corner
 /// when the screen is resized or rotated.
@@ -3716,8 +3708,9 @@ const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
 const FileType = @import("resources").FileType;
 
-pub const Element = @import("element.zig").Element;
 pub const Clip = @import("element.zig").Clip;
+pub const Background = @import("element.zig").Background;
+pub const Element = @import("element.zig").Element;
 pub const Rect = @import("element.zig").Rect;
 pub const Scale = @import("element.zig").Scale;
 pub const Size = @import("element.zig").Size;
