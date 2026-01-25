@@ -15,6 +15,8 @@ pub const Error = error{
     GraphicsInitFailed,
     WindowCreationFailed,
     GraphicsRendererFailed,
+    FontRequired,
+    RootAcceptsPanelsOnly,
 };
 
 /// Display describes how to draw all visual elements onto the main
@@ -1314,7 +1316,7 @@ pub const Display = struct {
                 @tagName(element.type),
                 element.name,
             });
-            unreachable; // add_panel only accepts panels
+            return Error.RootAcceptsPanelsOnly;
         }
         return self.root.add(allocator, self, element);
     }
@@ -2815,7 +2817,7 @@ pub fn setup_checkbox(
     element.background.image = null;
     element.type.checkbox.translated = "";
     element.type.checkbox.elements = .empty;
-    element.type.checkbox.font = select_font(self.fonts.items, element.type.checkbox.font_name);
+    element.type.checkbox.font = try select_font(self.fonts.items, element.type.checkbox.font_name);
 
     if (element.focus == .unspecified)
         element.focus = .can_focus;
@@ -2869,7 +2871,7 @@ pub fn setup_label(
     element.background.image = null;
     element.type.label.translated = "";
     element.type.label.elements = .empty;
-    element.type.label.font = select_font(self.fonts.items, element.type.label.font_name);
+    element.type.label.font = try select_font(self.fonts.items, element.type.label.font_name);
 
     if (element.focus == .unspecified) {
         if (element.type.label.on_click.func != null)
@@ -2901,7 +2903,7 @@ pub fn setup_text_input(
     if (element.focus == .unspecified) {
         element.focus = .can_focus;
     }
-    element.type.text_input.font = select_font(self.fonts.items, element.type.text_input.font_name);
+    element.type.text_input.font = try select_font(self.fonts.items, element.type.text_input.font_name);
 
     if (element.type.text_input.icon_texture_name) |icon| {
         if (try self.load_texture(allocator, icon)) |texture| {
@@ -2983,7 +2985,7 @@ pub fn setup_sprite(
         trace("sprite {s} bg {s}", .{ element.name, element.background.image_name.? });
 }
 
-fn select_font(fonts: []*Font, name: ?[]const u8) *Font {
+fn select_font(fonts: []*Font, name: ?[]const u8) error{FontRequired}!*Font {
     if (name) |font_name| {
         for (fonts) |font| {
             if (std.mem.eql(u8, font.name, font_name)) {
@@ -2994,8 +2996,7 @@ fn select_font(fonts: []*Font, name: ?[]const u8) *Font {
     }
     if (fonts.len > 0) return fonts[0];
 
-    std.debug.assert(fonts.len > 0);
-    unreachable; // select_font requires at least one font
+    return Error.FontRequired;
 }
 
 pub fn setup_button(
@@ -3013,7 +3014,7 @@ pub fn setup_button(
     element.type.button.background_hover = null;
     element.type.button.background_disabled = null;
     element.type.button.text_size = .normal;
-    element.type.button.font = select_font(display.fonts.items, element.type.button.font_name);
+    element.type.button.font = try select_font(display.fonts.items, element.type.button.font_name);
 
     if (element.focus == .unspecified)
         element.focus = .can_focus;
@@ -3696,6 +3697,7 @@ test "test_init" {
     const allocator = std.testing.allocator;
     var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
     defer display.destroy(allocator);
+
     var panel = try display.add_panel(allocator, .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
