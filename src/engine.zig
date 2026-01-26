@@ -2822,7 +2822,7 @@ pub fn setup_checkbox(
     if (element.focus == .unspecified)
         element.focus = .can_focus;
 
-    try element.set_text(allocator, self, element.type.checkbox.text, true);
+    try element.set_text(allocator, self, element.type.checkbox.text);
 
     if (try self.load_texture(allocator, "ios-checkbox-on")) |texture| {
         element.type.checkbox.on_texture = texture;
@@ -2879,7 +2879,7 @@ pub fn setup_label(
         else
             element.focus = .accessibility_focus;
     }
-    try element.set_text(allocator, self, element.type.label.text, true);
+    try element.set_text(allocator, self, element.type.label.text);
 
     // Is there a background for this label?
     if (element.background.image_name) |name| {
@@ -2934,9 +2934,9 @@ pub fn setup_text_input(
     element.type.text_input.text = .empty;
     element.type.text_input.runes = .empty;
     if (element.type.text_input.initial_text) |text| {
-        try element.set_text(allocator, self, text, true);
+        try element.set_text(allocator, self, text);
     } else {
-        try element.set_text(allocator, self, "", true);
+        try element.set_text(allocator, self, "");
     }
     if (element.type.text_input.placeholder_text) |text| {
         try element.set_placeholder_text(allocator, self, text);
@@ -3031,7 +3031,7 @@ pub fn setup_button(
             element.background.image_name.?,
         });
 
-    try element.set_text(allocator, display, element.type.button.text, true);
+    try element.set_text(allocator, display, element.type.button.text);
 
     if (element.type.button.icon_default_name) |icon_default| {
         if (try display.load_texture(allocator, icon_default)) |texture| {
@@ -3535,7 +3535,7 @@ test "button sizing" {
     try std.testing.expect(display.resources.by_uid.count() > 0);
     _ = try display.load_font(allocator, "Roboto-Light");
 
-    try button.set_text(allocator, display, "Hello", true);
+    try button.set_text(allocator, display, "Hello");
     display.relayout();
     try eq(83, @trunc(button.rect.width));
     try eq(100, @trunc(panel.rect.width));

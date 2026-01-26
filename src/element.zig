@@ -626,14 +626,15 @@ pub const Element = struct {
 
     /// set_text updates the `text` and `translation` fields of labels,
     /// checkboxes and buttons, and regenerates the grahpics/image
-    /// textures for each word if the text was changed or `forced`
-    /// is requested.
+    /// textures for each word if the text was changed.
+    ///
+    /// The memory behind the `new_text` must remain valid while the element
+    /// exists and is displaying this string.
     pub inline fn set_text(
         self: *Element,
         allocator: Allocator,
         display: *Display,
         new_text: []const u8,
-        forced: bool,
     ) error{OutOfMemory}!void {
         const old_translated = switch (self.type) {
             .text_input => self.type.text_input.text.items,
@@ -664,9 +665,9 @@ pub const Element = struct {
             old_translated,
             new_translated,
         });
-        if (std.mem.eql(u8, new_translated, old_translated) and !forced) {
-            // Don't update if nothing changed
-            // TODO: This should not be needed
+        if (std.mem.eql(u8, new_translated, old_translated)) {
+            // Do nothing if the text has not changed. This assumes that
+            // the original text buffer was not modified.
             return;
         }
 
@@ -1026,9 +1027,9 @@ pub const Element = struct {
     /// a chance to regenerate its translation and text texture.
     pub fn language_changed(self: *Element, allocator: Allocator, display: *Display, lang: Lang) !void {
         switch (self.type) {
-            .label => try self.set_text(allocator, display, self.type.label.text, false),
-            .checkbox => try self.set_text(allocator, display, self.type.checkbox.text, false),
-            .button => try self.set_text(allocator, display, self.type.button.text, false),
+            .label => try self.set_text(allocator, display, self.type.label.text),
+            .checkbox => try self.set_text(allocator, display, self.type.checkbox.text),
+            .button => try self.set_text(allocator, display, self.type.button.text),
             .panel => for (self.type.panel.children.items) |child| {
                 try child.language_changed(allocator, display, lang);
             },
