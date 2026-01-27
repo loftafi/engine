@@ -2146,15 +2146,20 @@ pub const Display = struct {
             const moved = display.scroll_start.minus(cursor);
             const ignore_distance = 6;
             if (@abs(moved.x) > ignore_distance or @abs(moved.y) > ignore_distance) {
+                display.scrolling.?.offset.x = @round(display.scrolling.?.offset.x);
+                display.scrolling.?.offset.y = @round(display.scrolling.?.offset.y);
+
                 // If scrolling occurred, this cant be a click
-                debug("tap became scroll. proper movement on {s} at {any}", .{
+                trace("tap became scroll. proper movement on {s} at cursor={any}. offset={d}x{d}", .{
                     display.scrolling.?.name,
                     cursor,
+                    display.scrolling.?.offset.x,
+                    display.scrolling.?.offset.y,
                 });
                 display.scrolling = null;
                 return;
             }
-            debug("tap is not scroll. minimal movement on {s} at {any}", .{
+            trace("tap is not scroll. minimal movement on {s} at {any}", .{
                 display.scrolling.?.name,
                 moved,
             });
