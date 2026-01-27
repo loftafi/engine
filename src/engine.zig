@@ -47,6 +47,8 @@ pub const Display = struct {
         default: *Font,
         english: *Font,
         greek: *Font,
+        korean: *Font,
+        chinese: *Font,
     },
 
     /// Translates the default provided text into a specific language
@@ -1283,6 +1285,8 @@ pub const Display = struct {
             self.font.default = font_info;
             self.font.english = font_info;
             self.font.greek = font_info;
+            self.font.chinese = font_info;
+            self.font.korean = font_info;
         }
 
         if (self.fonts.items.len > 1) {
