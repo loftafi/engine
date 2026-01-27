@@ -131,6 +131,8 @@ pub const Display = struct {
 
     root: Element = .{
         .name = "root",
+        .aria_label = null,
+        .focus = .never_focus,
         .rect = .{ .x = 0, .y = 0, .width = 100, .height = 100 },
         .maximum = .{ .width = 100, .height = 100 },
         .layout = .{ .x = .grows, .y = .grows },

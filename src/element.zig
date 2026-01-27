@@ -5,6 +5,10 @@ pub const Element = struct {
     /// be used by log and debug code to describe the element.
     name: []const u8 = "",
 
+    /// Text for screen reader to read when a user tabs into or
+    /// selects this element.
+    aria_label: ?[]const u8 = null,
+
     /// Usually the `visibie` value is `.hidden` or `.visible`. If the
     /// element is inside a scroll panel, `.visible` elements may become
     /// `.clipped` when they are _visible_ do not need to be drawn.
