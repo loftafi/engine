@@ -3,7 +3,6 @@ pub var dev_mode = false;
 
 pub const FONT_SIZE: f32 = 22.0;
 pub const FONT_MUL: f32 = 2.0;
-pub const RESOURCE_BUNDLE_FILENAME = "resources.bd";
 
 /// Errors specific to engine module
 pub const Error = error{
@@ -156,6 +155,7 @@ pub const Display = struct {
     on_panel_change: PanelChangeCallback,
 
     bucket: StringBucket = undefined,
+    bundle_filename: ?[]const u8,
 
     pub fn create(
         gpa: Allocator,
@@ -181,6 +181,9 @@ pub const Display = struct {
         display.keybindings = .empty;
         display.event_hook = .{ .func = null };
         display.bucket = StringBucket.init(gpa);
+        display.bundle_filename = null;
+        if (config.bundle_filename != null)
+            display.bundle_filename = try display.bucket.add(config.bundle_filename);
 
         _ = sdl.SDL_SetAppMetadata(
             if (config.app_name != null) try display.bucket.addZ(config.app_name.?) else "Engine",
@@ -243,8 +246,8 @@ pub const Display = struct {
         debug("Initialising resource loader", .{});
         display.resources = try init_resource_loader(
             gpa,
-            engine.RESOURCE_BUNDLE_FILENAME,
-            config.resource_folder orelse "",
+            config.bundle_filename,
+            config.resource_folder,
             config.resource_filter,
         );
         if (config.translation_filename) |translation_filename| {
@@ -2504,6 +2507,12 @@ pub const Display = struct {
         if (!dev_build) {
             return;
         }
+
+        if (display.bundle_filename == null) {
+            info("no config.bundle_filename. Not making bundle.", .{});
+            return;
+        }
+
         //const allocator = app_context.?.allocator;
         if (display.resources.used_resource_list) |manifest| {
             if (manifest.items.len == 0) {
@@ -2521,9 +2530,9 @@ pub const Display = struct {
             const base_folder = "/tmp/";
             var buffer = BoundedArray(u8, 1000){};
             buffer.appendSlice(base_folder) catch {
-                return std.mem.Allocator.Error.OutOfMemory;
+                return Allocator.Error.OutOfMemory;
             };
-            buffer.appendSlice(RESOURCE_BUNDLE_FILENAME) catch {
+            buffer.appendSlice(display.bundle_filename.?) catch {
                 return std.mem.Allocator.Error.OutOfMemory;
             };
             info("making resource bundle: {s}", .{buffer.slice()});
@@ -3512,6 +3521,7 @@ pub const Config = struct {
     app_version: ?[]const u8 = null,
     app_id: ?[]const u8 = null,
     app_icon_name: ?[]const u8 = null,
+    bundle_filename: ?[]const u8 = null,
     resource_folder: ?[]const u8 = null,
     resource_filter: ?fn (name: []const u8, extension: FileType) bool = null,
     translation_filename: ?[]const u8 = null,
@@ -3656,7 +3666,7 @@ test "text input sizing" {
         });
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(300, l.shrink_width(display, 500));
+        try eq(401, l.shrink_width(display, 500));
         try eq(44, l.shrink_height(display, 500));
     }
 
@@ -3672,7 +3682,7 @@ test "text input sizing" {
         });
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(91, @round(l.shrink_width(display, 500)));
+        try eq(401, @round(l.shrink_width(display, 500)));
         try eq(44, l.shrink_height(display, 500));
     }
 
@@ -3691,7 +3701,7 @@ test "text input sizing" {
         try eq(2, l.type.label.elements.items.len);
         try eq(98, @trunc(l.type.label.elements.items[0].width / display.scale));
         try eq(107, @trunc(l.type.label.elements.items[1].width / display.scale));
-        try eq(90, @trunc(l.shrink_width(display, 500)));
+        try eq(187, @trunc(l.shrink_width(display, 500)));
         try eq(44, l.shrink_height(display, 500));
         try eq(88, l.shrink_height(display, 115));
     }
@@ -3705,27 +3715,42 @@ test "text input sizing" {
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
+    // Fixed width and height cant be shrunk or grown, except if minimum
+    // or maximum override it.
     var label = try panel.add(allocator, display, .{
         .name = "hello",
         .rect = .{ .width = 500, .height = 60 },
+        .minimum = .{ .width = 300, .height = 10 },
+        .maximum = .{ .width = 600, .height = 200 },
+        .type = .{ .label = .{ .text = "Hello world" } },
+        .layout = .{ .x = .fixed, .y = .fixed },
+    });
+    label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
+    try eq(500, label.shrink_width(display, 500));
+    try eq(60, label.shrink_height(display, 500));
+
+    // Fixed width and height cant be shrunk or grown, except if minimum
+    // or maximum override it.
+    label = try panel.add(allocator, display, .{
+        .name = "hello",
+        .rect = .{ .width = 295, .height = 60 },
         .minimum = .{ .width = 300, .height = 100 },
         .maximum = .{ .width = 401, .height = 201 },
         .type = .{ .label = .{ .text = "Hello world" } },
         .layout = .{ .x = .fixed, .y = .fixed },
     });
-
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-    try eq(500, label.shrink_width(display, 500));
+    try eq(300, label.shrink_width(display, 500));
     try eq(100, label.shrink_height(display, 500));
 
     label.minimum.width = 22;
     label.minimum.height = 22;
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(90, @trunc(label.shrink_width(display, 500)));
+    try eq(187, @trunc(label.shrink_width(display, 500)));
     try eq(44, @trunc(label.shrink_height(display, 500)));
     label.layout.x = .grows;
-    try eq(91, @round(label.shrink_width(display, 500)));
+    try eq(401, @round(label.shrink_width(display, 500)));
 
     panel.layout.x = .shrinks;
     panel.layout.y = .shrinks;

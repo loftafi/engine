@@ -230,7 +230,14 @@ test "read_chunks" {
     try expectEqualStrings("cat", data.next(display).?.text);
     try expectEqual(null, data.next(display));
 
-    data = Chunker.init("fish 你好 한국어");
+    data = Chunker.init("fish 你好 한국어 ἄρτος");
+    try expectEqual(display.font.english, data.next(display).?.font);
+    try expectEqual(display.font.chinese, data.next(display).?.font);
+    try expectEqual(display.font.korean, data.next(display).?.font);
+    try expectEqual(display.font.greek, data.next(display).?.font);
+    try expectEqual(null, data.next(display));
+
+    data = Chunker.init("fish, 你好, 한국어, ἄρτος,");
     try expectEqual(display.font.english, data.next(display).?.font);
     try expectEqual(display.font.chinese, data.next(display).?.font);
     try expectEqual(display.font.korean, data.next(display).?.font);

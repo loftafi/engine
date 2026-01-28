@@ -7,9 +7,9 @@
 /// to use SDL to load resources.
 pub fn init_resource_loader(
     allocator: Allocator,
-    bundle_filename: []const u8,
-    dev_repo: []const u8,
-    dev_repo_filter: ?fn (name: []const u8, extension: FileType) bool,
+    bundle_filename: ?[]const u8,
+    resource_folder: ?[]const u8,
+    filename_filter: ?fn (name: []const u8, extension: FileType) bool,
 ) (Allocator.Error || Resources.Error || engine.Error || std.fs.Dir.StatError || std.fs.File.StatError || std.fs.File.OpenError || error{
     ResourceReadError,
     Utf8ExpectedContinuation,
@@ -22,38 +22,41 @@ pub fn init_resource_loader(
     var resources = try Resources.create(allocator);
     errdefer resources.destroy();
 
-    if (sdl_load_bundle(resources, bundle_filename)) |_| {
-        const end = std.time.milliTimestamp();
-        info("Resource list scanned in {d}ms.", .{end - start});
-        return resources;
-    } else |e| {
-        warn("sdl_load_bundle failed. {any}", .{e});
-    }
+    var loaded = false;
 
-    var loaded: bool = false;
-    if (try find_base_folder(allocator, bundle_filename)) |base_folder| {
-        defer allocator.free(base_folder);
-        info("find_base_folder returned: {s}", .{base_folder});
+    if (bundle_filename != null) {
+        if (sdl_load_bundle(resources, bundle_filename.?)) |_| {
+            const end = std.time.milliTimestamp();
+            info("Resource list scanned in {d}ms.", .{end - start});
+            return resources;
+        } else |e| {
+            warn("sdl_load_bundle failed. {any}", .{e});
+        }
 
-        if (try folder_has_file(base_folder, bundle_filename)) {
-            loaded = sdl_load_bundle(resources, bundle_filename) catch |e| {
-                if (e == error.OutOfMemory) {
-                    return error.OutOfMemory;
-                } else {
-                    warn("sdl_load_bundle failed. {any}", .{e});
-                    return e;
-                }
-            };
+        if (try find_base_folder(allocator, bundle_filename.?)) |base_folder| {
+            defer allocator.free(base_folder);
+            info("find_base_folder returned: {s}", .{base_folder});
+
+            if (try folder_has_file(base_folder, bundle_filename.?)) {
+                loaded = sdl_load_bundle(resources, bundle_filename.?) catch |e| {
+                    if (e == error.OutOfMemory) {
+                        return error.OutOfMemory;
+                    } else {
+                        warn("sdl_load_bundle failed. {any}", .{e});
+                        return e;
+                    }
+                };
+            }
         }
     }
 
-    if (!loaded) {
+    if (!loaded and resource_folder != null) {
         // Fallback to loading resources from the development resources
         // folder if it is available.
-        if (dev_repo.len > 0) {
-            warn("Fallback to loading repo from folder: {s}", .{dev_repo});
-            loaded = resources.load_directory(dev_repo, dev_repo_filter) catch |e| {
-                err("error loading repo from {s}. {any}", .{ dev_repo, e });
+        if (resource_folder.?.len > 0) {
+            warn("Fallback to loading repo from folder: {s}", .{resource_folder.?});
+            loaded = resources.load_directory(resource_folder.?, filename_filter) catch |e| {
+                err("error loading repo from {s}. {any}", .{ resource_folder.?, e });
                 return e;
             };
         }
