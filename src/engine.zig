@@ -1,8 +1,27 @@
+/// Comptime known value to allow creation of `if (dev_build)` statements
+/// to allow code to be excluded from production releases.
 pub const dev_build = (builtin.mode == .Debug);
+
+/// A global variable which can be used to turn on or off live debugging
+/// features such as drawing lines around on screen elements and output of
+/// `trace` log messages
 pub var dev_mode = false;
 
-pub const FONT_SIZE: f32 = 22.0;
-pub const FONT_MUL: f32 = 2.0;
+/// When the `Config` does not contain an organisation name, default
+/// to this organisation name.
+pub const default_org_name = "Example";
+
+/// When the `Config` does not contain an application name, default
+/// to use this application name.
+pub const default_app_name = "Engine";
+
+/// Height of text in pixels not accounting for retina density
+pub const default_font_size: f32 = 22.0;
+
+/// Render the font characters with double the pixel density of the
+/// `default_font_size` to ensure screens with double or triple pixel
+/// density have clear font edges.
+pub const font_pixel_density: f32 = 2.0;
 
 /// Errors specific to engine module
 pub const Error = error{
@@ -23,15 +42,35 @@ pub const Error = error{
 /// Typically a display consists of one or more panels. A background
 /// panel, a main panel, and sometimes a user interface overlay.
 pub const Display = struct {
+    allocator: Allocator,
+
     window: *sdl.SDL_Window,
     renderer: *sdl.SDL_Renderer,
     mix: *mixer.MIX_Mixer,
-    allocator: Allocator,
+
+    /// Main game loop runs until quit is requested.
     quit: bool = false,
+
+    /// Some elements are placed, aligned or sized using a layout algorithm
+    /// If one of these elements changes, this flag is set to indicate we
+    /// must relayout all elements before the next frame is drawn. See
+    /// `relayout()` for details.
     need_relayout: bool = true,
+
+    /// Deduplicate safe area change updates by remembering the old safe
+    /// area information.
     old_safe_area: sdl.SDL_Rect = undefined,
+
+    /// Normally it is only possible to navigate to, focus, hover, or tap
+    /// on `can_focus` items. In `accessibility` mode, extra elements such as
+    /// titles or guidance text elements can also be navigated onto. These
+    /// special elements must be given the given `accessibility_focus` option.
     accessibility: bool = false,
+
+    /// Used to calculate frame rate in microseconds.
     last_draw: i64 = 0,
+
+    /// Duration between each frame in microseconds.
     last_delta: i64 = 0,
 
     /// A list of read only resources is loaded from a resource
@@ -104,7 +143,7 @@ pub const Display = struct {
     //
     // The `text_height`may therefore be modified by the `pixel_scale` and/or
     // `user_scale` value.
-    text_height: f32 = FONT_SIZE,
+    text_height: f32 = default_font_size,
 
     /// On some devices, the reported screen size and physical pixel size
     /// may be different. The scale variable is used to convert between
@@ -170,7 +209,7 @@ pub const Display = struct {
         display.keyboard_selected = false;
         display.focussed = null;
         display.scrolling = null;
-        display.text_height = FONT_SIZE;
+        display.text_height = default_font_size;
         display.on_resized = .{ .func = null };
         display.on_panel_change = .{ .func = null };
         display.current_language = .unknown;
@@ -1285,10 +1324,10 @@ pub const Display = struct {
             err("SDL_IOFromConstMem: {s}", .{sdl.SDL_GetError()});
             return error.ResourceReadError;
         };
-        var font_pixel_height = self.text_height * self.pixel_scale * FONT_MUL;
+        var font_pixel_height = self.text_height * self.pixel_scale * font_pixel_density;
         if (self.scale == 0) {
             err("load_font called before screen scale detected. Font texture not optimized.", .{});
-            font_pixel_height = self.text_height * FONT_MUL;
+            font_pixel_height = self.text_height * font_pixel_density;
         }
         const myfont = sdl.TTF_OpenFontIO(fio, true, font_pixel_height) orelse {
             err("open font failed. size = {d}*{d}*2={d} error = {s}", .{

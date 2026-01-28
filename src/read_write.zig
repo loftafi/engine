@@ -337,9 +337,9 @@ pub fn load_preference_data(
     filename: []const u8,
     max_file_size: usize,
 ) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
-    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse "Example");
+    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse default_org_name);
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse "Engine");
+    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse default_app_name);
     defer gpa.free(app_name_z);
 
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
@@ -376,9 +376,9 @@ pub fn save_preference_data(
     filename: []const u8,
     data: []const u8,
 ) error{ ResourceWriteError, OutOfMemory }!void {
-    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse "Example");
+    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse default_org_name);
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse "Engine");
+    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse default_app_name);
     defer gpa.free(app_name_z);
 
     // SDL auto creates the preferences path if it does not yet exist.
@@ -417,13 +417,12 @@ pub fn save_preference_data(
 /// file location.
 pub fn remove_preference_data(
     gpa: Allocator,
-    app_name: []const u8,
-    app_org: []const u8,
+    display: *Display,
     filename: []const u8,
 ) error{ ResourceDeleteError, OutOfMemory }!void {
-    const app_org_z = try gpa.dupeZ(u8, app_org);
+    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse default_org_name);
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, app_name);
+    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse default_app_name);
     defer gpa.free(app_name_z);
 
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
@@ -465,29 +464,30 @@ pub fn random_string(data: []u8) void {
 
 test "load_save_preferences" {
     const gpa = std.testing.allocator;
+    var display = try Display.create(gpa, test_config);
+    defer display.destroy(gpa);
     seed();
 
     var app_name: [20]u8 = undefined;
     random_string(&app_name);
 
-    const app_org = "engine_test";
     const filename = "settings.cfg";
     const data = "file\ndata";
 
-    try save_preference_data(gpa, &app_name, app_org, filename, data);
-    const read = try load_preference_data(gpa, &app_name, app_org, filename, 10000);
+    try save_preference_data(gpa, display, filename, data);
+    const read = try load_preference_data(gpa, display, filename, 10000);
     try expect(read != null);
     defer gpa.free(read.?);
     try expectEqualStrings(data, read.?);
 
     const data2 = "file\ndata2";
-    try save_preference_data(gpa, &app_name, app_org, filename, data2);
-    const read2 = try load_preference_data(gpa, &app_name, app_org, filename, 10000);
+    try save_preference_data(gpa, display, filename, data2);
+    const read2 = try load_preference_data(gpa, display, filename, 10000);
     try expect(read2 != null);
     defer gpa.free(read2.?);
     try expectEqualStrings(data2, read2.?);
 
-    try remove_preference_data(gpa, &app_name, app_org, filename);
+    try remove_preference_data(gpa, display, filename);
 }
 
 const std = @import("std");
@@ -501,7 +501,15 @@ const Allocator = std.mem.Allocator;
 const praxis = @import("praxis");
 const BoundedArray = praxis.BoundedArray;
 
-const Display = @import("engine.zig").Display;
+const engine = @import("engine.zig");
+const Display = engine.Display;
+const err = engine.err;
+const warn = engine.warn;
+const info = engine.info;
+const debug = engine.debug;
+const trace = engine.debug;
+const default_app_name = engine.default_app_name;
+const default_org_name = engine.default_org_name;
 
 const Resources = @import("resources").Resources;
 const encode_uid = @import("resources").encode_uid;
@@ -510,9 +518,5 @@ const Resource = @import("resources").Resource;
 const random = @import("resources").random;
 const seed = @import("resources").seed;
 const FileType = @import("resources").FileType;
-const engine = @import("engine.zig");
-const err = engine.err;
-const warn = engine.warn;
-const info = engine.info;
-const debug = engine.debug;
-const trace = engine.debug;
+
+const test_config = @import("test.zig").test_config;
