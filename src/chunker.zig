@@ -160,7 +160,7 @@ pub inline fn is_chinese_letter(c: u21) bool {
 
 test "read_chunks" {
     const allocator = std.testing.allocator;
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
+    var display = try Display.create(allocator, test_config);
     defer display.destroy(allocator);
     _ = try display.load_font(allocator, "Roboto-Light");
     try expectEqual(1, display.fonts.items.len);
@@ -247,6 +247,7 @@ const praxis = @import("praxis");
 const Lang = praxis.Lang;
 
 const TextElement = @import("element.zig").TextElement;
+const test_config = @import("test.zig").test_config;
 
 const engine = @import("engine.zig");
 const Display = engine.Display;

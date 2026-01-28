@@ -155,15 +155,11 @@ pub const Display = struct {
     event_hook: U32Callback,
     on_panel_change: PanelChangeCallback,
 
+    bucket: StringBucket = undefined,
+
     pub fn create(
         gpa: Allocator,
-        app_name: [:0]const u8,
-        app_version: [:0]const u8,
-        app_id: [:0]const u8,
-        dev_resource_folder: []const u8,
-        dev_resource_filter: ?fn (name: []const u8, extension: FileType) bool,
-        translation_filename: []const u8,
-        gui_flags: usize,
+        config: Config,
     ) (Error || Allocator.Error || Resources.Error || engine.Error || error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte } || std.fs.Dir.StatError || std.fs.File.StatError || std.fs.File.OpenError)!*Display {
         var display = try gpa.create(Display);
         errdefer gpa.destroy(display);
@@ -184,8 +180,13 @@ pub const Display = struct {
         display.animators = .empty;
         display.keybindings = .empty;
         display.event_hook = .{ .func = null };
+        display.bucket = StringBucket.init(gpa);
 
-        _ = sdl.SDL_SetAppMetadata(app_name, app_version, app_id);
+        _ = sdl.SDL_SetAppMetadata(
+            if (config.app_name != null) try display.bucket.addZ(config.app_name.?) else "Engine",
+            if (config.app_version != null) try display.bucket.addZ(config.app_version.?) else "0.0.0",
+            if (config.app_id != null) try display.bucket.addZ(config.app_id.?) else "example",
+        );
 
         if (dev_build) {
             _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_GPU, sdl.SDL_LOG_PRIORITY_DEBUG);
@@ -211,7 +212,7 @@ pub const Display = struct {
         _ = sdl.SDL_SetHint(sdl.SDL_HINT_ORIENTATIONS, "Portrait PortraitUpsideDown");
 
         //if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO | sdl.SDL_INIT_GAMEPAD | sdl.SDL_INIT_JOYSTICK)) {
-        if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO)) {
+        if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO | sdl.SDL_INIT_HAPTIC)) {
             err("sdl setup failed. {s}", .{sdl.SDL_GetError()});
             return error.GraphicsInitFailed;
         }
@@ -243,23 +244,27 @@ pub const Display = struct {
         display.resources = try init_resource_loader(
             gpa,
             engine.RESOURCE_BUNDLE_FILENAME,
-            dev_resource_folder,
-            dev_resource_filter,
+            config.resource_folder orelse "",
+            config.resource_filter,
         );
-        if (try display.resources.lookupOne(translation_filename, .csv, gpa)) |resource| {
-            const data = try sdl_load_resource(display.resources, resource, gpa);
-            defer gpa.free(data);
-            try display.translation.load_translation_data(gpa, data);
-            debug("Translation file '{s}' loaded", .{translation_filename});
+        if (config.translation_filename) |translation_filename| {
+            if (try display.resources.lookupOne(translation_filename, .csv, gpa)) |resource| {
+                const data = try sdl_load_resource(display.resources, resource, gpa);
+                defer gpa.free(data);
+                try display.translation.load_translation_data(gpa, data);
+                debug("Translation file '{s}' loaded", .{translation_filename});
+            } else {
+                err("Translation file '{s}' not found.", .{translation_filename});
+            }
         } else {
-            err("Translation file '{s}' not found.", .{translation_filename});
+            info("No config.translation_filename set", .{});
         }
 
         const window = sdl.SDL_CreateWindow(
-            app_name,
+            try display.bucket.addZ(config.app_name orelse "Engine"),
             600,
             800,
-            sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY | sdl.SDL_WINDOW_RESIZABLE | gui_flags,
+            sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY | sdl.SDL_WINDOW_RESIZABLE | config.gui_flags,
         ) orelse {
             err("No Window created. {s}", .{sdl.SDL_GetError()});
             return error.WindowCreationFailed;
@@ -283,18 +288,21 @@ pub const Display = struct {
         }
         info("Renderer:{s}", .{renderer_info.items});
 
-        trace("Checking for desktop icon", .{});
-        if (try display.resources.lookupOne("desktop icon", .image, gpa)) |resource| {
-            var surface: SurfaceInfo = undefined;
-            try display.make_surface_from_resource(display.resources, resource, gpa, &surface);
-            defer surface.deinit(gpa);
-            if (!sdl.SDL_SetWindowIcon(window, surface.surface)) {
-                err("Failed to set set desktop icon", .{});
+        if (config.desktop_icon) |desktop_icon| {
+            if (try display.resources.lookupOne(desktop_icon, .image, gpa)) |resource| {
+                var surface: SurfaceInfo = undefined;
+                try display.make_surface_from_resource(display.resources, resource, gpa, &surface);
+                defer surface.deinit(gpa);
+                if (!sdl.SDL_SetWindowIcon(window, surface.surface)) {
+                    err("Failed to set set desktop icon", .{});
+                } else {
+                    trace("Successfully set desktop icon", .{});
+                }
             } else {
-                trace("Successfully set desktop icon", .{});
+                err("No 'desktop icon' in resource bundle.", .{});
             }
         } else {
-            err("No 'desktop icon' in resource bundle.", .{});
+            info("No config.desktop_icon set.", .{});
         }
 
         const pixel_scale = sdl.SDL_GetWindowDisplayScale(window);
@@ -379,6 +387,7 @@ pub const Display = struct {
 
         self.root.deinit(self, gpa);
         self.themes.deinit(gpa);
+        self.bucket.deinit();
 
         for (self.fonts.items) |item| {
             item.destroy(gpa);
@@ -425,6 +434,33 @@ pub const Display = struct {
         self.keybindings.deinit(gpa);
         self.translation.deinit(gpa);
         gpa.destroy(self);
+    }
+
+    pub fn haptic_feedback_available(_: *Display) bool {
+        var count: c_int = undefined;
+        if (sdl.SDL_GetHaptics(&count) == null) {
+            return false;
+        }
+        return count > 0;
+    }
+
+    pub fn haptic_feedback(_: *Display, _: u32) void {
+        //
+        if (sdl.SDL_OpenHaptic(0)) |haptic| {
+            var effect: sdl.SDL_HapticEffect = .{
+                .type = sdl.SDL_HAPTIC_RUMBLE,
+                .condition = .{
+                    .length = 1000, //ms
+                    .delay = 0,
+                },
+                .ramp = .{},
+            };
+            sdl.SDL_CreateHapticEffect(haptic, &effect);
+            if (!sdl.SDL_RunHapticEffect(haptic, 0, 1)) {
+                warn("haptic vibration failed", .{});
+            }
+            sdl.SDL_CloseHaptic(haptic);
+        }
     }
 
     /// Check that a theme name is a valid theme name. Return a stack
@@ -3471,6 +3507,18 @@ pub fn log_output_handler(
     }
 }
 
+pub const Config = struct {
+    app_name: ?[]const u8 = null,
+    app_version: ?[]const u8 = null,
+    app_id: ?[]const u8 = null,
+    app_icon_name: ?[]const u8 = null,
+    resource_folder: ?[]const u8 = null,
+    resource_filter: ?fn (name: []const u8, extension: FileType) bool = null,
+    translation_filename: ?[]const u8 = null,
+    desktop_icon: ?[]const u8 = null,
+    gui_flags: usize = 0,
+};
+
 test "sdl_log_priority" {
     try std.testing.expectEqual(.info, SdlLogPriority.fromInt(sdl.SDL_LOG_PRIORITY_INFO));
     try std.testing.expectEqual(.unknown, SdlLogPriority.fromInt(999));
@@ -3486,14 +3534,14 @@ const eq = std.testing.expectEqual;
 test "init catch" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
+    var display = try Display.create(allocator, test_config);
     defer display.destroy(allocator);
 }
 
 test "button sizing" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
+    var display = try Display.create(allocator, test_config);
     defer display.destroy(allocator);
     _ = try display.load_font(allocator, "Roboto-Light");
     try eq(1, display.fonts.items.len);
@@ -3557,7 +3605,7 @@ test "button sizing" {
 test "text input sizing" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
+    var display = try Display.create(allocator, test_config);
     defer display.destroy(allocator);
 
     // Add test font so we can test label layout
@@ -3706,7 +3754,7 @@ test "text input sizing" {
 
 test "test_init" {
     const allocator = std.testing.allocator;
-    var display = try Display.create(allocator, "test", "test", "test", "./test/repo", null, "test translation", 0);
+    var display = try Display.create(allocator, test_config);
     defer display.destroy(allocator);
 
     var panel = try display.add_panel(allocator, .{
@@ -3751,6 +3799,7 @@ const mixer = @import("mixer");
 
 pub const Chunker = @import("chunker.zig").Chunker;
 pub const Translation = @import("translation.zig").Translation;
+pub const StringBucket = @import("string_bucket.zig").StringBucket;
 
 const uid_writer = @import("resources").uid_writer;
 const Resources = @import("resources").Resources;
@@ -3772,6 +3821,7 @@ pub const Theme = @import("theme.zig").Theme;
 pub const ThemeColour = @import("theme.zig").ThemeColour;
 pub const Colour = @import("theme.zig").Colour;
 
+const test_config = @import("test.zig").test_config;
 pub const BundleLoader = @import("read_write.zig");
 pub const init_resource_loader = BundleLoader.init_resource_loader;
 pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
