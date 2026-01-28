@@ -779,8 +779,17 @@ pub const Element = struct {
                 self.type.button.text = new_text;
                 self.type.button.translated = new_translated;
                 if (new_translated.len > 0) {
-                    if (display.generate_text_texture(self.type.button.translated, self.type.button.font)) |texture| {
-                        self.type.button.text_texture = texture;
+                    if (self.type.button.font_name != null) {
+                        trace("use requested font '{s}' for {s}", .{ self.type.button.font_name.?, self.type.button.translated });
+                        if (display.generate_text_texture(self.type.button.translated, self.type.button.font)) |texture| {
+                            self.type.button.text_texture = texture;
+                        }
+                    } else {
+                        const font = @import("chunker.zig").guess_language(self.type.button.translated, display);
+                        trace("use detected font '{s}' for {s}", .{ font.name, self.type.button.translated });
+                        if (display.generate_text_texture(self.type.button.translated, font)) |texture| {
+                            self.type.button.text_texture = texture;
+                        }
                     }
                 }
             },
