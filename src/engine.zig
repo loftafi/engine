@@ -156,6 +156,7 @@ pub const Display = struct {
 
     bucket: StringBucket = undefined,
     bundle_filename: ?[]const u8,
+    config: Config = .{},
 
     pub fn create(
         gpa: Allocator,
@@ -182,8 +183,9 @@ pub const Display = struct {
         display.event_hook = .{ .func = null };
         display.bucket = StringBucket.init(gpa);
         display.bundle_filename = null;
+        display.config = config;
         if (config.bundle_filename != null)
-            display.bundle_filename = try display.bucket.add(config.bundle_filename);
+            display.bundle_filename = try display.bucket.add(config.bundle_filename.?);
 
         _ = sdl.SDL_SetAppMetadata(
             if (config.app_name != null) try display.bucket.addZ(config.app_name.?) else "Engine",
@@ -3520,10 +3522,12 @@ pub const Config = struct {
     app_name: ?[]const u8 = null,
     app_version: ?[]const u8 = null,
     app_id: ?[]const u8 = null,
+    app_org: ?[]const u8 = null,
+    app_build: ?[]const u8 = null,
     app_icon_name: ?[]const u8 = null,
     bundle_filename: ?[]const u8 = null,
     resource_folder: ?[]const u8 = null,
-    resource_filter: ?fn (name: []const u8, extension: FileType) bool = null,
+    resource_filter: ?*const fn (name: []const u8, extension: FileType) bool = null,
     translation_filename: ?[]const u8 = null,
     desktop_icon: ?[]const u8 = null,
     gui_flags: usize = 0,

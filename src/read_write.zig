@@ -9,7 +9,7 @@ pub fn init_resource_loader(
     allocator: Allocator,
     bundle_filename: ?[]const u8,
     resource_folder: ?[]const u8,
-    filename_filter: ?fn (name: []const u8, extension: FileType) bool,
+    filename_filter: ?*const fn (name: []const u8, extension: FileType) bool,
 ) (Allocator.Error || Resources.Error || engine.Error || std.fs.Dir.StatError || std.fs.File.StatError || std.fs.File.OpenError || error{
     ResourceReadError,
     Utf8ExpectedContinuation,
@@ -333,14 +333,13 @@ inline fn read_slice(
 /// Returns null if the file does not exist. Release the data array after using.
 pub fn load_preference_data(
     gpa: Allocator,
-    app_name: []const u8,
-    app_org: []const u8,
+    display: *Display,
     filename: []const u8,
     max_file_size: usize,
 ) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
-    const app_org_z = try gpa.dupeZ(u8, app_org);
+    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse "Example");
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, app_name);
+    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse "Engine");
     defer gpa.free(app_name_z);
 
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
@@ -373,14 +372,13 @@ pub fn load_preference_data(
 /// written, then replaces the data file with the temporary file.
 pub fn save_preference_data(
     gpa: Allocator,
-    app_name: []const u8,
-    app_org: []const u8,
+    display: *Display,
     filename: []const u8,
     data: []const u8,
 ) error{ ResourceWriteError, OutOfMemory }!void {
-    const app_org_z = try gpa.dupeZ(u8, app_org);
+    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse "Example");
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, app_name);
+    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse "Engine");
     defer gpa.free(app_name_z);
 
     // SDL auto creates the preferences path if it does not yet exist.
@@ -502,6 +500,8 @@ const Allocator = std.mem.Allocator;
 
 const praxis = @import("praxis");
 const BoundedArray = praxis.BoundedArray;
+
+const Display = @import("engine.zig").Display;
 
 const Resources = @import("resources").Resources;
 const encode_uid = @import("resources").encode_uid;
