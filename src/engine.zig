@@ -3656,16 +3656,18 @@ test "button sizing" {
     display.relayout();
     try eq(42, @round(button.rect.width / display.pixel_density));
     try eq(100, @round(panel.rect.width));
-    try eq(not_quite_two_lines, button.rect.height / display.pixel_density);
+    try eq(default_font_size, button.rect.height / display.pixel_density);
     try eq(0, panel.rect.height);
 
+    // Buttons cant wrap, hight will only change with padding.
+    button.maximum.height = 500;
     try button.set_text(allocator, display, "Hello Defragment");
     display.relayout();
-    try eq(default_font_size * 2, button.rect.height / display.pixel_density);
-    panel.pad.top = 4;
-    panel.pad.bottom = 5;
+    try eq(default_font_size, button.rect.height / display.pixel_density);
+    button.pad.top = 4;
+    button.pad.bottom = 5;
     display.relayout();
-    try eq(default_font_size * 2 + 4 + 5, button.rect.height / display.pixel_density);
+    try eq(default_font_size, (button.rect.height - 4 - 5) / display.pixel_density);
 }
 
 test "text input sizing" {
