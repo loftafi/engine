@@ -3607,11 +3607,14 @@ test "button sizing" {
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
+    const not_quite_one_line = default_font_size - 5;
+    const not_quite_two_lines = default_font_size * 2 - 5;
+
     var button = try panel.add(allocator, display, .{
         .visible = .visible,
         .rect = .{ .width = 50, .height = 50 },
-        .minimum = .{ .width = 42, .height = 41 },
-        .maximum = .{ .width = 82, .height = 81 },
+        .minimum = .{ .width = 30, .height = not_quite_one_line },
+        .maximum = .{ .width = 82, .height = not_quite_two_lines },
         .type = .{ .button = .{ .text = "" } },
     });
     display.relayout();
@@ -3619,13 +3622,15 @@ test "button sizing" {
     try eq(50, button.shrink_height(display, 500));
     button.layout.x = .shrinks;
     button.layout.y = .shrinks;
-    try eq(42, button.shrink_width(display, 500));
-    try eq(41, button.shrink_height(display, 500));
+    try eq(30, button.shrink_width(display, 500));
+    // The words will overflow the bottom of the box
+    try eq(not_quite_one_line, button.shrink_height(display, 500));
+
     display.relayout();
-    try eq(42, panel.shrink_width(display, 500));
-    try eq(42, button.rect.width);
+    try eq(30, panel.shrink_width(display, 500));
+    try eq(30, button.rect.width);
     try eq(5, panel.rect.width);
-    try eq(41, button.rect.height);
+    try eq(not_quite_one_line, button.rect.height);
     try eq(0, panel.rect.height);
 
     panel.pad.left = 2;
@@ -3633,9 +3638,9 @@ test "button sizing" {
     panel.pad.top = 4;
     panel.pad.bottom = 5;
     display.relayout();
-    try eq(42, button.rect.width);
+    try eq(30, button.rect.width);
     try eq(5, panel.rect.width);
-    try eq(41, button.rect.height);
+    try eq(not_quite_one_line, button.rect.height);
     try eq(0, panel.rect.height);
 
     panel.minimum.width = 100;
@@ -3649,10 +3654,21 @@ test "button sizing" {
 
     try button.set_text(allocator, display, "Hello");
     display.relayout();
-    try eq(83, @trunc(button.rect.width));
-    try eq(100, @trunc(panel.rect.width));
-    try eq(44, button.rect.height);
+    try eq(42, @round(button.rect.width / display.pixel_density));
+    try eq(100, @round(panel.rect.width));
+    // Minimum height was not_quite_one_line, expect it grew to font height.
+    try eq(default_font_size, button.rect.height / display.pixel_density);
     try eq(0, panel.rect.height);
+
+    // Buttons cant wrap, hight will only change with padding.
+    button.maximum.height = 500;
+    try button.set_text(allocator, display, "Hello Defragment");
+    display.relayout();
+    try eq(default_font_size, button.rect.height / display.pixel_density);
+    button.pad.top = 4;
+    button.pad.bottom = 5;
+    display.relayout();
+    try eq(default_font_size, (button.rect.height - 4 - 5) / display.pixel_density);
 }
 
 test "text input sizing" {
@@ -3710,7 +3726,7 @@ test "text input sizing" {
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(401, l.shrink_width(display, 500));
-        try eq(44, l.shrink_height(display, 500));
+        try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
     }
 
     {
@@ -3726,7 +3742,7 @@ test "text input sizing" {
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(401, @round(l.shrink_width(display, 500)));
-        try eq(44, l.shrink_height(display, 500));
+        try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
     }
 
     {
@@ -3742,11 +3758,16 @@ test "text input sizing" {
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(2, l.type.label.elements.items.len);
-        try eq(98, @trunc(l.type.label.elements.items[0].width / display.scale));
-        try eq(107, @trunc(l.type.label.elements.items[1].width / display.scale));
-        try eq(187, @trunc(l.shrink_width(display, 500)));
-        try eq(44, l.shrink_height(display, 500));
-        try eq(88, l.shrink_height(display, 115));
+        // Bitmap/Pixel width of first word in this font is 197 pixels
+        try eq(99, @round(l.type.label.elements.items[0].width / display.pixel_scale));
+        // Bitmap/Pixel width of second word in this font is 197 pixels
+        try eq(107, @round(l.type.label.elements.items[1].width / display.pixel_scale));
+
+        // Display width of the words when rendered to the physical display
+        try eq(94, @round(l.shrink_width(display, 500) / display.pixel_scale));
+        try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
+        // Display width on physical display with word wrap
+        try eq(2 * default_font_size * display.pixel_scale, l.shrink_height(display, 40 * display.pixel_scale));
     }
 
     var panel = try display.add_panel(allocator, .{
@@ -3786,12 +3807,12 @@ test "text input sizing" {
     try eq(300, label.shrink_width(display, 500));
     try eq(100, label.shrink_height(display, 500));
 
-    label.minimum.width = 22;
-    label.minimum.height = 22;
+    label.minimum.width = default_font_size;
+    label.minimum.height = default_font_size;
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(187, @trunc(label.shrink_width(display, 500)));
-    try eq(44, @trunc(label.shrink_height(display, 500)));
+    try eq(94, @round(label.shrink_width(display, 500) / display.pixel_scale));
+    try eq(default_font_size, @round(label.shrink_height(display, 500) / display.pixel_scale));
     label.layout.x = .grows;
     try eq(401, @round(label.shrink_width(display, 500)));
 
@@ -3816,7 +3837,7 @@ test "text input sizing" {
     try eq(401, @round(label.rect.width)); // Label has 401 as maximum
     try eq(500, @trunc(panel.rect.width));
     // The height is two lines (44*2)
-    try eq(44, @trunc(label.rect.height));
+    try eq(default_font_size, @round(label.rect.height / display.pixel_scale));
     try eq(200, @trunc(panel.rect.height));
 }
 
