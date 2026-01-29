@@ -3710,7 +3710,7 @@ test "text input sizing" {
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(401, l.shrink_width(display, 500));
-        try eq(44, l.shrink_height(display, 500));
+        try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
     }
 
     {
@@ -3726,7 +3726,7 @@ test "text input sizing" {
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(401, @round(l.shrink_width(display, 500)));
-        try eq(44, l.shrink_height(display, 500));
+        try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
     }
 
     {
@@ -3745,8 +3745,8 @@ test "text input sizing" {
         try eq(98, @trunc(l.type.label.elements.items[0].width / display.scale));
         try eq(107, @trunc(l.type.label.elements.items[1].width / display.scale));
         try eq(187, @trunc(l.shrink_width(display, 500)));
-        try eq(44, l.shrink_height(display, 500));
-        try eq(88, l.shrink_height(display, 115));
+        try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
+        try eq(2 * default_font_size * display.pixel_scale, l.shrink_height(display, 115));
     }
 
     var panel = try display.add_panel(allocator, .{
