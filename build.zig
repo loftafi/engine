@@ -252,8 +252,15 @@ pub fn link_sdl_framework(
             }
         },
         .linux => {
-            lib.addLibraryPath(b.path("libs/ubuntu-aarch64/"));
-            lib.linkSystemLibrary("SDL3.0.4.0", .{});
+            if (target.result.cpu.arch == .aarch64) {
+                lib.addLibraryPath(b.path("libs/ubuntu-aarch64/"));
+                lib.linkSystemLibrary("SDL3.0.4.0", .{});
+            } else if (target.result.cpu.arch == .x86_64) {
+                lib.addLibraryPath(b.path("libs/ubuntu-x64/"));
+                lib.linkSystemLibrary("SDL3.0.4.0", .{});
+            } else {
+                std.log.err("Only aarch and x86_64 is supported for linux builds.", .{});
+            }
         },
         else => {
             debug("link_sdl_framework not configured for {s}", .{@tagName(target.result.os.tag)});
