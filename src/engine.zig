@@ -221,6 +221,7 @@ pub const Display = struct {
         display.keybindings = .empty;
         display.event_hook = .{ .func = null };
         display.bucket = StringBucket.init(gpa);
+        errdefer display.bucket.deinit();
         display.bundle_filename = null;
         display.config = config;
         if (config.bundle_filename != null)

@@ -258,6 +258,8 @@ pub fn link_sdl_framework(
             } else if (target.result.cpu.arch == .x86_64) {
                 lib.addLibraryPath(b.path("libs/ubuntu-x64/"));
                 lib.linkSystemLibrary("SDL3.0.4.0", .{});
+                lib.linkSystemLibrary("SDL3_ttf.0.2.2", .{});
+                lib.linkSystemLibrary("SDL3_mixer.0.1.2", .{});
             } else {
                 std.log.err("Only aarch and x86_64 is supported for linux builds.", .{});
             }
