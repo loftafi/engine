@@ -252,7 +252,7 @@ pub fn link_sdl_framework(
             }
         },
         .linux => {
-            lib.addLibraryPath(b.path("libs/ubuntu/"));
+            lib.addLibraryPath(b.path("libs/ubuntu-aarch64/"));
             lib.linkSystemLibrary("SDL3.0.4.0", .{});
         },
         else => {
