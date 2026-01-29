@@ -3649,9 +3649,9 @@ test "button sizing" {
 
     try button.set_text(allocator, display, "Hello");
     display.relayout();
-    try eq(83, @trunc(button.rect.width));
-    try eq(100, @trunc(panel.rect.width));
-    try eq(44, button.rect.height);
+    try eq(42, @round(button.rect.width / display.pixel_density));
+    try eq(100, @round(panel.rect.width));
+    try eq(default_font_size, button.rect.height / display.pixel_density);
     try eq(0, panel.rect.height);
 }
 
