@@ -3742,8 +3742,12 @@ test "text input sizing" {
         defer l.destroy(display, allocator);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(2, l.type.label.elements.items.len);
-        try eq(98, @trunc(l.type.label.elements.items[0].width / display.scale));
-        try eq(107, @trunc(l.type.label.elements.items[1].width / display.scale));
+        // Bitmap/Pixel width of first word in this font is 197 pixels
+        try eq(197, l.type.label.elements.items[0].width);
+        // Bitmap/Pixel width of second word in this font is 197 pixels
+        try eq(214, l.type.label.elements.items[1].width);
+
+        // Dispalay width of the words when rendered to the physical display
         try eq(187, @trunc(l.shrink_width(display, 500)));
         try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
         try eq(2 * default_font_size * display.pixel_scale, l.shrink_height(display, 115));
