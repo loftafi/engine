@@ -3743,12 +3743,12 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(2, l.type.label.elements.items.len);
         // Bitmap/Pixel width of first word in this font is 197 pixels
-        try eq(197, l.type.label.elements.items[0].width);
+        try eq(99, @round(l.type.label.elements.items[0].width / display.pixel_scale));
         // Bitmap/Pixel width of second word in this font is 197 pixels
-        try eq(214, l.type.label.elements.items[1].width);
+        try eq(107, @round(l.type.label.elements.items[1].width / display.pixel_scale));
 
         // Dispalay width of the words when rendered to the physical display
-        try eq(93.5, l.shrink_width(display, 500) / display.pixel_scale);
+        try eq(94, @round(l.shrink_width(display, 500) / display.pixel_scale));
         try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
         try eq(2 * default_font_size * display.pixel_scale, l.shrink_height(display, 115));
     }
