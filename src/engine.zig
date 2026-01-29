@@ -3748,7 +3748,7 @@ test "text input sizing" {
         try eq(214, l.type.label.elements.items[1].width);
 
         // Dispalay width of the words when rendered to the physical display
-        try eq(187, @trunc(l.shrink_width(display, 500)));
+        try eq(93.5, l.shrink_width(display, 500) / display.pixel_scale);
         try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
         try eq(2 * default_font_size * display.pixel_scale, l.shrink_height(display, 115));
     }
