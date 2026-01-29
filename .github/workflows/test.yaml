@@ -5,7 +5,7 @@ on:
     branches: [master, experimental]
 
 jobs:
-  test:
+  test-linux:
     runs-on: ubuntu-latest
     name: Build and Test Engine package on linux
     steps:
@@ -15,7 +15,7 @@ jobs:
           version: 0.15.2
       - run: sudo apt install -y ffmpeg
       - run: zig build test
-  test:
+  test-macos:
     runs-on: macos-latest
     name: Build and Test Engine package on MacOS
     steps:
