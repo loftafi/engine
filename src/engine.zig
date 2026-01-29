@@ -3821,7 +3821,7 @@ test "text input sizing" {
     try eq(401, @round(label.rect.width)); // Label has 401 as maximum
     try eq(500, @trunc(panel.rect.width));
     // The height is two lines (44*2)
-    try eq(44, @trunc(label.rect.height));
+    try eq(default_font_size, @round(label.rect.height / display.pixel_scale));
     try eq(200, @trunc(panel.rect.height));
 }
 
