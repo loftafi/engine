@@ -304,11 +304,15 @@ pub const Display = struct {
             info("No config.translation_filename set", .{});
         }
 
+        var gui_flags: u64 = 0;
+        if (config.full_screen)
+            gui_flags = sdl.SDL_WINDOW_FULLSCREEN | sdl.SDL_WINDOW_BORDERLESS | sdl.SDL_WINDOW_RESIZABLE;
+
         const window = sdl.SDL_CreateWindow(
             try display.bucket.addZ(config.app_name orelse "Engine"),
             600,
             800,
-            sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY | sdl.SDL_WINDOW_RESIZABLE | config.gui_flags,
+            sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY | gui_flags,
         ) orelse {
             err("No Window created. {s}", .{sdl.SDL_GetError()});
             return error.WindowCreationFailed;
@@ -3569,7 +3573,7 @@ pub const Config = struct {
     resource_filter: ?*const fn (name: []const u8, extension: FileType) bool = null,
     translation_filename: ?[]const u8 = null,
     desktop_icon: ?[]const u8 = null,
-    gui_flags: usize = 0,
+    full_screen: bool = false,
 };
 
 test "sdl_log_priority" {

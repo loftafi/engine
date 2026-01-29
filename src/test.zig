@@ -5,7 +5,7 @@ pub const test_config = Config{
     .resource_folder = "./test/repo",
     .resource_filter = null,
     .translation_filename = "test translation",
-    .gui_flags = 0,
+    .full_screen = false,
 };
 
 const Config = @import("engine.zig").Config;
