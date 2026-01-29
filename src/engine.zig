@@ -3747,10 +3747,11 @@ test "text input sizing" {
         // Bitmap/Pixel width of second word in this font is 197 pixels
         try eq(107, @round(l.type.label.elements.items[1].width / display.pixel_scale));
 
-        // Dispalay width of the words when rendered to the physical display
+        // Display width of the words when rendered to the physical display
         try eq(94, @round(l.shrink_width(display, 500) / display.pixel_scale));
         try eq(default_font_size * display.pixel_scale, l.shrink_height(display, 500));
-        try eq(2 * default_font_size * display.pixel_scale, l.shrink_height(display, 115));
+        // Display width on physical display with word wrap
+        try eq(2 * default_font_size * display.pixel_scale, l.shrink_height(display, 40 * display.pixel_scale));
     }
 
     var panel = try display.add_panel(allocator, .{
