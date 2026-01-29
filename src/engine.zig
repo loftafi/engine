@@ -3607,7 +3607,7 @@ test "button sizing" {
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
-    const not_quite_one_line = default_font_size * 2 - 5;
+    const not_quite_one_line = default_font_size - 5;
     const not_quite_two_lines = default_font_size * 2 - 5;
 
     var button = try panel.add(allocator, display, .{
@@ -3656,6 +3656,7 @@ test "button sizing" {
     display.relayout();
     try eq(42, @round(button.rect.width / display.pixel_density));
     try eq(100, @round(panel.rect.width));
+    // Minimum height was not_quite_one_line, expect it grew to font height.
     try eq(default_font_size, button.rect.height / display.pixel_density);
     try eq(0, panel.rect.height);
 
