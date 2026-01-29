@@ -3791,12 +3791,12 @@ test "text input sizing" {
     try eq(300, label.shrink_width(display, 500));
     try eq(100, label.shrink_height(display, 500));
 
-    label.minimum.width = 22;
-    label.minimum.height = 22;
+    label.minimum.width = default_font_size;
+    label.minimum.height = default_font_size;
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(187, @trunc(label.shrink_width(display, 500)));
-    try eq(44, @trunc(label.shrink_height(display, 500)));
+    try eq(94, @round(label.shrink_width(display, 500) / display.pixel_scale));
+    try eq(default_font_size, @round(label.shrink_height(display, 500) / display.pixel_scale));
     label.layout.x = .grows;
     try eq(401, @round(label.shrink_width(display, 500)));
 
