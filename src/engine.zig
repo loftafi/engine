@@ -3607,11 +3607,13 @@ test "button sizing" {
     try eq(5, panel.shrink_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
+    const not_quite_one_line = default_font_size * 2 - 5;
+    const not_quite_two_lines = default_font_size * 2 - 5;
     var button = try panel.add(allocator, display, .{
         .visible = .visible,
         .rect = .{ .width = 50, .height = 50 },
-        .minimum = .{ .width = 42, .height = 41 },
-        .maximum = .{ .width = 82, .height = 81 },
+        .minimum = .{ .width = 30, .height = not_quite_one_line },
+        .maximum = .{ .width = 82, .height = not_quite_two_lines },
         .type = .{ .button = .{ .text = "" } },
     });
     display.relayout();
@@ -3619,13 +3621,15 @@ test "button sizing" {
     try eq(50, button.shrink_height(display, 500));
     button.layout.x = .shrinks;
     button.layout.y = .shrinks;
-    try eq(42, button.shrink_width(display, 500));
-    try eq(41, button.shrink_height(display, 500));
+    try eq(30, button.shrink_width(display, 500));
+    // The words will overflow the bottom of the box
+    try eq(not_quite_one_line, button.shrink_height(display, 500));
+
     display.relayout();
-    try eq(42, panel.shrink_width(display, 500));
-    try eq(42, button.rect.width);
+    try eq(30, panel.shrink_width(display, 500));
+    try eq(30, button.rect.width);
     try eq(5, panel.rect.width);
-    try eq(41, button.rect.height);
+    try eq(not_quite_one_line, button.rect.height);
     try eq(0, panel.rect.height);
 
     panel.pad.left = 2;
@@ -3633,9 +3637,9 @@ test "button sizing" {
     panel.pad.top = 4;
     panel.pad.bottom = 5;
     display.relayout();
-    try eq(42, button.rect.width);
+    try eq(30, button.rect.width);
     try eq(5, panel.rect.width);
-    try eq(41, button.rect.height);
+    try eq(not_quite_one_line, button.rect.height);
     try eq(0, panel.rect.height);
 
     panel.minimum.width = 100;
