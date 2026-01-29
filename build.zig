@@ -251,6 +251,10 @@ pub fn link_sdl_framework(
                 lib.linkFramework("SDL3_mixer", .{});
             }
         },
+        .linux => {
+            lib.addLibraryPath(b.path("libs/ubuntu/"));
+            lib.linkSystemLibrary("SDL3.0.4.0", .{});
+        },
         else => {
             debug("link_sdl_framework not configured for {s}", .{@tagName(target.result.os.tag)});
             //@panic("link_sdl_framework not configured for this platform");
