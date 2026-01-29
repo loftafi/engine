@@ -123,23 +123,25 @@ pub fn add_translatec_headers(
             lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
         .linux => {
-            // When building for android, we need to use the android linux headers
-            if (FindNDK.find(b.allocator)) |android_ndk| {
-                const ndk_location = android_ndk.realpathAlloc(b.allocator, ".") catch {
-                    @panic("printing ndk path failed");
-                };
-                defer b.allocator.free(ndk_location);
-                std.log.info("Using android c headers: {s}", .{ndk_location});
-                lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                    ndk_location,
-                    "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
-                }) });
-                lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                    ndk_location,
-                    "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
-                }) });
-            } else {
-                @panic("android/linux build requires ndk. Set ANDROID_NDK_HOME");
+            if (target.result.abi.isAndroid()) {
+                // When building for android, we need to use the android linux headers
+                if (FindNDK.find(b.allocator)) |android_ndk| {
+                    const ndk_location = android_ndk.realpathAlloc(b.allocator, ".") catch {
+                        @panic("printing ndk path failed");
+                    };
+                    defer b.allocator.free(ndk_location);
+                    std.log.info("Using android c headers: {s}", .{ndk_location});
+                    lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                        ndk_location,
+                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
+                    }) });
+                    lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                        ndk_location,
+                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
+                    }) });
+                } else {
+                    @panic("android/linux build requires ndk. Set ANDROID_NDK_HOME");
+                }
             }
         },
         else => {
@@ -175,22 +177,24 @@ pub fn add_libs(
         },
         .linux => {
             // When building for android, we need to use the android linux headers
-            if (FindNDK.find(b.allocator)) |android_ndk| {
-                const ndk_location = android_ndk.realpathAlloc(b.allocator, ".") catch {
-                    @panic("printing ndk path failed");
-                };
-                defer b.allocator.free(ndk_location);
-                std.log.info("Using android c headers: {s}", .{ndk_location});
-                lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                    ndk_location,
-                    "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
-                }) });
-                lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                    ndk_location,
-                    "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
-                }) });
-            } else {
-                @panic("android/linux build requires ndk. Set ANDROID_NDK_HOME");
+            if (target.result.abi.isAndroid()) {
+                if (FindNDK.find(b.allocator)) |android_ndk| {
+                    const ndk_location = android_ndk.realpathAlloc(b.allocator, ".") catch {
+                        @panic("printing ndk path failed");
+                    };
+                    defer b.allocator.free(ndk_location);
+                    std.log.info("Using android c headers: {s}", .{ndk_location});
+                    lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                        ndk_location,
+                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
+                    }) });
+                    lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
+                        ndk_location,
+                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
+                    }) });
+                } else {
+                    @panic("android/linux build requires ndk. Set ANDROID_NDK_HOME");
+                }
             }
         },
         else => {
@@ -220,13 +224,9 @@ pub fn link_sdl_framework(
             lib.linkFramework("SDL3", .{});
             lib.linkFramework("SDL3_ttf", .{});
             lib.linkFramework("SDL3_mixer", .{});
-            //lib.addSystemIncludePath(b.path("libs/SDL3_mixer/"));
-            //lib.addSystemFrameworkPath(b.path("libs/SDL3_mixer/"));
-            //lib.linkSystemLibrary("SDL3_mixer.0.1.0", .{});
-            lib.addLibraryPath(b.path("libs/vorbis/"));
-            lib.linkSystemLibrary("vorbis.0.4.9", .{});
-            lib.linkSystemLibrary("ogg.0.8.5", .{});
-            lib.linkSystemLibrary("vorbisfile.3.3.8", .{});
+            //lib.addLibraryPath(b.path("libs/vorbis/"));
+            //lib.linkSystemLibrary("vorbis.0.4.9", .{});
+            //lib.linkSystemLibrary("ogg.0.8.5", .{});
         },
         .ios => {
             if (target.result.abi == .simulator) {
