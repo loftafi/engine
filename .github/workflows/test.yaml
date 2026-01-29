@@ -7,12 +7,22 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    name: Build and Test Engine package
+    name: Build and Test Engine package on linux
     steps:
       - uses: actions/checkout@v3
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
       - run: sudo apt install -y ffmpeg
+      - run: zig build test
+  test:
+    runs-on: macos-latest
+    name: Build and Test Engine package on MacOS
+    steps:
+      - uses: actions/checkout@v3
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - run: brew install ffmpeg
       - run: zig build test
 
