@@ -295,7 +295,10 @@ pub const Element = struct {
         return true;
     }
 
-    inline fn button_text_tint(self: *Element, theme: *Theme) Colour {
+    /// By default, button text is uses the default theme `text_colour`
+    /// unless a style is applied, or the button is altered by its
+    /// `hovered` or `pressed` status.
+    inline fn button_text_colour(self: *Element, theme: *Theme) Colour {
         if (self.style == .success) return theme.success_text_colour;
         if (self.style == .failed) return theme.failed_text_colour;
         if (self.style == .custom) return self.colour;
@@ -1847,44 +1850,28 @@ pub const Element = struct {
             .end => element.rect.width - content_width,
         };
 
-        const tint = element.button_text_tint(display.theme);
+        const text_colour = element.button_text_colour(display.theme);
         var has_icon = false;
         if (element.current_icon()) |icon_image| {
             has_icon = true;
-            {
-                var dest: Rect = .{
-                    .x = element.rect.x + element.pad.left + content_offset,
-                    .y = element.rect.y + element.pad.top,
-                    .width = element.type.button.icon_size.width,
-                    .height = element.type.button.icon_size.height,
-                };
-                dest.x += scroll_offset.x;
-                dest.y += scroll_offset.y;
-                if (element.flip.x) {
-                    dest.x += dest.width;
-                    dest.width = 0 - dest.width;
-                }
-                if (element.flip.y) {
-                    dest.y += dest.height;
-                    dest.height = 0 - dest.height;
-                }
-                if (element.style != .custom) {
-                    _ = sdl.SDL_SetTextureColorMod(
-                        icon_image,
-                        tint.r,
-                        tint.g,
-                        tint.b,
-                    );
-                } else {
-                    _ = sdl.SDL_SetTextureColorMod(
-                        icon_image,
-                        element.colour.r,
-                        element.colour.g,
-                        element.colour.b,
-                    );
-                }
-                _ = sdl.SDL_RenderTexture(display.renderer, icon_image, null, @ptrCast(&dest));
+            var dest: Rect = .{
+                .x = element.rect.x + element.pad.left + content_offset,
+                .y = element.rect.y + element.pad.top,
+                .width = element.type.button.icon_size.width,
+                .height = element.type.button.icon_size.height,
+            };
+            dest = dest.move(&scroll_offset);
+            if (element.flip.x) {
+                dest.x += dest.width;
+                dest.width = 0 - dest.width;
             }
+            if (element.flip.y) {
+                dest.y += dest.height;
+                dest.height = 0 - dest.height;
+            }
+            _ = sdl.SDL_SetTextureAlphaMod(icon_image, text_colour.a);
+            _ = sdl.SDL_SetTextureColorMod(icon_image, text_colour.r, text_colour.g, text_colour.b);
+            _ = sdl.SDL_RenderTexture(display.renderer, icon_image, null, @ptrCast(&dest));
         }
         if (element.type.button.text_texture) |texture| {
             const size = element.type.button.text_size.pixel_size(display, texture);
@@ -1901,7 +1888,8 @@ pub const Element = struct {
             if (has_icon or element.type.button.icon_size.width > 0) {
                 dest.x += element.type.button.spacing;
             }
-            _ = sdl.SDL_SetTextureColorMod(texture, tint.r, tint.g, tint.b);
+            _ = sdl.SDL_SetTextureAlphaMod(texture, text_colour.a);
+            _ = sdl.SDL_SetTextureColorMod(texture, text_colour.r, text_colour.g, text_colour.b);
             _ = sdl.SDL_RenderTexture(display.renderer, texture, null, @ptrCast(&dest));
         }
     }
