@@ -1299,16 +1299,6 @@ pub const Display = struct {
         _ = sdl.SDL_RenderPresent(display.renderer);
     }
 
-    /// Reteurn the size of a checkbox button based on the user
-    /// selected screen size/scale.
-    pub fn checkbox(self: *Display) Size {
-        const CHECKBOX_WIDTH: f32 = 72;
-        const CHECKBOX_HEIGHT: f32 = 44;
-        const screen_height = self.text_height * self.pixel_scale * self.user_scale;
-        const screen_width = screen_height * (CHECKBOX_WIDTH / CHECKBOX_HEIGHT);
-        return .{ .width = screen_width, .height = screen_height };
-    }
-
     /// Load and associate a font file with a font name.
     pub fn load_font(
         self: *Display,
@@ -1457,13 +1447,13 @@ pub const Display = struct {
         ti.references -= 1;
         if (ti.references != 0) {
             if (ti.references < 0) {
-                err("free texture \"{d}\" (duplicate free)", .{ti.uid});
+                err("free texture \"{f}\" (duplicate free)", .{uid_writer(u64, ti.uid)});
             } else {
-                trace("free texture \"{d}\" (not yet {d})", .{ ti.uid, ti.references });
+                trace("free texture \"{f}\" (not yet {d})", .{ uid_writer(u64, ti.uid), ti.references });
             }
             return;
         }
-        trace("free texture \"{d}\" (now)", .{ti.uid});
+        trace("free texture \"{f}\" (now)", .{uid_writer(u64, ti.uid)});
         _ = self.textures.remove(ti.uid);
         ti.destroy(allocator);
     }
@@ -2964,7 +2954,12 @@ pub fn setup_checkbox(
         element.pad.bottom = self.text_height * self.scale * 0.3;
     }
 
-    const size = self.checkbox();
+    if (element.type.checkbox.checkbox_size.width == 0 or element.type.checkbox.checkbox_size.height == 0) {
+        element.type.checkbox.checkbox_size.width = default_font_size * self.pixel_scale;
+        element.type.checkbox.checkbox_size.height = default_font_size * self.pixel_scale;
+    }
+
+    const size = element.type.checkbox.checkbox_size;
     if (element.minimum.height < size.height)
         element.minimum.height = size.height;
 

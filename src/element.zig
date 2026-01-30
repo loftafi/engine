@@ -113,6 +113,7 @@ pub const Element = struct {
             translated: []const u8 = "",
             elements: ArrayListUnmanaged(TextElement) = .empty,
             line_height: f32 = 1,
+            checkbox_size: Size = .{ .width = 0, .height = 0 },
             on_texture: ?*Texture = null,
             off_texture: ?*Texture = null,
             on_change: Callback = .{ .func = null },
@@ -1023,7 +1024,7 @@ pub const Element = struct {
                         // the minimum that would be needed.
                         self.layout_label(display, parent_inner_width);
                         //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                        return self.rect.width + self.pad.left + display.checkbox().width;
+                        return self.rect.width + self.pad.left + self.type.checkbox.checkbox_size.width;
                     },
                     .fixed => {
                         //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
@@ -1709,7 +1710,7 @@ pub const Element = struct {
 
     /// Draw a radio box combined with a text label.
     inline fn draw_checkbox(element: *Element, display: *Display, _: Vector, _: ?Clip, scroll_offset: Vector) void {
-        const checkbox = display.checkbox();
+        const checkbox = element.type.checkbox.checkbox_size;
         element.draw_label(display, scroll_offset, null);
         var dest: Rect = .{
             .x = element.rect.x + element.rect.width - checkbox.width - element.pad.left,
@@ -2148,9 +2149,9 @@ pub const Element = struct {
     /// Calculate how many pixels of text we can draw until we must wrap to
     /// the next line. By default the width is whatever the parent element
     /// has room for.
-    fn word_wrap_line(element: *Element, display: *Display, max_parent_width: f32) f32 {
+    fn word_wrap_line(element: *Element, _: *Display, max_parent_width: f32) f32 {
         var element_padding = element.pad.left + element.pad.right;
-        if (element.type == .checkbox) element_padding += display.checkbox().width;
+        if (element.type == .checkbox) element_padding += element.type.checkbox.checkbox_size.width;
 
         // If a fixed width is specified, clamp to the fixed width
         const wrap = switch (element.layout.x) {
