@@ -128,7 +128,7 @@ pub const Display = struct {
     /// One user interface element may be marked as selected to recieve
     /// keyboard input
     selected: ?*Element = null,
-    keyboard_selected: bool = false,
+    keyboard_activity: bool = false,
 
     /// One user interface element may be rendered differently
     /// when the mouse/pointer is floating over that element.
@@ -206,7 +206,7 @@ pub const Display = struct {
         display.allocator = gpa;
         display.hovered = null;
         display.selected = null;
-        display.keyboard_selected = false;
+        display.keyboard_activity = false;
         display.focussed = null;
         display.scrolling = null;
         display.text_height = default_font_size;
@@ -1970,9 +1970,27 @@ pub const Display = struct {
             } else {
                 display.select_next_element(gpa);
             }
-            if (display.selected != null) {
-                display.keyboard_selected = true;
-            }
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        }
+        if (e.key.key == sdl.SDLK_UP) {
+            display.select_previous_element(gpa);
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        }
+        if (e.key.key == sdl.SDLK_LEFT) {
+            display.select_previous_element(gpa);
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        }
+        if (e.key.key == sdl.SDLK_DOWN) {
+            display.select_next_element(gpa);
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        }
+        if (e.key.key == sdl.SDLK_RIGHT) {
+            display.select_next_element(gpa);
+            if (display.selected != null) display.keyboard_activity = true;
             return;
         }
         if (display.selected) |selected| {

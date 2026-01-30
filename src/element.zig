@@ -1201,7 +1201,7 @@ pub const Element = struct {
         // Any element can have a selection underline
         if (display.selected != null and display.selected == element) {
             if (element.type != .text_input) {
-                if (display.keyboard_selected) {
+                if (display.keyboard_activity) {
                     engine.draw_selection_marker(
                         display,
                         display.renderer,
@@ -2060,7 +2060,7 @@ pub const Element = struct {
         if (self.type == .text_input) {
             _ = sdl.SDL_StopTextInput(display.window);
         }
-        display.keyboard_selected = false;
+        display.keyboard_activity = false;
         display.selected = null;
     }
 
