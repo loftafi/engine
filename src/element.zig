@@ -1844,19 +1844,26 @@ pub const Element = struct {
         }
         content_width += element.pad.left + element.pad.right;
 
-        const content_offset = switch (element.child_align.x) {
+        const content_x_offset = switch (element.child_align.x) {
             .start => 0,
             .centre => (element.rect.width - content_width) / 2.0,
             .end => element.rect.width - content_width,
         };
+        const icon_y_offset = switch (element.child_align.y) {
+            .start => element.pad.top,
+            .centre => (element.rect.height / 2) - (element.type.button.icon_size.height / 2),
+            .end => element.rect.height - element.pad.bottom - element.type.button.icon_size.height,
+        };
 
         const text_colour = element.button_text_colour(display.theme);
         var has_icon = false;
+
+        // Place the icon
         if (element.current_icon()) |icon_image| {
             has_icon = true;
             var dest: Rect = .{
-                .x = element.rect.x + element.pad.left + content_offset,
-                .y = element.rect.y + element.pad.top,
+                .x = element.rect.x + element.pad.left + content_x_offset,
+                .y = element.rect.y + icon_y_offset,
                 .width = element.type.button.icon_size.width,
                 .height = element.type.button.icon_size.height,
             };
@@ -1873,10 +1880,12 @@ pub const Element = struct {
             _ = sdl.SDL_SetTextureColorMod(icon_image, text_colour.r, text_colour.g, text_colour.b);
             _ = sdl.SDL_RenderTexture(display.renderer, icon_image, null, @ptrCast(&dest));
         }
+
+        // Place the text
         if (element.type.button.text_texture) |texture| {
             const size = element.type.button.text_size.pixel_size(display, texture);
             var dest: Rect = .{
-                .x = element.rect.x + element.type.button.icon_size.width + element.pad.left + content_offset,
+                .x = element.rect.x + element.type.button.icon_size.width + element.pad.left + content_x_offset,
                 .y = element.rect.y + (element.rect.height / 2.0) - (size.height / 2),
                 .width = size.width,
                 .height = size.height,
