@@ -333,13 +333,13 @@ inline fn read_slice(
 /// Returns null if the file does not exist. Release the data array after using.
 pub fn load_preference_data(
     gpa: Allocator,
-    display: *Display,
+    config: *const engine.Config,
     filename: []const u8,
     max_file_size: usize,
 ) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
-    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse default_org_name);
+    const app_org_z = try gpa.dupeZ(u8, config.app_org orelse default_org_name);
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse default_app_name);
+    const app_name_z = try gpa.dupeZ(u8, config.app_name orelse default_app_name);
     defer gpa.free(app_name_z);
 
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
@@ -372,13 +372,13 @@ pub fn load_preference_data(
 /// written, then replaces the data file with the temporary file.
 pub fn save_preference_data(
     gpa: Allocator,
-    display: *Display,
+    config: *const engine.Config,
     filename: []const u8,
     data: []const u8,
 ) error{ ResourceWriteError, OutOfMemory }!void {
-    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse default_org_name);
+    const app_org_z = try gpa.dupeZ(u8, config.app_org orelse default_org_name);
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse default_app_name);
+    const app_name_z = try gpa.dupeZ(u8, config.app_name orelse default_app_name);
     defer gpa.free(app_name_z);
 
     // SDL auto creates the preferences path if it does not yet exist.
@@ -417,12 +417,12 @@ pub fn save_preference_data(
 /// file location.
 pub fn remove_preference_data(
     gpa: Allocator,
-    display: *Display,
+    config: *const engine.Config,
     filename: []const u8,
 ) error{ ResourceDeleteError, OutOfMemory }!void {
-    const app_org_z = try gpa.dupeZ(u8, display.config.app_org orelse default_org_name);
+    const app_org_z = try gpa.dupeZ(u8, config.app_org orelse default_org_name);
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, display.config.app_name orelse default_app_name);
+    const app_name_z = try gpa.dupeZ(u8, config.app_name orelse default_app_name);
     defer gpa.free(app_name_z);
 
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
@@ -464,8 +464,6 @@ pub fn random_string(data: []u8) void {
 
 test "load_save_preferences" {
     const gpa = std.testing.allocator;
-    var display = try Display.create(gpa, test_config);
-    defer display.destroy(gpa);
     seed();
 
     var app_name: [20]u8 = undefined;
@@ -474,20 +472,20 @@ test "load_save_preferences" {
     const filename = "settings.cfg";
     const data = "file\ndata";
 
-    try save_preference_data(gpa, display, filename, data);
-    const read = try load_preference_data(gpa, display, filename, 10000);
+    try save_preference_data(gpa, &test_config, filename, data);
+    const read = try load_preference_data(gpa, &test_config, filename, 10000);
     try expect(read != null);
     defer gpa.free(read.?);
     try expectEqualStrings(data, read.?);
 
     const data2 = "file\ndata2";
-    try save_preference_data(gpa, display, filename, data2);
-    const read2 = try load_preference_data(gpa, display, filename, 10000);
+    try save_preference_data(gpa, &test_config, filename, data2);
+    const read2 = try load_preference_data(gpa, &test_config, filename, 10000);
     try expect(read2 != null);
     defer gpa.free(read2.?);
     try expectEqualStrings(data2, read2.?);
 
-    try remove_preference_data(gpa, display, filename);
+    try remove_preference_data(gpa, &test_config, filename);
 }
 
 const std = @import("std");

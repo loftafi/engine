@@ -31,7 +31,7 @@ pub const Translation = struct {
         self: *Translation,
         allocator: Allocator,
         tdata: []const u8,
-    ) !void {
+    ) Allocator.Error!void {
         const data = try allocator.dupe(u8, tdata);
         try self.data.append(allocator, data);
         var headers: std.ArrayListUnmanaged(*std.StringHashMapUnmanaged([]const u8)) = .empty;

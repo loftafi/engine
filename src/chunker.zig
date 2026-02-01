@@ -7,7 +7,7 @@ pub const Chunker = struct {
         };
     }
 
-    pub fn next(self: *Chunker, display: *Display) ?TextElement {
+    pub fn next(self: *Chunker, font: *LanguageFont) ?TextElement {
         if (self.data.len == 0) {
             return null;
         }
@@ -24,7 +24,7 @@ pub const Chunker = struct {
                 }
                 self.data.ptr += 1;
                 self.data.len -= 1;
-                return .{ .text = cr, .width = 0, .font = display.font.default, .texture = undefined };
+                return .{ .text = cr, .width = 0, .font = font.default, .texture = undefined };
             }
             if (!is_whitespace(self.data[0])) {
                 break;
@@ -40,7 +40,7 @@ pub const Chunker = struct {
                 if (end == 0) {
                     self.data.ptr += 2;
                     self.data.len -= 2;
-                    return .{ .text = cr, .width = 0, .font = display.font.default, .texture = undefined };
+                    return .{ .text = cr, .width = 0, .font = font.default, .texture = undefined };
                 }
                 break;
             }
@@ -54,7 +54,7 @@ pub const Chunker = struct {
 
         return .{
             .text = token,
-            .font = guess_language(token, display),
+            .font = guess_language(token, font),
             .width = 0,
             .texture = undefined,
         };
@@ -75,10 +75,10 @@ pub inline fn is_eol(c: u8) bool {
     return c == '\n' or c == '\r' or c == 0;
 }
 
-pub fn guess_language(word: []const u8, display: *Display) *Font {
+pub fn guess_language(word: []const u8, font: *LanguageFont) *Font {
     var lang = Lang.unknown;
     var v = Utf8View.init(word) catch {
-        return display.font.default;
+        return font.default;
     };
     var it = v.iterator();
     while (it.nextCodepoint()) |c| {
@@ -99,10 +99,10 @@ pub fn guess_language(word: []const u8, display: *Display) *Font {
         } else if (is_greek_punctuation(c)) {
             continue;
         } else if (is_english_punctuation(c)) {
-            if (lang == .greek) return display.font.default;
+            if (lang == .greek) return font.default;
             continue;
         } else {
-            return display.font.default;
+            return font.default;
         }
         if (lang == .unknown) {
             lang = x;
@@ -110,16 +110,16 @@ pub fn guess_language(word: []const u8, display: *Display) *Font {
         }
         if (lang != x) {
             warn("Mixed language. Detection failed. {s}", .{word});
-            return display.font.default;
+            return font.default;
         }
     }
     //debug("    chunk {t} {s}", .{ lang, word });
     return switch (lang) {
-        .english => display.font.english,
-        .greek => display.font.greek,
-        .chinese => display.font.chinese,
-        .korean => display.font.korean,
-        else => display.font.default,
+        .english => font.english,
+        .greek => font.greek,
+        .chinese => font.chinese,
+        .korean => font.korean,
+        else => font.default,
     };
 }
 
@@ -160,7 +160,7 @@ pub inline fn is_chinese_letter(c: u21) bool {
 
 test "read_chunks" {
     const allocator = std.testing.allocator;
-    var display = try Display.create(allocator, test_config);
+    var display = try Display(TextSize(22)).create(allocator, test_config);
     defer display.destroy(allocator);
     _ = try display.load_font(allocator, "Roboto-Light");
     try expectEqual(1, display.fonts.items.len);
@@ -170,79 +170,79 @@ test "read_chunks" {
     try expectEqual(4, display.fonts.items.len);
 
     var data = Chunker.init("the fish");
-    try expectEqualStrings("the", data.next(display).?.text);
-    try expectEqualStrings("fish", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("the", data.next(&display.font).?.text);
+    try expectEqualStrings("fish", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("");
-    try expectEqual(null, data.next(display));
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("τίς βλέπει");
-    try expectEqualStrings("τίς", data.next(display).?.text);
-    try expectEqualStrings("βλέπει", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("τίς", data.next(&display.font).?.text);
+    try expectEqualStrings("βλέπει", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("God, god.");
-    try expectEqualStrings("God,", data.next(display).?.text);
-    try expectEqualStrings("god.", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("God,", data.next(&display.font).?.text);
+    try expectEqualStrings("god.", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("fish\ncat\n");
-    try expectEqualStrings("fish", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqualStrings("cat", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("fish", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqualStrings("cat", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("  'fish'   \n     [cat]      \n");
-    try expectEqualStrings("'fish'", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqualStrings("[cat]", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("'fish'", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqualStrings("[cat]", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("fish\n\ncat");
-    try expectEqualStrings("fish", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqualStrings("cat", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("fish", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqualStrings("cat", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("fish\r\n\n\rcat");
-    try expectEqualStrings("fish", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqualStrings("cat", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("fish", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqualStrings("cat", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("\\ncat");
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqualStrings("cat", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqualStrings("cat", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("fish\\cat");
-    try expectEqualStrings("fish\\cat", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("fish\\cat", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("fish\\ncat");
-    try expectEqualStrings("fish", data.next(display).?.text);
-    try expectEqualStrings("\n", data.next(display).?.text);
-    try expectEqualStrings("cat", data.next(display).?.text);
-    try expectEqual(null, data.next(display));
+    try expectEqualStrings("fish", data.next(&display.font).?.text);
+    try expectEqualStrings("\n", data.next(&display.font).?.text);
+    try expectEqualStrings("cat", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("fish 你好 한국어 ἄρτος");
-    try expectEqual(display.font.english, data.next(display).?.font);
-    try expectEqual(display.font.chinese, data.next(display).?.font);
-    try expectEqual(display.font.korean, data.next(display).?.font);
-    try expectEqual(display.font.greek, data.next(display).?.font);
-    try expectEqual(null, data.next(display));
+    try expectEqual(display.font.english, data.next(&display.font).?.font);
+    try expectEqual(display.font.chinese, data.next(&display.font).?.font);
+    try expectEqual(display.font.korean, data.next(&display.font).?.font);
+    try expectEqual(display.font.greek, data.next(&display.font).?.font);
+    try expectEqual(null, data.next(&display.font));
 
     data = Chunker.init("fish, 你好, 한국어, ἄρτος,");
-    try expectEqual(display.font.english, data.next(display).?.font);
-    try expectEqual(display.font.chinese, data.next(display).?.font);
-    try expectEqual(display.font.korean, data.next(display).?.font);
-    try expectEqual(display.font.greek, data.next(display).?.font);
-    try expectEqual(null, data.next(display));
+    try expectEqual(display.font.english, data.next(&display.font).?.font);
+    try expectEqual(display.font.chinese, data.next(&display.font).?.font);
+    try expectEqual(display.font.korean, data.next(&display.font).?.font);
+    try expectEqual(display.font.greek, data.next(&display.font).?.font);
+    try expectEqual(null, data.next(&display.font));
 }
 
 const eql = @import("std").mem.eql;
@@ -259,8 +259,11 @@ const test_config = @import("test.zig").test_config;
 const engine = @import("engine.zig");
 const Display = engine.Display;
 const Font = engine.Font;
+const LanguageFont = engine.LanguageFont;
 const debug = engine.debug;
 const warn = engine.warn;
+
+const TextSize = @import("text_size.zig").TextSize;
 
 const expect = std.testing.expect;
 const expectEqualDeep = std.testing.expectEqualDeep;

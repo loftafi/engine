@@ -2,180 +2,180 @@
 //! `Element` along a requested movement path for a specific `duration`.
 //!
 //! Visual examples of each movement path: https://easings.net
-const Animator = @This();
+pub fn Animator(comptime T: type) type {
+    return struct {
+        pub const Mode = enum {
+            move,
+            colour,
+            background_colour,
 
-pub const Mode = enum {
-    move,
-    colour,
-    background_colour,
+            /// Change the visibility of an element at the start and/or end
+            /// of the animation.
+            visibility,
 
-    /// Change the visibility of an element at the start and/or end
-    /// of the animation.
-    visibility,
+            /// Take no action for the duration of the animation, except
+            /// call the `on_end` function when the animation completes.
+            pause,
 
-    /// Take no action for the duration of the animation, except
-    /// call the `on_end` function when the animation completes.
-    pause,
+            /// Slide the value of a progress bar
+            progress_bar,
+        };
 
-    /// Slide the value of a progress bar
-    progress_bar,
-};
+        pub const Ease = enum {
+            /// Move from one place to another place with a small
+            /// smooth acceleration at the start and end.
+            ease,
+            /// Move from one place to another with no acceleration.
+            linear,
+            /// Move from one place to another but bounce on the end point.
+            bounce,
+            /// Enlarge to the destination then shrink back to the starting position.
+            stretch,
+        };
 
-pub const Ease = enum {
-    /// Move from one place to another place with a small
-    /// smooth acceleration at the start and end.
-    ease,
-    /// Move from one place to another with no acceleration.
-    linear,
-    /// Move from one place to another but bounce on the end point.
-    bounce,
-    /// Enlarge to the destination then shrink back to the starting position.
-    stretch,
-};
-
-mode: union(Mode) {
-    move: struct {
-        start: Rect = undefined,
-        end: Rect = undefined,
-    },
-    colour: struct {
-        start: Colour = undefined,
-        end: Colour = undefined,
-    },
-    background_colour: struct {
-        start: Colour = undefined,
-        end: Colour = undefined,
-    },
-    visibility: struct {
-        start: Visibility = undefined,
-        end: Visibility = undefined,
-    },
-    pause: struct {},
-    progress_bar: struct {
-        start: f32 = 0,
-        end: f32 = 0,
-    },
-},
-
-movement: Ease = .ease,
-target: *Element,
-duration: i64 = 0, // number of nanoseconds to animate over
-on_end: engine.Callback = .{ .func = null },
-
-setup: bool = false,
-start_time: i64 = 0,
-end_time: i64 = 0,
-
-/// Reposition/adjust an element based on the current_time in nanoseconds.
-/// When an animation starts, an `Ease` formula calculates the current
-/// position/adjustment of an `Element` based on the `start_time` and expected
-/// `end_time` of the animation.
-///
-/// Animators may change visibility of an element, so the animate event may
-/// return errors associated with a visibility change.
-pub fn animate(self: *Animator, display: *Display, current_time: i64) Allocator.Error!bool {
-    if (!self.setup) {
-        self.setup = true;
-        self.start_time = current_time;
-        self.end_time = current_time + self.duration;
-        trace("animate {s} {s} from {d}ns to {d}ns (duration={d})", .{ self.target.name, @tagName(self.mode), self.start_time, self.end_time, self.duration });
-        if (self.mode != .pause) {
-            //self.target.visible = .hidden;
-        }
-    }
-
-    // An item moves along its parth from the start time to the end time.
-    // `step` indicates how close (in time) we are to the end point.
-    var step: i64 = self.end_time - current_time;
-    if (current_time > self.end_time) step = 0;
-
-    switch (self.mode) {
-        .pause => {
-            // no action needed
-        },
-        .move => |m| {
-            switch (self.movement) {
-                .ease => {
-                    self.target.rect.x = ease_float(f32, m.start.x, m.end.x, step, self.duration);
-                    self.target.rect.y = ease_float(f32, m.start.y, m.end.y, step, self.duration);
-                    self.target.rect.width = ease_float(f32, m.start.width, m.end.width, step, self.duration);
-                    self.target.rect.height = ease_float(f32, m.start.height, m.end.height, step, self.duration);
-                },
-                .bounce => {
-                    self.target.rect.x = bounce_float(f32, m.start.x, m.end.x, step, self.duration);
-                    self.target.rect.y = bounce_float(f32, m.start.y, m.end.y, step, self.duration);
-                    self.target.rect.width = bounce_float(f32, m.start.width, m.end.width, step, self.duration);
-                    self.target.rect.height = bounce_float(f32, m.start.height, m.end.height, step, self.duration);
-                },
-                .linear => {
-                    self.target.rect.x = lerp_float(f32, m.start.x, m.end.x, step, self.duration);
-                    self.target.rect.y = lerp_float(f32, m.start.y, m.end.y, step, self.duration);
-                    self.target.rect.width = lerp_float(f32, m.start.width, m.end.width, step, self.duration);
-                    self.target.rect.height = lerp_float(f32, m.start.height, m.end.height, step, self.duration);
-                },
-                .stretch => {
-                    self.target.rect.x = stretch_float(f32, m.start.x, -m.end.x, step, self.duration);
-                    self.target.rect.y = stretch_float(f32, m.start.y, -m.end.y, step, self.duration);
-                    self.target.rect.width = stretch_float(f32, m.start.width, m.end.width * 2, step, self.duration);
-                    self.target.rect.height = stretch_float(f32, m.start.height, m.end.height * 2, step, self.duration);
-                },
-            }
-        },
-        .visibility => {
-            self.target.visible = self.mode.visibility.start;
-        },
-        .progress_bar => |m| {
-            switch (self.movement) {
-                .ease => self.target.type.progress_bar.progress = ease_float(f32, m.start, m.end, step, self.duration),
-                .bounce => self.target.type.progress_bar.progress = bounce_float(f32, m.start, m.end, step, self.duration),
-                .stretch => self.target.type.progress_bar.progress = stretch_float(f32, m.start, m.end, step, self.duration),
-                .linear => self.target.type.progress_bar.progress = lerp_float(f32, m.start, m.end, step, self.duration),
-            }
-        },
-        .colour => |m| {
-            switch (self.movement) {
-                .ease => self.target.colour.a = ease_int(u8, m.start.a, m.end.a, step, self.duration),
-                .bounce => self.target.colour.a = bounce_int(u8, m.start.a, m.end.a, step, self.duration),
-                .stretch => self.target.colour.a = stretch_int(u8, m.start.a, m.end.a, step, self.duration),
-                .linear => self.target.colour.a = lerp_int(u8, m.start.a, m.end.a, step, self.duration),
-            }
-        },
-        .background_colour => |m| {
-            switch (self.movement) {
-                .ease => self.target.background.colour.a = ease_int(u8, m.start.a, m.end.a, step, self.duration),
-                .bounce => self.target.background.colour.a = bounce_int(u8, m.start.a, m.end.a, step, self.duration),
-                .stretch => self.target.background.colour.a = stretch_int(u8, m.start.a, m.end.a, step, self.duration),
-                .linear => self.target.background.colour.a = lerp_int(u8, m.start.a, m.end.a, step, self.duration),
-            }
-        },
-    }
-
-    if (current_time > self.end_time) {
-        // At end of animation, clamp to end value
-        switch (self.mode) {
-            .visibility => |m| {
-                try self.target.set_visibility(display, m.end);
+        mode: union(Mode) {
+            move: struct {
+                start: Rect = undefined,
+                end: Rect = undefined,
             },
-            .move => |m| {
-                if (self.movement == .stretch) {
-                    self.target.rect.x = m.start.x;
-                    self.target.rect.y = m.start.y;
-                    self.target.rect.width = m.start.width;
-                    self.target.rect.height = m.start.height;
-                } else {
-                    self.target.rect.x = m.end.x;
-                    self.target.rect.y = m.end.y;
+            colour: struct {
+                start: Colour = undefined,
+                end: Colour = undefined,
+            },
+            background_colour: struct {
+                start: Colour = undefined,
+                end: Colour = undefined,
+            },
+            visibility: struct {
+                start: Visibility = undefined,
+                end: Visibility = undefined,
+            },
+            pause: struct {},
+            progress_bar: struct {
+                start: f32 = 0,
+                end: f32 = 0,
+            },
+        },
+
+        movement: Ease = .ease,
+        target: *Element(T),
+        duration: i64 = 0, // number of nanoseconds to animate over
+        on_end: Element(T).Callback = .{ .func = null },
+
+        setup: bool = false,
+        start_time: i64 = 0,
+        end_time: i64 = 0,
+
+        /// Reposition/adjust an element based on the current_time in nanoseconds.
+        /// When an animation starts, an `Ease` formula calculates the current
+        /// position/adjustment of an `Element` based on the `start_time` and expected
+        /// `end_time` of the animation.
+        ///
+        /// Animators may change visibility of an element, so the animate event may
+        /// return errors associated with a visibility change.
+        pub fn animate(self: *@This(), current_time: i64) Allocator.Error!bool {
+            if (!self.setup) {
+                self.setup = true;
+                self.start_time = current_time;
+                self.end_time = current_time + self.duration;
+                trace("animate {s} {s} from {d}ns to {d}ns (duration={d})", .{ self.target.name, @tagName(self.mode), self.start_time, self.end_time, self.duration });
+                if (self.mode != .pause) {
+                    //self.target.visible = .hidden;
                 }
-            },
-            .progress_bar => |m| self.target.type.progress_bar.progress = m.end,
-            .colour => |m| self.target.colour.a = m.end.a,
-            .background_colour => |m| self.target.colour.a = m.end.a,
-            .pause => {},
-        }
-        return true;
-    }
+            }
 
-    return false;
+            // An item moves along its parth from the start time to the end time.
+            // `step` indicates how close (in time) we are to the end point.
+            var step: i64 = self.end_time - current_time;
+            if (current_time > self.end_time) step = 0;
+
+            switch (self.mode) {
+                .pause => {
+                    // no action needed
+                },
+                .move => |m| {
+                    switch (self.movement) {
+                        .ease => {
+                            self.target.rect.x = ease_float(f32, m.start.x, m.end.x, step, self.duration);
+                            self.target.rect.y = ease_float(f32, m.start.y, m.end.y, step, self.duration);
+                            self.target.rect.width = ease_float(f32, m.start.width, m.end.width, step, self.duration);
+                            self.target.rect.height = ease_float(f32, m.start.height, m.end.height, step, self.duration);
+                        },
+                        .bounce => {
+                            self.target.rect.x = bounce_float(f32, m.start.x, m.end.x, step, self.duration);
+                            self.target.rect.y = bounce_float(f32, m.start.y, m.end.y, step, self.duration);
+                            self.target.rect.width = bounce_float(f32, m.start.width, m.end.width, step, self.duration);
+                            self.target.rect.height = bounce_float(f32, m.start.height, m.end.height, step, self.duration);
+                        },
+                        .linear => {
+                            self.target.rect.x = lerp_float(f32, m.start.x, m.end.x, step, self.duration);
+                            self.target.rect.y = lerp_float(f32, m.start.y, m.end.y, step, self.duration);
+                            self.target.rect.width = lerp_float(f32, m.start.width, m.end.width, step, self.duration);
+                            self.target.rect.height = lerp_float(f32, m.start.height, m.end.height, step, self.duration);
+                        },
+                        .stretch => {
+                            self.target.rect.x = stretch_float(f32, m.start.x, -m.end.x, step, self.duration);
+                            self.target.rect.y = stretch_float(f32, m.start.y, -m.end.y, step, self.duration);
+                            self.target.rect.width = stretch_float(f32, m.start.width, m.end.width * 2, step, self.duration);
+                            self.target.rect.height = stretch_float(f32, m.start.height, m.end.height * 2, step, self.duration);
+                        },
+                    }
+                },
+                .visibility => {
+                    self.target.visible = self.mode.visibility.start;
+                },
+                .progress_bar => |m| {
+                    switch (self.movement) {
+                        .ease => self.target.type.progress_bar.progress = ease_float(f32, m.start, m.end, step, self.duration),
+                        .bounce => self.target.type.progress_bar.progress = bounce_float(f32, m.start, m.end, step, self.duration),
+                        .stretch => self.target.type.progress_bar.progress = stretch_float(f32, m.start, m.end, step, self.duration),
+                        .linear => self.target.type.progress_bar.progress = lerp_float(f32, m.start, m.end, step, self.duration),
+                    }
+                },
+                .colour => |m| {
+                    switch (self.movement) {
+                        .ease => self.target.colour.a = ease_int(u8, m.start.a, m.end.a, step, self.duration),
+                        .bounce => self.target.colour.a = bounce_int(u8, m.start.a, m.end.a, step, self.duration),
+                        .stretch => self.target.colour.a = stretch_int(u8, m.start.a, m.end.a, step, self.duration),
+                        .linear => self.target.colour.a = lerp_int(u8, m.start.a, m.end.a, step, self.duration),
+                    }
+                },
+                .background_colour => |m| {
+                    switch (self.movement) {
+                        .ease => self.target.background.colour.a = ease_int(u8, m.start.a, m.end.a, step, self.duration),
+                        .bounce => self.target.background.colour.a = bounce_int(u8, m.start.a, m.end.a, step, self.duration),
+                        .stretch => self.target.background.colour.a = stretch_int(u8, m.start.a, m.end.a, step, self.duration),
+                        .linear => self.target.background.colour.a = lerp_int(u8, m.start.a, m.end.a, step, self.duration),
+                    }
+                },
+            }
+
+            if (current_time > self.end_time) {
+                // At end of animation, clamp to end value
+                switch (self.mode) {
+                    .move => |m| {
+                        if (self.movement == .stretch) {
+                            self.target.rect.x = m.start.x;
+                            self.target.rect.y = m.start.y;
+                            self.target.rect.width = m.start.width;
+                            self.target.rect.height = m.start.height;
+                        } else {
+                            self.target.rect.x = m.end.x;
+                            self.target.rect.y = m.end.y;
+                        }
+                    },
+                    .visibility => {},
+                    .progress_bar => |m| self.target.type.progress_bar.progress = m.end,
+                    .colour => |m| self.target.colour.a = m.end.a,
+                    .background_colour => |m| self.target.colour.a = m.end.a,
+                    .pause => {},
+                }
+                return true;
+            }
+
+            return false;
+        }
+    };
 }
 
 fn lerp_float(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
