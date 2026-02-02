@@ -1113,7 +1113,7 @@ pub fn Element(comptime T: type) type {
                         );
                     }
                 }
-            } else if (element.background.colour.a > 0 and element.type != .rectangle and element.type != .sprite) {
+            } else if (element.background.colour.a > 0 and element.type != .rectangle and element.type != .sprite and element.type != .progress_bar) {
                 // If there is no background image, but there is a background
                 // colour, draw the background as a simple rectangle (except for
                 // sprites and rectangles).
@@ -1135,7 +1135,7 @@ pub fn Element(comptime T: type) type {
                 .sprite => element.draw_sprite(display, parent_scroll_offset, parent_clip, scroll_offset),
                 .rectangle => element.draw_rectangle_element(display, parent_scroll_offset, parent_clip, scroll_offset),
                 .label => element.draw_label(display, parent_scroll_offset, parent_clip),
-                .progress_bar => element.draw_progress_bar(display, parent_scroll_offset, parent_clip),
+                .progress_bar => element.draw_progress_bar(display, parent_scroll_offset, parent_clip, scroll_offset),
                 .expander => {},
             }
 
@@ -1733,17 +1733,22 @@ pub fn Element(comptime T: type) type {
         }
 
         /// Draw a radio box combined with a text label.
-        inline fn draw_checkbox(element: *Self, display: *Display(T), _: Vector, _: ?Clip, scroll_offset: Vector) void {
+        inline fn draw_checkbox(
+            element: *Self,
+            display: *Display(T),
+            _: Vector,
+            _: ?Clip,
+            scroll_offset: Vector,
+        ) void {
             const checkbox = element.type.checkbox.checkbox_size;
             element.draw_label(display, scroll_offset, null);
-            var dest: Rect = .{
+            var dest = Rect{
                 .x = element.rect.x + element.rect.width - checkbox.width - element.pad.left,
                 .y = element.rect.y + (element.rect.height / 2) - (checkbox.height / 2),
                 .width = checkbox.width,
                 .height = checkbox.height,
             };
-            dest.x += scroll_offset.x;
-            dest.y += scroll_offset.y;
+            dest = dest.move(&scroll_offset);
             if (element.type.checkbox.checked) {
                 if (element.type.checkbox.on_texture) |texture| {
                     _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
@@ -1756,23 +1761,30 @@ pub fn Element(comptime T: type) type {
         }
 
         /// Draw a progress bar.
-        inline fn draw_progress_bar(element: *Self, display: *Display(T), _: Vector, _: ?Clip) void {
+        inline fn draw_progress_bar(
+            element: *Self,
+            display: *Display(T),
+            _: Vector,
+            _: ?Clip,
+            scroll_offset: Vector,
+        ) void {
             // Draw the background matching the  current button state
             if (element.texture) |texture| {
-                // Progress bar background
-                var tint = display.theme.progress_bar_background;
-                var dest: Rect = .{
+                var dest = Rect{
                     .x = element.rect.x + element.pad.left,
                     .y = element.rect.y + element.pad.top,
                     .width = element.rect.width - element.pad.left - element.pad.right,
                     .height = element.rect.height - element.pad.top - element.pad.bottom,
                 };
-                _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
-                _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
+                dest = dest.move(&scroll_offset);
                 var corner: f32 = element.background.corner_radius;
                 if (corner * 2 > dest.height) corner = dest.height / 2;
 
                 // Progress bar background
+                var tint = display.theme.progress_bar_background;
+                if (element.style == .custom) tint = element.background.colour;
+                _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
+                _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
                 if (element.background.image_corner_radius == 0) {
                     _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
                 } else {
@@ -1792,6 +1804,8 @@ pub fn Element(comptime T: type) type {
                 // Progress bar foreground
                 if (element.type.progress_bar.progress > 0.01) {
                     tint = display.theme.progress_bar_foreground;
+                    if (element.style == .custom)
+                        tint = element.colour;
                     dest.width *= element.type.progress_bar.progress;
                     _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
                     _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
@@ -1819,7 +1833,13 @@ pub fn Element(comptime T: type) type {
         /// Draw a button with its text and/or icon. Mouse hover, mouse click
         /// and the disabled status may change the picture or icon
         /// displayed in the button.
-        inline fn draw_button(element: *Self, display: *Display(T), _: Vector, _: ?Clip, scroll_offset: Vector) void {
+        inline fn draw_button(
+            element: *Self,
+            display: *Display(T),
+            _: Vector,
+            _: ?Clip,
+            scroll_offset: Vector,
+        ) void {
             // Draw the background matching the  current button state
             if (element.current_background()) |background_image| {
                 var dest: Rect = .{
