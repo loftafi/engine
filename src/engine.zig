@@ -629,7 +629,10 @@ pub fn Display(comptime T: type) type {
         /// the background or menu panel.
         pub fn current_panel(self: *Self) ?*Element(T) {
             for (self.root.type.panel.children.items) |element| {
-                if (element.type != .panel) continue;
+                if (element.type != .panel) {
+                    err("root panel contains {t} which is not a panel", .{element.type});
+                    continue;
+                }
                 if (std.mem.eql(u8, "background", element.name)) continue;
                 if (std.mem.eql(u8, "menu", element.name)) continue;
                 if (element.visible == .visible) return element;

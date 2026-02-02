@@ -1715,21 +1715,23 @@ pub fn Element(comptime T: type) type {
                 }
             }
 
-            const t = switch (element.type) {
-                .button => element.type.button.translated,
-                .label => element.type.label.translated,
-                .checkbox => element.type.checkbox.translated,
-                else => "",
-            };
-            trace("label {s} {t} \"{s}\" wrap={d} need={d} selected={d} (max_parent_width={d})", .{
-                element.name,
-                element.layout.x,
-                t,
-                wrap_at,
-                needed_width,
-                element.rect.width,
-                parent_inner_width,
-            });
+            if (false) {
+                const t = switch (element.type) {
+                    .button => element.type.button.translated,
+                    .label => element.type.label.translated,
+                    .checkbox => element.type.checkbox.translated,
+                    else => "",
+                };
+                trace("label {s} {t} \"{s}\" wrap={d} need={d} selected={d} (max_parent_width={d})", .{
+                    element.name,
+                    element.layout.x,
+                    t,
+                    wrap_at,
+                    needed_width,
+                    element.rect.width,
+                    parent_inner_width,
+                });
+            }
         }
 
         /// Draw a radio box combined with a text label.
