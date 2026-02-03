@@ -997,15 +997,13 @@ pub fn Element(comptime T: type) type {
             }
 
             switch (element.type) {
-                .button => |b| b.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-                .checkbox => |c| c.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-                .expander => |e| e.draw(),
-                .label => |l| l.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-                .panel => element.draw_panel(display, parent_scroll_offset, parent_clip, scroll_offset),
-                .progress_bar => |d| d.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-                .rectangle => element.draw_rectangle_element(display, parent_scroll_offset, parent_clip, scroll_offset),
-                .sprite => |s| s.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-                .text_input => |ti| ti.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
+                inline else => |o| o.draw(
+                    element,
+                    display,
+                    parent_scroll_offset,
+                    parent_clip,
+                    scroll_offset,
+                ),
             }
 
             // Draw a border around an element if a border is specified, or
@@ -1105,54 +1103,6 @@ pub fn Element(comptime T: type) type {
                 );
                 _ = sdl.SDL_RenderFillRect(self.renderer, @ptrCast(&dest));
             }
-        }
-
-        /// Draw the contents of a panel.
-        inline fn draw_panel(
-            element: *Self,
-            display: *Display(T),
-            _: Vector,
-            parent_clip: ?Clip,
-            scroll_offset: Vector,
-        ) void {
-            if (parent_clip) |clip| {
-                for (element.type.panel.children.items) |child| {
-                    child.draw(display, scroll_offset, clip);
-                }
-            } else if (element.type.panel.scrollable.scroll.x or element.type.panel.scrollable.scroll.y) {
-                for (element.type.panel.children.items) |child| {
-                    child.draw(display, scroll_offset, Clip{
-                        .top = element.rect.y,
-                        .left = element.rect.x,
-                        .bottom = element.rect.y + element.rect.height,
-                        .right = element.rect.x + element.rect.width,
-                    });
-                }
-            } else {
-                for (element.type.panel.children.items) |child| {
-                    child.draw(display, scroll_offset, null);
-                }
-            }
-        }
-
-        /// Draw a basic rectangle.
-        inline fn draw_rectangle_element(
-            element: *Self,
-            display: *Display(T),
-            _: Vector,
-            _: ?Clip,
-            scroll_offset: Vector,
-        ) void {
-            const colour = element.style.panel(display.theme, element.background.colour);
-            _ = sdl.SDL_SetRenderDrawColor(
-                display.renderer,
-                colour.r,
-                colour.g,
-                colour.b,
-                colour.a,
-            );
-            var dest = element.rect.move(&scroll_offset);
-            _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&dest));
         }
 
         /// Calculate the layout of all elements, and optionally render every element.

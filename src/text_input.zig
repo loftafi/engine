@@ -24,8 +24,8 @@ pub fn TextInput(comptime T: type) type {
             element: *Element(T),
             display: *Display(T),
             _: Vector,
-            _: ?Clip,
-            _: Vector,
+            _: ?Clip, // parent_clip
+            _: Vector, // scroll offset
         ) void {
             var x = element.rect.x + element.pad.left;
             const y = element.rect.y + element.pad.top;

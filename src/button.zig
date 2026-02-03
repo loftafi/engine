@@ -34,7 +34,7 @@ pub fn Button(comptime T: type) type {
             element: *Element(T),
             display: *Display(T),
             _: Vector,
-            _: ?Clip,
+            _: ?Clip, // parent_clip
             scroll_offset: Vector,
         ) void {
             // Draw the background matching the  current button state

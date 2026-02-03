@@ -3,7 +3,14 @@ pub fn Expander(comptime T: type) type {
         pub const Self = @This();
         weight: f32 = 0,
 
-        pub fn draw(_: *const Self) void {
+        pub inline fn draw(
+            _: *const Self,
+            _: *Element(T),
+            _: *Display(T),
+            _: Vector,
+            _: ?Clip, //parent_clip
+            _: Vector, // scroll_offset
+        ) void {
             if (T.normal.pixel_height(1) == 0) {
                 //
             }
@@ -22,6 +29,7 @@ const warn = engine.warn;
 const info = engine.info;
 const debug = engine.debug;
 const trace = engine.trace;
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Element = engine.Element;
 const Scroller = engine.Scroller;
