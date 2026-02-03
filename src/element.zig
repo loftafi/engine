@@ -998,9 +998,9 @@ pub fn Element(comptime T: type) type {
 
             switch (element.type) {
                 .button => |b| b.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-                .checkbox => element.draw_checkbox(display, parent_scroll_offset, parent_clip, scroll_offset),
-                .expander => {},
-                .label => element.draw_label(display, parent_scroll_offset, parent_clip),
+                .checkbox => |c| c.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
+                .expander => |e| e.draw(),
+                .label => |l| l.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
                 .panel => element.draw_panel(display, parent_scroll_offset, parent_clip, scroll_offset),
                 .progress_bar => |d| d.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
                 .rectangle => element.draw_rectangle_element(display, parent_scroll_offset, parent_clip, scroll_offset),
@@ -1275,57 +1275,6 @@ pub fn Element(comptime T: type) type {
         ///
         /// If the text is centred or right aligned, then each line must be pushed along
         /// by a certain offset amount.
-        inline fn draw_label(
-            element: *Self,
-            display: *Display(T),
-            scroll_offset: Vector,
-            parent_clip: ?Clip,
-        ) void {
-            std.debug.assert(element.type == .label or element.type == .checkbox);
-
-            const children = switch (element.type) {
-                .label => element.type.label.elements.items,
-                .checkbox => element.type.checkbox.elements.items,
-                else => unreachable,
-            };
-            var loc = Vector{
-                .x = element.rect.x + element.pad.left + scroll_offset.x,
-                .y = element.rect.y + element.pad.top + scroll_offset.y,
-            };
-            for (children) |*item| {
-                const pos = item.location.move(&loc);
-                if (parent_clip) |clip| {
-                    if (pos.x + pos.width < clip.left) continue;
-                    if (pos.y + pos.height + 1 < clip.top) continue;
-                    if (pos.x > clip.right) continue;
-                    if (pos.y > clip.bottom) continue;
-                }
-
-                // Only render text if display parameter is provided
-                const current_colour = element.style.text(display.theme, element.colour);
-                _ = sdl.SDL_SetTextureColorMod(
-                    item.texture,
-                    current_colour.r,
-                    current_colour.g,
-                    current_colour.b,
-                );
-                _ = sdl.SDL_SetTextureAlphaMod(item.texture, current_colour.a);
-                _ = sdl.SDL_RenderTexture(
-                    display.renderer,
-                    item.texture,
-                    null,
-                    @ptrCast(&pos),
-                );
-            }
-        }
-
-        /// Calculate the layout of all elements, and optionally render every element.
-        ///
-        /// Normally text is converted to an image and rendered left to right, starting
-        /// at the top left corner of the element (including padding).
-        ///
-        /// If the text is centred or right aligned, then each line must be pushed along
-        /// by a certain offset amount.
         inline fn layout_label(
             element: *Self,
             display_scale: f32,
@@ -1487,34 +1436,6 @@ pub fn Element(comptime T: type) type {
                     element.rect.width,
                     parent_inner_width,
                 });
-            }
-        }
-
-        /// Draw a radio box combined with a text label.
-        inline fn draw_checkbox(
-            element: *Self,
-            display: *Display(T),
-            _: Vector,
-            _: ?Clip,
-            scroll_offset: Vector,
-        ) void {
-            const checkbox = element.type.checkbox.checkbox_size;
-            element.draw_label(display, scroll_offset, null);
-            var dest = Rect{
-                .x = element.rect.x + element.rect.width - checkbox.width - element.pad.left,
-                .y = element.rect.y + (element.rect.height / 2) - (checkbox.height / 2),
-                .width = checkbox.width,
-                .height = checkbox.height,
-            };
-            dest = dest.move(&scroll_offset);
-            if (element.type.checkbox.checked) {
-                if (element.type.checkbox.on_texture) |texture| {
-                    _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
-                }
-            } else {
-                if (element.type.checkbox.off_texture) |texture| {
-                    _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
-                }
             }
         }
 

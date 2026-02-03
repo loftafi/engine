@@ -3,7 +3,7 @@ pub fn Expander(comptime T: type) type {
         pub const Self = @This();
         weight: f32 = 0,
 
-        pub fn draw() void {
+        pub fn draw(_: *const Self) void {
             if (T.normal.pixel_height(1) == 0) {
                 //
             }
