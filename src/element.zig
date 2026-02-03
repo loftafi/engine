@@ -1005,7 +1005,7 @@ pub fn Element(comptime T: type) type {
                 .progress_bar => |d| d.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
                 .rectangle => element.draw_rectangle_element(display, parent_scroll_offset, parent_clip, scroll_offset),
                 .sprite => |s| s.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
-                .text_input => element.draw_text_input(display, parent_scroll_offset, parent_clip),
+                .text_input => |ti| ti.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
             }
 
             // Draw a border around an element if a border is specified, or
@@ -1153,119 +1153,6 @@ pub fn Element(comptime T: type) type {
             );
             var dest = element.rect.move(&scroll_offset);
             _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&dest));
-        }
-
-        /// Draw a text input box along with any text or cursor that
-        /// may appear inside the text input box.
-        inline fn draw_text_input(
-            element: *Self,
-            display: *Display(T),
-            _: Vector,
-            _: ?Clip,
-        ) void {
-            var x = element.rect.x + element.pad.left;
-            const y = element.rect.y + element.pad.top;
-            const word_spacing = display.text_height.word_spacing(display.scale);
-
-            if (display.selected != null and element == display.selected.?) {
-                // Draw cursor
-                var cursor_box: Rect = .{
-                    .x = @round(x + element.type.text_input.cursor_pixels),
-                    .y = @round(y),
-                    .width = display.text_height.pixel_height(display.scale / 8.0),
-                    .height = display.text_height.pixel_height(display.scale),
-                };
-                if (element.texture) |_| {
-                    // Add the icon width
-                    cursor_box.x += (element.rect.height - element.pad.top - element.pad.bottom);
-                    cursor_box.x += word_spacing;
-                }
-                _ = sdl.SDL_SetRenderDrawColor(
-                    display.renderer,
-                    display.theme.cursor_colour.r,
-                    display.theme.cursor_colour.g,
-                    display.theme.cursor_colour.b,
-                    display.theme.cursor_colour.a,
-                );
-                _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&cursor_box));
-            }
-
-            if (element.texture) |texture| {
-                const icon_size = element.rect.height - element.pad.top - element.pad.bottom;
-                // Draw the text
-                var dest: Rect = .{
-                    .x = @round(x),
-                    .y = @round(y),
-                    .width = icon_size,
-                    .height = icon_size,
-                };
-                x += icon_size + word_spacing;
-                _ = sdl.SDL_SetTextureColorMod(
-                    texture.texture,
-                    display.theme.placeholder_text_colour.r,
-                    display.theme.placeholder_text_colour.g,
-                    display.theme.placeholder_text_colour.b,
-                );
-                _ = sdl.SDL_RenderTexture(
-                    display.renderer,
-                    texture.texture,
-                    null,
-                    @ptrCast(&dest),
-                );
-            }
-
-            // Font baseline offset
-            //y -= display.text_height * display.scale / 3.5;
-
-            if (element.type.text_input.text.items.len > 0) {
-                if (element.type.text_input.texture) |texture| {
-                    const size = T.normal.pixel_size(display.scale, texture);
-                    // Draw the text
-                    var dest: Rect = .{
-                        .x = @round(x),
-                        .y = @round(y),
-                        .width = size.width,
-                        .height = size.height,
-                    };
-                    x += size.height + word_spacing;
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.text_colour.r,
-                        display.theme.text_colour.g,
-                        display.theme.text_colour.b,
-                    );
-                    _ = sdl.SDL_RenderTexture(
-                        display.renderer,
-                        texture,
-                        null,
-                        @ptrCast(&dest),
-                    );
-                }
-            } else {
-                if (element.type.text_input.placeholder_texture) |texture| {
-                    const size = T.normal.pixel_size(display.scale, texture);
-                    // Draw the placeholder text
-                    var dest: Rect = .{
-                        .x = @round(x),
-                        .y = @round(y),
-                        .width = size.width,
-                        .height = size.height,
-                    };
-                    x += size.width + word_spacing;
-                    _ = sdl.SDL_SetTextureColorMod(
-                        texture,
-                        display.theme.placeholder_text_colour.r,
-                        display.theme.placeholder_text_colour.g,
-                        display.theme.placeholder_text_colour.b,
-                    );
-                    _ = sdl.SDL_RenderTexture(
-                        display.renderer,
-                        texture,
-                        null,
-                        @ptrCast(&dest),
-                    );
-                }
-            }
         }
 
         /// Calculate the layout of all elements, and optionally render every element.
