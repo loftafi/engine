@@ -217,20 +217,7 @@ pub fn Element(comptime T: type) type {
             return true;
         }
 
-        /// By default, button text is uses the default theme `text_colour`
-        /// unless a style is applied, or the button is altered by its
-        /// `hovered` or `pressed` status.
-        inline fn button_text_colour(self: *Self, theme: *Theme) Colour {
-            if (self.style == .success) return theme.success_text_colour;
-            if (self.style == .failed) return theme.failed_text_colour;
-            if (self.style == .custom) return self.colour;
-            if (self.pressed) return theme.tinted_text_colour;
-            if (self.hovered) return theme.tinted_text_colour;
-
-            return theme.text_colour;
-        }
-
-        inline fn apply_background_tint(
+        pub inline fn apply_background_tint(
             self: *Self,
             display: *Display(T),
             texture: *sdl.SDL_Texture,
@@ -300,42 +287,6 @@ pub fn Element(comptime T: type) type {
             }
 
             tint_texture(texture, Colour.WHITE);
-        }
-
-        fn tint_texture(texture: *sdl.SDL_Texture, colour: Colour) void {
-            _ = sdl.SDL_SetTextureAlphaMod(texture, colour.a);
-            _ = sdl.SDL_SetTextureColorMod(texture, colour.r, colour.g, colour.b);
-        }
-
-        /// An icon may have different background textures for hovered,
-        /// pressed and normal state. Return the background that is valid
-        /// for the current state.
-        inline fn current_background(self: *Self) ?*sdl.SDL_Texture {
-            if (self.type == .button) {
-                if (self.type.button.toggle == .disabled)
-                    return self.type.button.background_disabled.?.texture;
-                if (self.pressed and self.type.button.background_pressed != null)
-                    return self.type.button.background_pressed.?.texture;
-                if (self.hovered and self.type.button.background_hover != null)
-                    return self.type.button.background_hover.?.texture;
-            }
-            if (self.background.image != null)
-                return self.background.image.?.texture;
-            return null;
-        }
-
-        /// An icon may have different image textures for hovered, pressed
-        /// and normal state. Return the image that is valid for the current state.
-        inline fn current_icon(self: *Self) ?*sdl.SDL_Texture {
-            if (self.type == .button) {
-                if (self.pressed and self.type.button.icon_pressed != null)
-                    return self.type.button.icon_pressed.?.texture;
-                if (self.hovered and self.type.button.icon_hover != null)
-                    return self.type.button.icon_hover.?.texture;
-            }
-            if (self.texture != null)
-                return self.texture.?.texture;
-            return null;
         }
 
         /// The text_input element may display placeholder text when there
@@ -1046,15 +997,15 @@ pub fn Element(comptime T: type) type {
             }
 
             switch (element.type) {
-                .panel => element.draw_panel(display, parent_scroll_offset, parent_clip, scroll_offset),
-                .button => element.draw_button(display, parent_scroll_offset, parent_clip, scroll_offset),
+                .button => |b| b.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
                 .checkbox => element.draw_checkbox(display, parent_scroll_offset, parent_clip, scroll_offset),
-                .text_input => element.draw_text_input(display, parent_scroll_offset, parent_clip),
-                .sprite => element.draw_sprite(display, parent_scroll_offset, parent_clip, scroll_offset),
-                .rectangle => element.draw_rectangle_element(display, parent_scroll_offset, parent_clip, scroll_offset),
-                .label => element.draw_label(display, parent_scroll_offset, parent_clip),
-                .progress_bar => element.draw_progress_bar(display, parent_scroll_offset, parent_clip, scroll_offset),
                 .expander => {},
+                .label => element.draw_label(display, parent_scroll_offset, parent_clip),
+                .panel => element.draw_panel(display, parent_scroll_offset, parent_clip, scroll_offset),
+                .progress_bar => |d| d.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
+                .rectangle => element.draw_rectangle_element(display, parent_scroll_offset, parent_clip, scroll_offset),
+                .sprite => |s| s.draw(element, display, parent_scroll_offset, parent_clip, scroll_offset),
+                .text_input => element.draw_text_input(display, parent_scroll_offset, parent_clip),
             }
 
             // Draw a border around an element if a border is specified, or
@@ -1317,119 +1268,6 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        /// Draw the foreground image `texture` of the sprite loaded from the
-        /// `texture_name` string. Does not draw the `background.image` texture.
-        /// The background image is drawn in the generic background drawing function.
-        inline fn draw_sprite(
-            element: *Self,
-            display: *Display(T),
-            _: Vector,
-            _: ?Clip,
-            scroll_offset: Vector,
-        ) void {
-            //debug("ds {s} {d}x{d}", .{ element.name, element.rect.width, element.rect.height });
-            if (element.texture) |texture| {
-                var dest: Rect = .{
-                    .x = element.rect.x + element.pad.left,
-                    .y = element.rect.y + element.pad.top,
-                    .width = element.rect.width - element.pad.left - element.pad.right,
-                    .height = element.rect.height - element.pad.top - element.pad.bottom,
-                };
-                dest = dest.move(&scroll_offset);
-
-                if (dest.height <= 0 or dest.width <= 0) return;
-
-                if (element.flip.x) {
-                    dest.x += dest.width;
-                    dest.width = 0 - dest.width;
-                }
-                if (element.flip.y) {
-                    dest.y += dest.height;
-                    dest.height = 0 - dest.height;
-                }
-
-                // TODO: Sprites might have frames
-
-                // Stretch the full image onto the drawing area
-                const image_width = @as(f32, @floatFromInt(texture.texture.w));
-                const image_height = @as(f32, @floatFromInt(texture.texture.h));
-                var source: sdl.SDL_FRect = undefined;
-                switch (element.type.sprite.scale) {
-                    .stretch => {
-                        source = .{
-                            .x = 0,
-                            .y = 0,
-                            .w = image_width,
-                            .h = image_height,
-                        };
-                    },
-                    .fit => {
-                        source = .{
-                            .x = 0,
-                            .y = 0,
-                            .w = image_width,
-                            .h = image_height,
-                        };
-                        // Don't fill the destination area. Slice off
-                        // some of the destination area.
-                        const dst_scale: f32 = element.rect.width / element.rect.height;
-                        const src_scale: f32 = image_width / image_height;
-                        if (src_scale >= dst_scale) {
-                            // image too wide, hight will have blank space
-                            dest.height = dest.width / src_scale;
-                            // sprite is drawn at top of its rect, unless a
-                            // different child alignment is chosen.
-                            switch (element.child_align.y) {
-                                .start => {}, // already at top
-                                .centre => dest.y += ((element.rect.height - dest.height) / 2) - element.pad.top,
-                                .end => dest.y += (element.rect.height - dest.height),
-                            }
-                        } else {
-                            // image too tall/high, width will have blank space
-                            dest.width = dest.height * src_scale;
-                            // sprite is drawn at start/left of its rect, unless
-                            // a different child alignment is chosen.
-                            switch (element.child_align.x) {
-                                .start => {}, // already at top
-                                .centre => dest.x += ((element.rect.width - dest.width) / 2) - element.pad.left,
-                                .end => dest.x += (element.rect.width - dest.width),
-                            }
-                        }
-                    },
-                    .fill => {
-                        // We need a slice of the source image that fits the
-                        // ratio of the destination area.
-                        const dst_scale: f32 = element.rect.width / element.rect.height;
-                        const src_scale: f32 = image_width / image_height;
-                        if (src_scale >= dst_scale) {
-                            // Slice off some width
-                            source = .{
-                                .x = 0,
-                                .y = 0,
-                                .h = image_height,
-                                .w = image_height * dst_scale,
-                            };
-                            source.x = (image_width - source.w) / 2;
-                        } else {
-                            // Slice off some height
-                            source = .{
-                                .x = 0,
-                                .y = 0,
-                                .w = image_width,
-                                .h = image_width / dst_scale,
-                            };
-                            source.y = (image_height - source.h) / 2;
-                        }
-                    },
-                }
-
-                if (element.style == .custom)
-                    tint_texture(texture.texture, element.colour);
-
-                _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, @ptrCast(&source), @ptrCast(&dest));
-            }
-        }
-
         /// Calculate the layout of all elements, and optionally render every element.
         ///
         /// Normally text is converted to an image and rendered left to right, starting
@@ -1677,194 +1515,6 @@ pub fn Element(comptime T: type) type {
                 if (element.type.checkbox.off_texture) |texture| {
                     _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
                 }
-            }
-        }
-
-        /// Draw a progress bar.
-        inline fn draw_progress_bar(
-            element: *Self,
-            display: *Display(T),
-            _: Vector,
-            _: ?Clip,
-            scroll_offset: Vector,
-        ) void {
-            // Draw the background matching the  current button state
-            if (element.texture) |texture| {
-                var dest = Rect{
-                    .x = element.rect.x + element.pad.left,
-                    .y = element.rect.y + element.pad.top,
-                    .width = element.rect.width - element.pad.left - element.pad.right,
-                    .height = element.rect.height - element.pad.top - element.pad.bottom,
-                };
-                dest = dest.move(&scroll_offset);
-                var corner: f32 = element.background.corner_radius;
-                if (corner * 2 > dest.height) corner = dest.height / 2;
-
-                // Progress bar background
-                var tint = display.theme.progress_bar_background;
-                if (element.style == .custom) tint = element.background.colour;
-                _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
-                _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
-                if (element.background.image_corner_radius == 0) {
-                    _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
-                } else {
-                    _ = sdl.SDL_RenderTexture9Grid(
-                        display.renderer,
-                        texture.texture,
-                        null,
-                        element.background.image_corner_radius,
-                        element.background.image_corner_radius,
-                        element.background.image_corner_radius,
-                        element.background.image_corner_radius,
-                        corner / element.background.image_corner_radius,
-                        @ptrCast(&dest),
-                    );
-                }
-
-                // Progress bar foreground
-                if (element.type.progress_bar.progress > 0.01) {
-                    tint = display.theme.progress_bar_foreground;
-                    if (element.style == .custom)
-                        tint = element.colour;
-                    dest.width *= element.type.progress_bar.progress;
-                    _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
-                    _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
-                    if (element.background.image_corner_radius == 0) {
-                        _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
-                    } else {
-                        _ = sdl.SDL_RenderTexture9Grid(
-                            display.renderer,
-                            texture.texture,
-                            null,
-                            element.background.image_corner_radius,
-                            element.background.image_corner_radius,
-                            element.background.image_corner_radius,
-                            element.background.image_corner_radius,
-                            corner / element.background.image_corner_radius,
-                            @ptrCast(&dest),
-                        );
-                    }
-                }
-            } else {
-                err("progress bar image missing.", .{});
-            }
-        }
-
-        /// Draw a button with its text and/or icon. Mouse hover, mouse click
-        /// and the disabled status may change the picture or icon
-        /// displayed in the button.
-        inline fn draw_button(
-            element: *Self,
-            display: *Display(T),
-            _: Vector,
-            _: ?Clip,
-            scroll_offset: Vector,
-        ) void {
-            // Draw the background matching the  current button state
-            if (element.current_background()) |background_image| {
-                var dest: Rect = .{
-                    .x = element.rect.x + scroll_offset.x,
-                    .y = element.rect.y + scroll_offset.y,
-                    .width = element.rect.width,
-                    .height = element.rect.height,
-                };
-                if (element.flip.x) {
-                    dest.x += dest.width;
-                    dest.width = 0 - dest.width;
-                }
-                if (element.flip.y) {
-                    dest.y += dest.height;
-                    dest.height = 0 - dest.height;
-                }
-                element.apply_background_tint(display, background_image);
-                if (element.background.image_corner_radius == 0) {
-                    _ = sdl.SDL_RenderTexture(display.renderer, background_image, null, @ptrCast(&dest));
-                } else {
-                    var corner: f32 = element.background.corner_radius;
-                    if (corner * 2 > dest.height) corner = dest.height / 2;
-                    _ = sdl.SDL_RenderTexture9Grid(
-                        display.renderer,
-                        background_image,
-                        null,
-                        element.background.image_corner_radius,
-                        element.background.image_corner_radius,
-                        element.background.image_corner_radius,
-                        element.background.image_corner_radius,
-                        corner / element.background.image_corner_radius,
-                        @ptrCast(&dest),
-                    );
-                }
-            }
-
-            // The inner content can contain a button and/or text texture.
-            var content_width = element.type.button.icon_size.width;
-            if (element.type.button.text_texture) |texture| {
-                const size = element.type.button.text_size.pixel_size(display.scale, texture);
-
-                // Do we need space between text and icon?
-                if (content_width > 0)
-                    content_width += element.type.button.spacing;
-
-                content_width += size.width;
-            }
-            content_width += element.pad.left + element.pad.right;
-
-            const content_x_offset = switch (element.child_align.x) {
-                .start => 0,
-                .centre => (element.rect.width - content_width) / 2.0,
-                .end => element.rect.width - content_width,
-            };
-            const icon_y_offset = switch (element.child_align.y) {
-                .start => element.pad.top,
-                .centre => (element.rect.height / 2) - (element.type.button.icon_size.height / 2),
-                .end => element.rect.height - element.pad.bottom - element.type.button.icon_size.height,
-            };
-
-            const text_colour = element.button_text_colour(display.theme);
-            var has_icon = false;
-
-            // Place the icon
-            if (element.current_icon()) |icon_image| {
-                has_icon = true;
-                var dest: Rect = .{
-                    .x = element.rect.x + element.pad.left + content_x_offset,
-                    .y = element.rect.y + icon_y_offset,
-                    .width = element.type.button.icon_size.width,
-                    .height = element.type.button.icon_size.height,
-                };
-                dest = dest.move(&scroll_offset);
-                if (element.flip.x) {
-                    dest.x += dest.width;
-                    dest.width = 0 - dest.width;
-                }
-                if (element.flip.y) {
-                    dest.y += dest.height;
-                    dest.height = 0 - dest.height;
-                }
-                _ = sdl.SDL_SetTextureAlphaMod(icon_image, text_colour.a);
-                _ = sdl.SDL_SetTextureColorMod(icon_image, text_colour.r, text_colour.g, text_colour.b);
-                _ = sdl.SDL_RenderTexture(display.renderer, icon_image, null, @ptrCast(&dest));
-            }
-
-            // Place the text
-            if (element.type.button.text_texture) |texture| {
-                const size = element.type.button.text_size.pixel_size(display.scale, texture);
-                var dest: Rect = .{
-                    .x = element.rect.x + element.type.button.icon_size.width + element.pad.left + content_x_offset,
-                    .y = element.rect.y + (element.rect.height / 2.0) - (size.height / 2),
-                    .width = size.width,
-                    .height = size.height,
-                };
-                if (element.type.button.icon_size.width == 0 or element.type.button.icon_size.height == 0) {
-                    dest.x = element.rect.x + element.rect.width / 2 - size.width / 2;
-                }
-                dest = dest.move(&scroll_offset);
-                if (has_icon or element.type.button.icon_size.width > 0) {
-                    dest.x += element.type.button.spacing;
-                }
-                _ = sdl.SDL_SetTextureAlphaMod(texture, text_colour.a);
-                _ = sdl.SDL_SetTextureColorMod(texture, text_colour.r, text_colour.g, text_colour.b);
-                _ = sdl.SDL_RenderTexture(display.renderer, texture, null, @ptrCast(&dest));
             }
         }
 
@@ -2720,6 +2370,11 @@ pub fn Element(comptime T: type) type {
             }
         };
     };
+}
+
+pub inline fn tint_texture(texture: *sdl.SDL_Texture, colour: Colour) void {
+    _ = sdl.SDL_SetTextureAlphaMod(texture, colour.a);
+    _ = sdl.SDL_SetTextureColorMod(texture, colour.r, colour.g, colour.b);
 }
 
 pub const Background = struct {
