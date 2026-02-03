@@ -3438,15 +3438,29 @@ const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
 const FileType = @import("resources").FileType;
 
-pub const Clip = @import("element.zig").Clip;
 pub const Background = @import("element.zig").Background;
+pub const Clip = @import("element.zig").Clip;
 pub const Element = @import("element.zig").Element;
+pub const Fit = @import("element.zig").Fit;
+pub const LayoutAlign = @import("element.zig").LayoutAlign;
+pub const LayoutDirection = @import("element.zig").LayoutDirection;
 pub const Rect = @import("element.zig").Rect;
 pub const Scale = @import("element.zig").Scale;
+pub const Scroller = @import("element.zig").Scroller;
 pub const Size = @import("element.zig").Size;
+pub const TextElement = @import("element.zig").TextElement;
+pub const ToggleState = @import("element.zig").ToggleState;
 pub const Vector = @import("element.zig").Vector;
 pub const Visibility = @import("element.zig").Visibility;
-pub const LayoutAlign = @import("element.zig").LayoutAlign;
+
+pub const Button = @import("button.zig").Button;
+pub const Checkbox = @import("checkbox.zig").Checkbox;
+pub const Expander = @import("expander.zig").Expander;
+pub const Label = @import("label.zig").Label;
+pub const Panel = @import("panel.zig").Panel;
+pub const Rectangle = @import("rectangle.zig").Rectangle;
+pub const Sprite = @import("sprite.zig").Sprite;
+pub const TextInput = @import("text_input.zig").TextInput;
 
 const default_themes = @import("theme.zig").default_themes;
 pub const Theme = @import("theme.zig").Theme;

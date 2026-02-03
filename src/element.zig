@@ -80,97 +80,15 @@ pub fn Element(comptime T: type) type {
         on_visibility: Self.Callback = .empty,
 
         type: union(ElementType) {
-            panel: struct {
-                children: ArrayListUnmanaged(*Self) = .empty,
-                direction: LayoutDirection = .centre,
-                spacing: f32 = 0,
-                on_click: Self.Callback = .empty,
-                update: Self.UpdateCallback = .empty,
-                scrollable: Scroller = .{
-                    .scroll = .{ .x = false, .y = false },
-                    .size = .{ .width = 0, .height = 0 },
-                },
-                overflow: Vector = .{ .x = 0, .y = 0 },
-            },
-            sprite: struct {
-                on_click: Self.Callback = .empty,
-                update: Self.UpdateCallback = .empty,
-                scale: Fit = .stretch,
-            },
-            label: struct {
-                font: *Font = undefined,
-                font_name: ?[]const u8 = null,
-                text: []const u8 = "",
-                translated: []const u8 = "",
-                elements: ArrayListUnmanaged(TextElement) = .empty,
-                line_height: f32 = 1,
-                text_size: T = .normal,
-                on_click: Self.Callback = .empty,
-            },
-            checkbox: struct {
-                checked: bool = false,
-                font: *Font = undefined,
-                font_name: ?[]const u8 = null,
-                text_size: T = .normal,
-                text: []const u8 = "",
-                translated: []const u8 = "",
-                elements: ArrayListUnmanaged(TextElement) = .empty,
-                line_height: f32 = 1,
-                checkbox_size: Size = .{ .width = 0, .height = 0 },
-                on_texture: ?*Texture = null,
-                off_texture: ?*Texture = null,
-                on_change: Self.Callback = .empty,
-            },
-            text_input: struct {
-                font: *Font = undefined,
-                font_name: ?[]const u8 = null,
-                texture: ?*sdl.SDL_Texture = null,
-                initial_text: ?[]const u8 = "",
-                icon_texture_name: ?[]const u8 = "",
-                text: ArrayListUnmanaged(u8) = .empty,
-                runes: ArrayListUnmanaged(u21) = .empty,
-                max_runes: usize = 0,
-                cursor_character: usize = 0,
-                cursor_pixels: f32 = 0,
-                on_change: Self.Callback = .empty,
-                on_submit: Self.Callback = .empty,
-                placeholder_texture: ?*sdl.SDL_Texture = null,
-                placeholder_text: ?[]const u8 = "",
-                placeholder_translate: []const u8 = "",
-            },
-            rectangle: struct {},
-            button: struct {
-                font: *Font = undefined,
-                font_name: ?[]const u8 = null,
-                text_size: T = .normal,
-                text: []const u8 = "",
-                translated: []const u8 = "",
-                text_texture: ?*sdl.SDL_Texture = null,
-                icon_size: Size = .{ .width = 0, .height = 0 },
-                spacing: f32 = 0,
-                icon_default_name: ?[]const u8 = null,
-                icon_hover: ?*Texture = null,
-                icon_hover_name: ?[]const u8 = null,
-                icon_pressed: ?*Texture = null,
-                icon_pressed_name: ?[]const u8 = null,
-                icon_disabled: ?*Texture = null,
-                icon_disabled_name: ?[]const u8 = null,
-                background_default_name: ?[]const u8 = null,
-                background_hover: ?*Texture = null,
-                background_hover_name: ?[]const u8 = null,
-                background_pressed: ?*Texture = null,
-                background_pressed_name: ?[]const u8 = null,
-                background_disabled: ?*Texture = null,
-                background_disabled_name: ?[]const u8 = null,
-                on_click: Self.Callback = .empty,
-                toggle: ToggleState = .no_toggle,
-            },
-            progress_bar: struct {
-                progress: f32 = 0,
-            },
-            expander: struct {
-                weight: f32 = 0,
-            },
+            button: Button(T),
+            checkbox: Checkbox(T),
+            expander: Expander(T),
+            label: Label(T),
+            panel: Panel(T),
+            progress_bar: ProgressBar(T),
+            rectangle: Rectangle(T),
+            sprite: Sprite(T),
+            text_input: TextInput(T),
         },
 
         /// Cleanup memory associated with this element. This is automatically
@@ -3073,15 +2991,15 @@ pub const ToggleState = enum {
 
 /// Describe the type of each element in the elment tree.
 pub const ElementType = enum {
-    panel,
-    sprite,
-    label,
-    checkbox,
-    text_input,
-    rectangle,
     button,
-    progress_bar,
+    checkbox,
     expander,
+    label,
+    panel,
+    progress_bar,
+    rectangle,
+    sprite,
+    text_input,
 };
 
 const std = @import("std");
@@ -3115,3 +3033,13 @@ const Texture = @import("texture.zig");
 const Colour = @import("theme.zig").Colour;
 const Theme = @import("theme.zig").Theme;
 const ThemeColour = @import("theme.zig").ThemeColour;
+
+const Button = @import("button.zig").Button;
+const Checkbox = @import("checkbox.zig").Checkbox;
+const Expander = @import("expander.zig").Expander;
+const Panel = @import("panel.zig").Panel;
+const ProgressBar = @import("progress_bar.zig").ProgressBar;
+const Sprite = @import("sprite.zig").Sprite;
+const Label = @import("label.zig").Label;
+const Rectangle = @import("rectangle.zig").Rectangle;
+const TextInput = @import("text_input.zig").TextInput;
