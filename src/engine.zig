@@ -827,7 +827,7 @@ pub fn Display(comptime T: type) type {
                     },
                     .shrinks => {
                         // Shrink to the smallest the children will allow
-                        const new_height = element.shrink_height(self, available_width);
+                        const new_height = element.minimum_needed_height(self, available_width);
                         if (element.rect.height != new_height) {
                             element.rect.height = new_height;
                             child_resized = true;
@@ -3136,7 +3136,7 @@ test "button sizing" {
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
     try eq(5, panel.minimum_needed_width(display, 500));
-    try eq(8, panel.shrink_height(display, 500));
+    try eq(8, panel.minimum_needed_height(display, 500));
 
     const not_quite_one_line = display.text_height.pixel_height(display.scale) - 5;
     const not_quite_two_lines = display.text_height.pixel_height(display.scale) * 2 - 5;
@@ -3150,12 +3150,12 @@ test "button sizing" {
     });
     display.relayout();
     try eq(50, button.minimum_needed_width(display, 500));
-    try eq(50, button.shrink_height(display, 500));
+    try eq(50, button.minimum_needed_height(display, 500));
     button.layout.x = .shrinks;
     button.layout.y = .shrinks;
     try eq(30, button.minimum_needed_width(display, 500));
     // The words will overflow the bottom of the box
-    try eq(not_quite_one_line, button.shrink_height(display, 500));
+    try eq(not_quite_one_line, button.minimum_needed_height(display, 500));
 
     display.relayout();
     try eq(30, panel.minimum_needed_width(display, 500));
@@ -3236,7 +3236,7 @@ test "text input sizing" {
         defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
-        try eq(50, l.shrink_height(display, 500));
+        try eq(50, l.minimum_needed_height(display, 500));
     }
 
     {
@@ -3252,7 +3252,7 @@ test "text input sizing" {
         defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
-        try eq(60, l.shrink_height(display, 500));
+        try eq(60, l.minimum_needed_height(display, 500));
     }
 
     {
@@ -3268,7 +3268,7 @@ test "text input sizing" {
         defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(401, l.minimum_needed_width(display, 500));
-        try eq(display.text_height.pixel_height(display.scale), l.shrink_height(display, 500));
+        try eq(display.text_height.pixel_height(display.scale), l.minimum_needed_height(display, 500));
     }
 
     {
@@ -3284,7 +3284,7 @@ test "text input sizing" {
         defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(401, @round(l.minimum_needed_width(display, 500)));
-        try eq(display.text_height.pixel_height(display.pixel_scale), l.shrink_height(display, 500));
+        try eq(display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
     }
 
     {
@@ -3307,9 +3307,9 @@ test "text input sizing" {
 
         // Display width of the words when rendered to the physical display
         try eq(94, @round(l.minimum_needed_width(display, 500) / display.pixel_scale));
-        try eq(display.text_height.pixel_height(display.pixel_scale), l.shrink_height(display, 500));
+        try eq(display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
         // Display width on physical display with word wrap
-        try eq(2 * display.text_height.pixel_height(display.pixel_scale), l.shrink_height(display, 40 * display.pixel_scale));
+        try eq(2 * display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 40 * display.pixel_scale));
     }
 
     var panel = try display.add_panel(allocator, .{
@@ -3319,7 +3319,7 @@ test "text input sizing" {
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
     try eq(5, panel.minimum_needed_width(display, 500));
-    try eq(8, panel.shrink_height(display, 500));
+    try eq(8, panel.minimum_needed_height(display, 500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
@@ -3333,7 +3333,7 @@ test "text input sizing" {
     });
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
     try eq(500, label.minimum_needed_width(display, 500));
-    try eq(60, label.shrink_height(display, 500));
+    try eq(60, label.minimum_needed_height(display, 500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
@@ -3347,14 +3347,14 @@ test "text input sizing" {
     });
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
     try eq(300, label.minimum_needed_width(display, 500));
-    try eq(100, label.shrink_height(display, 500));
+    try eq(100, label.minimum_needed_height(display, 500));
 
     label.minimum.width = display.text_height.pixel_height(1);
     label.minimum.height = display.text_height.pixel_height(1);
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
     try eq(94, @round(label.minimum_needed_width(display, 500) / display.pixel_scale));
-    try eq(display.text_height.pixel_height(1), @round(label.shrink_height(display, 500) / display.pixel_scale));
+    try eq(display.text_height.pixel_height(1), @round(label.minimum_needed_height(display, 500) / display.pixel_scale));
     label.layout.x = .grows;
     try eq(401, @round(label.minimum_needed_width(display, 500)));
 

@@ -787,7 +787,7 @@ pub fn Element(comptime T: type) type {
         /// shrink to based on the children. If children wrap according
         /// to the width of the parent, then the parent width is needed
         /// to calculate the height
-        pub fn shrink_height(self: *Self, display: *Display(T), parent_width: f32) f32 {
+        pub fn minimum_needed_height(self: *Self, display: *Display(T), parent_width: f32) f32 {
             if (self.visible == .hidden)
                 return 0;
             if (self.layout.y == .fixed)
@@ -1062,7 +1062,7 @@ pub fn Element(comptime T: type) type {
         ///
         /// If the text is centred or right aligned, then each line must be pushed along
         /// by a certain offset amount.
-        inline fn layout_label(
+        pub inline fn layout_label(
             element: *Self,
             display_scale: f32,
             parent_inner_width: f32,
@@ -1490,7 +1490,7 @@ pub fn Element(comptime T: type) type {
                             // Add spacing before next element, if needed
                             minimum_needed += parent.type.panel.spacing;
                         }
-                        const height = element.shrink_height(display, available_width);
+                        const height = element.minimum_needed_height(display, available_width);
                         minimum_needed += height;
                     }
                     // Bound to the minimum/maximum height
@@ -1511,7 +1511,7 @@ pub fn Element(comptime T: type) type {
                     for (parent.type.panel.children.items) |element| {
                         if (element.layout.position == .float) continue;
 
-                        const height = element.shrink_height(display, available_width);
+                        const height = element.minimum_needed_height(display, available_width);
                         if (height > minimum_needed)
                             minimum_needed = height;
                     }
