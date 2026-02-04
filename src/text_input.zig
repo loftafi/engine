@@ -131,6 +131,15 @@ pub fn TextInput(comptime T: type) type {
                 }
             }
         }
+        pub inline fn minimum_needed_height(
+            _: *Self,
+            display: *Display(T),
+            element: *Element(T),
+            _: f32, //parent_inner_width
+        ) f32 {
+            const height = (display.text_height.pixel_height(display.scale)) + (element.pad.top + element.pad.bottom);
+            return height;
+        }
     };
 }
 

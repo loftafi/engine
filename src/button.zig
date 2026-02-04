@@ -209,6 +209,21 @@ pub fn Button(comptime T: type) type {
             }
             return @max(element.minimum.width, needed_width);
         }
+
+        pub inline fn minimum_needed_height(
+            button: *Self,
+            display: *Display(T),
+            element: *Element(T),
+            _: f32, //parent_inner_width
+        ) f32 {
+            var height: f32 = 0;
+            if (button.text_texture) |_| {
+                height = display.text_height.pixel_height(display.scale);
+            }
+            height = @max(button.icon_size.height, height);
+            height += (element.pad.top + element.pad.bottom);
+            return @max(element.minimum.height, height);
+        }
     };
 }
 

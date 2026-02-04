@@ -794,39 +794,12 @@ pub fn Element(comptime T: type) type {
                 return @max(self.minimum.height, self.rect.height);
 
             const height = switch (self.type) {
-                .label, .checkbox => {
-                    // Simulate a draw of this element to see how many lines it
-                    // would take. This is done when the label is created but also
-                    // needs to be done here as the width of the label may have changed.
-                    switch (self.layout.y) {
-                        .shrinks, .grows => {
-                            self.layout_label(display.scale, parent_width);
-                            //err("{s} {s} use grows height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
-                            return self.rect.height;
-                        },
-                        .fixed => {
-                            //err("{s} {s} use fixed height {d} (parent_width={d})", .{ self.name, @tagName(self.type), self.height, parent_width });
-                            return self.rect.height;
-                        },
-                    }
-                },
-                .expander => {
-                    return self.minimum.height;
-                },
-                .button => {
-                    var height: f32 = 0;
-                    if (self.type.button.text_texture) |_| {
-                        height = display.text_height.pixel_height(display.scale);
-                    }
-                    height = @max(self.type.button.icon_size.height, height);
-                    height += (self.pad.top + self.pad.bottom);
-                    return @max(self.minimum.height, height);
-                },
-                .text_input => {
-                    const height = (display.text_height.pixel_height(display.scale)) + (self.pad.top + self.pad.bottom);
-                    return height;
-                },
+                .button => return self.type.button.minimum_needed_height(display, self, parent_width),
+                .checkbox => return self.type.checkbox.minimum_needed_height(display, self, parent_width),
+                .expander => return self.minimum.height,
+                .label => return self.type.label.minimum_needed_height(display, self, parent_width),
                 .panel => find_minimum_panel_height(self, display),
+                .text_input => return self.type.text_input.minimum_needed_height(display, self, parent_width),
                 else => self.rect.height,
             };
             return @max(self.minimum.height, height);

@@ -69,6 +69,28 @@ pub fn Checkbox(comptime T: type) type {
                 },
             }
         }
+
+        pub inline fn minimum_needed_height(
+            _: *Self,
+            display: *Display(T),
+            element: *Element(T),
+            parent_inner_width: f32,
+        ) f32 {
+            // Simulate a draw of this element to see how many lines it
+            // would take. This is done when the label is created but also
+            // needs to be done here as the width of the label may have changed.
+            switch (element.layout.y) {
+                .shrinks, .grows => {
+                    element.layout_label(display.scale, parent_inner_width);
+                    //err("{s} {s} use grows height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
+                    return element.rect.height;
+                },
+                .fixed => {
+                    //err("{s} {s} use fixed height {d} (parent_width={d})", .{ self.name, @tagName(self.type), self.height, parent_width });
+                    return element.rect.height;
+                },
+            }
+        }
     };
 }
 
