@@ -185,6 +185,30 @@ pub fn Button(comptime T: type) type {
                 return element.texture.?.texture;
             return null;
         }
+
+        pub inline fn minimum_needed_width(
+            button: *Self,
+            display: *Display(T),
+            element: *Element(T),
+            _: f32, //parent_inner_width
+        ) f32 {
+            // Buttons may contain padding, icon, text, and icon-text spacing.
+            var needed_width: f32 = element.pad.left + element.pad.right;
+
+            needed_width += element.type.button.icon_size.width;
+
+            // If button has icon _and_ text, add button spacing
+            if (button.icon_size.width > 0 and button.text.len > 0) {
+                needed_width += element.type.button.spacing;
+            }
+
+            // Add the width of the button text
+            if (element.type.button.text_texture) |t| {
+                const size = button.text_size.pixel_size(display.scale, t);
+                needed_width += size.width;
+            }
+            return @max(element.minimum.width, needed_width);
+        }
     };
 }
 

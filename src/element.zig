@@ -836,71 +836,21 @@ pub fn Element(comptime T: type) type {
         /// .
         /// Some elements grow to the `parent_width`, which is usually the
         /// `parent.rect.width` minus any internal padding.
-        pub fn shrink_width(self: *Self, display: *Display(T), parent_inner_width: f32) f32 {
+        pub fn minimum_needed_width(self: *Self, display: *Display(T), parent_inner_width: f32) f32 {
             if (self.visible == .hidden)
                 return 0;
 
             if (self.layout.x == .fixed)
                 return @max(self.minimum.width, self.rect.width);
 
-            switch (self.type) {
-                .panel => {
-                    return @max(self.minimum.width, find_minimum_panel_width(self, display));
-                },
-                .button => {
-                    // Buttons may contain padding, icon, text, and icon-text spacing.
-                    var needed_width: f32 = self.pad.left + self.pad.right;
-
-                    needed_width += self.type.button.icon_size.width;
-
-                    // If button has icon _and_ text, add button spacing
-                    if (self.type.button.icon_size.width > 0 and self.type.button.text.len > 0) {
-                        needed_width += self.type.button.spacing;
-                    }
-
-                    // Add the width of the button text
-                    if (self.type.button.text_texture) |t| {
-                        const size = self.type.button.text_size.pixel_size(display.scale, t);
-                        needed_width += size.width;
-                    }
-                    return @max(self.minimum.width, needed_width);
-                },
-                .expander => {
-                    return self.minimum.width;
-                },
-                .label => {
-                    switch (self.layout.x) {
-                        .shrinks, .grows => {
-                            // Growing or shrinking, our task here is to find
-                            // the minimum that would be needed.
-                            self.layout_label(display.scale, parent_inner_width);
-                            return self.rect.width;
-                        },
-                        .fixed => {
-                            return self.rect.width;
-                        },
-                    }
-                },
-                .checkbox => {
-                    switch (self.layout.x) {
-                        .shrinks, .grows => {
-                            // Growing or shrinking, our task here is to find
-                            // the minimum that would be needed.
-                            self.layout_label(display.scale, parent_inner_width);
-                            //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                            return self.rect.width + self.pad.left + self.type.checkbox.checkbox_size.width;
-                        },
-                        .fixed => {
-                            //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                            return self.rect.width;
-                        },
-                    }
-                },
-
-                else => {
-                    return @max(self.minimum.width, self.rect.width);
-                },
-            }
+            return switch (self.type) {
+                .panel => self.type.panel.minimum_needed_width(display, self, parent_inner_width),
+                .button => self.type.button.minimum_needed_width(display, self, parent_inner_width),
+                .expander => self.type.expander.minimum_needed_width(display, self, parent_inner_width),
+                .label => self.type.label.minimum_needed_width(display, self, parent_inner_width),
+                .checkbox => self.type.checkbox.minimum_needed_width(display, self, parent_inner_width),
+                else => @max(self.minimum.width, self.rect.width),
+            };
         }
 
         /// Handle the langauge change event and propogate the event
@@ -1508,98 +1458,6 @@ pub fn Element(comptime T: type) type {
             };
 
             return wrap;
-        }
-
-        /// Discover the minimum needed for a particular object.
-        ///
-        /// If the object has children, a `parent` object must check
-        /// the widths of its children.
-        ///
-        /// If parent fills children left-to-right, we must add the heights.
-        /// If parent fills children top-to-bottom simply find the widest item.
-        fn find_minimum_panel_width(parent: *const Self, display: *Display(T)) f32 {
-            std.debug.assert(parent.type == .panel);
-            if (parent.visible == .hidden) return 0;
-            if (parent.layout.position == .float) return 0;
-
-            const available_width = parent.inner_width();
-
-            switch (parent.type.panel.direction) {
-                .left_to_right => {
-                    // a, next to b, next to c. (left to right)
-                    //
-                    // Need to add up the min width of all items
-                    var minimum_needed: f32 = parent.pad.left + parent.pad.right;
-                    var first = true;
-                    for (parent.type.panel.children.items) |element| {
-                        if (element.layout.position == .float) continue;
-                        if (element.visible == .hidden) continue;
-                        if (element.type == .expander) continue;
-
-                        // Add space between each element.
-                        if (first)
-                            first = false
-                        else
-                            minimum_needed += parent.type.panel.spacing;
-
-                        const width = element.shrink_width(display, available_width);
-                        minimum_needed += width;
-                    }
-                    // Bound to the minimum/maximum width
-                    if (parent.maximum.width > 0)
-                        minimum_needed = @min(parent.maximum.width, minimum_needed);
-
-                    return @max(minimum_needed, parent.minimum.width);
-                },
-                .left_to_right_wrap => {
-                    var minimum_needed: f32 = parent.pad.left + parent.pad.right;
-                    var first = true;
-                    for (parent.type.panel.children.items) |element| {
-                        if (element.layout.position == .float) continue;
-                        if (element.visible == .hidden) continue;
-                        if (element.type == .expander) continue;
-
-                        // Add space between each element.
-                        if (first)
-                            first = false
-                        else
-                            minimum_needed += parent.type.panel.spacing;
-
-                        const width = element.shrink_width(display, available_width);
-                        minimum_needed = @max(minimum_needed, width);
-                    }
-                    // Bound to the minimum/maximum width
-                    if (parent.maximum.width > 0)
-                        minimum_needed = @min(parent.maximum.width, minimum_needed);
-                    return @max(minimum_needed, parent.minimum.width);
-                },
-                .centre, .top_to_bottom, .top_left, .top_right => {
-                    // a, centred upon b, centred upon c
-                    // a, then b underneath, thn c underneath...
-                    //
-                    // Need to just find maximum width item
-                    var minimum_needed: f32 = 0;
-                    for (parent.type.panel.children.items) |element| {
-                        if (element.layout.position == .float) continue;
-                        if (element.visible == .hidden) continue;
-                        if (element.type == .expander) continue;
-
-                        const child_width = element.shrink_width(display, available_width);
-                        if (false) {
-                            debug("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
-                                parent.name,
-                                element.name,
-                                element.type,
-                                minimum_needed,
-                                child_width,
-                                available_width,
-                            });
-                        }
-                        minimum_needed = @max(minimum_needed, child_width);
-                    }
-                    return @max(parent.minimum.width, minimum_needed + (parent.pad.left + parent.pad.right));
-                },
-            }
         }
 
         /// Discover the minimum needed for a particular object.

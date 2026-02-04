@@ -799,7 +799,7 @@ pub fn Display(comptime T: type) type {
                     },
                     .shrinks => {
                         // Shrink to the smallest the children will allow.
-                        const new_width = element.shrink_width(self, available_width);
+                        const new_width = element.minimum_needed_width(self, available_width);
                         if (element.rect.width != new_width) {
                             element.rect.width = new_width;
                             child_resized = true;
@@ -3135,7 +3135,7 @@ test "button sizing" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try eq(5, panel.shrink_width(display, 500));
+    try eq(5, panel.minimum_needed_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
     const not_quite_one_line = display.text_height.pixel_height(display.scale) - 5;
@@ -3149,16 +3149,16 @@ test "button sizing" {
         .type = .{ .button = .{ .text = "" } },
     });
     display.relayout();
-    try eq(50, button.shrink_width(display, 500));
+    try eq(50, button.minimum_needed_width(display, 500));
     try eq(50, button.shrink_height(display, 500));
     button.layout.x = .shrinks;
     button.layout.y = .shrinks;
-    try eq(30, button.shrink_width(display, 500));
+    try eq(30, button.minimum_needed_width(display, 500));
     // The words will overflow the bottom of the box
     try eq(not_quite_one_line, button.shrink_height(display, 500));
 
     display.relayout();
-    try eq(30, panel.shrink_width(display, 500));
+    try eq(30, panel.minimum_needed_width(display, 500));
     try eq(30, button.rect.width);
     try eq(5, panel.rect.width);
     try eq(not_quite_one_line, button.rect.height);
@@ -3176,7 +3176,7 @@ test "button sizing" {
 
     panel.minimum.width = 100;
     display.relayout();
-    try eq(100, panel.shrink_width(display, 500));
+    try eq(100, panel.minimum_needed_width(display, 500));
     panel.minimum.width = 10;
 
     // Add test font so we can test label layout
@@ -3235,7 +3235,7 @@ test "text input sizing" {
         });
         defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(500, l.shrink_width(display, 500));
+        try eq(500, l.minimum_needed_width(display, 500));
         try eq(50, l.shrink_height(display, 500));
     }
 
@@ -3251,7 +3251,7 @@ test "text input sizing" {
         });
         defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(500, l.shrink_width(display, 500));
+        try eq(500, l.minimum_needed_width(display, 500));
         try eq(60, l.shrink_height(display, 500));
     }
 
@@ -3267,7 +3267,7 @@ test "text input sizing" {
         });
         defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(401, l.shrink_width(display, 500));
+        try eq(401, l.minimum_needed_width(display, 500));
         try eq(display.text_height.pixel_height(display.scale), l.shrink_height(display, 500));
     }
 
@@ -3283,7 +3283,7 @@ test "text input sizing" {
         });
         defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(401, @round(l.shrink_width(display, 500)));
+        try eq(401, @round(l.minimum_needed_width(display, 500)));
         try eq(display.text_height.pixel_height(display.pixel_scale), l.shrink_height(display, 500));
     }
 
@@ -3306,7 +3306,7 @@ test "text input sizing" {
         try eq(107, @round(l.type.label.elements.items[1].width / display.pixel_scale));
 
         // Display width of the words when rendered to the physical display
-        try eq(94, @round(l.shrink_width(display, 500) / display.pixel_scale));
+        try eq(94, @round(l.minimum_needed_width(display, 500) / display.pixel_scale));
         try eq(display.text_height.pixel_height(display.pixel_scale), l.shrink_height(display, 500));
         // Display width on physical display with word wrap
         try eq(2 * display.text_height.pixel_height(display.pixel_scale), l.shrink_height(display, 40 * display.pixel_scale));
@@ -3318,7 +3318,7 @@ test "text input sizing" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try eq(5, panel.shrink_width(display, 500));
+    try eq(5, panel.minimum_needed_width(display, 500));
     try eq(8, panel.shrink_height(display, 500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
@@ -3332,7 +3332,7 @@ test "text input sizing" {
         .layout = .{ .x = .fixed, .y = .fixed },
     });
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-    try eq(500, label.shrink_width(display, 500));
+    try eq(500, label.minimum_needed_width(display, 500));
     try eq(60, label.shrink_height(display, 500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
@@ -3346,17 +3346,17 @@ test "text input sizing" {
         .layout = .{ .x = .fixed, .y = .fixed },
     });
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-    try eq(300, label.shrink_width(display, 500));
+    try eq(300, label.minimum_needed_width(display, 500));
     try eq(100, label.shrink_height(display, 500));
 
     label.minimum.width = display.text_height.pixel_height(1);
     label.minimum.height = display.text_height.pixel_height(1);
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(94, @round(label.shrink_width(display, 500) / display.pixel_scale));
+    try eq(94, @round(label.minimum_needed_width(display, 500) / display.pixel_scale));
     try eq(display.text_height.pixel_height(1), @round(label.shrink_height(display, 500) / display.pixel_scale));
     label.layout.x = .grows;
-    try eq(401, @round(label.shrink_width(display, 500)));
+    try eq(401, @round(label.minimum_needed_width(display, 500)));
 
     panel.layout.x = .shrinks;
     panel.layout.y = .shrinks;

@@ -15,6 +15,15 @@ pub fn Expander(comptime T: type) type {
                 //
             }
         }
+
+        pub inline fn minimum_needed_width(
+            _: *Self,
+            _: *Display(T),
+            element: *Element(T),
+            _: f32,
+        ) f32 {
+            return element.minimum.width;
+        }
     };
 }
 

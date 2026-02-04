@@ -48,6 +48,27 @@ pub fn Checkbox(comptime T: type) type {
                 }
             }
         }
+
+        pub inline fn minimum_needed_width(
+            _: *Self,
+            display: *Display(T),
+            element: *Element(T),
+            parent_inner_width: f32,
+        ) f32 {
+            switch (element.layout.x) {
+                .shrinks, .grows => {
+                    // Growing or shrinking, our task here is to find
+                    // the minimum that would be needed.
+                    element.layout_label(display.scale, parent_inner_width);
+                    //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
+                    return element.rect.width + element.pad.left + element.type.checkbox.checkbox_size.width;
+                },
+                .fixed => {
+                    //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
+                    return element.rect.width;
+                },
+            }
+        }
     };
 }
 

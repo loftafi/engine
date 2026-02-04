@@ -33,6 +33,25 @@ pub fn Label(comptime T: type) type {
             const text_colour = element.style.text(display.theme, element.colour);
             draw_text_elements(self.elements.items, loc, text_colour, display.renderer, parent_clip);
         }
+
+        pub inline fn minimum_needed_width(
+            _: *Self,
+            display: *Display(T),
+            element: *Element(T),
+            parent_inner_width: f32,
+        ) f32 {
+            switch (element.layout.x) {
+                .shrinks, .grows => {
+                    // Growing or shrinking, our task here is to find
+                    // the minimum that would be needed.
+                    element.layout_label(display.scale, parent_inner_width);
+                    return element.rect.width;
+                },
+                .fixed => {
+                    return element.rect.width;
+                },
+            }
+        }
     };
 }
 
