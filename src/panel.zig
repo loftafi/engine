@@ -283,7 +283,7 @@ pub fn Panel(comptime T: type) type {
                         switch (element.child_align.x) {
                             .start => element.rect.x = 0,
                             .end => element.rect.x = parent.rect.width - element.rect.width,
-                            .centre => element.rect.x = (parent.rect.width / 2.0) - (element.rect.width / 2.0),
+                            .centre => element.rect.x = @round((parent.rect.width / 2.0) - (element.rect.width / 2.0)),
                         }
                     },
                     .fixed => {
@@ -310,7 +310,7 @@ pub fn Panel(comptime T: type) type {
                         switch (element.child_align.y) {
                             .start => element.rect.y = 0,
                             .end => element.rect.y = parent.rect.height - element.rect.height,
-                            .centre => element.rect.y = (parent.rect.height / 2.0) - (element.rect.height / 2.0),
+                            .centre => element.rect.y = @round((parent.rect.height / 2.0) - (element.rect.height / 2.0)),
                         }
                     },
                     .fixed => {
@@ -367,23 +367,23 @@ pub fn Panel(comptime T: type) type {
 
         // self == display
         inline fn place_children_centred(
-            _: *Self,
-            parent: *Element(T),
+            panel: *Self,
+            element: *Element(T),
         ) void {
-            const inner_width = parent.rect.width - parent.pad.left - parent.pad.right;
-            const inner_height = parent.rect.height - parent.pad.top - parent.pad.bottom;
+            const inner_width = element.inner_width();
+            const inner_height = element.inner_height();
 
-            // First pass just does a layout assuming top/left positioning.
-            for (parent.type.panel.children.items) |child| {
+            // Place every child element in the centre of this panel.
+            for (panel.children.items) |child| {
                 if (child.layout.position == .float) continue;
                 if (child.visible == .hidden) continue;
                 if (child.type == .expander) {
-                    warn("expander panel '{s}' ignored due to centre layout.", .{parent.name});
+                    warn("expander panel '{s}' ignored due to centre layout.", .{element.name});
                     continue;
                 }
 
-                child.rect.x = parent.rect.x + parent.pad.left + (inner_width / 2 - child.rect.width / 2);
-                child.rect.y = parent.rect.y + parent.pad.top + (inner_height / 2 - child.rect.height / 2);
+                child.rect.x = element.rect.x + element.pad.left + @round(inner_width / 2 - child.rect.width / 2);
+                child.rect.y = element.rect.y + element.pad.top + @round(inner_height / 2 - child.rect.height / 2);
             }
             //TODO: Im not sure scroller detection is needed here or not
 
@@ -646,7 +646,7 @@ pub fn Panel(comptime T: type) type {
                     .start => {},
                     .centre => {
                         // Align from top to work out how much space is left
-                        var new_x: f32 = parent.rect.x + parent.pad.left + (overflow_width / 2.0);
+                        var new_x: f32 = parent.rect.x + parent.pad.left + @round(overflow_width / 2.0);
                         for (parent.type.panel.children.items) |child| {
                             if (child.visible == .hidden) continue;
                             if (child.layout.position == .float) continue;

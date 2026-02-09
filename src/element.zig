@@ -320,7 +320,8 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        // Find the avaialble inner width of this element.
+        // Find the avaialble inner width of this element. This is the
+        // width of the element minus any padding.
         pub inline fn inner_width(self: *const Self) f32 {
             const padding = self.pad.left + self.pad.right;
             var available = self.rect.width - padding;
@@ -331,6 +332,22 @@ pub fn Element(comptime T: type) type {
 
             // Increase available width to minimum width if needed.
             available = @max(available, self.minimum.width - padding);
+
+            return available;
+        }
+
+        // Find the avaialble inner height of this element. This is the
+        // height of the element minus any padding.
+        pub inline fn inner_height(self: *const Self) f32 {
+            const padding = self.pad.top + self.pad.bottom;
+            var available = self.rect.height - padding;
+
+            // Reduce available height to maximum height if needed
+            if (self.maximum.height > 0)
+                available = @min(self.maximum.height - padding, available);
+
+            // Increase available height to minimum height if needed.
+            available = @max(available, self.minimum.height - padding);
 
             return available;
         }

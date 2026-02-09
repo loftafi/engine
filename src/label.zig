@@ -172,8 +172,8 @@ test "label_panel_placement" {
     display.relayout();
     try eq(51, child.rect.width);
     try eq(20, child.rect.height);
-    try eq(panel.rect.width / 2 - child.rect.width / 2, child.rect.x);
-    try eq(panel.rect.height / 2 - child.rect.height / 2, child.rect.y);
+    try eq(@round(panel.rect.width / 2 - child.rect.width / 2), child.rect.x);
+    try eq(@round(panel.rect.height / 2 - child.rect.height / 2), child.rect.y);
 }
 
 test "label_single_word_alignment" {
@@ -393,6 +393,69 @@ test "label_multiword_align" {
         try eq((panel.rect.width - element3.location.width) / 2, element3.location.x);
         try eq(20, element3.location.y);
     }
+}
+
+test "shrunk_label_in_panel" {
+    const allocator = std.testing.allocator;
+    // The display takes ownership of the resources object
+
+    var display = try Display(TextSize(10)).create(allocator, test_config);
+    defer display.destroy(allocator);
+    _ = try display.load_font(allocator, "Roboto-Light");
+    try eq(1, display.fonts.items.len);
+    display.root.rect.width = 200;
+    display.root.rect.height = 100;
+
+    const panel = try display.add_panel(allocator, .{
+        .layout = .{ .x = .grows, .y = .grows },
+        .type = .{ .panel = .{ .direction = .centre } },
+        .pad = .{ .left = 4, .right = 6, .top = 2, .bottom = 8 },
+    });
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(200, panel.rect.width);
+    try eq(100, panel.rect.height);
+
+    const child = try panel.add(allocator, display, .{
+        .type = .{ .label = .{ .text = "Simple" } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    });
+    child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
+
+    panel.child_align.x = .start;
+    panel.type.panel.direction = .left_to_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(51, child.rect.width);
+    try eq(20, child.rect.height);
+    try eq(4, child.rect.x);
+    try eq(2, child.rect.y);
+
+    panel.child_align.x = .end;
+    panel.type.panel.direction = .left_to_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(51, child.rect.width);
+    try eq(20, child.rect.height);
+    try eq(panel.rect.width - panel.pad.right - child.rect.width, child.rect.x);
+    try eq(2, child.rect.y);
+
+    panel.child_align.x = .centre;
+    panel.type.panel.direction = .left_to_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(51, child.rect.width);
+    try eq(20, child.rect.height);
+    try eq(@round((panel.rect.width - panel.pad.left - panel.pad.right) / 2 - (child.rect.width / 2)) + panel.pad.left, child.rect.x);
+    try eq(74, child.rect.x);
+    try eq(2, child.rect.y);
+
+    // Where would the draw function theoretically put this element
+    const loc = Vector{ .x = child.rect.x, .y = child.rect.y };
+    const would_draw_at = child.type.label.elements.items[0].location.move(&loc);
+    try eq(74, would_draw_at.x);
+    try eq(2, would_draw_at.y);
 }
 
 const std = @import("std");
