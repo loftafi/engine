@@ -814,7 +814,7 @@ pub fn Element(comptime T: type) type {
                 .checkbox => return self.type.checkbox.minimum_needed_height(display, self, parent_width),
                 .expander => return self.minimum.height,
                 .label => return self.type.label.minimum_needed_height(display, self, parent_width),
-                .panel => find_minimum_panel_height(self, display),
+                .panel => return self.type.panel.minimum_needed_height(display, self, parent_width),
                 .text_input => return self.type.text_input.minimum_needed_height(display, self, parent_width),
                 else => self.rect.height,
             };
@@ -1447,66 +1447,6 @@ pub fn Element(comptime T: type) type {
             };
 
             return wrap;
-        }
-
-        /// Discover the minimum needed for a particular object.
-        ///
-        /// If the object has children, a `parent` object must check
-        /// the heights of its children.
-        ///
-        /// If parent stacks children top-to-bottom, we must add the heights.
-        /// If parent stacks children left-to-right simply find the tallest item.
-        fn find_minimum_panel_height(parent: *const Self, display: *Display(T)) f32 {
-            std.debug.assert(parent.type == .panel);
-            if (parent.visible == .hidden) return 0;
-            if (parent.layout.position == .float) return 0;
-
-            const available_width = parent.inner_width();
-
-            switch (parent.type.panel.direction) {
-                .top_to_bottom => {
-                    // a, above b, above c. (top to bottom)
-                    var minimum_needed: f32 = parent.pad.top + parent.pad.bottom;
-                    // Add the size needed for each inline child.
-                    var first = true;
-                    for (parent.type.panel.children.items) |element| {
-                        if (element.layout.position == .float) continue;
-                        if (element.visible == .hidden) continue;
-                        if (element.type == .expander) continue;
-                        if (first) {
-                            first = false;
-                        } else {
-                            // Add spacing before next element, if needed
-                            minimum_needed += parent.type.panel.spacing;
-                        }
-                        const height = element.minimum_needed_height(display, available_width);
-                        minimum_needed += height;
-                    }
-                    // Bound to the minimum/maximum height
-                    var result = minimum_needed;
-                    if (parent.maximum.height > 0 and parent.maximum.height < minimum_needed) {
-                        result = parent.maximum.height;
-                    }
-                    result = @max(result, parent.minimum.height);
-                    return result;
-                },
-
-                .centre, .left_to_right, .left_to_right_wrap, .top_left, .top_right => {
-                    // centred all together
-                    // a, next to b, next c.
-                    //
-                    // Just need to know the highest/tallest child.
-                    var minimum_needed: f32 = 0;
-                    for (parent.type.panel.children.items) |element| {
-                        if (element.layout.position == .float) continue;
-
-                        const height = element.minimum_needed_height(display, available_width);
-                        if (height > minimum_needed)
-                            minimum_needed = height;
-                    }
-                    return minimum_needed + (parent.pad.top + parent.pad.bottom);
-                },
-            }
         }
 
         pub fn setup_rect(
