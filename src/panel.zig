@@ -141,8 +141,104 @@ pub fn Panel(comptime T: type) type {
     };
 }
 
+test "panel_padding" {
+    const allocator = std.testing.allocator;
+    // The display takes ownership of the resources object
+
+    var display = try Display(TextSize(10)).create(allocator, test_config);
+    defer display.destroy(allocator);
+    _ = try display.load_font(allocator, "Roboto-Light");
+    try eq(1, display.fonts.items.len);
+    display.root.rect.width = 300;
+    display.root.rect.height = 200;
+
+    const panel = try display.add_panel(allocator, .{
+        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(300, panel.rect.width);
+    try eq(200, panel.rect.height);
+
+    const child = try panel.add(allocator, display, .{
+        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .rect = .{ .width = 120, .height = 80 },
+        .layout = .{ .x = .fixed, .y = .fixed },
+    });
+
+    // Test alignment without padding
+    panel.type.panel.direction = .top_to_bottom;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(120, child.rect.width);
+    try eq(80, child.rect.height);
+    try eq(0, child.rect.x);
+    try eq(0, child.rect.y);
+
+    panel.type.panel.direction = .top_left;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(0, child.rect.x);
+    try eq(0, child.rect.y);
+
+    panel.type.panel.direction = .top_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(panel.rect.width - child.rect.width, child.rect.x);
+    try eq(0, child.rect.y);
+
+    panel.type.panel.direction = .left_to_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(0, child.rect.x);
+    try eq(0, child.rect.y);
+
+    panel.type.panel.direction = .centre;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(panel.rect.width / 2 - child.rect.width / 2, child.rect.x);
+    try eq(panel.rect.height / 2 - child.rect.height / 2, child.rect.y);
+
+    // Retest alignment with padding
+    panel.pad = .{ .left = 2, .right = 4, .top = 8, .bottom = 16 };
+
+    panel.type.panel.direction = .top_to_bottom;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(120, child.rect.width);
+    try eq(80, child.rect.height);
+    try eq(2, child.rect.x);
+    try eq(8, child.rect.y);
+
+    panel.type.panel.direction = .top_left;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(2, child.rect.x);
+    try eq(8, child.rect.y);
+
+    panel.type.panel.direction = .left_to_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(2, child.rect.x);
+    try eq(8, child.rect.y);
+
+    panel.type.panel.direction = .centre;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(panel.rect.height / 2 - child.rect.height / 2, child.rect.y);
+    try eq(panel.rect.width / 2 - child.rect.width / 2, child.rect.x);
+
+    err("fish", .{});
+}
+
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const eq = std.testing.expectEqual;
+
+const praxis = @import("praxis");
+const BoundedArray = praxis.BoundedArray;
 
 const engine = @import("engine.zig");
 const err = engine.err;
@@ -158,7 +254,10 @@ const Font = engine.Font;
 const LayoutDirection = engine.LayoutDirection;
 const Scroller = engine.Scroller;
 const Size = engine.Size;
+const TextSize = engine.TextSize;
 const Vector = engine.Vector;
 const BoolCallback = engine.BoolCallback;
 const Callback = engine.Callback;
 const UpdateCallback = engine.UpdateCallback;
+
+const test_config = @import("test.zig").test_config;

@@ -9,3 +9,8 @@ pub const test_config = Config{
 };
 
 const Config = @import("engine.zig").Config;
+const engine = @import("engine.zig");
+
+test {
+    @import("std").testing.refAllDecls(@This());
+}
