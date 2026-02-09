@@ -207,6 +207,164 @@ pub fn Panel(comptime T: type) type {
                 },
             }
         }
+
+        /// Relayout the contents of an individual panel that is sitting
+        /// somewhere n the tree below the root panel (scene).
+        /// self becomes display
+        pub fn relayout(panel: *Panel, display: *Display(T), parent: *Element(T)) void {
+            std.debug.assert(parent.type == .panel);
+
+            // Keep track of each expander in the panel. At the end, expand
+            // each expander according to the leftover space.
+            var expanders = BoundedArray(*Element(T), 10){};
+            var expander_weights: f32 = 0;
+
+            // Make sure this element never exceeds its maximum.
+            var panel_resized = false;
+            if (parent.layout.x == .grows and parent.maximum.width > 0) {
+                const new_width = @min(parent.rect.width, parent.maximum.width);
+                if (parent.rect.width != new_width) {
+                    parent.rect.width = new_width;
+                    panel_resized = true;
+                }
+            }
+            if (parent.layout.y == .grows and parent.maximum.height > 0) {
+                const new_height = @min(parent.rect.height, parent.maximum.height);
+                if (parent.rect.height != new_height) {
+                    parent.rect.height = new_height;
+                    panel_resized = true;
+                }
+            }
+
+            // # Step 1
+            //
+            // Children of this panel are either fixed positioned, growing, or shrinking.
+            //
+            // - `.fixed` elements are not altered, keep retain their requested `rect` size.
+            // - `.shrinks` elements shrink to the `minimum` space they need.
+            // - `.grows` enlarges the width or height of the parent `rect`.
+            //
+            for (parent.type.panel.children.items) |element| {
+                if (element.visible == .hidden) continue;
+
+                const available_width = parent.inner_width();
+
+                var child_resized = false;
+                if ((engine.dev_build or display.dev_mode) and element.layout.position == .float) {
+                    if (element.layout.x == .grows) {
+                        err("floating items cant grow. {s} {s}", .{ element.name, @tagName(element.type) });
+                        element.layout.x = .fixed;
+                    }
+                    if (element.layout.x == .shrinks) {
+                        err("floating items cant shrink. {s} {s}", .{ element.name, @tagName(element.type) });
+                        element.layout.x = .fixed;
+                    }
+                }
+                switch (element.layout.x) {
+                    .grows => {
+                        // Grow to the parent width, not including padding.
+                        element.rect.x = 0;
+                        var new_width = parent.rect.width - (parent.pad.left + parent.pad.right);
+                        if (element.maximum.width > 0 and new_width > element.maximum.width) {
+                            new_width = element.maximum.width;
+                        }
+                        if (element.rect.width != new_width) {
+                            element.rect.width = new_width;
+                            child_resized = true;
+                        }
+                    },
+                    .shrinks => {
+                        // Shrink to the smallest the children will allow.
+                        const new_width = element.minimum_needed_width(display, available_width);
+                        if (element.rect.width != new_width) {
+                            element.rect.width = new_width;
+                            child_resized = true;
+                        }
+                        // Shrink to the left, centre, or right.
+                        switch (element.child_align.x) {
+                            .start => element.rect.x = 0,
+                            .end => element.rect.x = parent.rect.width - element.rect.width,
+                            .centre => element.rect.x = (parent.rect.width / 2.0) - (element.rect.width / 2.0),
+                        }
+                    },
+                    .fixed => {
+                        // No shrinking or growing applies.
+                    },
+                }
+
+                switch (element.layout.y) {
+                    .grows => {
+                        // Grow to the parent height, not including padding.
+                        element.rect.y = 0;
+                        element.rect.height = parent.rect.height - (parent.pad.top + parent.pad.bottom);
+                        if (element.maximum.height > 0 and element.rect.height > element.maximum.height) {
+                            element.rect.height = element.maximum.height;
+                        }
+                    },
+                    .shrinks => {
+                        // Shrink to the smallest the children will allow
+                        const new_height = element.minimum_needed_height(display, available_width);
+                        if (element.rect.height != new_height) {
+                            element.rect.height = new_height;
+                            child_resized = true;
+                        }
+                        switch (element.child_align.y) {
+                            .start => element.rect.y = 0,
+                            .end => element.rect.y = parent.rect.height - element.rect.height,
+                            .centre => element.rect.y = (parent.rect.height / 2.0) - (element.rect.height / 2.0),
+                        }
+                    },
+                    .fixed => {
+                        // No shrinking or growing applies.
+                    },
+                }
+
+                if (child_resized and element.on_resized.func != null) {
+                    trace("element {s} resized. callback = {any}", .{
+                        element.name,
+                        element.on_resized.func != null,
+                    });
+                    _ = element.on_resized.call(display, element);
+                }
+
+                if (element.type == .expander) {
+                    expanders.appendAssumeCapacity(element);
+                    expander_weights += element.type.expander.weight;
+                }
+            }
+
+            // Step 2
+            //
+            // The parent panel dictates if the children align to start,
+            // centre, or end. Growing/Shrinking children must be aligned
+            // to the start, centre, or end. The parent panel decides if
+            // the elements are left-to-right or top-to-bottom.
+
+            //debug("layout elements {s} {s}", .{
+            //    parent.name,
+            //    @tagName(parent.child_direction),
+            //});
+            parent.type.panel.scrollable.size.width = parent.minimum.width;
+            parent.type.panel.scrollable.size.height = parent.minimum.height;
+            switch (parent.type.panel.direction) {
+                .left_to_right => place_children_left_to_right(self, parent, expanders.slice(), expander_weights),
+                .left_to_right_wrap => place_children_left_to_right_wrap(self, parent),
+                .top_to_bottom => place_children_top_to_bottom(self, parent, expanders.slice(), expander_weights),
+                .centre => place_children_centred(self, parent),
+                .top_left => place_children_top_left(self, parent),
+                .top_right => place_children_top_right(self, parent),
+            }
+
+            // Descend into child elements to allow child panels to also resize.
+            for (parent.type.panel.children.items) |child| {
+                if (child.type == .panel)
+                    self.relayout_panel(child);
+            }
+
+            if (panel_resized and parent.on_resized.func != null) {
+                _ = parent.on_resized.call(self, parent);
+            }
+        }
     };
 }
 
