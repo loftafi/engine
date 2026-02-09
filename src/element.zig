@@ -766,6 +766,7 @@ pub fn Element(comptime T: type) type {
                 item.destroy(allocator, display);
                 debug("removed child panel {s}", .{item.name});
             }
+            self.type.panel.children.clearRetainingCapacity();
         }
 
         /// Make sure nothing is holding a reference to an element that
