@@ -322,12 +322,14 @@ pub fn Element(comptime T: type) type {
 
         // Find the avaialble inner width of this element.
         pub inline fn inner_width(self: *const Self) f32 {
-            const padding = self.pad.left - self.pad.right;
+            const padding = self.pad.left + self.pad.right;
             var available = self.rect.width - padding;
 
+            // Reduce available width to maximum width if needed
             if (self.maximum.width > 0)
                 available = @min(self.maximum.width - padding, available);
 
+            // Increase available width to minimum width if needed.
             available = @max(available, self.minimum.width - padding);
 
             return available;
@@ -1051,6 +1053,9 @@ pub fn Element(comptime T: type) type {
         ///
         /// If the text is centred or right aligned, then each line must be pushed along
         /// by a certain offset amount.
+        ///
+        /// `parent_inner_width` should be the actual width the parent is passing down
+        /// to this child element, minus left and right padding.
         pub inline fn layout_label(
             element: *Self,
             display_scale: f32,
@@ -1175,11 +1180,12 @@ pub fn Element(comptime T: type) type {
             if (element.child_align.x == .centre or element.child_align.x == .end) {
                 var line_start: usize = 0;
                 var line_end: usize = 0;
+                const usable_width = wrap_at;
                 while (true) : (line_end += 1) {
                     if (line_end + 1 == children.len) {
                         element.do_word_alignment(
                             children[line_end].location.x + children[line_end].location.width,
-                            element.rect.width - element.pad.left - element.pad.right,
+                            usable_width,
                             children[line_start .. line_end + 1],
                         );
                         break;
@@ -1187,7 +1193,7 @@ pub fn Element(comptime T: type) type {
                     if (children[line_end].location.x >= children[line_end + 1].location.x) {
                         element.do_word_alignment(
                             children[line_end].location.x + children[line_end].location.width,
-                            element.rect.width - element.pad.left - element.pad.right,
+                            usable_width,
                             children[line_start .. line_end + 1],
                         );
                         line_start = line_end + 1;
@@ -1407,11 +1413,11 @@ pub fn Element(comptime T: type) type {
         inline fn do_word_alignment(
             element: *Self,
             line_width: f32,
-            element_width: f32,
+            usable_width: f32,
             children: []TextElement,
         ) void {
             // How much whitespace was left over at the end of this line.
-            const trailing_whitespace = element_width - line_width;
+            const trailing_whitespace = usable_width - line_width;
 
             if (trailing_whitespace <= 0) return;
 
@@ -1422,7 +1428,7 @@ pub fn Element(comptime T: type) type {
                 },
                 .centre => {
                     // Shuffle words into centre
-                    const adjust_by = trailing_whitespace / 2;
+                    const adjust_by = @round(trailing_whitespace / 2);
                     for (children) |*child| child.location.x += adjust_by;
                 },
                 .end => {
@@ -1437,7 +1443,7 @@ pub fn Element(comptime T: type) type {
         /// the next line. By default the width is whatever the parent element
         /// has room for.
         fn word_wrap_line(element: *Self, max_parent_width: f32) f32 {
-            var element_padding = element.pad.left + element.pad.right;
+            var element_padding: f32 = 0;
             if (element.type == .checkbox) element_padding += element.type.checkbox.checkbox_size.width;
 
             // If a fixed width is specified, clamp to the fixed width

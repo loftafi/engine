@@ -45,9 +45,10 @@ pub fn Label(comptime T: type) type {
         ) f32 {
             switch (element.layout.x) {
                 .shrinks, .grows => {
+                    const padding = element.pad.left + element.pad.right;
                     // Growing or shrinking, our task here is to find
                     // the minimum that would be needed.
-                    element.layout_label(display.scale, parent_inner_width);
+                    element.layout_label(display.scale, parent_inner_width - padding);
                     return element.rect.width;
                 },
                 .fixed => {
@@ -67,7 +68,8 @@ pub fn Label(comptime T: type) type {
             // needs to be done here as the width of the label may have changed.
             switch (element.layout.y) {
                 .shrinks, .grows => {
-                    element.layout_label(display.scale, parent_inner_width);
+                    const padding = element.pad.left + element.pad.right;
+                    element.layout_label(display.scale, parent_inner_width - padding);
                     //err("{s} {s} use grows height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
                     return element.rect.height;
                 },
@@ -186,6 +188,7 @@ test "label_single_word_alignment" {
     display.root.rect.height = 200;
 
     const panel = try display.add_panel(allocator, .{
+        .name = "parent",
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -196,6 +199,7 @@ test "label_single_word_alignment" {
     try eq(200, panel.rect.height);
 
     const child = try panel.add(allocator, display, .{
+        .name = "child",
         .type = .{ .label = .{ .text = "Simple" } },
         .layout = .{ .x = .grows, .y = .shrinks },
     });
@@ -211,6 +215,7 @@ test "label_single_word_alignment" {
     try eq(0, child.rect.x);
     try eq(0, child.rect.y);
 
+    // Alignment of a single word with no padding
     {
         child.child_align.x = .start;
         display.need_relayout = true;
@@ -230,6 +235,62 @@ test "label_single_word_alignment" {
         try eq(51, element.location.width);
         try eq(20, element.location.height);
         try eq(panel.rect.width - element.location.width, element.location.x);
+        try eq(0, element.location.y);
+    }
+
+    {
+        child.child_align.x = .centre;
+        display.need_relayout = true;
+        display.relayout();
+        const element = child.type.label.elements.items[0];
+        try eq(51, element.location.width);
+        try eq(20, element.location.height);
+        try eq(@round(panel.rect.width / 2 - element.location.width / 2), element.location.x);
+        try eq(0, element.location.y);
+    }
+
+    // Alignment of a single word with padding
+    child.pad.left = 4;
+    child.pad.right = 8;
+    {
+        child.child_align.x = .start;
+        display.need_relayout = true;
+        display.relayout();
+        const element = child.type.label.elements.items[0];
+        try eq(51, element.location.width);
+        try eq(20, element.location.height);
+        try eq(0, element.location.x);
+        try eq(0, element.location.y);
+    }
+
+    {
+        child.child_align.x = .end;
+        display.need_relayout = true;
+        display.relayout();
+        try eq(300, panel.rect.width);
+        try eq(300, child.rect.width);
+        try eq(panel.rect.width - child.pad.left - child.pad.right, child.inner_width());
+        try eq(300 - 8 - 4, child.inner_width());
+        const element = child.type.label.elements.items[0];
+        try eq(51, element.location.width);
+        try eq(20, element.location.height);
+        // `element.location` is relative to 0x0 not the on screen position, so
+        // x is simply how far along from the first top/left drawing position.
+        // 300 - 51 - 8 - 4
+        try eq(panel.rect.width - element.location.width - child.pad.right - child.pad.left, element.location.x);
+        try eq(0, element.location.y);
+    }
+
+    {
+        child.child_align.x = .centre;
+        display.need_relayout = true;
+        display.relayout();
+        const element = child.type.label.elements.items[0];
+        try eq(51, element.location.width);
+        try eq(20, element.location.height);
+        // `element.location` is relative to 0x0 not the on screen position, so
+        // x is simply how far along from the first top/left drawing position.
+        try eq(@round((panel.rect.width - child.pad.left - child.pad.right) / 2 - (element.location.width / 2)), element.location.x);
         try eq(0, element.location.y);
     }
 }
