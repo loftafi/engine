@@ -295,6 +295,106 @@ test "label_single_word_alignment" {
     }
 }
 
+test "label_multiword_align" {
+    const allocator = std.testing.allocator;
+
+    err("tool", .{});
+    var display = try Display(TextSize(10)).create(allocator, test_config);
+    defer display.destroy(allocator);
+    display.pixel_scale = 2;
+    display.scale = 2;
+    display.user_scale = 1;
+    _ = try display.load_font(allocator, "Roboto-Light");
+    try eq(1, display.fonts.items.len);
+    display.root.rect.width = 200;
+    display.root.rect.height = 200;
+
+    const panel = try display.add_panel(allocator, .{
+        .name = "parent",
+        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(200, panel.rect.width);
+    try eq(200, panel.rect.height);
+
+    const child = try panel.add(allocator, display, .{
+        .name = "child",
+        .type = .{ .label = .{ .text = "Officially Simple Readingology" } },
+        .layout = .{ .x = .grows, .y = .shrinks },
+    });
+    child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
+
+    // Test alignment without padding
+    display.need_relayout = true;
+    display.relayout();
+    try eq(200, child.rect.width);
+    try eq(40, child.rect.height);
+    //try eq(52, child.rect.width);
+    //try eq(20, child.rect.height);
+    try eq(0, child.rect.x);
+    try eq(0, child.rect.y);
+
+    // Alignment of a single word with no padding
+    {
+        child.child_align.x = .start;
+        display.need_relayout = true;
+        display.relayout();
+        const element1 = child.type.label.elements.items[0];
+        const element2 = child.type.label.elements.items[1];
+        const element3 = child.type.label.elements.items[2];
+        try eq(63, element1.location.width);
+        try eq(20, element1.location.height);
+        try eq(0, element1.location.x);
+        try eq(0, element1.location.y);
+
+        try eq(51, element2.location.width);
+        try eq(20, element2.location.height);
+        try eq(63 + display.text_height.word_spacing(display.scale), element2.location.x);
+        try eq(0, element2.location.y);
+
+        // Wrap to next line
+        try eq(100, element3.location.width);
+        try eq(20, element3.location.height);
+        try eq(0, element3.location.x);
+        try eq(20, element3.location.y);
+    }
+
+    {
+        // Align both lines to right
+        child.child_align.x = .end;
+        display.need_relayout = true;
+        display.relayout();
+        const element1 = child.type.label.elements.items[0];
+        const element2 = child.type.label.elements.items[1];
+        const element3 = child.type.label.elements.items[2];
+        try eq(63, element1.location.width);
+        try eq(20, element1.location.height);
+        try eq(panel.rect.width - element2.location.width, element2.location.x);
+        try eq(0, element1.location.y);
+        try eq(panel.rect.width - element3.location.width, element3.location.x);
+        try eq(20, element3.location.y);
+    }
+
+    {
+        child.child_align.x = .centre;
+        display.need_relayout = true;
+        display.relayout();
+        const element1 = child.type.label.elements.items[0];
+        const element2 = child.type.label.elements.items[1];
+        const element3 = child.type.label.elements.items[2];
+        try eq(63, element1.location.width);
+        try eq(20, element1.location.height);
+        const space = display.text_height.word_spacing(display.scale);
+        try eq((panel.rect.width - element2.location.width - element1.location.width - space) / 2, element1.location.x);
+        try eq(0, element1.location.y);
+        try eq((panel.rect.width - element3.location.width) / 2, element3.location.x);
+        try eq(20, element3.location.y);
+    }
+}
+
 const std = @import("std");
 const eq = std.testing.expectEqual;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
