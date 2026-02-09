@@ -1108,11 +1108,11 @@ pub fn Element(comptime T: type) type {
                 item.location = .{
                     .x = @round(x),
                     .y = @round(y),
-                    .width = if (is_cr) 0 else size.width,
+                    .width = if (is_cr) 0 else @round(size.width),
                     .height = size.height,
                 };
 
-                if (!is_cr) x += size.width;
+                if (!is_cr) x += @round(size.width);
                 if (!is_cr) line_word_count += 1;
             }
             needed_width = @max(needed_width, x);
@@ -1126,7 +1126,7 @@ pub fn Element(comptime T: type) type {
 
             // Add y padding at the bottom so that we can calculate the final height.
             var needed_height = y + element.pad.top + element.pad.bottom;
-            needed_height = @ceil(needed_height);
+            needed_height = @round(needed_height);
 
             switch (element.layout.y) {
                 .shrinks => {
@@ -1148,7 +1148,7 @@ pub fn Element(comptime T: type) type {
             }
 
             needed_width += element.pad.left + element.pad.right;
-            needed_width = @ceil(needed_width);
+            needed_width = @round(needed_width);
 
             switch (element.layout.x) {
                 .shrinks => {

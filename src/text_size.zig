@@ -42,7 +42,7 @@ pub fn TextSize(text_height: comptime_float) type {
         /// How many pixels between each word, depending on the selected
         /// font size.
         pub fn word_spacing(self: @This(), scale: f32) f32 {
-            return text_height * self.height() * scale / 3.5;
+            return @round(text_height * self.height() * scale / 3.5);
         }
     };
 }

@@ -34,6 +34,9 @@ pub fn Label(comptime T: type) type {
             draw_text_elements(self.elements.items, loc, text_colour, display.renderer, parent_clip);
         }
 
+        // Return the absolute minimum width needed, even if more space
+        // could be used. `.grows`  is ignored for the purpose of finding
+        // the minimum width.
         pub inline fn minimum_needed_width(
             _: *Self,
             display: *Display(T),
@@ -110,7 +113,129 @@ pub fn draw_text_elements(
     }
 }
 
+test "label_panel_placement" {
+    const allocator = std.testing.allocator;
+    // The display takes ownership of the resources object
+
+    var display = try Display(TextSize(10)).create(allocator, test_config);
+    defer display.destroy(allocator);
+    _ = try display.load_font(allocator, "Roboto-Light");
+    try eq(1, display.fonts.items.len);
+    display.root.rect.width = 300;
+    display.root.rect.height = 200;
+
+    const panel = try display.add_panel(allocator, .{
+        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(300, panel.rect.width);
+    try eq(200, panel.rect.height);
+
+    const child = try panel.add(allocator, display, .{
+        .type = .{ .label = .{ .text = "Simple" } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    });
+    child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
+
+    // Test alignment without padding
+    panel.type.panel.direction = .top_to_bottom;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(51, child.rect.width);
+    try eq(20, child.rect.height);
+    try eq(0, child.rect.x);
+    try eq(0, child.rect.y);
+
+    panel.type.panel.direction = .top_left;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(51, child.rect.width);
+    try eq(20, child.rect.height);
+    try eq(0, child.rect.x);
+    try eq(0, child.rect.y);
+
+    panel.type.panel.direction = .top_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(51, child.rect.width);
+    try eq(20, child.rect.height);
+    try eq(panel.rect.width - child.rect.width, child.rect.x);
+    try eq(0, child.rect.y);
+
+    panel.type.panel.direction = .centre;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(51, child.rect.width);
+    try eq(20, child.rect.height);
+    try eq(panel.rect.width / 2 - child.rect.width / 2, child.rect.x);
+    try eq(panel.rect.height / 2 - child.rect.height / 2, child.rect.y);
+}
+
+test "label_single_word_alignment" {
+    const allocator = std.testing.allocator;
+    // The display takes ownership of the resources object
+
+    var display = try Display(TextSize(10)).create(allocator, test_config);
+    defer display.destroy(allocator);
+    _ = try display.load_font(allocator, "Roboto-Light");
+    try eq(1, display.fonts.items.len);
+    display.root.rect.width = 300;
+    display.root.rect.height = 200;
+
+    const panel = try display.add_panel(allocator, .{
+        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(300, panel.rect.width);
+    try eq(200, panel.rect.height);
+
+    const child = try panel.add(allocator, display, .{
+        .type = .{ .label = .{ .text = "Simple" } },
+        .layout = .{ .x = .grows, .y = .shrinks },
+    });
+    child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
+
+    // Test alignment without padding
+    display.need_relayout = true;
+    display.relayout();
+    try eq(300, child.rect.width);
+    try eq(20, child.rect.height);
+    //try eq(52, child.rect.width);
+    //try eq(20, child.rect.height);
+    try eq(0, child.rect.x);
+    try eq(0, child.rect.y);
+
+    {
+        child.child_align.x = .start;
+        display.need_relayout = true;
+        display.relayout();
+        const element = child.type.label.elements.items[0];
+        try eq(51, element.location.width);
+        try eq(20, element.location.height);
+        try eq(0, element.location.x);
+        try eq(0, element.location.y);
+    }
+
+    {
+        child.child_align.x = .end;
+        display.need_relayout = true;
+        display.relayout();
+        const element = child.type.label.elements.items[0];
+        try eq(51, element.location.width);
+        try eq(20, element.location.height);
+        try eq(panel.rect.width - element.location.width, element.location.x);
+        try eq(0, element.location.y);
+    }
+}
+
 const std = @import("std");
+const eq = std.testing.expectEqual;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
 const sdl = @import("sdl");
@@ -130,9 +255,12 @@ const LayoutDirection = engine.LayoutDirection;
 const Scroller = engine.Scroller;
 const Size = engine.Size;
 const TextElement = engine.TextElement;
+const TextSize = engine.TextSize;
 const Texture = engine.Texture;
 const ToggleState = engine.ToggleState;
 const Vector = engine.Vector;
 const Callback = engine.Callback;
 const BoolCallback = engine.BoolCallback;
 const UpdateCallback = engine.UpdateCallback;
+
+const test_config = @import("test.zig").test_config;

@@ -370,8 +370,8 @@ pub fn Panel(comptime T: type) type {
             _: *Self,
             parent: *Element(T),
         ) void {
-            const parent_width = parent.rect.width - parent.pad.left - parent.pad.right;
-            const parent_height = parent.rect.height - parent.pad.top - parent.pad.bottom;
+            const inner_width = parent.rect.width - parent.pad.left - parent.pad.right;
+            const inner_height = parent.rect.height - parent.pad.top - parent.pad.bottom;
 
             // First pass just does a layout assuming top/left positioning.
             for (parent.type.panel.children.items) |child| {
@@ -382,8 +382,8 @@ pub fn Panel(comptime T: type) type {
                     continue;
                 }
 
-                child.rect.x = parent.rect.x + parent.pad.left + (parent_width / 2 - child.rect.width / 2);
-                child.rect.y = parent.rect.y + parent.pad.top + (parent_height / 2 - child.rect.height / 2);
+                child.rect.x = parent.rect.x + parent.pad.left + (inner_width / 2 - child.rect.width / 2);
+                child.rect.y = parent.rect.y + parent.pad.top + (inner_height / 2 - child.rect.height / 2);
             }
             //TODO: Im not sure scroller detection is needed here or not
 
@@ -811,8 +811,8 @@ test "panel_padding" {
     panel.type.panel.direction = .centre;
     display.need_relayout = true;
     display.relayout();
-    try eq(panel.rect.height / 2 - child.rect.height / 2, child.rect.y);
-    try eq(panel.rect.width / 2 - child.rect.width / 2, child.rect.x);
+    try eq(panel.pad.top + ((panel.rect.height - panel.pad.top - panel.pad.bottom) / 2 - child.rect.height / 2), child.rect.y);
+    try eq(panel.pad.left + ((panel.rect.width - panel.pad.left - panel.pad.right) / 2 - child.rect.width / 2), child.rect.x);
 
     err("fish", .{});
 }
