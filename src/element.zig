@@ -753,6 +753,21 @@ pub fn Element(comptime T: type) type {
             return null;
         }
 
+        /// Use `remove_elements` to remove all children of a panel.
+        pub inline fn remove_elements(
+            self: *Self,
+            allocator: Allocator,
+            display: *Display(T),
+        ) void {
+            std.debug.assert(self.type == .panel);
+            for (0..self.type.panel.children.items.len) |i| {
+                const item = self.type.panel.children.items[i];
+                if (item.visible != .hidden) display.need_relayout = true;
+                item.destroy(allocator, display);
+                debug("removed child panel {s}", .{item.name});
+            }
+        }
+
         /// Make sure nothing is holding a reference to an element that
         /// is being removed from the display.
         fn clear_display_pointers(self: *Self, display: *Display(T)) void {

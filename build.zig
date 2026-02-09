@@ -28,7 +28,6 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("sdl", sdl_module);
     lib_mod.addImport("mixer", mixer_module);
     lib_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
-
     link_sdl_framework(b, &target, lib_mod);
 
     const lib = b.addLibrary(.{
@@ -38,12 +37,25 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(lib);
 
-    const lib_unit_tests = b.addTest(.{
-        .root_module = lib_mod,
+    const test_mod = b.createModule(.{
+        .root_source_file = b.path("src/test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    test_mod.addImport("praxis", praxis_module);
+    test_mod.addImport("resources", resources_module);
+    test_mod.addImport("zigimg", zigimg_module);
+    test_mod.addImport("sdl", sdl_module);
+    test_mod.addImport("mixer", mixer_module);
+    test_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
+    link_sdl_framework(b, &target, test_mod);
+
+    const real_tests = b.addTest(.{
+        .root_module = test_mod,
         .filters = test_filters,
     });
 
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+    const run_lib_unit_tests = b.addRunArtifact(real_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
 
