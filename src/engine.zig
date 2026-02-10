@@ -2752,7 +2752,7 @@ test "button sizing" {
     try eq(30, button.rect.width);
     try eq(5, panel.rect.width);
     try eq(not_quite_one_line, button.rect.height);
-    try eq(0, panel.rect.height);
+    try eq(8, panel.rect.height);
 
     panel.pad.left = 2;
     panel.pad.right = 3;
@@ -2762,7 +2762,7 @@ test "button sizing" {
     try eq(30, button.rect.width);
     try eq(5, panel.rect.width);
     try eq(not_quite_one_line, button.rect.height);
-    try eq(0, panel.rect.height);
+    try eq(8, panel.rect.height);
 
     panel.minimum.width = 100;
     display.relayout();
@@ -2774,8 +2774,10 @@ test "button sizing" {
     _ = try display.load_font(allocator, "Roboto-Light");
 
     try button.set_text(allocator, display, "Hello");
+    display.need_relayout = true;
     display.relayout();
     try eq(42, @round(button.rect.width / display.pixel_density));
+    // Does the width grow more than 10 (minimum) because of the button size.
     try eq(100, @round(panel.rect.width));
     // Minimum height was not_quite_one_line, expect it grew to font height.
     try eq(display.text_height.pixel_height(1), button.rect.height / display.pixel_density);
@@ -2808,6 +2810,11 @@ test "text input sizing" {
     // The display takes ownership of the resources object
     var display = try Display(TextSize(22)).create(allocator, test_config);
     defer display.destroy(allocator);
+    display.root.rect.width = 1000;
+    display.root.rect.height = 1600;
+    display.pixel_scale = 2;
+    display.scale = 2;
+    display.user_scale = 1;
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);

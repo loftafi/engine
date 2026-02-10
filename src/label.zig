@@ -316,7 +316,6 @@ test "label_single_word_alignment" {
 test "label_multiword_align" {
     const allocator = std.testing.allocator;
 
-    err("tool", .{});
     var display = try Display(TextSize(10)).create(allocator, test_config);
     defer display.destroy(allocator);
     display.pixel_scale = 2;

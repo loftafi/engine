@@ -1226,8 +1226,9 @@ pub fn Entity(comptime T: type) type {
         ) f32 {
             std.debug.assert(entity.type == .label or entity.type == .checkbox);
 
-            if (entity.type == .label and entity.type.label.text.len == 0) return 0;
-            if (entity.type == .checkbox and entity.type.checkbox.text.len == 0) return 0;
+            const padding = entity.pad.left + entity.pad.right;
+            if (entity.type == .label and entity.type.label.text.len == 0) return padding;
+            if (entity.type == .checkbox and entity.type.checkbox.text.len == 0) return padding;
 
             const text_height = switch (entity.type) {
                 .label => entity.type.label.text_size,
@@ -1239,7 +1240,7 @@ pub fn Entity(comptime T: type) type {
                 .checkbox => entity.type.checkbox.elements.items,
                 else => unreachable,
             };
-            if (children.len == 0) return 0;
+            if (children.len == 0) return padding;
 
             // Track the minimum needed width. Remember the longest line. Include
             // any left/right padding.

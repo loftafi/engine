@@ -866,8 +866,6 @@ test "panel_padding" {
     display.relayout();
     try eq(panel.pad.top + ((panel.rect.height - panel.pad.top - panel.pad.bottom) / 2 - child.rect.height / 2), child.rect.y);
     try eq(panel.pad.left + ((panel.rect.width - panel.pad.left - panel.pad.right) / 2 - child.rect.width / 2), child.rect.x);
-
-    err("fish", .{});
 }
 
 test "centre_text_bug" {
