@@ -77,7 +77,8 @@ pub fn Label(comptime T: type) type {
             parent_inner_width: f32,
         ) f32 {
             const padding = element.pad.left + element.pad.right;
-            const allowed_width = clamp(
+            const allowed_width = engine.directional_clamp(
+                element.layout.x,
                 element.minimum.width - padding,
                 parent_inner_width - padding,
                 element.maximum.width - padding,
