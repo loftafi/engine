@@ -3040,12 +3040,15 @@ pub const Clip = @import("entity.zig").Clip;
 pub const Entity = @import("entity.zig").Entity;
 pub const Fit = @import("entity.zig").Fit;
 pub const LayoutSize = @import("entity.zig").LayoutSize;
+pub const LayoutAlign = @import("entity.zig").LayoutAlign;
+pub const LayoutMode = @import("entity.zig").LayoutMode;
 pub const Rect = @import("entity.zig").Rect;
 pub const Scale = @import("entity.zig").Scale;
 pub const Size = @import("entity.zig").Size;
 pub const TextElement = @import("entity.zig").TextElement;
 pub const ToggleState = @import("entity.zig").ToggleState;
 pub const Vector = @import("entity.zig").Vector;
+pub const Visibility = @import("entity.zig").Visibility;
 
 pub const Button = @import("button.zig").Button;
 pub const Checkbox = @import("checkbox.zig").Checkbox;

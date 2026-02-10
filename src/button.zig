@@ -104,7 +104,7 @@ pub fn Button(comptime T: type) type {
                     .width = self.icon_size.width,
                     .height = self.icon_size.height,
                 };
-                dest = dest.move(&scroll_offset);
+                dest = dest.move(scroll_offset);
                 if (entity.flip.x) {
                     dest.x += dest.width;
                     dest.width = 0 - dest.width;
@@ -130,7 +130,7 @@ pub fn Button(comptime T: type) type {
                 if (entity.type.button.icon_size.width == 0 or entity.type.button.icon_size.height == 0) {
                     dest.x = entity.rect.x + entity.rect.width / 2 - size.width / 2;
                 }
-                dest = dest.move(&scroll_offset);
+                dest = dest.move(scroll_offset);
                 if (has_icon or entity.type.button.icon_size.width > 0) {
                     dest.x += entity.type.button.spacing;
                 }

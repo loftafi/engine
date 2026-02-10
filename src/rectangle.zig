@@ -19,7 +19,7 @@ pub fn Rectangle(comptime T: type) type {
                 colour.b,
                 colour.a,
             );
-            var dest = entity.rect.move(&scroll_offset);
+            var dest = entity.rect.move(scroll_offset);
             _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&dest));
         }
     };

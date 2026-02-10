@@ -23,7 +23,7 @@ pub fn Sprite(comptime T: type) type {
                     .width = entity.rect.width - entity.pad.left - entity.pad.right,
                     .height = entity.rect.height - entity.pad.top - entity.pad.bottom,
                 };
-                dest = dest.move(&scroll_offset);
+                dest = dest.move(scroll_offset);
 
                 if (dest.height <= 0 or dest.width <= 0) return;
 

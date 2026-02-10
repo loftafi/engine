@@ -20,7 +20,7 @@ pub fn ProgressBar(comptime T: type) type {
                     .width = entity.rect.width - entity.pad.left - entity.pad.right,
                     .height = entity.rect.height - entity.pad.top - entity.pad.bottom,
                 };
-                dest = dest.move(&scroll_offset);
+                dest = dest.move(scroll_offset);
                 var corner: f32 = entity.background.corner_radius;
                 if (corner * 2 > dest.height) corner = dest.height / 2;
 

@@ -1025,7 +1025,7 @@ pub fn Entity(comptime T: type) type {
                 // Buttons do not use the background.image or backgroud.image_name
                 // field, so don't draw background image for buttons.
                 if (entity.type != .button) {
-                    var dest = entity.rect.move(&scroll_offset);
+                    var dest = entity.rect.move(scroll_offset);
                     if (entity.flip.x) {
                         dest.x += dest.width;
                         dest.width = 0 - dest.width;
@@ -1088,7 +1088,7 @@ pub fn Entity(comptime T: type) type {
                     display.renderer,
                     2,
                     colour,
-                    entity.rect.move(&scroll_offset),
+                    entity.rect.move(scroll_offset),
                     .{},
                 );
                 if (entity.type == .panel and (entity.type.panel.scrollable.scroll.x or entity.type.panel.scrollable.scroll.y)) {
@@ -1100,7 +1100,7 @@ pub fn Entity(comptime T: type) type {
                         .{},
                     );
                 } else if (entity.type == .label) {
-                    var pad_line = entity.rect.move(&scroll_offset);
+                    var pad_line = entity.rect.move(scroll_offset);
                     pad_line.x += entity.pad.left;
                     pad_line.y += entity.pad.top;
                     pad_line.width -= (entity.pad.left + entity.pad.right);
@@ -1122,7 +1122,7 @@ pub fn Entity(comptime T: type) type {
                     display.renderer,
                     entity.border_width,
                     entity.border_colour,
-                    entity.rect.move(&scroll_offset),
+                    entity.rect.move(scroll_offset),
                     .{},
                 );
             }
@@ -1134,7 +1134,7 @@ pub fn Entity(comptime T: type) type {
                         draw_selection_marker(
                             display,
                             display.theme.cursor_colour,
-                            entity.rect.move(&scroll_offset),
+                            entity.rect.move(scroll_offset),
                         );
                     }
                 }
@@ -2132,7 +2132,7 @@ pub const Rect = extern struct {
     height: f32 = 0,
 
     /// Add the x and y value from the `other` vector to this vector.
-    pub fn move(self: *const Rect, offset: *const Vector) Rect {
+    pub fn move(self: *const Rect, offset: Vector) Rect {
         return .{
             .x = self.x + offset.x,
             .y = self.y + offset.y,

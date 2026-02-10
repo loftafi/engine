@@ -37,7 +37,7 @@ pub fn Checkbox(comptime T: type) type {
                 .width = checkbox.width,
                 .height = checkbox.height,
             };
-            dest = dest.move(&scroll_offset);
+            dest = dest.move(scroll_offset);
             if (self.checked) {
                 if (self.on_texture) |texture| {
                     _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));

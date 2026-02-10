@@ -108,7 +108,7 @@ pub fn draw_text_elements(
     parent_clip: ?Clip,
 ) void {
     for (items) |*item| {
-        const pos = item.location.move(&loc);
+        const pos = item.location.move(loc);
         if (parent_clip) |clip| {
             if (pos.x + pos.width < clip.left) continue;
             if (pos.y + pos.height + 1 < clip.top) continue;
@@ -470,7 +470,7 @@ test "shrunk_label_in_panel" {
 
     // Where would the draw function theoretically put this element
     const loc = Vector{ .x = child.rect.x, .y = child.rect.y };
-    const would_draw_at = child.type.label.elements.items[0].location.move(&loc);
+    const would_draw_at = child.type.label.elements.items[0].location.move(loc);
     try eq(74, would_draw_at.x);
     try eq(2, would_draw_at.y);
 }
