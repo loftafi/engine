@@ -424,14 +424,26 @@ pub fn Panel(comptime T: type) type {
                     warn("expander panel '{s}' ignored due to top_left layout.", .{parent.name});
                     continue;
                 }
-                child.rect.x = parent.rect.x + parent.pad.left;
-                child.rect.y = parent.rect.y + parent.pad.top;
 
-                if (child.layout.x == .grows) {
-                    child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
-                    if (child.maximum.width > 0)
-                        child.rect.width = @min(child.maximum.width, child.rect.width);
+                switch (child.layout.x) {
+                    .grows => {
+                        child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
+                        if (child.maximum.width > 0)
+                            child.rect.width = @min(child.maximum.width, child.rect.width);
+                    },
+                    else => {},
                 }
+                child.rect.x = parent.rect.x + parent.pad.left;
+
+                switch (child.layout.y) {
+                    .grows => {
+                        child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
+                        if (child.maximum.width > 0)
+                            child.rect.height = @min(child.maximum.height, child.rect.height);
+                    },
+                    else => {},
+                }
+                child.rect.y = parent.rect.y + parent.pad.top;
             }
         }
 
@@ -446,7 +458,25 @@ pub fn Panel(comptime T: type) type {
                     warn("expander panel '{s}' ignored due to top_right layout.", .{parent.name});
                     continue;
                 }
+
+                switch (child.layout.x) {
+                    .grows => {
+                        child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
+                        if (child.maximum.width > 0)
+                            child.rect.width = @min(child.maximum.width, child.rect.width);
+                    },
+                    else => {},
+                }
                 child.rect.x = parent.rect.x + parent.rect.width - parent.pad.right - child.rect.width;
+
+                switch (child.layout.y) {
+                    .grows => {
+                        child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
+                        if (child.maximum.width > 0)
+                            child.rect.height = @min(child.maximum.height, child.rect.height);
+                    },
+                    else => {},
+                }
                 child.rect.y = parent.rect.y + parent.pad.top;
             }
         }

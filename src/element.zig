@@ -344,6 +344,127 @@ pub fn Element(comptime T: type) type {
             );
         }
 
+        pub fn format(self: *const Self, out: *std.Io.Writer) std.Io.Writer.Error!void {
+            _ = try out.write(@tagName(self.type));
+            if (self.name.len > 0) {
+                _ = try out.write(" name=");
+                _ = try out.write(self.name);
+            }
+            _ = try out.print(" rect={d:1.0}x{d:1.0}/{d:1.0}x{d:1.0}", .{
+                self.rect.x,
+                self.rect.y,
+                self.rect.width,
+                self.rect.height,
+            });
+            if (self.minimum.height > 0 or self.minimum.width > 0) {
+                _ = try out.print(" minimum={d:1.0}x{d:1.0}", .{
+                    self.minimum.width,
+                    self.minimum.height,
+                });
+            }
+            if (self.maximum.height > 0 or self.maximum.width > 0) {
+                _ = try out.print(" maximum={d:1.0}x{d:1.0}", .{
+                    self.maximum.width,
+                    self.maximum.height,
+                });
+            }
+            if (self.style != .normal) {
+                _ = try out.write(" align=");
+                _ = try out.write(@tagName(self.style));
+            }
+            if (self.child_align.x != .start or self.child_align.y != .start) {
+                _ = try out.write(" align=");
+                _ = try out.write(@tagName(self.layout.x));
+                _ = try out.write("-");
+                _ = try out.write(@tagName(self.layout.y));
+            }
+            _ = try out.write(" layout=");
+            _ = try out.write(@tagName(self.layout.x));
+            _ = try out.write("/");
+            _ = try out.write(@tagName(self.layout.y));
+            if (self.type == .panel) {
+                if (self.name.len > 0) {
+                    _ = try out.write(" direction=");
+                    _ = try out.write(@tagName(self.type.panel.direction));
+                }
+            }
+            if (self.type == .label) {
+                if (self.type.label.text.len > 0) {
+                    _ = try out.write(" text=");
+                    _ = try out.write(self.type.label.text);
+                }
+                if (!std.mem.eql(u8, self.type.label.text, self.type.label.translated) and self.type.label.translated.len > 0) {
+                    _ = try out.write(" translated=");
+                    _ = try out.write(self.type.label.text);
+                }
+                if (self.type.label.font_name) |font| {
+                    if (font.len > 0) {
+                        _ = try out.write(" font=");
+                        _ = try out.write(font);
+                    }
+                }
+                if (self.type.label.on_click.func != null) {
+                    _ = try out.write(" on_click");
+                }
+            } else if (self.type == .button) {
+                if (self.type.button.text.len > 0) {
+                    _ = try out.write(" text=");
+                    _ = try out.write(self.type.button.text);
+                }
+                if (!std.mem.eql(u8, self.type.button.text, self.type.button.translated) and self.type.button.translated.len > 0) {
+                    _ = try out.write(" translated=");
+                    _ = try out.write(self.type.button.translated);
+                }
+                if (self.type.button.icon_size.height > 0 or self.type.button.icon_size.width > 0) {
+                    _ = try out.print(" icon_size={d:1.0}x{d:1.0}", .{
+                        self.type.button.icon_size.width,
+                        self.type.button.icon_size.height,
+                    });
+                }
+                if (self.type.button.font_name) |font| {
+                    if (font.len > 0) {
+                        _ = try out.write(" font=");
+                        _ = try out.write(font);
+                    }
+                }
+                if (self.type.button.on_click.func != null) {
+                    _ = try out.write(" on_click");
+                }
+            } else if (self.type == .checkbox) {
+                if (self.type.checkbox.text.len > 0) {
+                    _ = try out.write(" text=");
+                    _ = try out.write(self.type.checkbox.text);
+                }
+                if (self.type.checkbox.checked) {
+                    _ = try out.write(" checked=");
+                    if (self.type.checkbox.checked) {
+                        _ = try out.write("true");
+                    } else {
+                        _ = try out.write("false");
+                    }
+                }
+                if (!std.mem.eql(u8, self.type.checkbox.text, self.type.checkbox.translated) and self.type.checkbox.translated.len > 0) {
+                    _ = try out.write(" translated=");
+                    _ = try out.write(self.type.checkbox.translated);
+                }
+                if (self.type.checkbox.checkbox_size.height > 0 or self.type.checkbox.checkbox_size.width > 0) {
+                    _ = try out.print(" checkbox_size={d:1.0}x{d:1.0}", .{
+                        self.type.checkbox.checkbox_size.width,
+                        self.type.checkbox.checkbox_size.height,
+                    });
+                }
+                if (self.type.checkbox.font_name) |font| {
+                    if (font.len > 0) {
+                        _ = try out.write(" font=");
+                        _ = try out.write(font);
+                    }
+                }
+                if (self.type.checkbox.on_change.func != null) {
+                    _ = try out.write(" on_change");
+                }
+            }
+        }
+
         /// Show or hide this element. If the visibliity is changed a relayout
         /// will be triggerd, and the `on_visibility` callback will be triggered
         /// if a callback is specified.
@@ -994,6 +1115,7 @@ pub fn Element(comptime T: type) type {
                         .width = element.rect.width - (element.pad.left + element.pad.right),
                         .height = element.rect.height - (element.pad.top + element.pad.bottom),
                     }, .{});
+                    element.draw_padding_markers(display, scroll_offset);
                 }
             } else if (element.border_width > 0 and element.border_colour.a > 0) {
                 engine.draw_rectangle(
