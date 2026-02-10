@@ -382,8 +382,29 @@ pub fn Panel(comptime T: type) type {
                     continue;
                 }
 
-                child.rect.x = element.rect.x + element.pad.left + @round(inner_width / 2 - child.rect.width / 2);
-                child.rect.y = element.rect.y + element.pad.top + @round(inner_height / 2 - child.rect.height / 2);
+                switch (child.layout.x) {
+                    .grows => {
+                        child.rect.width = element.rect.width - element.pad.left - element.pad.right;
+                        if (child.maximum.width > 0)
+                            child.rect.width = @min(child.maximum.width, child.rect.width);
+                        child.rect.x = element.rect.x + element.pad.left;
+                    },
+                    else => {
+                        child.rect.x = element.rect.x + element.pad.left + @round(inner_width / 2 - child.rect.width / 2);
+                    },
+                }
+
+                switch (child.layout.y) {
+                    .grows => {
+                        child.rect.height = element.rect.height - element.pad.top - element.pad.bottom;
+                        if (child.maximum.height > 0)
+                            child.rect.height = @min(child.maximum.height, child.rect.height);
+                        child.rect.y = element.rect.y + element.pad.top;
+                    },
+                    else => {
+                        child.rect.y = element.rect.y + element.pad.top + @round(inner_height / 2 - child.rect.height / 2);
+                    },
+                }
             }
             //TODO: Im not sure scroller detection is needed here or not
 
@@ -405,6 +426,12 @@ pub fn Panel(comptime T: type) type {
                 }
                 child.rect.x = parent.rect.x + parent.pad.left;
                 child.rect.y = parent.rect.y + parent.pad.top;
+
+                if (child.layout.x == .grows) {
+                    child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
+                    if (child.maximum.width > 0)
+                        child.rect.width = @min(child.maximum.width, child.rect.width);
+                }
             }
         }
 
@@ -872,6 +899,8 @@ test "centre_text_bug" {
     try eq(50, icon.rect.width);
     try eq(50, icon.rect.height);
 
+    // The text is just a little smaller than the minmum width, so we can
+    // test child start, centre, end align in child panels.
     const label = try footer.add(allocator, display, .{
         .name = "unit.question",
         .focus = .accessibility_focus,
@@ -899,6 +928,14 @@ test "centre_text_bug" {
             try eq(icon.rect.y, footer.rect.y + footer.pad.top);
             try eq(label.rect.x, footer.rect.x + footer.pad.left + 12 + icon.rect.width);
             try eq(label.rect.y, footer.rect.y + footer.pad.top);
+            const element1 = label.type.label.elements.items[0];
+            const element2 = label.type.label.elements.items[1];
+            const element3 = label.type.label.elements.items[2];
+            const space = label.type.label.text_size.word_spacing(display.scale);
+            const text_width = element1.location.width + space + element2.location.width + space + element3.location.width;
+            err("{d} {d} {d} space={d} text_width = {d}", .{ element1.location.width, element2.location.width, element3.location.width, space, text_width });
+            try eq(0, element1.location.x);
+            try eq(0, element1.location.y);
         }
 
         {
@@ -911,6 +948,9 @@ test "centre_text_bug" {
             try eq(label.rect.y, footer.rect.y + footer.pad.top);
             try eq(icon.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width - 12 - icon.rect.width);
             try eq(icon.rect.y, footer.rect.y + footer.pad.top);
+            const element = label.type.label.elements.items[0];
+            try eq(0, element.location.x);
+            try eq(0, element.location.y);
         }
 
         {
@@ -923,6 +963,9 @@ test "centre_text_bug" {
             try eq(label.rect.y, footer.rect.y + footer.pad.top);
             try eq(icon.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width - 12 - icon.rect.width);
             try eq(icon.rect.y, footer.rect.y + footer.pad.top);
+            const element = label.type.label.elements.items[0];
+            try eq(0, element.location.x);
+            try eq(0, element.location.y);
         }
     }
 }

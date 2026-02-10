@@ -37,18 +37,29 @@ pub fn Label(comptime T: type) type {
         // Return the absolute minimum width needed, even if more space
         // could be used. `.grows`  is ignored for the purpose of finding
         // the minimum width.
+        //
+        // `parent_inner_width` is the maximum space this element could
+        // theoretically grow to. Text might wrap if wider than this.
         pub inline fn minimum_needed_width(
             _: *Self,
             display: *Display(T),
             element: *Element(T),
             parent_inner_width: f32,
         ) f32 {
+            const padding = element.pad.left + element.pad.right;
+            //const allowed_width = clamp(
+            const allowed_width = engine.directional_clamp(
+                element.layout.x,
+                element.minimum.width - padding,
+                parent_inner_width - padding,
+                element.maximum.width - padding,
+            );
+
             switch (element.layout.x) {
                 .shrinks, .grows => {
-                    const padding = element.pad.left + element.pad.right;
                     // Growing or shrinking, our task here is to find
                     // the minimum that would be needed.
-                    element.layout_label(display.scale, parent_inner_width - padding);
+                    element.layout_label(display.scale, allowed_width);
                     return element.rect.width;
                 },
                 .fixed => {
@@ -57,19 +68,27 @@ pub fn Label(comptime T: type) type {
             }
         }
 
+        // `parent_inner_width` is the maximum space this element could
+        // theoretically grow to. Text might wrap if wider than this.
         pub inline fn minimum_needed_height(
             _: *Self,
             display: *Display(T),
             element: *Element(T),
             parent_inner_width: f32,
         ) f32 {
+            const padding = element.pad.left + element.pad.right;
+            const allowed_width = clamp(
+                element.minimum.width - padding,
+                parent_inner_width - padding,
+                element.maximum.width - padding,
+            );
+
             // Simulate a draw of this element to see how many lines it
             // would take. This is done when the label is created but also
             // needs to be done here as the width of the label may have changed.
             switch (element.layout.y) {
                 .shrinks, .grows => {
-                    const padding = element.pad.left + element.pad.right;
-                    element.layout_label(display.scale, parent_inner_width - padding);
+                    element.layout_label(display.scale, allowed_width);
                     //err("{s} {s} use grows height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
                     return element.rect.height;
                 },
@@ -470,6 +489,7 @@ const warn = engine.warn;
 const info = engine.info;
 const debug = engine.debug;
 const trace = engine.trace;
+const clamp = engine.clamp;
 const Clip = engine.Clip;
 const Display = engine.Display;
 const Element = engine.Element;

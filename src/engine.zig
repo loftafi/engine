@@ -679,42 +679,30 @@ pub fn Display(comptime T: type) type {
                 }
 
                 // Root scene/panels get placement before relayout begins.
-                if (scene.*.layout.x == .grows) {
-                    if (scene.*.maximum.width > 0) {
-                        scene.*.rect.width = @min(
-                            display.root.rect.width,
-                            scene.*.maximum.width,
-                        );
-                    } else {
-                        scene.*.rect.width = display.root.rect.width;
-                    }
-                }
-                if (scene.*.layout.y == .grows) {
-                    if (scene.*.maximum.height > 0) {
-                        scene.*.rect.height = @min(
-                            scene.*.rect.height,
-                            scene.*.maximum.height,
-                        );
-                    } else {
-                        scene.*.rect.height = display.root.rect.height;
-                    }
-                }
-                // Clamp minimum width and height
-                if (scene.*.layout.x == .shrinks and scene.*.minimum.width > 0)
-                    scene.*.rect.width = @max(scene.*.rect.width, scene.*.minimum.width);
-                if (scene.*.layout.y == .shrinks and scene.*.maximum.height > 0)
-                    scene.*.rect.height = @max(scene.*.rect.height, scene.*.minimum.height);
+                scene.*.rect.width = directional_clamp(
+                    scene.*.layout.x,
+                    scene.*.minimum.width,
+                    display.root.rect.width,
+                    scene.*.maximum.width,
+                );
+
+                scene.*.rect.height = directional_clamp(
+                    scene.*.layout.y,
+                    scene.*.minimum.height,
+                    display.root.rect.height,
+                    scene.*.maximum.height,
+                );
 
                 // Place panel at start, centre or end.
                 switch (scene.*.child_align.x) {
                     .start => scene.*.rect.x = 0,
                     .end => scene.*.rect.x = display.root.rect.width - scene.*.rect.width,
-                    .centre => scene.*.rect.x = display.root.rect.width / 2 - scene.*.rect.width / 2,
+                    .centre => scene.*.rect.x = @round(display.root.rect.width / 2 - scene.*.rect.width / 2),
                 }
                 switch (scene.*.child_align.y) {
                     .start => scene.*.rect.y = 0,
                     .end => scene.*.rect.y = display.root.rect.height - scene.*.rect.height,
-                    .centre => scene.*.rect.y = display.root.rect.height / 2 - scene.*.rect.height / 2,
+                    .centre => scene.*.rect.y = @round(display.root.rect.height / 2 - scene.*.rect.height / 2),
                 }
 
                 // After root panel sizes are established, the child elements
@@ -2634,6 +2622,73 @@ pub const Config = struct {
     full_screen: bool = false,
 };
 
+pub inline fn clamp(min: f32, value: f32, max: f32) f32 {
+    if (value < min) return min;
+    if (max <= 0) return value;
+    if (value > max) return max;
+    return value;
+}
+
+pub fn directional_clamp(mode: LayoutSize, min: f32, value: f32, max: f32) f32 {
+    if (mode == .grows)
+        if (max > 0) return max;
+    if (mode == .shrinks)
+        if (min > 0) return min;
+    return clamp(min, value, max);
+}
+
+test "clamp" {
+    try eq(10, clamp(10, 0, 30));
+    try eq(20, clamp(10, 20, 30));
+    try eq(30, clamp(10, 40, 30));
+
+    try eq(10, clamp(10, 0, 0));
+    try eq(20, clamp(10, 20, 0));
+    try eq(40, clamp(10, 40, 0));
+
+    try eq(10, clamp(10, 0, -10));
+    try eq(20, clamp(10, 20, -10));
+    try eq(40, clamp(10, 40, -10));
+}
+
+test "directional_clamp" {
+    try eq(10, directional_clamp(.fixed, 10, 0, 30));
+    try eq(20, directional_clamp(.fixed, 10, 20, 30));
+    try eq(30, directional_clamp(.fixed, 10, 40, 30));
+
+    try eq(10, directional_clamp(.fixed, 10, 0, 0));
+    try eq(20, directional_clamp(.fixed, 10, 20, 0));
+    try eq(40, directional_clamp(.fixed, 10, 40, 0));
+
+    try eq(10, directional_clamp(.fixed, 10, 0, -10));
+    try eq(20, directional_clamp(.fixed, 10, 20, -10));
+    try eq(40, directional_clamp(.fixed, 10, 40, -10));
+
+    try eq(10, directional_clamp(.shrinks, 10, 0, 30));
+    try eq(10, directional_clamp(.shrinks, 10, 20, 30));
+    try eq(10, directional_clamp(.shrinks, 10, 40, 30));
+
+    try eq(10, directional_clamp(.shrinks, 10, 0, 0));
+    try eq(10, directional_clamp(.shrinks, 10, 20, 0));
+    try eq(10, directional_clamp(.shrinks, 10, 40, 0));
+
+    try eq(10, directional_clamp(.shrinks, 10, 0, -10));
+    try eq(10, directional_clamp(.shrinks, 10, 20, -10));
+    try eq(10, directional_clamp(.shrinks, 10, 40, -10));
+
+    try eq(30, directional_clamp(.grows, 10, 0, 30));
+    try eq(30, directional_clamp(.grows, 10, 20, 30));
+    try eq(30, directional_clamp(.grows, 10, 40, 30));
+
+    try eq(10, directional_clamp(.grows, 10, 0, 0));
+    try eq(20, directional_clamp(.grows, 10, 20, 0));
+    try eq(40, directional_clamp(.grows, 10, 40, 0));
+
+    try eq(10, directional_clamp(.grows, 10, 0, -10));
+    try eq(20, directional_clamp(.grows, 10, 20, -10));
+    try eq(40, directional_clamp(.grows, 10, 40, -10));
+}
+
 test "sdl_log_priority" {
     try std.testing.expectEqual(.info, SdlLogPriority.fromInt(sdl.SDL_LOG_PRIORITY_INFO));
     try std.testing.expectEqual(.unknown, SdlLogPriority.fromInt(999));
@@ -2975,6 +3030,7 @@ pub const Element = @import("element.zig").Element;
 pub const Fit = @import("element.zig").Fit;
 pub const LayoutAlign = @import("element.zig").LayoutAlign;
 pub const LayoutDirection = @import("element.zig").LayoutDirection;
+pub const LayoutSize = @import("element.zig").LayoutSize;
 pub const Rect = @import("element.zig").Rect;
 pub const Scale = @import("element.zig").Scale;
 pub const Scroller = @import("element.zig").Scroller;

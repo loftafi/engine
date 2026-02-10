@@ -324,32 +324,24 @@ pub fn Element(comptime T: type) type {
         // width of the element minus any padding.
         pub inline fn inner_width(self: *const Self) f32 {
             const padding = self.pad.left + self.pad.right;
-            var available = self.rect.width - padding;
 
-            // Reduce available width to maximum width if needed
-            if (self.maximum.width > 0)
-                available = @min(self.maximum.width - padding, available);
-
-            // Increase available width to minimum width if needed.
-            available = @max(available, self.minimum.width - padding);
-
-            return available;
+            return engine.clamp(
+                self.minimum.width - padding,
+                self.rect.width - padding,
+                self.maximum.width - padding,
+            );
         }
 
         // Find the avaialble inner height of this element. This is the
         // height of the element minus any padding.
         pub inline fn inner_height(self: *const Self) f32 {
             const padding = self.pad.top + self.pad.bottom;
-            var available = self.rect.height - padding;
 
-            // Reduce available height to maximum height if needed
-            if (self.maximum.height > 0)
-                available = @min(self.maximum.height - padding, available);
-
-            // Increase available height to minimum height if needed.
-            available = @max(available, self.minimum.height - padding);
-
-            return available;
+            return engine.clamp(
+                self.minimum.height - padding,
+                self.rect.height - padding,
+                self.maximum.height - padding,
+            );
         }
 
         /// Show or hide this element. If the visibliity is changed a relayout
@@ -992,7 +984,7 @@ pub fn Element(comptime T: type) type {
                     pad_line.y += element.pad.top;
                     pad_line.width -= (element.pad.left + element.pad.right);
                     pad_line.height -= (element.pad.top + element.pad.bottom);
-                    element.draw_padding_markers(display);
+                    element.draw_padding_markers(display, scroll_offset);
                 } else if (element.type == .button) {
                     // inner padding line
                     colour = display.theme.tinted_text_colour;
@@ -1027,7 +1019,7 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        fn draw_padding_markers(element: *Element(T), display: *Display(T)) void {
+        fn draw_padding_markers(element: *Element(T), display: *Display(T), scroll_offset: Vector) void {
             const length = 20;
             engine.draw_line(
                 display.renderer,
@@ -1035,7 +1027,7 @@ pub fn Element(comptime T: type) type {
                 Colour.RED,
                 element.rect.location().move(element.pad.left, element.pad.top),
                 element.rect.location().move(element.pad.left + length, element.pad.top),
-                .{},
+                scroll_offset,
             );
             engine.draw_line(
                 display.renderer,
@@ -1043,7 +1035,7 @@ pub fn Element(comptime T: type) type {
                 Colour.RED,
                 element.rect.location().move(element.pad.left, element.pad.top),
                 element.rect.location().move(element.pad.left, element.pad.top + length),
-                .{},
+                scroll_offset,
             );
             engine.draw_line(
                 display.renderer,
@@ -1051,7 +1043,7 @@ pub fn Element(comptime T: type) type {
                 Colour.RED,
                 element.rect.location().move(element.rect.width - element.pad.right - length, element.rect.height - element.pad.bottom),
                 element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom),
-                .{},
+                scroll_offset,
             );
             engine.draw_line(
                 display.renderer,
@@ -1059,7 +1051,7 @@ pub fn Element(comptime T: type) type {
                 Colour.RED,
                 element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom),
                 element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom - length),
-                .{},
+                scroll_offset,
             );
         }
 
@@ -1101,8 +1093,9 @@ pub fn Element(comptime T: type) type {
         /// If the text is centred or right aligned, then each line must be pushed along
         /// by a certain offset amount.
         ///
-        /// `parent_inner_width` should be the actual width the parent is passing down
-        /// to this child element, minus left and right padding.
+        /// `parent_inner_width` should be the actual width the parent is
+        /// passing down to this child element, minus left and right padding, and
+        /// clamped to the min/max width (including padding)
         pub inline fn layout_label(
             element: *Self,
             display_scale: f32,
@@ -1180,47 +1173,26 @@ pub fn Element(comptime T: type) type {
             var needed_height = y + element.pad.top + element.pad.bottom;
             needed_height = @round(needed_height);
 
-            switch (element.layout.y) {
-                .shrinks => {
-                    // Shrinkable means take the smallest size it needs
-                    element.rect.height = @max(needed_height, element.minimum.height);
-                    if (element.maximum.height > 0)
-                        element.rect.height = @min(element.rect.height, element.maximum.height);
-                },
-                .grows => {
-                    // Growable must use at least the size it needs
-                    element.rect.height = @max(needed_height, element.minimum.height);
-                    if (element.maximum.height > 0)
-                        element.rect.height = @min(element.rect.height, element.maximum.height);
-                },
-                .fixed => {
-                    // Fixed sized objects are ignored by the layout
-                    // algorithm. Keep the requested fixed height.
-                },
-            }
+            // Always use the needed height as long as it is
+            // in the minimum and maximum bound.
+            // TODO: Label height `grows` is ignored. Is this desirable?
+            element.rect.height = engine.clamp(
+                element.minimum.height,
+                needed_height,
+                element.maximum.height,
+            );
 
             needed_width += element.pad.left + element.pad.right;
             needed_width = @round(needed_width);
 
-            switch (element.layout.x) {
-                .shrinks => {
-                    // Shrinkable means take the smallest size it needs
-                    element.rect.width = @max(needed_width, element.minimum.width);
-                    if (element.maximum.width > 0)
-                        element.rect.width = @min(element.rect.width, element.maximum.width);
-                },
-                .grows => {
-                    // Growable must use at least the size it needs
-                    element.rect.width = @max(needed_width, element.minimum.width);
-                    element.rect.width = @max(element.rect.width, parent_inner_width);
-                    if (element.maximum.width > 0)
-                        element.rect.width = @min(element.rect.width, element.maximum.width);
-                },
-                .fixed => {
-                    // Fixed sized objects are ignored by the layout
-                    // algorithm. Keep the reqeusted fixed width.
-                },
-            }
+            // Width must `shrink` or `grow` as requested as long as
+            // it is within the required minimum and maximum bound.
+            element.rect.width = engine.directional_clamp(
+                element.layout.x,
+                element.minimum.width,
+                needed_width,
+                @min(element.maximum.width, parent_inner_width),
+            );
 
             // Align words to centre or right if requested.
             if (children.len == 0) return;
@@ -2285,6 +2257,7 @@ const BoolCallback = engine.BoolCallback;
 const UpdateCallback = engine.UpdateCallback;
 const Error = engine.Error;
 const Font = engine.Font;
+const directional_clamp = engine.directional_clamp;
 
 const resources = @import("resources");
 const Resources = resources.Resources;
