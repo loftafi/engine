@@ -222,4 +222,5 @@ pub const Colour = struct {
     pub const TRANSPARENT: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
     pub const WHITE: Colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
     pub const BLACK: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
+    pub const RED: Colour = .{ .r = 255, .g = 0, .b = 0, .a = 255 };
 };

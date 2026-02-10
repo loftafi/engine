@@ -817,6 +817,116 @@ test "panel_padding" {
     err("fish", .{});
 }
 
+test "centre_text_bug" {
+    const allocator = std.testing.allocator;
+    // The display takes ownership of the resources object
+
+    var display = try Display(TextSize(10)).create(allocator, test_config);
+    defer display.destroy(allocator);
+    _ = try display.load_font(allocator, "Roboto-Light");
+    try eq(1, display.fonts.items.len);
+    display.root.rect.width = 600;
+    display.root.rect.height = 800;
+
+    const panel = try display.add_panel(allocator, .{
+        .type = .{ .panel = .{ .direction = .left_to_right, .spacing = 5 } },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(600, panel.rect.width);
+    try eq(800, panel.rect.height);
+
+    var footer = try panel.add(allocator, display, .{
+        .name = "footer",
+        .focus = .never_focus,
+        .minimum = .{ .width = 180 },
+        .maximum = .{ .width = 400 },
+        .pad = .{ .left = 15, .right = 15, .top = 15, .bottom = 11 },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+        .child_align = .{ .x = .centre, .y = .start },
+        .type = .{ .panel = .{
+            .direction = .left_to_right,
+            .spacing = 12,
+        } },
+    });
+    display.need_relayout = true;
+    display.relayout();
+    try eq(180, footer.rect.width);
+    try eq(15 + 11, footer.rect.height);
+
+    const icon = try footer.add(allocator, display, .{
+        .name = "question.icon",
+        .focus = .never_focus,
+        .child_align = .{ .x = .centre },
+        .rect = .{ .width = 50, .height = 50 },
+        .minimum = .{ .width = 50, .height = 50 },
+        .maximum = .{ .width = 50, .height = 50 },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+        .type = .{ .sprite = .{} },
+        .pad = .{ .left = 15, .right = 15, .top = 25, .bottom = 0 },
+    });
+    display.need_relayout = true;
+    display.relayout();
+    try eq(50, icon.rect.width);
+    try eq(50, icon.rect.height);
+
+    const label = try footer.add(allocator, display, .{
+        .name = "unit.question",
+        .focus = .accessibility_focus,
+        .style = .tinted,
+        .minimum = .{ .width = 150 },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+        .child_align = .{ .x = .centre },
+        .type = .{ .label = .{
+            .text = "Yes or no?",
+            .text_size = .normal,
+        } },
+        .pad = .{ .left = 0, .right = 1, .top = 0, .bottom = 0 },
+    });
+
+    {
+        const full_width = 15 + 50 + 12 + 150 + 15;
+        {
+            panel.child_align.x = .start;
+            display.need_relayout = true;
+            display.relayout();
+            try eq(150, label.rect.width); // text smaller than minimum
+            try eq(20, label.rect.height);
+            try eq(full_width, footer.rect.width);
+            try eq(icon.rect.x, footer.rect.x + footer.pad.left);
+            try eq(icon.rect.y, footer.rect.y + footer.pad.top);
+            try eq(label.rect.x, footer.rect.x + footer.pad.left + 12 + icon.rect.width);
+            try eq(label.rect.y, footer.rect.y + footer.pad.top);
+        }
+
+        {
+            panel.child_align.x = .end;
+            display.need_relayout = true;
+            display.relayout();
+            try eq(full_width, footer.rect.width);
+            try eq(panel.rect.width - full_width, footer.rect.x);
+            try eq(label.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width);
+            try eq(label.rect.y, footer.rect.y + footer.pad.top);
+            try eq(icon.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width - 12 - icon.rect.width);
+            try eq(icon.rect.y, footer.rect.y + footer.pad.top);
+        }
+
+        {
+            panel.child_align.x = .centre;
+            display.need_relayout = true;
+            display.relayout();
+            try eq(full_width, footer.rect.width);
+            try eq(panel.rect.width / 2 - full_width / 2, footer.rect.x);
+            try eq(label.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width);
+            try eq(label.rect.y, footer.rect.y + footer.pad.top);
+            try eq(icon.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width - 12 - icon.rect.width);
+            try eq(icon.rect.y, footer.rect.y + footer.pad.top);
+        }
+    }
+}
+
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const eq = std.testing.expectEqual;

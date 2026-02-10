@@ -992,13 +992,7 @@ pub fn Element(comptime T: type) type {
                     pad_line.y += element.pad.top;
                     pad_line.width -= (element.pad.left + element.pad.right);
                     pad_line.height -= (element.pad.top + element.pad.bottom);
-                    engine.draw_rectangle(
-                        display.renderer,
-                        2,
-                        display.theme.faded_text_colour,
-                        pad_line,
-                        .{},
-                    );
+                    element.draw_padding_markers(display);
                 } else if (element.type == .button) {
                     // inner padding line
                     colour = display.theme.tinted_text_colour;
@@ -1031,6 +1025,42 @@ pub fn Element(comptime T: type) type {
                     }
                 }
             }
+        }
+
+        fn draw_padding_markers(element: *Element(T), display: *Display(T)) void {
+            const length = 20;
+            engine.draw_line(
+                display.renderer,
+                3,
+                Colour.RED,
+                element.rect.location().move(element.pad.left, element.pad.top),
+                element.rect.location().move(element.pad.left + length, element.pad.top),
+                .{},
+            );
+            engine.draw_line(
+                display.renderer,
+                3,
+                Colour.RED,
+                element.rect.location().move(element.pad.left, element.pad.top),
+                element.rect.location().move(element.pad.left, element.pad.top + length),
+                .{},
+            );
+            engine.draw_line(
+                display.renderer,
+                3,
+                Colour.RED,
+                element.rect.location().move(element.rect.width - element.pad.right - length, element.rect.height - element.pad.bottom),
+                element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom),
+                .{},
+            );
+            engine.draw_line(
+                display.renderer,
+                3,
+                Colour.RED,
+                element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom),
+                element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom - length),
+                .{},
+            );
         }
 
         /// Draw a visual indication that an element is currently selected.
@@ -1985,6 +2015,13 @@ pub const Vector = struct {
         };
     }
 
+    pub fn move(self: Vector, x: f32, y: f32) Vector {
+        return Vector{
+            .x = self.x + x,
+            .y = self.y + y,
+        };
+    }
+
     /// Subtract the x and y value from the `other` vector to this vector.
     pub fn minus(self: Vector, other: Vector) Vector {
         return Vector{
@@ -2010,13 +2047,18 @@ pub const Rect = extern struct {
     height: f32 = 0,
 
     /// Add the x and y value from the `other` vector to this vector.
-    pub fn move(self: *Rect, offset: *const Vector) Rect {
+    pub fn move(self: *const Rect, offset: *const Vector) Rect {
         return .{
             .x = self.x + offset.x,
             .y = self.y + offset.y,
             .width = self.width,
             .height = self.height,
         };
+    }
+
+    /// The x and y position of the rectangle
+    pub fn location(self: *Rect) Vector {
+        return .{ .x = self.x, .y = self.y };
     }
 };
 

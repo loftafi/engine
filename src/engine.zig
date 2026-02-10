@@ -2341,6 +2341,42 @@ pub fn draw_rectangle(
     }
 }
 
+/// Draw an outline of a rectangle. Used in debug mode to highlight where
+/// items appear on the screen.
+pub fn draw_line(
+    renderer: *sdl.SDL_Renderer,
+    border_width: f32,
+    colour: Colour,
+    start: Vector,
+    end: Vector,
+    scroll_offset: Vector,
+) void {
+    if (border_width > 0 and colour.a > 0) {
+        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        var dest: Rect = .{
+            .x = if (start.x < end.x) start.x else end.x,
+            .y = if (start.y < end.y) start.y else end.y,
+            .width = @abs(end.x - start.x),
+            .height = @abs(end.y - start.y),
+        };
+        if (dest.width == 0) dest.width = border_width;
+        if (dest.height == 0) dest.height = border_width;
+        // Try to centre the line
+        dest.x -= border_width / 2;
+        dest.y -= border_width / 2;
+        dest.x += scroll_offset.x;
+        dest.y += scroll_offset.y;
+        _ = sdl.SDL_SetRenderDrawColor(
+            renderer,
+            colour.r,
+            colour.g,
+            colour.b,
+            colour.a,
+        );
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
+    }
+}
+
 /// When the display loads a resource, it may be retained for as long as
 /// there is a reference held to this resource. Alternatively, a resource
 /// may be marked as retained, effectively causing it to be cached until a
