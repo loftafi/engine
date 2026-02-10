@@ -59,7 +59,7 @@ pub fn Checkbox(comptime T: type) type {
                 .shrinks, .grows => {
                     // Growing or shrinking, our task here is to find
                     // the minimum that would be needed.
-                    element.layout_label(display.scale, parent_inner_width);
+                    _ = element.layout_label(display.scale, parent_inner_width);
                     //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
                     return element.rect.width + element.pad.left + element.type.checkbox.checkbox_size.width;
                 },
@@ -81,7 +81,7 @@ pub fn Checkbox(comptime T: type) type {
             // needs to be done here as the width of the label may have changed.
             switch (element.layout.y) {
                 .shrinks, .grows => {
-                    element.layout_label(display.scale, parent_inner_width);
+                    _ = element.layout_label(display.scale, parent_inner_width);
                     //err("{s} {s} use grows height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
                     return element.rect.height;
                 },

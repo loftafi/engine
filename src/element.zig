@@ -369,14 +369,14 @@ pub fn Element(comptime T: type) type {
                 });
             }
             if (self.style != .normal) {
-                _ = try out.write(" align=");
+                _ = try out.write(" style=");
                 _ = try out.write(@tagName(self.style));
             }
             if (self.child_align.x != .start or self.child_align.y != .start) {
                 _ = try out.write(" align=");
-                _ = try out.write(@tagName(self.layout.x));
+                _ = try out.write(@tagName(self.child_align.x));
                 _ = try out.write("-");
-                _ = try out.write(@tagName(self.layout.y));
+                _ = try out.write(@tagName(self.child_align.y));
             }
             _ = try out.write(" layout=");
             _ = try out.write(@tagName(self.layout.x));
@@ -1216,17 +1216,18 @@ pub fn Element(comptime T: type) type {
         /// by a certain offset amount.
         ///
         /// `parent_inner_width` should be the actual width the parent is
-        /// passing down to this child element, minus left and right padding, and
-        /// clamped to the min/max width (including padding)
+        /// willing/able to down to this child element, minus the parent
+        /// left and right padding, and clamped to the min/max
+        /// width (including padding)
         pub inline fn layout_label(
             element: *Self,
             display_scale: f32,
             parent_inner_width: f32,
-        ) void {
+        ) f32 {
             std.debug.assert(element.type == .label or element.type == .checkbox);
 
-            if (element.type == .label and element.type.label.text.len == 0) return;
-            if (element.type == .checkbox and element.type.checkbox.text.len == 0) return;
+            if (element.type == .label and element.type.label.text.len == 0) return 0;
+            if (element.type == .checkbox and element.type.checkbox.text.len == 0) return 0;
 
             const text_height = switch (element.type) {
                 .label => element.type.label.text_size,
@@ -1238,6 +1239,7 @@ pub fn Element(comptime T: type) type {
                 .checkbox => element.type.checkbox.elements.items,
                 else => unreachable,
             };
+            if (children.len == 0) return 0;
 
             // Track the minimum needed width. Remember the longest line. Include
             // any left/right padding.
@@ -1317,11 +1319,16 @@ pub fn Element(comptime T: type) type {
             );
 
             // Align words to centre or right if requested.
-            if (children.len == 0) return;
+            // centre and end alignment might need the `grows`
+            // full width, or the `shrinks` minimum width.
             if (element.child_align.x == .centre or element.child_align.x == .end) {
                 var line_start: usize = 0;
                 var line_end: usize = 0;
-                const usable_width = wrap_at;
+                const usable_width = switch (element.layout.x) {
+                    .grows => wrap_at,
+                    .shrinks => needed_width - element.pad.left - element.pad.right,
+                    .fixed => element.rect.width - element.pad.left - element.pad.right,
+                };
                 while (true) : (line_end += 1) {
                     if (line_end + 1 == children.len) {
                         element.do_word_alignment(
@@ -1343,23 +1350,7 @@ pub fn Element(comptime T: type) type {
                 }
             }
 
-            if (false) {
-                const t = switch (element.type) {
-                    .button => element.type.button.translated,
-                    .label => element.type.label.translated,
-                    .checkbox => element.type.checkbox.translated,
-                    else => "",
-                };
-                trace("label {s} {t} \"{s}\" wrap={d} need={d} selected={d} (max_parent_width={d})", .{
-                    element.name,
-                    element.layout.x,
-                    t,
-                    wrap_at,
-                    needed_width,
-                    element.rect.width,
-                    parent_inner_width,
-                });
-            }
+            return needed_width;
         }
 
         pub fn keypress(

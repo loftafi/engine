@@ -59,7 +59,7 @@ pub fn Label(comptime T: type) type {
                 .shrinks, .grows => {
                     // Growing or shrinking, our task here is to find
                     // the minimum that would be needed.
-                    element.layout_label(display.scale, allowed_width);
+                    _ = element.layout_label(display.scale, allowed_width);
                     return element.rect.width;
                 },
                 .fixed => {
@@ -89,12 +89,10 @@ pub fn Label(comptime T: type) type {
             // needs to be done here as the width of the label may have changed.
             switch (element.layout.y) {
                 .shrinks, .grows => {
-                    element.layout_label(display.scale, allowed_width);
-                    //err("{s} {s} use grows height {d} (parent_width={d})", .{ self.name, @tagName(self.type), mm.max_height, parent_width });
+                    _ = element.layout_label(display.scale, allowed_width);
                     return element.rect.height;
                 },
                 .fixed => {
-                    //err("{s} {s} use fixed height {d} (parent_width={d})", .{ self.name, @tagName(self.type), self.height, parent_width });
                     return element.rect.height;
                 },
             }
