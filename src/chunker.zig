@@ -253,7 +253,7 @@ const Utf8View = std.unicode.Utf8View;
 const praxis = @import("praxis");
 const Lang = praxis.Lang;
 
-const TextElement = @import("element.zig").TextElement;
+const TextElement = @import("entity.zig").TextElement;
 const test_config = @import("test.zig").test_config;
 
 const engine = @import("engine.zig");

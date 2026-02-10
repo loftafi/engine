@@ -1,7 +1,7 @@
 /// An audio file is held in memory for the entire duration it might be needed.
 ///
-/// If an audio file is in use by more than one element, then the `references`
-/// counter keeps track of how many elements are currently depending on
+/// If an audio file is in use by more than one entity, then the `references`
+/// counter keeps track of how many entities are currently depending on
 /// this audio file.
 name: []const u8,
 audio: []const u8,

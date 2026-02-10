@@ -9,28 +9,28 @@ pub fn Label(comptime T: type) type {
         elements: ArrayListUnmanaged(TextElement) = .empty,
         line_height: f32 = 1,
         text_size: T = .normal,
-        on_click: Element(T).Callback = .empty,
+        on_click: Entity(T).Callback = .empty,
 
-        /// Calculate the layout of all elements, and optionally render every element.
+        /// Calculate the layout of all elements, and optionally render every entity.
         ///
         /// Normally text is converted to an image and rendered left to right, starting
-        /// at the top left corner of the element (including padding).
+        /// at the top left corner of the entity (including padding).
         ///
         /// If the text is centred or right aligned, then each line must be pushed along
         /// by a certain offset amount.
         pub inline fn draw(
             self: *const Self,
-            element: *Element(T),
+            entity: *Entity(T),
             display: *Display(T),
             _: Vector, //parent_scroll_offset: Vector,
             parent_clip: ?Clip,
             scroll_offset: Vector,
         ) void {
             const loc = Vector{
-                .x = element.rect.x + element.pad.left + scroll_offset.x,
-                .y = element.rect.y + element.pad.top + scroll_offset.y,
+                .x = entity.rect.x + entity.pad.left + scroll_offset.x,
+                .y = entity.rect.y + entity.pad.top + scroll_offset.y,
             };
-            const text_colour = element.style.text(display.theme, element.colour);
+            const text_colour = entity.style.text(display.theme, entity.colour);
             draw_text_elements(self.elements.items, loc, text_colour, display.renderer, parent_clip);
         }
 
@@ -38,62 +38,62 @@ pub fn Label(comptime T: type) type {
         // could be used. `.grows`  is ignored for the purpose of finding
         // the minimum width.
         //
-        // `parent_inner_width` is the maximum space this element could
+        // `parent_inner_width` is the maximum space this entity could
         // theoretically grow to. Text might wrap if wider than this.
         pub inline fn minimum_needed_width(
             _: *Self,
             display: *Display(T),
-            element: *Element(T),
+            entity: *Entity(T),
             parent_inner_width: f32,
         ) f32 {
-            const padding = element.pad.left + element.pad.right;
+            const padding = entity.pad.left + entity.pad.right;
             //const allowed_width = clamp(
             const allowed_width = engine.directional_clamp(
-                element.layout.x,
-                element.minimum.width - padding,
+                entity.layout.x,
+                entity.minimum.width - padding,
                 parent_inner_width - padding,
-                element.maximum.width - padding,
+                entity.maximum.width - padding,
             );
 
-            switch (element.layout.x) {
+            switch (entity.layout.x) {
                 .shrinks, .grows => {
                     // Growing or shrinking, our task here is to find
                     // the minimum that would be needed.
-                    _ = element.layout_label(display.scale, allowed_width);
-                    return element.rect.width;
+                    _ = entity.layout_label(display.scale, allowed_width);
+                    return entity.rect.width;
                 },
                 .fixed => {
-                    return element.rect.width;
+                    return entity.rect.width;
                 },
             }
         }
 
-        // `parent_inner_width` is the maximum space this element could
+        // `parent_inner_width` is the maximum space this entity could
         // theoretically grow to. Text might wrap if wider than this.
         pub inline fn minimum_needed_height(
             _: *Self,
             display: *Display(T),
-            element: *Element(T),
+            entity: *Entity(T),
             parent_inner_width: f32,
         ) f32 {
-            const padding = element.pad.left + element.pad.right;
+            const padding = entity.pad.left + entity.pad.right;
             const allowed_width = engine.directional_clamp(
-                element.layout.x,
-                element.minimum.width - padding,
+                entity.layout.x,
+                entity.minimum.width - padding,
                 parent_inner_width - padding,
-                element.maximum.width - padding,
+                entity.maximum.width - padding,
             );
 
-            // Simulate a draw of this element to see how many lines it
+            // Simulate a draw of this entity to see how many lines it
             // would take. This is done when the label is created but also
             // needs to be done here as the width of the label may have changed.
-            switch (element.layout.y) {
+            switch (entity.layout.y) {
                 .shrinks, .grows => {
-                    _ = element.layout_label(display.scale, allowed_width);
-                    return element.rect.height;
+                    _ = entity.layout_label(display.scale, allowed_width);
+                    return entity.rect.height;
                 },
                 .fixed => {
-                    return element.rect.height;
+                    return entity.rect.height;
                 },
             }
         }
@@ -306,7 +306,7 @@ test "label_single_word_alignment" {
         const element = child.type.label.elements.items[0];
         try eq(51, element.location.width);
         try eq(20, element.location.height);
-        // `element.location` is relative to 0x0 not the on screen position, so
+        // `entity.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
         try eq(@round((panel.rect.width - child.pad.left - child.pad.right) / 2 - (element.location.width / 2)), element.location.x);
         try eq(0, element.location.y);
@@ -491,7 +491,7 @@ const trace = engine.trace;
 const clamp = engine.clamp;
 const Clip = engine.Clip;
 const Display = engine.Display;
-const Element = engine.Element;
+const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
 const LayoutDirection = engine.LayoutDirection;

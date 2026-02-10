@@ -11,8 +11,8 @@ pub fn TextInput(comptime T: type) type {
         max_runes: usize = 0,
         cursor_character: usize = 0,
         cursor_pixels: f32 = 0,
-        on_change: Element(T).Callback = .empty,
-        on_submit: Element(T).Callback = .empty,
+        on_change: Entity(T).Callback = .empty,
+        on_submit: Entity(T).Callback = .empty,
         placeholder_texture: ?*sdl.SDL_Texture = null,
         placeholder_text: ?[]const u8 = "",
         placeholder_translate: []const u8 = "",
@@ -21,17 +21,17 @@ pub fn TextInput(comptime T: type) type {
         /// may appear inside the text input box.
         pub inline fn draw(
             self: *const Self,
-            element: *Element(T),
+            entity: *Entity(T),
             display: *Display(T),
             _: Vector,
             _: ?Clip, // parent_clip
             _: Vector, // scroll offset
         ) void {
-            var x = element.rect.x + element.pad.left;
-            const y = element.rect.y + element.pad.top;
+            var x = entity.rect.x + entity.pad.left;
+            const y = entity.rect.y + entity.pad.top;
             const word_spacing = display.text_height.word_spacing(display.scale);
 
-            if (display.selected != null and element == display.selected.?) {
+            if (display.selected != null and entity == display.selected.?) {
                 // Draw cursor
                 var cursor_box: Rect = .{
                     .x = @round(x + self.cursor_pixels),
@@ -39,9 +39,9 @@ pub fn TextInput(comptime T: type) type {
                     .width = display.text_height.pixel_height(display.scale / 8.0),
                     .height = display.text_height.pixel_height(display.scale),
                 };
-                if (element.texture) |_| {
+                if (entity.texture) |_| {
                     // Add the icon width
-                    cursor_box.x += (element.rect.height - element.pad.top - element.pad.bottom);
+                    cursor_box.x += (entity.rect.height - entity.pad.top - entity.pad.bottom);
                     cursor_box.x += word_spacing;
                 }
                 _ = sdl.SDL_SetRenderDrawColor(
@@ -54,8 +54,8 @@ pub fn TextInput(comptime T: type) type {
                 _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&cursor_box));
             }
 
-            if (element.texture) |texture| {
-                const icon_size = element.rect.height - element.pad.top - element.pad.bottom;
+            if (entity.texture) |texture| {
+                const icon_size = entity.rect.height - entity.pad.top - entity.pad.bottom;
                 // Draw the text
                 var dest: Rect = .{
                     .x = @round(x),
@@ -134,10 +134,11 @@ pub fn TextInput(comptime T: type) type {
         pub inline fn minimum_needed_height(
             _: *Self,
             display: *Display(T),
-            element: *Element(T),
-            _: f32, //parent_inner_width
+            entity: *Entity(T),
+            parent_inner_width: f32,
         ) f32 {
-            const height = (display.text_height.pixel_height(display.scale)) + (element.pad.top + element.pad.bottom);
+            _ = parent_inner_width;
+            const height = (display.text_height.pixel_height(display.scale)) + (entity.pad.top + entity.pad.bottom);
             return height;
         }
     };
@@ -156,16 +157,12 @@ const debug = engine.debug;
 const trace = engine.trace;
 const Clip = engine.Clip;
 const Display = engine.Display;
-const Element = engine.Element;
+const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
-const LayoutDirection = engine.LayoutDirection;
 const Rect = engine.Rect;
 const Size = engine.Size;
-const Scroller = engine.Scroller;
 const Texture = engine.Texture;
-const ToggleState = engine.ToggleState;
 const Vector = engine.Vector;
 const Callback = engine.Callback;
-const BoolCallback = engine.BoolCallback;
 const UpdateCallback = engine.UpdateCallback;

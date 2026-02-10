@@ -5,7 +5,7 @@ pub fn Expander(comptime T: type) type {
 
         pub inline fn draw(
             _: *const Self,
-            _: *Element(T),
+            _: *Entity(T),
             _: *Display(T),
             _: Vector,
             _: ?Clip, //parent_clip
@@ -19,10 +19,10 @@ pub fn Expander(comptime T: type) type {
         pub inline fn minimum_needed_width(
             _: *Self,
             _: *Display(T),
-            element: *Element(T),
+            entity: *Entity(T),
             _: f32,
         ) f32 {
-            return element.minimum.width;
+            return entity.minimum.width;
         }
     };
 }
@@ -33,23 +33,8 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const sdl = @import("sdl");
 
 const engine = @import("engine.zig");
-const err = engine.err;
-const warn = engine.warn;
-const info = engine.info;
-const debug = engine.debug;
-const trace = engine.trace;
 const Clip = engine.Clip;
 const Display = engine.Display;
-const Element = engine.Element;
-const Scroller = engine.Scroller;
+const Entity = engine.Entity;
 const Vector = engine.Vector;
-const Callback = engine.Callback;
-const BoolCallback = engine.BoolCallback;
-const UpdateCallback = engine.UpdateCallback;
-const LayoutDirection = engine.LayoutDirection;
 const Error = engine.Error;
-const Font = engine.Font;
-const Fit = engine.Fit;
-const Size = engine.Size;
-const Texture = engine.Texture;
-const ToggleState = engine.ToggleState;

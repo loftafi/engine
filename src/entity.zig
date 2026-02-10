@@ -1,50 +1,50 @@
-/// Describe an element that will be rendered on the screen during a draw
-/// loop. See `ElementType` for the types of elements that may be rendered.
-pub fn Element(comptime T: type) type {
+/// Describe an entity that will be rendered on the screen during a draw
+/// loop. See `EntityType` for the types of entities that may be rendered.
+pub fn Entity(comptime T: type) type {
     return struct {
         pub const Self = @This();
 
         /// The `name` is not intended to be shown to the user. This name can
-        /// be used by log and debug code to describe the element.
+        /// be used by log and debug code to describe the entity.
         name: []const u8 = "",
 
         /// Text for screen reader to read when a user tabs into or
-        /// selects this element.
+        /// selects this entity.
         aria_label: ?[]const u8 = null,
 
         /// Usually the `visibie` value is `.hidden` or `.visible`. If the
-        /// element is inside a scroll panel, `.visible` elements may become
+        /// entity is inside a scroll panel, `.visible` entities may become
         /// `.clipped` when they are _visible_ do not need to be drawn.
         visible: Visibility = .visible,
 
-        /// The size and posiiton if this element. If this element is
-        /// inside the element heirachy, the position and size is automatically
+        /// The size and posiiton if this entity. If this entity is
+        /// inside the entity heirachy, the position and size is automatically
         /// updated when the window is updated or resized. The `layout` variable
         /// determins if these values are automatically updated or remain fixed.
         rect: Rect = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
 
-        /// If this element is inside the element heirachy, this is a hard
+        /// If this entity is inside the entity heirachy, this is a hard
         /// limit on how small the `rect` may be.
         minimum: Size = .{ .width = 0, .height = 0 },
 
-        /// If this element is inside the element heirachy, this is a hard
+        /// If this entity is inside the entity heirachy, this is a hard
         /// limit on how large the `rect` may be.
         maximum: Size = .{ .width = 0, .height = 0 },
 
         /// The `layout` settings determine if the `rect` is a fixed size
         /// and position, or if the `rect` size and position is autoatically
-        /// updated inside the element heirachy.
+        /// updated inside the entity heirachy.
         layout: Layout = .{ .x = .fixed, .y = .fixed },
 
-        /// Panels contain child elements, and text elmeents contain words, and
+        /// Panels contain child entities, and text elmeents contain words, and
         /// sprites contain an image. the `child_align` setting indicates if the
-        /// child contents are drawn at the start, centre or end of this element.
+        /// child contents are drawn at the start, centre or end of this entity.
         child_align: ChildLayout = .{ .x = .start, .y = .start },
 
         /// Scroll panels use 'offset` to track how far it has scrolled.
         offset: Vector = .{ .x = 0, .y = 0 },
 
-        /// Padding is used to add space _inside_ the `rect` of this element.
+        /// Padding is used to add space _inside_ the `rect` of this entity.
         pad: Clip = .{ .top = 0, .left = 0, .right = 0, .bottom = 0 },
 
         /// Sprites that don't move have zero velocity. Sprites with a velocity
@@ -79,7 +79,7 @@ pub fn Element(comptime T: type) type {
         on_resized: Self.BoolCallback = .empty,
         on_visibility: Self.Callback = .empty,
 
-        type: union(ElementType) {
+        type: union(EntityType) {
             button: Button(T),
             checkbox: Checkbox(T),
             expander: Expander(T),
@@ -91,20 +91,20 @@ pub fn Element(comptime T: type) type {
             text_input: TextInput(T),
         },
 
-        /// Cleanup memory associated with this element. This is automatically
-        /// called on all elements inside the display when the display is destroyed.
+        /// Cleanup memory associated with this entity. This is automatically
+        /// called on all entities inside the display when the display is destroyed.
         ///
-        /// Never call `destroy()` unless you know the element is not inside the
+        /// Never call `destroy()` unless you know the entity is not inside the
         /// display tree.
         pub fn destroy(self: *Self, allocator: Allocator, display: *Display(T)) void {
             self.deinit(allocator, display);
             allocator.destroy(self);
         }
 
-        /// Cleanup memory associated with this element. This is automatically
-        /// called on all elements inside the display when the display is destroyed.
+        /// Cleanup memory associated with this entity. This is automatically
+        /// called on all entities inside the display when the display is destroyed.
         ///
-        /// Never call `deinit()` unless you know the element is not inside the
+        /// Never call `deinit()` unless you know the entity is not inside the
         /// display tree.
         pub fn deinit(self: *Self, allocator: Allocator, display: *Display(T)) void {
             // Cleanup shared attributes
@@ -119,7 +119,7 @@ pub fn Element(comptime T: type) type {
                 self.background.image = null;
             }
 
-            // Cleanup element type specific attributes
+            // Cleanup entity type specific attributes
             switch (self.type) {
                 .panel => |*i| {
                     for (i.*.children.items) |child| {
@@ -182,21 +182,21 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        /// Find a direct child of this element by the name attached to
-        /// the element.
+        /// Find a direct child of this entity by the name attached to
+        /// the entity.
         pub fn get_child_by_name(self: *Self, name: []const u8) ?*Self {
             trace("searching for {s} in {s}", .{ name, self.name });
-            for (self.type.panel.children.items) |element| {
-                if (std.mem.eql(u8, name, element.name)) {
+            for (self.type.panel.children.items) |entity| {
+                if (std.mem.eql(u8, name, entity.name)) {
                     trace("searching for {s} in {s}. match", .{ name, self.name });
-                    return element;
+                    return entity;
                 }
             }
             trace("searching for {s} in {s}. no match", .{ name, self.name });
             return null;
         }
 
-        /// Return true if this element appears under this point on the screen.
+        /// Return true if this entity appears under this point on the screen.
         pub fn at_point(self: *Self, cursor: Vector, parent_scroll_offset: Vector) bool {
             const point = Vector{ .x = self.rect.x, .y = self.rect.y };
             if (self.type == .panel and
@@ -289,7 +289,7 @@ pub fn Element(comptime T: type) type {
             tint_texture(texture, Colour.WHITE);
         }
 
-        /// The text_input element may display placeholder text when there
+        /// The text_input entity may display placeholder text when there
         /// is no text in the text_input. Placeholder text should be less
         /// visibily prominent.
         pub inline fn set_placeholder_text(
@@ -320,8 +320,8 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        // Find the avaialble inner width of this element. This is the
-        // width of the element minus any padding.
+        // Find the avaialble inner width of this entity. This is the
+        // width of the entity minus any padding.
         pub inline fn inner_width(self: *const Self) f32 {
             const padding = self.pad.left + self.pad.right;
 
@@ -332,8 +332,8 @@ pub fn Element(comptime T: type) type {
             );
         }
 
-        // Find the avaialble inner height of this element. This is the
-        // height of the element minus any padding.
+        // Find the avaialble inner height of this entity. This is the
+        // height of the entity minus any padding.
         pub inline fn inner_height(self: *const Self) f32 {
             const padding = self.pad.top + self.pad.bottom;
 
@@ -465,7 +465,7 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        /// Show or hide this element. If the visibliity is changed a relayout
+        /// Show or hide this entity. If the visibliity is changed a relayout
         /// will be triggerd, and the `on_visibility` callback will be triggered
         /// if a callback is specified.
         pub inline fn set_visibility(self: *Self, display: *Display(T), visible: Visibility) Allocator.Error!void {
@@ -478,7 +478,7 @@ pub fn Element(comptime T: type) type {
         /// Replace the foreground texture with an image resource found
         /// in the default resource bundle.
         ///
-        /// `set_texture` is only valid on elements that permit a
+        /// `set_texture` is only valid on entities that permit a
         /// foreground texture.
         pub inline fn set_texture(
             self: *Self,
@@ -503,7 +503,7 @@ pub fn Element(comptime T: type) type {
         /// Replace the current background texture with an image resource
         /// found in the default resource bundle.
         ///
-        /// `set_background_texture` is only valid on elements that permit a
+        /// `set_background_texture` is only valid on entities that permit a
         /// background texture.
         pub inline fn set_background_texture(
             self: *Self,
@@ -597,7 +597,7 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        /// Change the default font belonging to this element
+        /// Change the default font belonging to this entity
         pub inline fn set_font(
             self: *Self,
             display: *Display(T),
@@ -609,7 +609,7 @@ pub fn Element(comptime T: type) type {
                 .checkbox => &self.type.checkbox.font,
                 .text_input => &self.type.text_input.font,
                 else => {
-                    warn("set_font invalid on element {t} {s}", .{ self.type, self.name });
+                    warn("set_font invalid on entity {t} {s}", .{ self.type, self.name });
                     return;
                 },
             };
@@ -619,7 +619,7 @@ pub fn Element(comptime T: type) type {
                 .checkbox => &self.type.checkbox.font_name,
                 .text_input => &self.type.text_input.font_name,
                 else => {
-                    warn("set_font invalid on element {t} {s}", .{ self.type, self.name });
+                    warn("set_font invalid on entity {t} {s}", .{ self.type, self.name });
                     return;
                 },
             };
@@ -631,14 +631,14 @@ pub fn Element(comptime T: type) type {
                     return;
                 }
             }
-            warn("requested unknown font {s} on element {t} {s}", .{ name, self.type, self.name });
+            warn("requested unknown font {s} on entity {t} {s}", .{ name, self.type, self.name });
         }
 
         /// set_text updates the `text` and `translation` fields of labels,
         /// checkboxes and buttons, and regenerates the grahpics/image
         /// textures for each word if the text was changed.
         ///
-        /// The memory behind the `new_text` must remain valid while the element
+        /// The memory behind the `new_text` must remain valid while the entity
         /// exists and is displaying this string.
         pub inline fn set_text(
             self: *Self,
@@ -806,8 +806,8 @@ pub fn Element(comptime T: type) type {
             if (self.visible != .hidden) display.need_relayout = true;
         }
 
-        /// `add` a child element to this panel and return the element. Only
-        /// permitted for the `panel` element type.
+        /// `add` a child entity to this panel and return the entity. Only
+        /// permitted for the `panel` entity type.
         pub inline fn add(
             self: *Self,
             allocator: Allocator,
@@ -817,16 +817,16 @@ pub fn Element(comptime T: type) type {
             std.debug.assert(self.type == .panel);
             const child = try allocator.create(Self);
             child.* = conf;
-            try display.setup_element(allocator, child);
+            try display.setup_entity(allocator, child);
             try self.type.panel.children.append(allocator, child);
             if (child.visible != .hidden and self.visible != .hidden)
                 display.need_relayout = true;
             return child;
         }
 
-        /// Use `insert_element` to insert a child element in a specific location
-        /// in this panel. Only permitted for the `panel` element type.
-        pub inline fn insert_element(
+        /// Use `insert_entity` to insert a child entity in a specific location
+        /// in this panel. Only permitted for the `panel` entity type.
+        pub inline fn insert_entity(
             self: *Self,
             allocator: Allocator,
             display: *Display(T),
@@ -837,14 +837,14 @@ pub fn Element(comptime T: type) type {
             std.debug.assert(location <= self.type.panel.children.items.len);
             const child = try allocator.create(Self);
             child.* = conf;
-            try display.setup_element(allocator, child);
+            try display.setup_entity(allocator, child);
             try self.type.panel.children.insert(allocator, location, child);
             if (child.visible != .hidden and self.visible != .hidden)
                 display.need_relayout = true;
             return child;
         }
 
-        /// Swap the ordering of two child elements belonging to this panel.
+        /// Swap the ordering of two child entities belonging to this panel.
         pub inline fn swap(self: *Self, from: usize, to: usize) void {
             std.debug.assert(self.type == .panel);
             std.debug.assert(from < self.type.panel.children.items.len);
@@ -854,9 +854,9 @@ pub fn Element(comptime T: type) type {
             self.type.panel.children.items[to] = s;
         }
 
-        /// Use `remove_element_at` to attach a child element in a specific location
-        /// in this panel. Only permitted for the `panel` element type.
-        pub inline fn remove_element_at(self: *Self, display: *Display(T), location: usize) *Self {
+        /// Use `remove_entity_at` to attach a child entity in a specific location
+        /// in this panel. Only permitted for the `panel` entity type.
+        pub inline fn remove_entity_at(self: *Self, display: *Display(T), location: usize) *Self {
             std.debug.assert(self.type == .panel);
             std.debug.assert(location < self.type.panel.children.items.len);
             const item = self.type.panel.children.orderedRemove(location);
@@ -864,9 +864,9 @@ pub fn Element(comptime T: type) type {
             return item;
         }
 
-        /// Use `remove_element` to remove a panel that is a
-        /// child of this element.
-        pub inline fn remove_element(
+        /// Use `remove_entity` to remove a panel that is a
+        /// child of this entity.
+        pub inline fn remove_entity(
             self: *Self,
             display: *Display(T),
             child: *Self,
@@ -885,8 +885,8 @@ pub fn Element(comptime T: type) type {
             return null;
         }
 
-        /// Use `remove_elements` to remove all children of a panel.
-        pub inline fn remove_elements(
+        /// Use `remove_entities` to remove all childr entities in a panel.
+        pub inline fn remove_entities(
             self: *Self,
             allocator: Allocator,
             display: *Display(T),
@@ -901,14 +901,14 @@ pub fn Element(comptime T: type) type {
             self.type.panel.children.clearRetainingCapacity();
         }
 
-        /// Make sure nothing is holding a reference to an element that
+        /// Make sure nothing is holding a reference to an entity that
         /// is being removed from the display.
         fn clear_display_pointers(self: *Self, display: *Display(T)) void {
             if (display.selected == self) display.selected = null;
             if (display.hovered == self) display.hovered = null;
             if (self.type == .panel) {
-                for (self.type.panel.children.items) |element| {
-                    element.clear_display_pointers(display);
+                for (self.type.panel.children.items) |entity| {
+                    entity.clear_display_pointers(display);
                 }
             }
         }
@@ -953,9 +953,9 @@ pub fn Element(comptime T: type) type {
             return @max(self.minimum.height, height);
         }
 
-        /// Return the smallest width this element permits.
+        /// Return the smallest width this entity permits.
         /// .
-        /// Some elements grow to the `parent_width`, which is usually the
+        /// Some entities grow to the `parent_width`, which is usually the
         /// `parent.rect.width` minus any internal padding.
         pub fn minimum_needed_width(self: *Self, display: *Display(T), parent_inner_width: f32) f32 {
             if (self.visible == .hidden)
@@ -975,7 +975,7 @@ pub fn Element(comptime T: type) type {
         }
 
         /// Handle the langauge change event and propogate the event
-        /// downwards to each child element, so that each child has
+        /// downwards to each child entity, so that each child has
         /// a chance to regenerate its translation and text texture.
         pub fn language_changed(self: *Self, allocator: Allocator, display: *Display(T), lang: Lang) !void {
             switch (self.type) {
@@ -989,87 +989,87 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        /// Draw the current element, along with any children elements.
-        pub fn draw(element: *Self, display: *Display(T), parent_scroll_offset: Vector, parent_clip: ?Clip) void {
-            if (element.visible == .hidden)
+        /// Draw the current entity, along with any children entity.
+        pub fn draw(entity: *Self, display: *Display(T), parent_scroll_offset: Vector, parent_clip: ?Clip) void {
+            if (entity.visible == .hidden)
                 return;
 
-            const scroll_offset: Vector = element.offset.add(parent_scroll_offset);
+            const scroll_offset: Vector = entity.offset.add(parent_scroll_offset);
 
-            // Mark visible elements as culled or not culled depending on
+            // Mark visible entities as culled or not culled depending on
             // the parent_clip.
             if (parent_clip) |clip| {
-                if (element.rect.x + scroll_offset.x + element.rect.width < clip.left) {
-                    element.visible = .culled;
+                if (entity.rect.x + scroll_offset.x + entity.rect.width < clip.left) {
+                    entity.visible = .culled;
                     return;
                 }
-                if (element.rect.y + scroll_offset.y + (element.rect.height / 2) + 1 < clip.top) {
-                    element.visible = .culled;
+                if (entity.rect.y + scroll_offset.y + (entity.rect.height / 2) + 1 < clip.top) {
+                    entity.visible = .culled;
                     return;
                 }
-                if (element.rect.x + scroll_offset.x > clip.right) {
-                    element.visible = .culled;
+                if (entity.rect.x + scroll_offset.x > clip.right) {
+                    entity.visible = .culled;
                     return;
                 }
-                if (element.rect.y + scroll_offset.y > clip.bottom) {
-                    element.visible = .culled;
+                if (entity.rect.y + scroll_offset.y > clip.bottom) {
+                    entity.visible = .culled;
                     return;
                 }
             }
-            if (element.visible == .culled)
-                element.visible = .visible;
+            if (entity.visible == .culled)
+                entity.visible = .visible;
 
-            // Elements may optionally have a background texture or a simple
+            // An Entity may optionally have a background texture or a simple
             // filled background.
-            if (element.background.image) |texture| {
+            if (entity.background.image) |texture| {
                 // Buttons do not use the background.image or backgroud.image_name
                 // field, so don't draw background image for buttons.
-                if (element.type != .button) {
-                    var dest = element.rect.move(&scroll_offset);
-                    if (element.flip.x) {
+                if (entity.type != .button) {
+                    var dest = entity.rect.move(&scroll_offset);
+                    if (entity.flip.x) {
                         dest.x += dest.width;
                         dest.width = 0 - dest.width;
                     }
-                    if (element.flip.y) {
+                    if (entity.flip.y) {
                         dest.y += dest.height;
                         dest.height = 0 - dest.height;
                     }
-                    element.apply_background_tint(display, texture.texture);
-                    if (element.background.image_corner_radius == 0) {
+                    entity.apply_background_tint(display, texture.texture);
+                    if (entity.background.image_corner_radius == 0) {
                         _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
                     } else {
-                        var corner: f32 = element.background.corner_radius;
+                        var corner: f32 = entity.background.corner_radius;
                         if (corner * 2 > dest.height) corner = dest.height / 2;
                         _ = sdl.SDL_RenderTexture9Grid(
                             display.renderer,
                             texture.texture,
                             null,
-                            element.background.image_corner_radius,
-                            element.background.image_corner_radius,
-                            element.background.image_corner_radius,
-                            element.background.image_corner_radius,
-                            corner / element.background.image_corner_radius,
+                            entity.background.image_corner_radius,
+                            entity.background.image_corner_radius,
+                            entity.background.image_corner_radius,
+                            entity.background.image_corner_radius,
+                            corner / entity.background.image_corner_radius,
                             @ptrCast(&dest),
                         );
                     }
                 }
-            } else if (element.background.colour.a > 0 and element.type != .rectangle and element.type != .sprite and element.type != .progress_bar) {
+            } else if (entity.background.colour.a > 0 and entity.type != .rectangle and entity.type != .sprite and entity.type != .progress_bar) {
                 // If there is no background image, but there is a background
                 // colour, draw the background as a simple rectangle (except for
                 // sprites and rectangles).
                 _ = sdl.SDL_SetRenderDrawColor(
                     display.renderer,
-                    element.background.colour.r,
-                    element.background.colour.g,
-                    element.background.colour.b,
-                    element.background.colour.a,
+                    entity.background.colour.r,
+                    entity.background.colour.g,
+                    entity.background.colour.b,
+                    entity.background.colour.a,
                 );
-                _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&element.rect));
+                _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&entity.rect));
             }
 
-            switch (element.type) {
+            switch (entity.type) {
                 inline else => |o| o.draw(
-                    element,
+                    entity,
                     display,
                     parent_scroll_offset,
                     parent_clip,
@@ -1077,107 +1077,107 @@ pub fn Element(comptime T: type) type {
                 ),
             }
 
-            // Draw a border around an element if a border is specified, or
+            // Draw a border around an entity if a border is specified, or
             // if `dev_mode` has been enabled.
             if (engine.dev_mode) {
                 var colour = display.theme.emphasised_text_colour;
-                if (element.type == .panel) {
+                if (entity.type == .panel) {
                     colour = display.theme.tinted_text_colour;
                 }
                 engine.draw_rectangle(
                     display.renderer,
                     2,
                     colour,
-                    element.rect.move(&scroll_offset),
+                    entity.rect.move(&scroll_offset),
                     .{},
                 );
-                if (element.type == .panel and (element.type.panel.scrollable.scroll.x or element.type.panel.scrollable.scroll.y)) {
+                if (entity.type == .panel and (entity.type.panel.scrollable.scroll.x or entity.type.panel.scrollable.scroll.y)) {
                     engine.draw_rectangle(
                         display.renderer,
                         2,
                         display.theme.success_panel_colour,
-                        element.rect,
+                        entity.rect,
                         .{},
                     );
-                } else if (element.type == .label) {
-                    var pad_line = element.rect.move(&scroll_offset);
-                    pad_line.x += element.pad.left;
-                    pad_line.y += element.pad.top;
-                    pad_line.width -= (element.pad.left + element.pad.right);
-                    pad_line.height -= (element.pad.top + element.pad.bottom);
-                    element.draw_padding_markers(display, scroll_offset);
-                } else if (element.type == .button) {
+                } else if (entity.type == .label) {
+                    var pad_line = entity.rect.move(&scroll_offset);
+                    pad_line.x += entity.pad.left;
+                    pad_line.y += entity.pad.top;
+                    pad_line.width -= (entity.pad.left + entity.pad.right);
+                    pad_line.height -= (entity.pad.top + entity.pad.bottom);
+                    entity.draw_padding_markers(display, scroll_offset);
+                } else if (entity.type == .button) {
                     // inner padding line
                     colour = display.theme.tinted_text_colour;
                     engine.draw_rectangle(display.renderer, 2, colour, .{
-                        .x = element.rect.x + scroll_offset.x + element.pad.left,
-                        .y = element.rect.y + scroll_offset.y + element.pad.top,
-                        .width = element.rect.width - (element.pad.left + element.pad.right),
-                        .height = element.rect.height - (element.pad.top + element.pad.bottom),
+                        .x = entity.rect.x + scroll_offset.x + entity.pad.left,
+                        .y = entity.rect.y + scroll_offset.y + entity.pad.top,
+                        .width = entity.rect.width - (entity.pad.left + entity.pad.right),
+                        .height = entity.rect.height - (entity.pad.top + entity.pad.bottom),
                     }, .{});
-                    element.draw_padding_markers(display, scroll_offset);
+                    entity.draw_padding_markers(display, scroll_offset);
                 }
-            } else if (element.border_width > 0 and element.border_colour.a > 0) {
+            } else if (entity.border_width > 0 and entity.border_colour.a > 0) {
                 engine.draw_rectangle(
                     display.renderer,
-                    element.border_width,
-                    element.border_colour,
-                    element.rect.move(&scroll_offset),
+                    entity.border_width,
+                    entity.border_colour,
+                    entity.rect.move(&scroll_offset),
                     .{},
                 );
             }
 
-            // Any element can have a selection underline
-            if (display.selected != null and display.selected == element) {
-                if (element.type != .text_input) {
+            // Any entity can have a selection underline
+            if (display.selected != null and display.selected == entity) {
+                if (entity.type != .text_input) {
                     if (display.keyboard_activity) {
                         draw_selection_marker(
                             display,
                             display.theme.cursor_colour,
-                            element.rect.move(&scroll_offset),
+                            entity.rect.move(&scroll_offset),
                         );
                     }
                 }
             }
         }
 
-        fn draw_padding_markers(element: *Element(T), display: *Display(T), scroll_offset: Vector) void {
+        fn draw_padding_markers(entity: *Entity(T), display: *Display(T), scroll_offset: Vector) void {
             const length = 20;
             engine.draw_line(
                 display.renderer,
                 3,
                 Colour.RED,
-                element.rect.location().move(element.pad.left, element.pad.top),
-                element.rect.location().move(element.pad.left + length, element.pad.top),
+                entity.rect.location().move(entity.pad.left, entity.pad.top),
+                entity.rect.location().move(entity.pad.left + length, entity.pad.top),
                 scroll_offset,
             );
             engine.draw_line(
                 display.renderer,
                 3,
                 Colour.RED,
-                element.rect.location().move(element.pad.left, element.pad.top),
-                element.rect.location().move(element.pad.left, element.pad.top + length),
+                entity.rect.location().move(entity.pad.left, entity.pad.top),
+                entity.rect.location().move(entity.pad.left, entity.pad.top + length),
                 scroll_offset,
             );
             engine.draw_line(
                 display.renderer,
                 3,
                 Colour.RED,
-                element.rect.location().move(element.rect.width - element.pad.right - length, element.rect.height - element.pad.bottom),
-                element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom),
+                entity.rect.location().move(entity.rect.width - entity.pad.right - length, entity.rect.height - entity.pad.bottom),
+                entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom),
                 scroll_offset,
             );
             engine.draw_line(
                 display.renderer,
                 3,
                 Colour.RED,
-                element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom),
-                element.rect.location().move(element.rect.width - element.pad.right, element.rect.height - element.pad.bottom - length),
+                entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom),
+                entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom - length),
                 scroll_offset,
             );
         }
 
-        /// Draw a visual indication that an element is currently selected.
+        /// Draw a visual indication that an entity is currently selected.
         pub fn draw_selection_marker(
             self: *Display(T),
             colour: Colour,
@@ -1207,36 +1207,36 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        /// Calculate the layout of all elements, and optionally render every element.
+        /// Calculate the layout of all entities, and optionally render every entity.
         ///
         /// Normally text is converted to an image and rendered left to right, starting
-        /// at the top left corner of the element (including padding).
+        /// at the top left corner of the entity (including padding).
         ///
         /// If the text is centred or right aligned, then each line must be pushed along
         /// by a certain offset amount.
         ///
         /// `parent_inner_width` should be the actual width the parent is
-        /// willing/able to down to this child element, minus the parent
+        /// willing/able to down to this child entity, minus the parent
         /// left and right padding, and clamped to the min/max
         /// width (including padding)
         pub inline fn layout_label(
-            element: *Self,
+            entity: *Self,
             display_scale: f32,
             parent_inner_width: f32,
         ) f32 {
-            std.debug.assert(element.type == .label or element.type == .checkbox);
+            std.debug.assert(entity.type == .label or entity.type == .checkbox);
 
-            if (element.type == .label and element.type.label.text.len == 0) return 0;
-            if (element.type == .checkbox and element.type.checkbox.text.len == 0) return 0;
+            if (entity.type == .label and entity.type.label.text.len == 0) return 0;
+            if (entity.type == .checkbox and entity.type.checkbox.text.len == 0) return 0;
 
-            const text_height = switch (element.type) {
-                .label => element.type.label.text_size,
-                .checkbox => element.type.checkbox.text_size,
+            const text_height = switch (entity.type) {
+                .label => entity.type.label.text_size,
+                .checkbox => entity.type.checkbox.text_size,
                 else => unreachable,
             };
-            const children = switch (element.type) {
-                .label => element.type.label.elements.items,
-                .checkbox => element.type.checkbox.elements.items,
+            const children = switch (entity.type) {
+                .label => entity.type.label.elements.items,
+                .checkbox => entity.type.checkbox.elements.items,
                 else => unreachable,
             };
             if (children.len == 0) return 0;
@@ -1250,7 +1250,7 @@ pub fn Element(comptime T: type) type {
             var x: f32 = 0;
             var y: f32 = 0;
 
-            const wrap_at: f32 = word_wrap_line(element, parent_inner_width);
+            const wrap_at: f32 = word_wrap_line(entity, parent_inner_width);
 
             // A line must have at least one word before a line break is inserted
             // otherwise we are just drawing pointless broken blank lines.
@@ -1294,44 +1294,44 @@ pub fn Element(comptime T: type) type {
             }
 
             // Add y padding at the bottom so that we can calculate the final height.
-            var needed_height = y + element.pad.top + element.pad.bottom;
+            var needed_height = y + entity.pad.top + entity.pad.bottom;
             needed_height = @round(needed_height);
 
             // Always use the needed height as long as it is
             // in the minimum and maximum bound.
             // TODO: Label height `grows` is ignored. Is this desirable?
-            element.rect.height = engine.clamp(
-                element.minimum.height,
+            entity.rect.height = engine.clamp(
+                entity.minimum.height,
                 needed_height,
-                element.maximum.height,
+                entity.maximum.height,
             );
 
-            needed_width += element.pad.left + element.pad.right;
+            needed_width += entity.pad.left + entity.pad.right;
             needed_width = @round(needed_width);
 
             // Width must `shrink` or `grow` as requested as long as
             // it is within the required minimum and maximum bound.
-            element.rect.width = engine.directional_clamp(
-                element.layout.x,
-                element.minimum.width,
+            entity.rect.width = engine.directional_clamp(
+                entity.layout.x,
+                entity.minimum.width,
                 needed_width,
-                @min(element.maximum.width, parent_inner_width),
+                @min(entity.maximum.width, parent_inner_width),
             );
 
             // Align words to centre or right if requested.
             // centre and end alignment might need the `grows`
             // full width, or the `shrinks` minimum width.
-            if (element.child_align.x == .centre or element.child_align.x == .end) {
+            if (entity.child_align.x == .centre or entity.child_align.x == .end) {
                 var line_start: usize = 0;
                 var line_end: usize = 0;
-                const usable_width = switch (element.layout.x) {
+                const usable_width = switch (entity.layout.x) {
                     .grows => wrap_at,
-                    .shrinks => needed_width - element.pad.left - element.pad.right,
-                    .fixed => element.rect.width - element.pad.left - element.pad.right,
+                    .shrinks => needed_width - entity.pad.left - entity.pad.right,
+                    .fixed => entity.rect.width - entity.pad.left - entity.pad.right,
                 };
                 while (true) : (line_end += 1) {
                     if (line_end + 1 == children.len) {
-                        element.do_word_alignment(
+                        entity.do_word_alignment(
                             children[line_end].location.x + children[line_end].location.width,
                             usable_width,
                             children[line_start .. line_end + 1],
@@ -1339,7 +1339,7 @@ pub fn Element(comptime T: type) type {
                         break;
                     }
                     if (children[line_end].location.x >= children[line_end + 1].location.x) {
-                        element.do_word_alignment(
+                        entity.do_word_alignment(
                             children[line_end].location.x + children[line_end].location.width,
                             usable_width,
                             children[line_start .. line_end + 1],
@@ -1418,14 +1418,14 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        /// Handle when a user chooses an element like a button, using
+        /// Handle when a user chooses an entity like a button, using
         /// the mouse or the keyboard.
         pub fn chosen(
             self: *Self,
             display: *Display(T),
             gpa: Allocator,
         ) Allocator.Error!void {
-            trace("chosen element {s}", .{self.name});
+            trace("chosen entity {s}", .{self.name});
             switch (self.type) {
                 .button => {
                     switch (self.type.button.toggle) {
@@ -1452,7 +1452,7 @@ pub fn Element(comptime T: type) type {
             }
         }
 
-        /// Handle when a user clicks into or tabs into this element.
+        /// Handle when a user clicks into or tabs into this entity.
         pub fn selected(self: *Self, display: *Display(T), _: Allocator) void {
             if (self.focus == .never_focus or self.focus == .unspecified) return;
 
@@ -1464,7 +1464,7 @@ pub fn Element(comptime T: type) type {
             const content = self.describe_content();
             trace("selected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
 
-            // Enter editing mode if we just selected a text element
+            // Enter editing mode if we just selected a text entity
             if (self.type == .text_input)
                 _ = sdl.SDL_StartTextInput(display.window);
         }
@@ -1487,7 +1487,7 @@ pub fn Element(comptime T: type) type {
             };
         }
 
-        /// Handle when a user clicks or tabs out of this element.
+        /// Handle when a user clicks or tabs out of this entity.
         pub fn deselected(self: *Self, display: *Display(T)) void {
             const content = self.describe_content();
             trace("deselected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
@@ -1543,7 +1543,7 @@ pub fn Element(comptime T: type) type {
         /// Align a single line of TextElement's belonging to a label
         /// or a checkbox.
         inline fn do_word_alignment(
-            element: *Self,
+            entity: *Self,
             line_width: f32,
             usable_width: f32,
             children: []TextElement,
@@ -1553,7 +1553,7 @@ pub fn Element(comptime T: type) type {
 
             if (trailing_whitespace <= 0) return;
 
-            switch (element.child_align.x) {
+            switch (entity.child_align.x) {
                 .start => {
                     // No adjustment needed
                     return;
@@ -1572,263 +1572,262 @@ pub fn Element(comptime T: type) type {
         }
 
         /// Calculate how many pixels of text we can draw until we must wrap to
-        /// the next line. By default the width is whatever the parent element
+        /// the next line. By default the width is whatever the parent entity
         /// has room for.
-        fn word_wrap_line(element: *Self, max_parent_width: f32) f32 {
-            var element_padding: f32 = 0;
-            if (element.type == .checkbox) element_padding += element.type.checkbox.checkbox_size.width;
+        fn word_wrap_line(entity: *Self, max_parent_width: f32) f32 {
+            var entity_padding: f32 = 0;
+            if (entity.type == .checkbox) entity_padding += entity.type.checkbox.checkbox_size.width;
 
             // If a fixed width is specified, clamp to the fixed width
-            const wrap = switch (element.layout.x) {
-                .grows, .fixed => @max(max_parent_width, element.maximum.width) - element_padding,
-                .shrinks => @max(max_parent_width, element.minimum.width) - element_padding,
+            const wrap = switch (entity.layout.x) {
+                .grows, .fixed => @max(max_parent_width, entity.maximum.width) - entity_padding,
+                .shrinks => @max(max_parent_width, entity.minimum.width) - entity_padding,
             };
 
             return wrap;
         }
 
         pub fn setup_rect(
-            element: *Self,
+            entity: *Self,
             _: Allocator,
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.texture = null;
-            element.background.image = null;
-            if (element.focus == .unspecified) {
-                element.focus = .never_focus;
+            entity.texture = null;
+            entity.background.image = null;
+            if (entity.focus == .unspecified) {
+                entity.focus = .never_focus;
             }
         }
 
         pub fn setup_panel(
-            element: *Self,
+            entity: *Self,
             allocator: Allocator,
             display: *Display(T),
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.texture = null;
-            element.background.image = null;
+            entity.texture = null;
+            entity.background.image = null;
 
-            if (element.focus == .unspecified) {
-                if (element.type.panel.on_click.func != null) {
-                    element.focus = .can_focus;
+            if (entity.focus == .unspecified) {
+                if (entity.type.panel.on_click.func != null) {
+                    entity.focus = .can_focus;
                 } else {
-                    element.focus = .never_focus;
+                    entity.focus = .never_focus;
                 }
             }
 
-            if (element.background.image_name) |name| {
+            if (entity.background.image_name) |name| {
                 if (try display.load_texture(allocator, name)) |texture| {
-                    element.background.image = texture;
+                    entity.background.image = texture;
                 } else {
                     err("Failed to load panel background image named \"{s}\"", .{name});
                 }
             }
 
-            element.type.panel.children = .empty;
+            entity.type.panel.children = .empty;
         }
 
         pub fn setup_progress_bar(
-            element: *Self,
+            entity: *Self,
             allocator: Allocator,
             display: *Display(T),
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.texture = null;
-            element.background.image = null;
-            if (element.focus == .unspecified) {
-                element.focus = .never_focus;
-            }
+            entity.texture = null;
+            entity.background.image = null;
+            if (entity.focus == .unspecified)
+                entity.focus = .never_focus;
 
-            if (element.type != .progress_bar) {
+            if (entity.type != .progress_bar) {
                 err("create_progress_bar called without config.", .{});
-                element.type = .{ .progress_bar = .{} };
+                entity.type = .{ .progress_bar = .{} };
             }
 
             if (try display.load_texture(allocator, "rounded progress bar")) |texture| {
-                element.texture = texture;
+                entity.texture = texture;
             } else {
                 err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
             }
         }
 
         pub fn setup_checkbox(
-            element: *Self,
+            entity: *Self,
             allocator: Allocator,
             display: *Display(T),
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.texture = null;
-            element.background.image = null;
-            element.type.checkbox.translated = "";
-            element.type.checkbox.elements = .empty;
-            element.type.checkbox.font = try select_font(display.fonts.items, element.type.checkbox.font_name);
+            entity.texture = null;
+            entity.background.image = null;
+            entity.type.checkbox.translated = "";
+            entity.type.checkbox.elements = .empty;
+            entity.type.checkbox.font = try select_font(display.fonts.items, entity.type.checkbox.font_name);
 
-            if (element.focus == .unspecified)
-                element.focus = .can_focus;
+            if (entity.focus == .unspecified)
+                entity.focus = .can_focus;
 
-            try element.set_text(allocator, display, element.type.checkbox.text);
+            try entity.set_text(allocator, display, entity.type.checkbox.text);
 
             if (try display.load_texture(allocator, "ios-checkbox-on")) |texture| {
-                element.type.checkbox.on_texture = texture;
+                entity.type.checkbox.on_texture = texture;
             }
             if (try display.load_texture(allocator, "ios-checkbox-off")) |texture| {
-                element.type.checkbox.off_texture = texture;
+                entity.type.checkbox.off_texture = texture;
             }
 
             // Is there a background for this checkbox
-            if (element.background.image_name) |name| {
+            if (entity.background.image_name) |name| {
                 if (try display.load_texture(allocator, name)) |texture|
-                    element.background.image = texture;
+                    entity.background.image = texture;
             }
 
-            if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
+            if (entity.pad.top == 0 and entity.pad.bottom == 0 and entity.pad.left == 0 and entity.pad.right == 0) {
                 //TODO:REMOVE!
-                element.pad.left = display.text_height.pixel_height(display.scale * 0.8);
-                element.pad.right = display.text_height.pixel_height(display.scale * 0.8);
-                element.pad.top = display.text_height.pixel_height(display.scale * 0.3);
-                element.pad.bottom = display.text_height.pixel_height(display.scale * 0.3);
+                entity.pad.left = display.text_height.pixel_height(display.scale * 0.8);
+                entity.pad.right = display.text_height.pixel_height(display.scale * 0.8);
+                entity.pad.top = display.text_height.pixel_height(display.scale * 0.3);
+                entity.pad.bottom = display.text_height.pixel_height(display.scale * 0.3);
             }
 
-            if (element.type.checkbox.checkbox_size.width == 0 or element.type.checkbox.checkbox_size.height == 0) {
-                element.type.checkbox.checkbox_size.width = display.text_height.pixel_height(display.pixel_scale);
-                element.type.checkbox.checkbox_size.height = display.text_height.pixel_height(display.pixel_scale);
+            if (entity.type.checkbox.checkbox_size.width == 0 or entity.type.checkbox.checkbox_size.height == 0) {
+                entity.type.checkbox.checkbox_size.width = display.text_height.pixel_height(display.pixel_scale);
+                entity.type.checkbox.checkbox_size.height = display.text_height.pixel_height(display.pixel_scale);
             }
 
-            const size = element.type.checkbox.checkbox_size;
-            if (element.minimum.height < size.height)
-                element.minimum.height = size.height;
+            const size = entity.type.checkbox.checkbox_size;
+            if (entity.minimum.height < size.height)
+                entity.minimum.height = size.height;
 
-            if (element.minimum.width < size.width)
-                element.minimum.width = size.width;
+            if (entity.minimum.width < size.width)
+                entity.minimum.width = size.width;
         }
 
         pub fn setup_expander(
-            element: *Self,
+            entity: *Self,
             _: Allocator,
             _: *Display(T),
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.texture = null;
-            element.background.image = null;
-            element.focus = .never_focus;
+            entity.texture = null;
+            entity.background.image = null;
+            entity.focus = .never_focus;
         }
 
         pub fn setup_label(
-            element: *Self,
+            entity: *Self,
             allocator: Allocator,
             self: *Display(T),
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.texture = null;
-            element.background.image = null;
-            element.type.label.translated = "";
-            element.type.label.elements = .empty;
-            element.type.label.font = try select_font(self.fonts.items, element.type.label.font_name);
+            entity.texture = null;
+            entity.background.image = null;
+            entity.type.label.translated = "";
+            entity.type.label.elements = .empty;
+            entity.type.label.font = try select_font(self.fonts.items, entity.type.label.font_name);
 
-            if (element.focus == .unspecified) {
-                if (element.type.label.on_click.func != null)
-                    element.focus = .can_focus
+            if (entity.focus == .unspecified) {
+                if (entity.type.label.on_click.func != null)
+                    entity.focus = .can_focus
                 else
-                    element.focus = .accessibility_focus;
+                    entity.focus = .accessibility_focus;
             }
-            try element.set_text(allocator, self, element.type.label.text);
+            try entity.set_text(allocator, self, entity.type.label.text);
 
             // Is there a background for this label?
-            if (element.background.image_name) |name| {
+            if (entity.background.image_name) |name| {
                 if (try self.load_texture(allocator, name)) |texture|
-                    element.background.image = texture;
+                    entity.background.image = texture;
             }
 
-            if (element.pad.top == 0 and element.pad.bottom == 0 and element.pad.left == 0 and element.pad.right == 0) {
-                element.pad.top = self.text_height.pixel_height(self.scale * 0.3);
-                element.pad.bottom = self.text_height.pixel_height(self.scale * 0.3);
+            if (entity.pad.top == 0 and entity.pad.bottom == 0 and entity.pad.left == 0 and entity.pad.right == 0) {
+                entity.pad.top = self.text_height.pixel_height(self.scale * 0.3);
+                entity.pad.bottom = self.text_height.pixel_height(self.scale * 0.3);
             }
         }
 
         pub fn setup_text_input(
-            element: *Self,
+            entity: *Self,
             allocator: Allocator,
             display: *Display(T),
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.texture = null;
-            element.background.image = null;
-            if (element.focus == .unspecified) {
-                element.focus = .can_focus;
-            }
-            element.type.text_input.font = try select_font(display.fonts.items, element.type.text_input.font_name);
+            entity.texture = null;
+            entity.background.image = null;
+            if (entity.focus == .unspecified)
+                entity.focus = .can_focus;
 
-            if (element.type.text_input.icon_texture_name) |icon| {
+            entity.type.text_input.font = try select_font(display.fonts.items, entity.type.text_input.font_name);
+
+            if (entity.type.text_input.icon_texture_name) |icon| {
                 if (try display.load_texture(allocator, icon)) |texture| {
-                    element.texture = texture;
+                    entity.texture = texture;
                 } else {
                     err("Failed to load text_input icon texture named \"{s}\"", .{icon});
                 }
             }
 
-            if (element.background.image_name) |background| {
+            if (entity.background.image_name) |background| {
                 if (try display.load_texture(allocator, background)) |texture| {
-                    element.background.image = texture;
+                    entity.background.image = texture;
                 } else {
                     err("Failed to load text_input background image named \"{s}\"", .{background});
                 }
             }
 
-            if (element.pad.top == 0 and element.pad.bottom == 0) {
-                element.pad.left = display.text_height.pixel_height(display.scale * 0.6);
-                element.pad.right = display.text_height.pixel_height(display.scale * 0.6);
-                element.pad.top = display.text_height.pixel_height(display.scale * 0.5);
-                element.pad.bottom = display.text_height.pixel_height(display.scale * 0.5);
+            if (entity.pad.top == 0 and entity.pad.bottom == 0) {
+                entity.pad.left = display.text_height.pixel_height(display.scale * 0.6);
+                entity.pad.right = display.text_height.pixel_height(display.scale * 0.6);
+                entity.pad.top = display.text_height.pixel_height(display.scale * 0.5);
+                entity.pad.bottom = display.text_height.pixel_height(display.scale * 0.5);
             }
 
-            element.focus = .can_focus;
-            element.rect.height = (display.text_height.pixel_height(display.scale)) + (element.pad.top + element.pad.bottom);
+            entity.focus = .can_focus;
+            entity.rect.height = (display.text_height.pixel_height(display.scale)) + (entity.pad.top + entity.pad.bottom);
 
-            element.type.text_input.text = .empty;
-            element.type.text_input.runes = .empty;
-            if (element.type.text_input.initial_text) |text| {
-                try element.set_text(allocator, display, text);
+            entity.type.text_input.text = .empty;
+            entity.type.text_input.runes = .empty;
+            if (entity.type.text_input.initial_text) |text| {
+                try entity.set_text(allocator, display, text);
             } else {
-                try element.set_text(allocator, display, "");
+                try entity.set_text(allocator, display, "");
             }
-            if (element.type.text_input.placeholder_text) |text| {
-                try element.set_placeholder_text(allocator, display, text);
+            if (entity.type.text_input.placeholder_text) |text| {
+                try entity.set_placeholder_text(allocator, display, text);
             } else {
-                try element.set_placeholder_text(allocator, display, "");
+                try entity.set_placeholder_text(allocator, display, "");
             }
         }
 
         pub fn setup_sprite(
-            element: *Self,
+            entity: *Self,
             allocator: Allocator,
             display: *Display(T),
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.texture = null;
-            element.background.image = null;
-            if (element.focus == .unspecified)
-                element.focus = .accessibility_focus;
+            entity.texture = null;
+            entity.background.image = null;
+            if (entity.focus == .unspecified)
+                entity.focus = .accessibility_focus;
 
-            if (element.texture_name) |image| {
+            if (entity.texture_name) |image| {
                 if (try display.load_texture(allocator, image)) |texture| {
-                    element.texture = texture;
-                    if (element.rect.width == 0)
-                        element.rect.width = @floatFromInt(texture.texture.w);
-                    if (element.rect.height == 0)
-                        element.rect.height = @floatFromInt(texture.texture.h);
+                    entity.texture = texture;
+                    if (entity.rect.width == 0)
+                        entity.rect.width = @floatFromInt(texture.texture.w);
+                    if (entity.rect.height == 0)
+                        entity.rect.height = @floatFromInt(texture.texture.h);
                 } else {
                     err("Failed to load sprite texture named \"{s}\"", .{image});
                 }
             }
 
-            if (element.background.image_name) |image| {
+            if (entity.background.image_name) |image| {
                 if (try display.load_texture(allocator, image)) |texture| {
-                    element.background.image = texture;
-                    if (element.rect.width == 0)
-                        element.rect.width = @floatFromInt(texture.texture.w);
-                    if (element.rect.height == 0)
-                        element.rect.height = @floatFromInt(texture.texture.h);
+                    entity.background.image = texture;
+                    if (entity.rect.width == 0)
+                        entity.rect.width = @floatFromInt(texture.texture.w);
+                    if (entity.rect.height == 0)
+                        entity.rect.height = @floatFromInt(texture.texture.h);
                 } else {
-                    err("Failed to load sprite background image named \"{s}\" for button \"{s}\"", .{ image, element.name });
+                    err("Failed to load sprite background image named \"{s}\" for button \"{s}\"", .{ image, entity.name });
                 }
             }
 
-            if (element.texture_name != null)
-                trace("sprite {s} fg {s}", .{ element.name, element.texture_name.? });
-            if (element.background.image_name != null)
-                trace("sprite {s} bg {s}", .{ element.name, element.background.image_name.? });
+            if (entity.texture_name != null)
+                trace("sprite {s} fg {s}", .{ entity.name, entity.texture_name.? });
+            if (entity.background.image_name != null)
+                trace("sprite {s} bg {s}", .{ entity.name, entity.background.image_name.? });
         }
 
         fn select_font(fonts: []*Font, name: ?[]const u8) error{FontRequired}!*Font {
@@ -1846,115 +1845,115 @@ pub fn Element(comptime T: type) type {
         }
 
         pub fn setup_button(
-            element: *Self,
+            entity: *Self,
             allocator: Allocator,
             display: *Display(T),
         ) (Error || Allocator.Error || Resources.Error)!void {
-            element.type.button.translated = "";
-            element.texture = null;
-            element.background.image = null;
-            element.type.button.icon_pressed = null;
-            element.type.button.icon_hover = null;
-            element.type.button.icon_disabled = null;
-            element.type.button.background_pressed = null;
-            element.type.button.background_hover = null;
-            element.type.button.background_disabled = null;
-            element.type.button.text_size = .normal;
-            element.type.button.font = try select_font(display.fonts.items, element.type.button.font_name);
+            entity.type.button.translated = "";
+            entity.texture = null;
+            entity.background.image = null;
+            entity.type.button.icon_pressed = null;
+            entity.type.button.icon_hover = null;
+            entity.type.button.icon_disabled = null;
+            entity.type.button.background_pressed = null;
+            entity.type.button.background_hover = null;
+            entity.type.button.background_disabled = null;
+            entity.type.button.text_size = .normal;
+            entity.type.button.font = try select_font(display.fonts.items, entity.type.button.font_name);
 
-            if (element.focus == .unspecified)
-                element.focus = .can_focus;
+            if (entity.focus == .unspecified)
+                entity.focus = .can_focus;
 
-            if (element.texture_name != null)
+            if (entity.texture_name != null)
                 warn("button `{s}` has texture_name `{s}`. Buttons use `icon_default_name`", .{
-                    element.name,
-                    element.texture_name.?,
+                    entity.name,
+                    entity.texture_name.?,
                 });
 
-            if (element.background.image_name != null)
+            if (entity.background.image_name != null)
                 warn("button `{s}` has background.image_name `{s}`. Buttons do not use `background.image_name`", .{
-                    element.name,
-                    element.background.image_name.?,
+                    entity.name,
+                    entity.background.image_name.?,
                 });
 
-            try element.set_text(allocator, display, element.type.button.text);
+            try entity.set_text(allocator, display, entity.type.button.text);
 
-            if (element.type.button.icon_default_name) |icon_default| {
+            if (entity.type.button.icon_default_name) |icon_default| {
                 if (try display.load_texture(allocator, icon_default)) |texture| {
-                    element.texture = texture;
-                    if (element.type.button.icon_size.width == 0 or element.type.button.icon_size.height == 0)
+                    entity.texture = texture;
+                    if (entity.type.button.icon_size.width == 0 or entity.type.button.icon_size.height == 0)
                         warn("button `{s}` has icon `{s}`, but no icon size.", .{
-                            element.name,
+                            entity.name,
                             icon_default,
                         });
                 }
             }
 
-            if (element.type.button.icon_pressed_name) |icon_pressed| {
+            if (entity.type.button.icon_pressed_name) |icon_pressed| {
                 if (try display.load_texture(allocator, icon_pressed)) |ip|
-                    element.type.button.icon_pressed = ip
+                    entity.type.button.icon_pressed = ip
                 else
                     err("setup_button failed to load icon_pressed resource {s}.", .{icon_pressed});
 
-                if (element.type.button.icon_pressed == null and element.texture != null)
-                    element.type.button.icon_pressed = element.texture.?.clone();
+                if (entity.type.button.icon_pressed == null and entity.texture != null)
+                    entity.type.button.icon_pressed = entity.texture.?.clone();
             }
 
-            if (element.type.button.icon_hover_name) |icon_hover| {
+            if (entity.type.button.icon_hover_name) |icon_hover| {
                 if (try display.load_texture(allocator, icon_hover)) |ih|
-                    element.type.button.icon_hover = ih
+                    entity.type.button.icon_hover = ih
                 else
                     err("setup_button failed to load icon_hover resource {s}.", .{icon_hover});
 
-                if (element.type.button.icon_hover == null and element.texture != null)
-                    element.type.button.icon_hover = element.texture.?.clone();
+                if (entity.type.button.icon_hover == null and entity.texture != null)
+                    entity.type.button.icon_hover = entity.texture.?.clone();
             }
 
-            if (element.type.button.icon_disabled_name) |icon_disabled| {
+            if (entity.type.button.icon_disabled_name) |icon_disabled| {
                 if (try display.load_texture(allocator, icon_disabled)) |ih|
-                    element.type.button.icon_disabled = ih
+                    entity.type.button.icon_disabled = ih
                 else
                     err("setup_button failed to load icon_disabled resource {s}.", .{icon_disabled});
 
-                if (element.type.button.icon_disabled == null and element.texture != null)
-                    element.type.button.icon_disabled = element.texture.?.clone();
+                if (entity.type.button.icon_disabled == null and entity.texture != null)
+                    entity.type.button.icon_disabled = entity.texture.?.clone();
             }
 
-            if (element.type.button.background_default_name) |background_default| {
+            if (entity.type.button.background_default_name) |background_default| {
                 if (try display.load_texture(allocator, background_default)) |texture|
-                    element.background.image = texture
+                    entity.background.image = texture
                 else
                     err("setup_button failed to load background_default resource {s}.", .{background_default});
             }
 
-            if (element.type.button.background_pressed_name) |background_pressed| {
+            if (entity.type.button.background_pressed_name) |background_pressed| {
                 if (try display.load_texture(allocator, background_pressed)) |bp|
-                    element.type.button.background_pressed = bp
+                    entity.type.button.background_pressed = bp
                 else
                     err("setup_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
 
-                if (element.type.button.background_pressed == null and element.background.image != null)
-                    element.type.button.background_pressed = element.background.image.?.clone();
+                if (entity.type.button.background_pressed == null and entity.background.image != null)
+                    entity.type.button.background_pressed = entity.background.image.?.clone();
             }
 
-            if (element.type.button.background_hover_name) |background_hover| {
+            if (entity.type.button.background_hover_name) |background_hover| {
                 if (try display.load_texture(allocator, background_hover)) |bh|
-                    element.type.button.background_hover = bh
+                    entity.type.button.background_hover = bh
                 else
                     err("setup_button background_hover resource `{s}` not loaded.", .{background_hover});
 
-                if (element.type.button.background_hover == null and element.background.image != null)
-                    element.type.button.background_hover = element.background.image.?.clone();
+                if (entity.type.button.background_hover == null and entity.background.image != null)
+                    entity.type.button.background_hover = entity.background.image.?.clone();
             }
 
-            if (element.type.button.background_disabled_name) |background_disabled| {
+            if (entity.type.button.background_disabled_name) |background_disabled| {
                 if (try display.load_texture(allocator, background_disabled)) |bh|
-                    element.type.button.background_disabled = bh
+                    entity.type.button.background_disabled = bh
                 else
                     err("setup_button background_disabled resource `{s}` not loaded.", .{background_disabled});
 
-                if (element.type.button.background_disabled == null and element.background.image != null)
-                    element.type.button.background_disabled = element.background.image.?.clone();
+                if (entity.type.button.background_disabled == null and entity.background.image != null)
+                    entity.type.button.background_disabled = entity.background.image.?.clone();
             }
         }
 
@@ -1963,7 +1962,7 @@ pub fn Element(comptime T: type) type {
                 ptr: *anyopaque,
                 allocator: Allocator,
                 display: *Display(T),
-                element: *Self,
+                entity: *Self,
             ) Allocator.Error!void = null,
             ptr: *anyopaque = undefined,
 
@@ -1976,9 +1975,9 @@ pub fn Element(comptime T: type) type {
                 self: @This(),
                 allocator: Allocator,
                 display: *Display(T),
-                element: *Self,
+                entity: *Self,
             ) Allocator.Error!void {
-                if (self.func) |f| return f(self.ptr, allocator, display, element);
+                if (self.func) |f| return f(self.ptr, allocator, display, entity);
             }
         };
 
@@ -1986,7 +1985,7 @@ pub fn Element(comptime T: type) type {
             func: ?*const fn (
                 ptr: *anyopaque,
                 display: *Display(T),
-                element: *Self,
+                entity: *Self,
             ) void = null,
             ptr: *anyopaque = undefined,
 
@@ -1998,9 +1997,9 @@ pub fn Element(comptime T: type) type {
             pub fn call(
                 self: @This(),
                 display: *Display(T),
-                element: *Self,
+                entity: *Self,
             ) void {
-                if (self.func) |f| f(self.ptr, display, element);
+                if (self.func) |f| f(self.ptr, display, entity);
             }
         };
 
@@ -2034,7 +2033,7 @@ pub fn Element(comptime T: type) type {
             func: ?*const fn (
                 ptr: *anyopaque,
                 display: *Display(T),
-                element: *Self,
+                entity: *Self,
             ) bool = null,
             ptr: *anyopaque = undefined,
 
@@ -2046,9 +2045,9 @@ pub fn Element(comptime T: type) type {
             pub fn call(
                 self: @This(),
                 display: *Display(T),
-                element: *Self,
+                entity: *Self,
             ) bool {
-                if (self.func) |f| return f(self.ptr, display, element);
+                if (self.func) |f| return f(self.ptr, display, entity);
                 return false;
             }
         };
@@ -2155,13 +2154,13 @@ pub const Clip = struct {
     right: f32 = 0,
 };
 
-/// Describe the size of an element.
+/// Describe the size of an entity.
 pub const Size = struct {
     width: f32 = 0,
     height: f32 = 0,
 };
 
-/// Indicate if an element should be flipped when it is drawn.
+/// Indicate if an entity should be flipped when it is drawn.
 pub const Flip = struct {
     x: bool = false,
     y: bool = false,
@@ -2173,20 +2172,20 @@ pub const Scroller = struct {
     size: Size,
 };
 
-/// Describe how a child element sits inside a parent element.
+/// Describe how a child entity sits inside a parent entity.
 pub const Layout = struct {
     position: LayoutMode = .@"inline",
     x: LayoutSize = .shrinks,
     y: LayoutSize = .shrinks,
 };
 
-/// Describe where to start drawing child elements inside the parent element.
+/// Describe where to start drawing child entity inside the parent entity.
 pub const ChildLayout = struct {
     x: LayoutAlign = .start,
     y: LayoutAlign = .start,
 };
 
-/// If an element is not a fixed size, it may choose
+/// If an entity is not a fixed size, it may choose
 /// to grow as wide or tall as possible, or it may
 /// choose to shrink to the minimum size it needs
 /// for its contents.
@@ -2198,23 +2197,23 @@ pub const LayoutSize = enum {
 
 pub const Fit = enum {
     /// Stretch the image texture to the exact width and height of the
-    /// `element.rect`.
+    /// `entity.rect`.
     stretch,
 
     /// Maintaining the image aspect ratio, enlarge the textue image to
-    /// the full width and height of the `element.rect`, and crop off
+    /// the full width and height of the `entity.rect`, and crop off
     /// any overflow.
     fill,
 
     /// Maintaining the image aspect ratio, enlarge the texture image to
-    /// exactly fit within the boundary of the `element.rect` This will leave
+    /// exactly fit within the boundary of the `entity.rect` This will leave
     /// some horizontal or vertical space. Use `child_align` to place
-    /// the texture at the `start`, `centre` or `end` of the element rect.
+    /// the texture at the `start`, `centre` or `end` of the entity rect.
     fit,
 };
 
-/// An element is ignored when it is hidden. An element is drawn when it is
-/// visible. An element is culled when it is visible, but not currently inside
+/// An entity is ignored when it is hidden. An entity is drawn when it is
+/// visible. An entity is culled when it is visible, but not currently inside
 /// thd drawable area on the screen.
 pub const Visibility = enum {
     visible,
@@ -2222,16 +2221,16 @@ pub const Visibility = enum {
     hidden,
 };
 
-/// The `x` and `y` position of an element is either automatically
-/// generated `inline` relative to its parent and sibiling elements;
+/// The `x` and `y` position of an entity is either automatically
+/// generated `inline` relative to its parent and sibiling entities;
 /// or the `x` and `y` position is manually specified to `float` freely
-/// outside of the element tree.
+/// outside of the entity tree.
 pub const LayoutMode = enum {
     @"inline",
     float,
 };
 
-/// When an element has spare space, its contents
+/// When an entity has spare space, its contents
 /// will sit on the start of the box, end of the box,
 /// or in the centre.
 pub const LayoutAlign = enum {
@@ -2240,10 +2239,10 @@ pub const LayoutAlign = enum {
     centre,
 };
 
-/// Elements inside elements may be drawn from left to right,
+/// Entities inside entities may be drawn from left to right,
 /// top to bottom, or every item is drawn in the centre.
 pub const LayoutDirection = enum {
-    /// Starting at the top, place each element under the previous element.
+    /// Starting at the top, place each entity under the previous entity.
     top_to_bottom,
 
     /// Place all items along the top, from left to right.
@@ -2313,7 +2312,7 @@ pub const Scale = enum(u8) {
     }
 };
 
-/// Information about the location and visibility of an element.
+/// Information about the location and visibility of an entity.
 pub const Box = struct {};
 
 pub const FocusOption = enum(u2) {
@@ -2323,7 +2322,7 @@ pub const FocusOption = enum(u2) {
     /// can_focus allow _tab into_ or _hover over_ with a mouse.
     can_focus,
     /// accessibility_focus is used to indicate screen readers may tab
-    /// into this element to inspect it. Use to describe important
+    /// into this entity to inspect it. Use to describe important
     /// on screen text and images
     accessibility_focus,
 };
@@ -2339,8 +2338,8 @@ pub const ToggleState = enum {
     disabled,
 };
 
-/// Describe the type of each element in the elment tree.
-pub const ElementType = enum {
+/// Describe the type of each entity in the elment tree.
+pub const EntityType = enum {
     button,
     checkbox,
     expander,

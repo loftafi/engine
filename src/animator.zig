@@ -1,5 +1,5 @@
 //! An animator is provided to the main run loop to move an engine
-//! `Element` along a requested movement path for a specific `duration`.
+//! `Entity` along a requested movement path for a specific `duration`.
 //!
 //! Visual examples of each movement path: https://easings.net
 pub fn Animator(comptime T: type) type {
@@ -9,7 +9,7 @@ pub fn Animator(comptime T: type) type {
             colour,
             background_colour,
 
-            /// Change the visibility of an element at the start and/or end
+            /// Change the visibility of an entity at the start and/or end
             /// of the animation.
             visibility,
 
@@ -58,20 +58,20 @@ pub fn Animator(comptime T: type) type {
         },
 
         movement: Ease = .ease,
-        target: *Element(T),
+        target: *Entity(T),
         duration: i64 = 0, // number of nanoseconds to animate over
-        on_end: Element(T).Callback = .{ .func = null },
+        on_end: Entity(T).Callback = .{ .func = null },
 
         setup: bool = false,
         start_time: i64 = 0,
         end_time: i64 = 0,
 
-        /// Reposition/adjust an element based on the current_time in nanoseconds.
+        /// Reposition/adjust an entity based on the current_time in nanoseconds.
         /// When an animation starts, an `Ease` formula calculates the current
-        /// position/adjustment of an `Element` based on the `start_time` and expected
+        /// position/adjustment of an `Entity` based on the `start_time` and expected
         /// `end_time` of the animation.
         ///
-        /// Animators may change visibility of an element, so the animate event may
+        /// Animators may change visibility of an entity, so the animate event may
         /// return errors associated with a visibility change.
         pub fn animate(self: *@This(), current_time: i64) Allocator.Error!bool {
             if (!self.setup) {
@@ -253,10 +253,10 @@ inline fn ease_int(comptime T: type, start: T, end: T, step: i64, total_steps: i
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const element = @import("element.zig");
-const Element = element.Element;
-const Visibility = element.Visibility;
-const Rect = element.Rect;
+const entity = @import("entity.zig");
+const Entity = entity.Entity;
+const Visibility = entity.Visibility;
+const Rect = entity.Rect;
 
 const Colour = @import("theme.zig").Colour;
 

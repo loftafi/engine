@@ -1,4 +1,4 @@
-/// Elements that contain text can specify which pre-defined height the
+/// Entities that contain text can specify which pre-defined height the
 /// text should be rendered at.
 pub fn TextSize(text_height: comptime_float) type {
     return enum {

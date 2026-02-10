@@ -1,8 +1,8 @@
 pub fn Sprite(comptime T: type) type {
     return struct {
         pub const Self = @This();
-        on_click: Element(T).Callback = .empty,
-        update: Element(T).UpdateCallback = .empty,
+        on_click: Entity(T).Callback = .empty,
+        update: Entity(T).UpdateCallback = .empty,
         scale: Fit = .stretch,
 
         /// Draw the foreground image `texture` of the sprite loaded from the
@@ -10,29 +10,28 @@ pub fn Sprite(comptime T: type) type {
         /// The background image is drawn in the generic background drawing function.
         pub inline fn draw(
             self: *const Self,
-            element: *Element(T),
+            entity: *Entity(T),
             display: *Display(T),
             _: Vector,
             _: ?Clip,
             scroll_offset: Vector,
         ) void {
-            //debug("ds {s} {d}x{d}", .{ element.name, element.rect.width, element.rect.height });
-            if (element.texture) |texture| {
+            if (entity.texture) |texture| {
                 var dest: Rect = .{
-                    .x = element.rect.x + element.pad.left,
-                    .y = element.rect.y + element.pad.top,
-                    .width = element.rect.width - element.pad.left - element.pad.right,
-                    .height = element.rect.height - element.pad.top - element.pad.bottom,
+                    .x = entity.rect.x + entity.pad.left,
+                    .y = entity.rect.y + entity.pad.top,
+                    .width = entity.rect.width - entity.pad.left - entity.pad.right,
+                    .height = entity.rect.height - entity.pad.top - entity.pad.bottom,
                 };
                 dest = dest.move(&scroll_offset);
 
                 if (dest.height <= 0 or dest.width <= 0) return;
 
-                if (element.flip.x) {
+                if (entity.flip.x) {
                     dest.x += dest.width;
                     dest.width = 0 - dest.width;
                 }
-                if (element.flip.y) {
+                if (entity.flip.y) {
                     dest.y += dest.height;
                     dest.height = 0 - dest.height;
                 }
@@ -61,34 +60,34 @@ pub fn Sprite(comptime T: type) type {
                         };
                         // Don't fill the destination area. Slice off
                         // some of the destination area.
-                        const dst_scale: f32 = element.rect.width / element.rect.height;
+                        const dst_scale: f32 = entity.rect.width / entity.rect.height;
                         const src_scale: f32 = image_width / image_height;
                         if (src_scale >= dst_scale) {
                             // image too wide, hight will have blank space
                             dest.height = dest.width / src_scale;
                             // sprite is drawn at top of its rect, unless a
                             // different child alignment is chosen.
-                            switch (element.child_align.y) {
+                            switch (entity.child_align.y) {
                                 .start => {}, // already at top
-                                .centre => dest.y += ((element.rect.height - dest.height) / 2) - element.pad.top,
-                                .end => dest.y += (element.rect.height - dest.height),
+                                .centre => dest.y += ((entity.rect.height - dest.height) / 2) - entity.pad.top,
+                                .end => dest.y += (entity.rect.height - dest.height),
                             }
                         } else {
                             // image too tall/high, width will have blank space
                             dest.width = dest.height * src_scale;
                             // sprite is drawn at start/left of its rect, unless
                             // a different child alignment is chosen.
-                            switch (element.child_align.x) {
+                            switch (entity.child_align.x) {
                                 .start => {}, // already at top
-                                .centre => dest.x += ((element.rect.width - dest.width) / 2) - element.pad.left,
-                                .end => dest.x += (element.rect.width - dest.width),
+                                .centre => dest.x += ((entity.rect.width - dest.width) / 2) - entity.pad.left,
+                                .end => dest.x += (entity.rect.width - dest.width),
                             }
                         }
                     },
                     .fill => {
                         // We need a slice of the source image that fits the
                         // ratio of the destination area.
-                        const dst_scale: f32 = element.rect.width / element.rect.height;
+                        const dst_scale: f32 = entity.rect.width / entity.rect.height;
                         const src_scale: f32 = image_width / image_height;
                         if (src_scale >= dst_scale) {
                             // Slice off some width
@@ -112,8 +111,8 @@ pub fn Sprite(comptime T: type) type {
                     },
                 }
 
-                if (element.style == .custom)
-                    tint_texture(texture.texture, element.colour);
+                if (entity.style == .custom)
+                    tint_texture(texture.texture, entity.colour);
 
                 _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, @ptrCast(&source), @ptrCast(&dest));
             }
@@ -128,25 +127,17 @@ const sdl = @import("sdl");
 
 const engine = @import("engine.zig");
 const err = engine.err;
-const warn = engine.warn;
-const info = engine.info;
-const debug = engine.debug;
-const trace = engine.trace;
 const Clip = engine.Clip;
 const Display = engine.Display;
-const Element = engine.Element;
+const Entity = engine.Entity;
 const Error = engine.Error;
 const Fit = engine.Fit;
 const Font = engine.Font;
-const LayoutDirection = engine.LayoutDirection;
 const Rect = engine.Rect;
-const Scroller = engine.Scroller;
 const Size = engine.Size;
 const Texture = engine.Texture;
-const ToggleState = engine.ToggleState;
 const Vector = engine.Vector;
 const Callback = engine.Callback;
-const BoolCallback = engine.BoolCallback;
 const UpdateCallback = engine.UpdateCallback;
 
-const tint_texture = @import("element.zig").tint_texture;
+const tint_texture = @import("entity.zig").tint_texture;
