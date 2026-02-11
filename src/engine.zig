@@ -386,7 +386,14 @@ pub fn Display(comptime T: type) type {
                     },
                     .texture = null,
                     .pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 },
-                    .maximum = .{ .width = 100, .height = 100 },
+                    .minimum = .{
+                        .width = @as(f32, @floatFromInt(window_width)) * density,
+                        .height = @as(f32, @floatFromInt(window_height)) * density,
+                    },
+                    .maximum = .{
+                        .width = @as(f32, @floatFromInt(window_width)) * density,
+                        .height = @as(f32, @floatFromInt(window_height)) * density,
+                    },
                     .layout = .{ .x = .grows, .y = .grows },
                     .child_align = .{ .x = .centre, .y = .start },
                     .colour = .{},
@@ -664,83 +671,15 @@ pub fn Display(comptime T: type) type {
         /// Apply the relayout algorithm to the currently visible root
         /// panels/scenes, then descend to relayout each of the child panels.
         pub fn relayout(display: *Self) void {
+            if (display.need_relayout == false) return;
+
             display.need_relayout = false;
 
-            for (display.root.type.panel.children.items) |*scene| {
-                if (scene.*.visible != .visible) continue;
-                var updated = false;
-
-                // Remember the actual pad for this parent scene
-                const user_pad: Clip = scene.*.pad;
-
-                // Children of the root panel are "scenes" or "screens". They
-                // all inherit the device safe are except the background.
-                if (!std.mem.eql(u8, "background", scene.*.name)) {
-                    scene.*.pad.top += display.safe_area.top;
-                    scene.*.pad.bottom += display.safe_area.bottom;
-                    scene.*.pad.left += display.safe_area.left;
-                    scene.*.pad.right += display.safe_area.right;
+            const resized = display.root.type.panel.layout(display, &display.root);
+            if (resized) {
+                if (display.on_resized.call(display, &display.root)) {
+                    _ = display.root.type.panel.layout(display, &display.root);
                 }
-
-                // Root scene/panels get placement before relayout begins.
-                const new_width = directional_clamp(
-                    scene.*.layout.x,
-                    scene.*.minimum.width,
-                    display.root.rect.width,
-                    scene.*.maximum.width,
-                );
-                if (new_width != scene.*.rect.width) {
-                    scene.*.rect.width = new_width;
-                    updated = true;
-                }
-
-                const new_height = directional_clamp(
-                    scene.*.layout.y,
-                    scene.*.minimum.height,
-                    display.root.rect.height,
-                    scene.*.maximum.height,
-                );
-                if (new_height != scene.*.rect.height) {
-                    scene.*.rect.height = new_height;
-                    updated = true;
-                }
-
-                // Place panel at start, centre or end.
-                const x = switch (scene.*.child_align.x) {
-                    .start => 0,
-                    .end => display.root.rect.width - scene.*.rect.width,
-                    .centre => @round(display.root.rect.width / 2 - scene.*.rect.width / 2),
-                };
-                if (x != scene.*.rect.x) {
-                    scene.*.rect.x = x;
-                    updated = true;
-                }
-
-                const y = switch (scene.*.child_align.y) {
-                    .start => 0,
-                    .end => display.root.rect.height - scene.*.rect.height,
-                    .centre => @round(display.root.rect.height / 2 - scene.*.rect.height / 2),
-                };
-                if (y != scene.*.rect.y) {
-                    scene.*.rect.y = y;
-                    updated = true;
-                }
-
-                // After root panel sizes are established, the child entities
-                // are layed out inside the panel.
-                scene.*.type.panel.relayout(display, scene.*);
-                if (updated) {
-                    if (display.propagate_resize_event(scene.*))
-                        scene.*.type.panel.relayout(display, scene.*);
-                }
-
-                // Children are given opportunity to resize themselves
-                // in response to the resize event.
-                const did_resize = display.on_resized.call(display, scene.*);
-                if (did_resize)
-                    scene.*.type.panel.relayout(display, scene.*);
-
-                scene.*.pad = user_pad;
             }
         }
 
@@ -1567,6 +1506,10 @@ pub fn Display(comptime T: type) type {
                 updated = true;
             if (display.root.rect.height != @as(f32, @floatFromInt(rheight)))
                 updated = true;
+            if (display.root.minimum.width != @as(f32, @floatFromInt(rwidth)))
+                updated = true;
+            if (display.root.minimum.height != @as(f32, @floatFromInt(rheight)))
+                updated = true;
 
             if (!updated) return;
 
@@ -1580,10 +1523,10 @@ pub fn Display(comptime T: type) type {
             }
             display.root.rect.width = @as(f32, @floatFromInt(rwidth));
             display.root.rect.height = @as(f32, @floatFromInt(rheight));
-            display.root.minimum.width = display.root.rect.x;
-            display.root.maximum.width = display.root.rect.x;
-            display.root.minimum.height = display.root.rect.y;
-            display.root.maximum.height = display.root.rect.y;
+            display.root.minimum.width = display.root.rect.width;
+            display.root.maximum.width = display.root.rect.width;
+            display.root.minimum.height = display.root.rect.height;
+            display.root.maximum.height = display.root.rect.height;
 
             if (display.recalculate_safe_area()) {
                 updated = true;

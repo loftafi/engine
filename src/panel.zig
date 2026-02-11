@@ -208,48 +208,38 @@ pub fn Panel(comptime T: type) type {
             }
         }
 
-        /// Relayout the contents of an individual panel that is sitting
-        /// somewhere n the tree below the root panel (scene).
-        /// self becomes display
-        pub fn relayout(self: *Self, display: *Display(T), parent: *Entity(T)) void {
+        /// The parent has a known fixed width and height. Each of the child
+        /// objects can grow or shrink to fit in what the parent is providing.
+        ///
+        pub fn layout(self: *Self, display: *Display(T), parent: *Entity(T)) bool {
+            var resized = false;
 
             // Keep track of each expander in the panel. At the end, expand
             // each expander according to the leftover space.
             var expanders = BoundedArray(*Entity(T), 10){};
             var expander_weights: f32 = 0;
 
-            // Make sure this entity never exceeds its maximum. This should
-            // not be possible. Is is still needed?
-            var panel_resized = false;
-            if (parent.layout.x == .grows and parent.maximum.width > 0) {
-                const new_width = @min(parent.rect.width, parent.maximum.width);
-                if (parent.rect.width != new_width) {
-                    parent.rect.width = new_width;
-                    panel_resized = true;
-                }
-            }
-            if (parent.layout.y == .grows and parent.maximum.height > 0) {
-                const new_height = @min(parent.rect.height, parent.maximum.height);
-                if (parent.rect.height != new_height) {
-                    parent.rect.height = new_height;
-                    panel_resized = true;
-                }
-            }
-            // This parent panel now has its final/fixed size for this layout
-            // pass. Children nust work within what they are given here.
+            // The parent panel now has its final/fixed size for this layout
+            // pass. Child entities must work within what they are given here.
 
-            // # Step 1
+            // Growing child entities are simple, each child entity just takes
+            // the maximum it is allowed.
             //
-            // Children of this panel are either fixed positioned, growing, or shrinking.
+            // Shrinking child entities are harder, each child entity
+            // must work out what is the minimum space it can work with.
+
+            // # Step 1 - Size calculation (width/height)
             //
-            // - `.fixed` entities are not altered, keep retain their requested `rect` size.
+            // Children of this panel are either fixed positioned, growing,
+            // or shrinking.
+            //
+            // - `.fixed` entities keep their requested rect `width` and `height` size.
+            // - `.grows` entities take the width and height provided by the parent `rect`.
             // - `.shrinks` entities shrink to the `minimum` space they need.
-            // - `.grows` enlarges the width or height of the parent `rect`.
             //
+            const available_width = parent.inner_width();
             for (self.children.items) |entity| {
                 if (entity.visible == .hidden) continue;
-
-                const available_width = parent.inner_width();
 
                 var child_resized = false;
                 if ((engine.dev_build or engine.dev_mode) and entity.layout.position == .float) {
@@ -262,10 +252,10 @@ pub fn Panel(comptime T: type) type {
                         entity.layout.x = .fixed;
                     }
                 }
+
                 switch (entity.layout.x) {
                     .grows => {
                         // Grow to the parent width, not including padding.
-                        entity.rect.x = 0;
                         var new_width = parent.rect.width - (parent.pad.left + parent.pad.right);
                         if (entity.maximum.width > 0 and new_width > entity.maximum.width) {
                             new_width = entity.maximum.width;
@@ -282,12 +272,6 @@ pub fn Panel(comptime T: type) type {
                             entity.rect.width = new_width;
                             child_resized = true;
                         }
-                        // Shrink to the left, centre, or right.
-                        switch (entity.child_align.x) {
-                            .start => entity.rect.x = 0,
-                            .end => entity.rect.x = parent.rect.width - entity.rect.width,
-                            .centre => entity.rect.x = @round((parent.rect.width / 2.0) - (entity.rect.width / 2.0)),
-                        }
                     },
                     .fixed => {
                         // No shrinking or growing applies.
@@ -297,7 +281,6 @@ pub fn Panel(comptime T: type) type {
                 switch (entity.layout.y) {
                     .grows => {
                         // Grow to the parent height, not including padding.
-                        entity.rect.y = 0;
                         entity.rect.height = parent.rect.height - (parent.pad.top + parent.pad.bottom);
                         if (entity.maximum.height > 0 and entity.rect.height > entity.maximum.height) {
                             entity.rect.height = entity.maximum.height;
@@ -310,16 +293,14 @@ pub fn Panel(comptime T: type) type {
                             entity.rect.height = new_height;
                             child_resized = true;
                         }
-                        switch (entity.child_align.y) {
-                            .start => entity.rect.y = 0,
-                            .end => entity.rect.y = parent.rect.height - entity.rect.height,
-                            .centre => entity.rect.y = @round((parent.rect.height / 2.0) - (entity.rect.height / 2.0)),
-                        }
                     },
                     .fixed => {
                         // No shrinking or growing applies.
                     },
                 }
+
+                if (child_resized)
+                    resized = true;
 
                 if (child_resized and entity.on_resized.func != null) {
                     trace("entity {s} resized. callback = {any}", .{
@@ -335,7 +316,7 @@ pub fn Panel(comptime T: type) type {
                 }
             }
 
-            // Step 2
+            // Step 2 - Entity placement
             //
             // The parent panel dictates if the children align to start,
             // centre, or end. Growing/Shrinking children must be aligned
@@ -355,13 +336,13 @@ pub fn Panel(comptime T: type) type {
 
             // Descend into child entities to allow child panels to also resize.
             for (self.children.items) |child| {
-                if (child.type == .panel)
-                    child.type.panel.relayout(display, child);
+                if (child.type == .panel) {
+                    if (child.type.panel.layout(display, child))
+                        resized = true;
+                }
             }
 
-            if (panel_resized and parent.on_resized.func != null) {
-                _ = parent.on_resized.call(display, parent);
-            }
+            return resized;
         }
 
         // self == display
@@ -381,29 +362,44 @@ pub fn Panel(comptime T: type) type {
                     continue;
                 }
 
-                switch (child.layout.x) {
-                    .grows => {
-                        child.rect.width = entity.rect.width - entity.pad.left - entity.pad.right;
-                        if (child.maximum.width > 0)
-                            child.rect.width = @min(child.maximum.width, child.rect.width);
-                        child.rect.x = entity.rect.x + entity.pad.left;
-                    },
-                    else => {
-                        child.rect.x = entity.rect.x + entity.pad.left + @round(inner_width / 2 - child.rect.width / 2);
-                    },
-                }
+                if (false) {
+                    switch (child.layout.x) {
+                        .grows => {
+                            child.rect.width = entity.rect.width - entity.pad.left - entity.pad.right;
+                            if (child.maximum.width > 0)
+                                child.rect.width = @min(child.maximum.width, child.rect.width);
+                            child.rect.x = entity.rect.x + entity.pad.left;
+                        },
+                        else => {
+                            child.rect.x = entity.rect.x + entity.pad.left + @round(inner_width / 2 - child.rect.width / 2);
+                        },
+                    }
 
-                switch (child.layout.y) {
-                    .grows => {
-                        child.rect.height = entity.rect.height - entity.pad.top - entity.pad.bottom;
-                        if (child.maximum.height > 0)
-                            child.rect.height = @min(child.maximum.height, child.rect.height);
-                        child.rect.y = entity.rect.y + entity.pad.top;
-                    },
-                    else => {
-                        child.rect.y = entity.rect.y + entity.pad.top + @round(inner_height / 2 - child.rect.height / 2);
-                    },
+                    switch (child.layout.y) {
+                        .grows => {
+                            child.rect.height = entity.rect.height - entity.pad.top - entity.pad.bottom;
+                            if (child.maximum.height > 0)
+                                child.rect.height = @min(child.maximum.height, child.rect.height);
+                            child.rect.y = entity.rect.y + entity.pad.top;
+                        },
+                        else => {
+                            child.rect.y = entity.rect.y + entity.pad.top + @round(inner_height / 2 - child.rect.height / 2);
+                        },
+                    }
                 }
+                if (std.mem.eql(u8, "preferences.screen", child.name)) {
+                    warn("'{s}' centred using width={d} height={d}  (parent width={d} height={d} inner_width={d} inner_height={d})", .{
+                        child.name,
+                        child.rect.width,
+                        child.rect.height,
+                        entity.rect.width,
+                        entity.rect.height,
+                        inner_width,
+                        inner_height,
+                    });
+                }
+                child.rect.x = entity.rect.x + entity.pad.left + @round(inner_width / 2 - child.rect.width / 2);
+                child.rect.y = entity.rect.y + entity.pad.top + @round(inner_height / 2 - child.rect.height / 2);
             }
             //TODO: Im not sure scroller detection is needed here or not
 
@@ -779,6 +775,51 @@ pub fn Panel(comptime T: type) type {
             //const overflow_height = parent.rect.height - needed_height;
         }
     };
+}
+
+test "root_panel_alignment" {
+    const allocator = std.testing.allocator;
+    // The display takes ownership of the resources object
+
+    var display = try Display(TextSize(10)).create(allocator, test_config);
+    defer display.destroy(allocator);
+    _ = try display.load_font(allocator, "Roboto-Light");
+    try eq(1, display.fonts.items.len);
+    display.root.rect.width = 300;
+    display.root.rect.height = 200;
+
+    const panel = try display.add_panel(allocator, .{
+        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .minimum = .{ .width = 100, .height = 120 },
+        .maximum = .{ .width = 200, .height = 160 },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+
+    panel.layout = .{ .x = .grows, .y = .grows };
+    display.need_relayout = true;
+    display.relayout();
+    try eq(200, panel.rect.width);
+    try eq(160, panel.rect.height);
+
+    panel.layout = .{ .x = .shrinks, .y = .shrinks };
+    display.need_relayout = true;
+    display.relayout();
+    try eq(100, panel.rect.width);
+    try eq(120, panel.rect.height);
+
+    // Will adding a child stretch it correctly
+    const child = try panel.add(allocator, display, .{
+        .name = "picture",
+        .rect = .{ .width = 110, .height = 130 },
+        .layout = .{ .x = .fixed, .y = .fixed },
+        .type = .{ .sprite = .{} },
+    });
+    display.need_relayout = true;
+    display.relayout();
+    try eq(110, child.rect.width);
+    try eq(130, child.rect.height);
+    try eq(110, panel.rect.width);
+    try eq(130, panel.rect.height);
 }
 
 test "panel_padding" {
