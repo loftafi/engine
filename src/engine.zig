@@ -673,12 +673,19 @@ pub fn Display(comptime T: type) type {
         pub fn relayout(display: *Self) void {
             if (display.need_relayout == false) return;
 
+            trace("relayout", .{});
+
             display.need_relayout = false;
 
             const resized = display.root.type.panel.layout(display, &display.root);
             if (resized) {
                 if (display.on_resized.call(display, &display.root)) {
                     _ = display.root.type.panel.layout(display, &display.root);
+                }
+                const child_resized = display.propagate_resize_event(&display.root);
+                if (child_resized) {
+                    display.need_relayout = true;
+                    display.relayout();
                 }
             }
         }
@@ -1538,14 +1545,16 @@ pub fn Display(comptime T: type) type {
         }
 
         /// Trigger `on_resized` events on each node in the tree.
-        fn propagate_resize_event(self: *Self, parent: *Entity(T)) bool {
+        fn propagate_resize_event(self: *Self, entity: *Entity(T)) bool {
             var updated = false;
-            if (parent.visible == .visible)
-                updated = parent.on_resized.call(self, parent);
+            if (entity.visible == .visible)
+                updated = entity.on_resized.call(self, entity);
 
-            if (parent.type == .panel) {
-                for (parent.type.panel.children.items) |entity| {
-                    updated = self.propagate_resize_event(entity) or updated;
+            if (entity.type == .panel) {
+                for (entity.type.panel.children.items) |child| {
+                    if (child.visible == .visible) {
+                        updated = self.propagate_resize_event(child) or updated;
+                    }
                 }
             }
 

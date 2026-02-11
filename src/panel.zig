@@ -262,25 +262,9 @@ pub fn Panel(comptime T: type) type {
                         if (entity.maximum.width > 0 and new_width > entity.maximum.width) {
                             new_width = entity.maximum.width;
                         }
-                        if (entity.type == .label) {
-                            debug("dolayout label {s} width={d} new_width={d} inner_width={d}", .{
-                                entity.type.label.translated,
-                                entity.rect.width,
-                                new_width,
-                                entity.inner_width(),
-                            });
-                        }
                         if (entity.rect.width != new_width) {
                             entity.rect.width = new_width;
                             child_resized = true;
-                        }
-                        if (entity.type == .label) {
-                            debug("`-layout label {s} width={d} new_width={d} inner_width={d}", .{
-                                entity.type.label.translated,
-                                entity.rect.width,
-                                new_width,
-                                entity.inner_width(),
-                            });
                         }
                     },
                     .shrinks => {
@@ -337,13 +321,6 @@ pub fn Panel(comptime T: type) type {
             for (self.children.items) |entity| {
                 if (entity.visible == .hidden) continue;
                 if (entity.type == .label) {
-                    debug("relayout label {s} width={d} inner_width={d} align={t} grows={t}", .{
-                        entity.type.label.translated,
-                        entity.rect.width,
-                        entity.inner_width(),
-                        entity.child_align.x,
-                        entity.layout.x,
-                    });
                     const content_size = entity.layout_label(display.scale, available_width);
                     entity.rect.width = switch (entity.layout.x) {
                         .grows => available_width + entity.pad.left + entity.pad.right,
