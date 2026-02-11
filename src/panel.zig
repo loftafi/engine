@@ -249,7 +249,7 @@ pub fn Panel(comptime T: type) type {
                 const available_width = parent.inner_width();
 
                 var child_resized = false;
-                if ((engine.dev_build or display.dev_mode) and entity.layout.position == .float) {
+                if ((engine.dev_build or engine.dev_mode) and entity.layout.position == .float) {
                     if (entity.layout.x == .grows) {
                         err("floating items cant grow. {s} {s}", .{ entity.name, @tagName(entity.type) });
                         entity.layout.x = .fixed;
