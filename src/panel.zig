@@ -238,6 +238,8 @@ pub fn Panel(comptime T: type) type {
             // - `.shrinks` entities shrink to the `minimum` space they need.
             //
             const available_width = parent.inner_width();
+            const available_height = parent.inner_height();
+
             for (self.children.items) |entity| {
                 if (entity.visible == .hidden) continue;
 
@@ -260,9 +262,25 @@ pub fn Panel(comptime T: type) type {
                         if (entity.maximum.width > 0 and new_width > entity.maximum.width) {
                             new_width = entity.maximum.width;
                         }
+                        if (entity.type == .label) {
+                            debug("dolayout label {s} width={d} new_width={d} inner_width={d}", .{
+                                entity.type.label.translated,
+                                entity.rect.width,
+                                new_width,
+                                entity.inner_width(),
+                            });
+                        }
                         if (entity.rect.width != new_width) {
                             entity.rect.width = new_width;
                             child_resized = true;
+                        }
+                        if (entity.type == .label) {
+                            debug("`-layout label {s} width={d} new_width={d} inner_width={d}", .{
+                                entity.type.label.translated,
+                                entity.rect.width,
+                                new_width,
+                                entity.inner_width(),
+                            });
                         }
                     },
                     .shrinks => {
@@ -316,6 +334,30 @@ pub fn Panel(comptime T: type) type {
                 }
             }
 
+            for (self.children.items) |entity| {
+                if (entity.visible == .hidden) continue;
+                if (entity.type == .label) {
+                    debug("relayout label {s} width={d} inner_width={d} align={t} grows={t}", .{
+                        entity.type.label.translated,
+                        entity.rect.width,
+                        entity.inner_width(),
+                        entity.child_align.x,
+                        entity.layout.x,
+                    });
+                    const content_size = entity.layout_label(display.scale, available_width);
+                    entity.rect.width = switch (entity.layout.x) {
+                        .grows => available_width + entity.pad.left + entity.pad.right,
+                        .shrinks => content_size.width + entity.pad.left + entity.pad.right,
+                        .fixed => entity.rect.width,
+                    };
+                    entity.rect.height = switch (entity.layout.y) {
+                        .grows => available_height + entity.pad.top + entity.pad.bottom,
+                        .shrinks => content_size.height + entity.pad.top + entity.pad.bottom,
+                        .fixed => entity.rect.height,
+                    };
+                }
+            }
+
             // Step 2 - Entity placement
             //
             // The parent panel dictates if the children align to start,
@@ -362,31 +404,6 @@ pub fn Panel(comptime T: type) type {
                     continue;
                 }
 
-                if (false) {
-                    switch (child.layout.x) {
-                        .grows => {
-                            child.rect.width = entity.rect.width - entity.pad.left - entity.pad.right;
-                            if (child.maximum.width > 0)
-                                child.rect.width = @min(child.maximum.width, child.rect.width);
-                            child.rect.x = entity.rect.x + entity.pad.left;
-                        },
-                        else => {
-                            child.rect.x = entity.rect.x + entity.pad.left + @round(inner_width / 2 - child.rect.width / 2);
-                        },
-                    }
-
-                    switch (child.layout.y) {
-                        .grows => {
-                            child.rect.height = entity.rect.height - entity.pad.top - entity.pad.bottom;
-                            if (child.maximum.height > 0)
-                                child.rect.height = @min(child.maximum.height, child.rect.height);
-                            child.rect.y = entity.rect.y + entity.pad.top;
-                        },
-                        else => {
-                            child.rect.y = entity.rect.y + entity.pad.top + @round(inner_height / 2 - child.rect.height / 2);
-                        },
-                    }
-                }
                 if (std.mem.eql(u8, "preferences.screen", child.name)) {
                     warn("'{s}' centred using width={d} height={d}  (parent width={d} height={d} inner_width={d} inner_height={d})", .{
                         child.name,
@@ -398,6 +415,7 @@ pub fn Panel(comptime T: type) type {
                         inner_height,
                     });
                 }
+
                 child.rect.x = entity.rect.x + entity.pad.left + @round(inner_width / 2 - child.rect.width / 2);
                 child.rect.y = entity.rect.y + entity.pad.top + @round(inner_height / 2 - child.rect.height / 2);
             }
@@ -420,24 +438,7 @@ pub fn Panel(comptime T: type) type {
                     continue;
                 }
 
-                switch (child.layout.x) {
-                    .grows => {
-                        child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
-                        if (child.maximum.width > 0)
-                            child.rect.width = @min(child.maximum.width, child.rect.width);
-                    },
-                    else => {},
-                }
                 child.rect.x = parent.rect.x + parent.pad.left;
-
-                switch (child.layout.y) {
-                    .grows => {
-                        child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
-                        if (child.maximum.width > 0)
-                            child.rect.height = @min(child.maximum.height, child.rect.height);
-                    },
-                    else => {},
-                }
                 child.rect.y = parent.rect.y + parent.pad.top;
             }
         }
@@ -454,24 +455,7 @@ pub fn Panel(comptime T: type) type {
                     continue;
                 }
 
-                switch (child.layout.x) {
-                    .grows => {
-                        child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
-                        if (child.maximum.width > 0)
-                            child.rect.width = @min(child.maximum.width, child.rect.width);
-                    },
-                    else => {},
-                }
                 child.rect.x = parent.rect.x + parent.rect.width - parent.pad.right - child.rect.width;
-
-                switch (child.layout.y) {
-                    .grows => {
-                        child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
-                        if (child.maximum.width > 0)
-                            child.rect.height = @min(child.maximum.height, child.rect.height);
-                    },
-                    else => {},
-                }
                 child.rect.y = parent.rect.y + parent.pad.top;
             }
         }
@@ -832,6 +816,10 @@ test "panel_padding" {
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
+    display.root.minimum.width = 300;
+    display.root.minimum.height = 200;
+    display.root.maximum.width = 300;
+    display.root.maximum.height = 200;
 
     const panel = try display.add_panel(allocator, .{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
@@ -922,6 +910,10 @@ test "centre_text_bug" {
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 600;
     display.root.rect.height = 800;
+    display.root.minimum.width = 600;
+    display.root.minimum.height = 800;
+    display.root.maximum.width = 600;
+    display.root.maximum.height = 800;
 
     const panel = try display.add_panel(allocator, .{
         .type = .{ .panel = .{ .direction = .left_to_right, .spacing = 5 } },

@@ -41,9 +41,9 @@ pub fn Label(comptime T: type) type {
         // `parent_inner_width` is the maximum space this entity could
         // theoretically grow to. Text might wrap if wider than this.
         pub inline fn minimum_needed_width(
-            _: *Self,
-            display: *Display(T),
-            entity: *Entity(T),
+            _: *const Self,
+            display: *const Display(T),
+            entity: *const Entity(T),
             parent_inner_width: f32,
         ) f32 {
             const padding = entity.pad.left + entity.pad.right;
@@ -55,25 +55,22 @@ pub fn Label(comptime T: type) type {
                 entity.maximum.width - padding,
             );
 
-            switch (entity.layout.x) {
-                .shrinks, .grows => {
-                    // Growing or shrinking, our task here is to find
-                    // the minimum that would be needed.
-                    _ = entity.layout_label(display.scale, allowed_width);
-                    return entity.rect.width;
-                },
-                .fixed => {
-                    return entity.rect.width;
-                },
-            }
+            // How wide does the label text get when laying it out.
+            return switch (entity.layout.x) {
+                .shrinks,
+                .grows,
+                => return entity.layout_label(display.scale, allowed_width).width,
+                .fixed,
+                => entity.rect.width,
+            };
         }
 
         // `parent_inner_width` is the maximum space this entity could
         // theoretically grow to. Text might wrap if wider than this.
         pub inline fn minimum_needed_height(
-            _: *Self,
-            display: *Display(T),
-            entity: *Entity(T),
+            _: *const Self,
+            display: *const Display(T),
+            entity: *const Entity(T),
             parent_inner_width: f32,
         ) f32 {
             const padding = entity.pad.left + entity.pad.right;
@@ -84,18 +81,14 @@ pub fn Label(comptime T: type) type {
                 entity.maximum.width - padding,
             );
 
-            // Simulate a draw of this entity to see how many lines it
-            // would take. This is done when the label is created but also
-            // needs to be done here as the width of the label may have changed.
-            switch (entity.layout.y) {
-                .shrinks, .grows => {
-                    _ = entity.layout_label(display.scale, allowed_width);
-                    return entity.rect.height;
-                },
-                .fixed => {
-                    return entity.rect.height;
-                },
-            }
+            // How high does the label text get when laying it out.
+            return switch (entity.layout.y) {
+                .shrinks,
+                .grows,
+                => entity.layout_label(display.scale, allowed_width).height,
+                .fixed,
+                => entity.rect.height,
+            };
         }
     };
 }

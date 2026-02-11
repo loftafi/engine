@@ -1220,27 +1220,31 @@ pub fn Entity(comptime T: type) type {
         /// left and right padding, and clamped to the min/max
         /// width (including padding)
         pub inline fn layout_label(
-            entity: *Self,
+            entity: *const Self,
             display_scale: f32,
-            parent_inner_width: f32,
-        ) f32 {
+            maximum_width: f32,
+        ) Size {
             std.debug.assert(entity.type == .label or entity.type == .checkbox);
 
-            const padding = entity.pad.left + entity.pad.right;
-            if (entity.type == .label and entity.type.label.text.len == 0) return padding;
-            if (entity.type == .checkbox and entity.type.checkbox.text.len == 0) return padding;
+            const empty: Size = .{
+                .width = entity.pad.left + entity.pad.right,
+                .height = entity.pad.top + entity.pad.bottom,
+            };
+            if (entity.type == .label and entity.type.label.text.len == 0) return empty;
+            if (entity.type == .checkbox and entity.type.checkbox.text.len == 0) return empty;
+
+            const children = switch (entity.type) {
+                .label => entity.type.label.elements.items,
+                .checkbox => entity.type.checkbox.elements.items,
+                else => unreachable,
+            };
+            if (children.len == 0) return empty;
 
             const text_height = switch (entity.type) {
                 .label => entity.type.label.text_size,
                 .checkbox => entity.type.checkbox.text_size,
                 else => unreachable,
             };
-            const children = switch (entity.type) {
-                .label => entity.type.label.elements.items,
-                .checkbox => entity.type.checkbox.elements.items,
-                else => unreachable,
-            };
-            if (children.len == 0) return padding;
 
             // Track the minimum needed width. Remember the longest line. Include
             // any left/right padding.
@@ -1250,8 +1254,6 @@ pub fn Entity(comptime T: type) type {
 
             var x: f32 = 0;
             var y: f32 = 0;
-
-            const wrap_at: f32 = word_wrap_line(entity, parent_inner_width);
 
             // A line must have at least one word before a line break is inserted
             // otherwise we are just drawing pointless broken blank lines.
@@ -1264,7 +1266,7 @@ pub fn Entity(comptime T: type) type {
                 const is_cr = item.text.len == 1 and item.text[0] == '\n';
                 const size = text_height.pixel_size(display_scale, item.texture);
                 // Would drawing this word overflow?
-                if ((x + word_spacing + size.width > wrap_at and line_word_count > 0) or is_cr) {
+                if ((x + word_spacing + size.width > maximum_width and line_word_count > 0) or is_cr) {
                     needed_width = @max(needed_width, x);
                     // Wrap to next line
                     x = 0;
@@ -1295,29 +1297,9 @@ pub fn Entity(comptime T: type) type {
             }
 
             // Add y padding at the bottom so that we can calculate the final height.
-            var needed_height = y + entity.pad.top + entity.pad.bottom;
-            needed_height = @round(needed_height);
+            const needed_height = @round(y);
 
-            // Always use the needed height as long as it is
-            // in the minimum and maximum bound.
-            // TODO: Label height `grows` is ignored. Is this desirable?
-            entity.rect.height = engine.clamp(
-                entity.minimum.height,
-                needed_height,
-                entity.maximum.height,
-            );
-
-            needed_width += entity.pad.left + entity.pad.right;
             needed_width = @round(needed_width);
-
-            // Width must `shrink` or `grow` as requested as long as
-            // it is within the required minimum and maximum bound.
-            entity.rect.width = engine.directional_clamp(
-                entity.layout.x,
-                entity.minimum.width,
-                needed_width,
-                @min(entity.maximum.width, parent_inner_width),
-            );
 
             // Align words to centre or right if requested.
             // centre and end alignment might need the `grows`
@@ -1326,13 +1308,13 @@ pub fn Entity(comptime T: type) type {
                 var line_start: usize = 0;
                 var line_end: usize = 0;
                 const usable_width = switch (entity.layout.x) {
-                    .grows => wrap_at,
-                    .shrinks => needed_width - entity.pad.left - entity.pad.right,
-                    .fixed => entity.rect.width - entity.pad.left - entity.pad.right,
+                    .grows => maximum_width,
+                    .shrinks => needed_width,
+                    .fixed => maximum_width,
                 };
                 while (true) : (line_end += 1) {
                     if (line_end + 1 == children.len) {
-                        entity.do_word_alignment(
+                        entity.do_line_justification(
                             children[line_end].location.x + children[line_end].location.width,
                             usable_width,
                             children[line_start .. line_end + 1],
@@ -1340,7 +1322,7 @@ pub fn Entity(comptime T: type) type {
                         break;
                     }
                     if (children[line_end].location.x >= children[line_end + 1].location.x) {
-                        entity.do_word_alignment(
+                        entity.do_line_justification(
                             children[line_end].location.x + children[line_end].location.width,
                             usable_width,
                             children[line_start .. line_end + 1],
@@ -1351,7 +1333,7 @@ pub fn Entity(comptime T: type) type {
                 }
             }
 
-            return needed_width;
+            return .{ .width = needed_width, .height = needed_height };
         }
 
         pub fn keypress(
@@ -1543,8 +1525,8 @@ pub fn Entity(comptime T: type) type {
 
         /// Align a single line of TextElement's belonging to a label
         /// or a checkbox.
-        inline fn do_word_alignment(
-            entity: *Self,
+        inline fn do_line_justification(
+            entity: *const Self,
             line_width: f32,
             usable_width: f32,
             children: []TextElement,
@@ -1575,7 +1557,7 @@ pub fn Entity(comptime T: type) type {
         /// Calculate how many pixels of text we can draw until we must wrap to
         /// the next line. By default the width is whatever the parent entity
         /// has room for.
-        fn word_wrap_line(entity: *Self, max_parent_width: f32) f32 {
+        fn word_wrap_line(entity: *const Self, max_parent_width: f32) f32 {
             var entity_padding: f32 = 0;
             if (entity.type == .checkbox) entity_padding += entity.type.checkbox.checkbox_size.width;
 
