@@ -668,9 +668,13 @@ pub fn Display(comptime T: type) type {
 
             for (display.root.type.panel.children.items) |*scene| {
                 if (scene.*.visible != .visible) continue;
+                var updated = false;
 
+                // Remember the actual pad for this parent scene
                 const user_pad: Clip = scene.*.pad;
 
+                // Children of the root panel are "scenes" or "screens". They
+                // all inherit the device safe are except the background.
                 if (!std.mem.eql(u8, "background", scene.*.name)) {
                     scene.*.pad.top += display.safe_area.top;
                     scene.*.pad.bottom += display.safe_area.bottom;
@@ -679,37 +683,56 @@ pub fn Display(comptime T: type) type {
                 }
 
                 // Root scene/panels get placement before relayout begins.
-                scene.*.rect.width = directional_clamp(
+                const new_width = directional_clamp(
                     scene.*.layout.x,
                     scene.*.minimum.width,
                     display.root.rect.width,
                     scene.*.maximum.width,
                 );
+                if (new_width != scene.*.rect.width) {
+                    scene.*.rect.width = new_width;
+                    updated = true;
+                }
 
-                scene.*.rect.height = directional_clamp(
+                const new_height = directional_clamp(
                     scene.*.layout.y,
                     scene.*.minimum.height,
                     display.root.rect.height,
                     scene.*.maximum.height,
                 );
+                if (new_height != scene.*.rect.height) {
+                    scene.*.rect.height = new_height;
+                    updated = true;
+                }
 
                 // Place panel at start, centre or end.
-                switch (scene.*.child_align.x) {
-                    .start => scene.*.rect.x = 0,
-                    .end => scene.*.rect.x = display.root.rect.width - scene.*.rect.width,
-                    .centre => scene.*.rect.x = @round(display.root.rect.width / 2 - scene.*.rect.width / 2),
+                const x = switch (scene.*.child_align.x) {
+                    .start => 0,
+                    .end => display.root.rect.width - scene.*.rect.width,
+                    .centre => @round(display.root.rect.width / 2 - scene.*.rect.width / 2),
+                };
+                if (x != scene.*.rect.x) {
+                    scene.*.rect.x = x;
+                    updated = true;
                 }
-                switch (scene.*.child_align.y) {
-                    .start => scene.*.rect.y = 0,
-                    .end => scene.*.rect.y = display.root.rect.height - scene.*.rect.height,
-                    .centre => scene.*.rect.y = @round(display.root.rect.height / 2 - scene.*.rect.height / 2),
+
+                const y = switch (scene.*.child_align.y) {
+                    .start => 0,
+                    .end => display.root.rect.height - scene.*.rect.height,
+                    .centre => @round(display.root.rect.height / 2 - scene.*.rect.height / 2),
+                };
+                if (y != scene.*.rect.y) {
+                    scene.*.rect.y = y;
+                    updated = true;
                 }
 
                 // After root panel sizes are established, the child entities
                 // are layed out inside the panel.
                 scene.*.type.panel.relayout(display, scene.*);
-                display.propogate_resize_event(scene.*);
-                scene.*.type.panel.relayout(display, scene.*); //TODO: fix
+                if (updated) {
+                    if (display.propagate_resize_event(scene.*))
+                        scene.*.type.panel.relayout(display, scene.*);
+                }
 
                 // Children are given opportunity to resize themselves
                 // in response to the resize event.
@@ -886,6 +909,7 @@ pub fn Display(comptime T: type) type {
                 });
                 return Error.RootAcceptsPanelsOnly;
             }
+
             return self.root.add(allocator, self, entity);
         }
 
@@ -1571,15 +1595,18 @@ pub fn Display(comptime T: type) type {
         }
 
         /// Trigger `on_resized` events on each node in the tree.
-        fn propogate_resize_event(self: *Self, parent: *Entity(T)) void {
+        fn propagate_resize_event(self: *Self, parent: *Entity(T)) bool {
+            var updated = false;
             if (parent.visible == .visible)
-                _ = parent.on_resized.call(self, parent);
+                updated = parent.on_resized.call(self, parent);
 
             if (parent.type == .panel) {
                 for (parent.type.panel.children.items) |entity| {
-                    self.propogate_resize_event(entity);
+                    updated = self.propagate_resize_event(entity) or updated;
                 }
             }
+
+            return updated;
         }
 
         /// Handle events that impact the usable area of the screen.

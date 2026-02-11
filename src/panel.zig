@@ -218,7 +218,8 @@ pub fn Panel(comptime T: type) type {
             var expanders = BoundedArray(*Entity(T), 10){};
             var expander_weights: f32 = 0;
 
-            // Make sure this entity never exceeds its maximum.
+            // Make sure this entity never exceeds its maximum. This should
+            // not be possible. Is is still needed?
             var panel_resized = false;
             if (parent.layout.x == .grows and parent.maximum.width > 0) {
                 const new_width = @min(parent.rect.width, parent.maximum.width);
@@ -234,6 +235,8 @@ pub fn Panel(comptime T: type) type {
                     panel_resized = true;
                 }
             }
+            // This parent panel now has its final/fixed size for this layout
+            // pass. Children nust work within what they are given here.
 
             // # Step 1
             //
