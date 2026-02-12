@@ -2142,24 +2142,6 @@ pub fn Display(comptime T: type) type {
             });
         }
 
-        pub fn setup_entity(
-            self: *Self,
-            allocator: Allocator,
-            entity: *Entity(T),
-        ) (Error || Allocator.Error || Resources.Error)!void {
-            switch (entity.type) {
-                .panel => try entity.setup_panel(allocator, self),
-                .button => try entity.setup_button(allocator, self),
-                .label => try entity.setup_label(allocator, self),
-                .rectangle => try entity.setup_rect(allocator),
-                .checkbox => try entity.setup_checkbox(allocator, self),
-                .sprite => try entity.setup_sprite(allocator, self),
-                .progress_bar => try entity.setup_progress_bar(allocator, self),
-                .expander => try entity.setup_expander(allocator, self),
-                .text_input => try entity.setup_text_input(allocator, self),
-            }
-        }
-
         /// Keypress `Callback` handler to toggle dev mode.
         fn toggle_dev_mode(_: *Self, _: Allocator, _: *Display(T)) Allocator.Error!void {
             engine.dev_mode = !engine.dev_mode;
@@ -2745,7 +2727,7 @@ test "button sizing" {
     // panel has min width 5, but button pushes it out to 30
     try eq(30, panel.rect.width);
     try eq(not_quite_one_line, button.rect.height);
-    try eq(8, panel.rect.height);
+    try eq(not_quite_one_line, panel.rect.height);
 
     panel.pad.left = 2;
     panel.pad.right = 3;
@@ -2753,9 +2735,9 @@ test "button sizing" {
     panel.pad.bottom = 5;
     display.relayout();
     try eq(30, button.rect.width);
-    try eq(5, panel.rect.width);
+    try eq(30, panel.rect.width);
     try eq(not_quite_one_line, button.rect.height);
-    try eq(8, panel.rect.height);
+    try eq(not_quite_one_line, panel.rect.height);
 
     panel.minimum.width = 100;
     display.relayout();
@@ -2771,10 +2753,10 @@ test "button sizing" {
     display.relayout();
     try eq(42, @round(button.rect.width / display.pixel_density));
     // Does the width grow more than 10 (minimum) because of the button size.
-    try eq(100, @round(panel.rect.width));
+    try eq(88, @round(panel.rect.width));
     // Minimum height was not_quite_one_line, expect it grew to font height.
     try eq(display.text_height.pixel_height(1), button.rect.height / display.pixel_density);
-    try eq(0, panel.rect.height);
+    try eq(display.text_height.pixel_height(2) + 4 + 5, panel.rect.height);
 
     // Buttons cant wrap, hight will only change with padding.
     button.maximum.height = 500;
@@ -2783,6 +2765,7 @@ test "button sizing" {
     try eq(display.text_height.pixel_height(1), button.rect.height / display.pixel_density);
     button.pad.top = 4;
     button.pad.bottom = 5;
+    display.need_relayout = true;
     display.relayout();
     try eq(display.text_height.pixel_height(1), (button.rect.height - 4 - 5) / display.pixel_density);
 }
@@ -2804,13 +2787,18 @@ test "text input sizing" {
     var display = try headless_display(allocator, TextSize(22), 1000, 1600, 2);
     defer display.destroy(allocator);
 
+    var panel = try display.add_panel(allocator, .{
+        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
     _ = try display.load_font(allocator, "Roboto-Light");
 
     {
         // Create a fixed sized label with enough space
-        const l = try create_label(allocator, display, .{
+        const l = try panel.add(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 50 },
@@ -2818,15 +2806,15 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .fixed, .y = .grows },
         });
-        defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
         try eq(50, l.minimum_needed_height(display, 500));
+        panel.remove_entities(allocator, display);
     }
 
     {
         // Create a fixed sized label with minimum
-        const l = try create_label(allocator, display, .{
+        const l = try panel.add(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 55 },
@@ -2834,15 +2822,15 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .fixed, .y = .fixed },
         });
-        defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
         try eq(60, l.minimum_needed_height(display, 500));
+        panel.remove_entities(allocator, display);
     }
 
     {
         // Create a fixed sized label with minimum
-        const l = try create_label(allocator, display, .{
+        const l = try panel.add(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 200, .height = 100 },
             .minimum = .{ .width = 300, .height = 20 },
@@ -2850,15 +2838,15 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
         });
-        defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(401, l.minimum_needed_width(display, 500));
+        try eq(300, l.minimum_needed_width(display, 500));
         try eq(display.text_height.pixel_height(display.scale), l.minimum_needed_height(display, 500));
+        panel.remove_entities(allocator, display);
     }
 
     {
         // Create a fixed sized label with x growth
-        const l = try create_label(allocator, display, .{
+        const l = try panel.add(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
@@ -2866,38 +2854,51 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
         });
-        defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(401, @round(l.minimum_needed_width(display, 500)));
+        // Minimum is not the actual width, but the smallest it could do.
+        try eq(187, @round(l.minimum_needed_width(display, 500)));
         try eq(display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
+        panel.remove_entities(allocator, display);
     }
 
     {
         // Create a label with full shrinking
-        const l = try create_label(allocator, display, .{
+        const l = try panel.add(allocator, display, .{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .shrinks, .y = .shrinks },
+            .pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 },
         });
-        defer l.destroy(allocator, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
+        display.need_relayout = true;
+        display.relayout();
         try eq(2, l.type.label.elements.items.len);
         // Bitmap/Pixel width of first word in this font is 197 pixels
         try eq(99, @round(l.type.label.elements.items[0].width / display.pixel_scale));
         // Bitmap/Pixel width of second word in this font is 197 pixels
         try eq(107, @round(l.type.label.elements.items[1].width / display.pixel_scale));
 
+        try eq(0, @round(l.type.label.elements.items[0].location.x));
+        try eq(0, @round(l.type.label.elements.items[0].location.y));
+
+        try eq(96, @round(l.type.label.elements.items[1].location.x));
+        try eq(0, @round(l.type.label.elements.items[1].location.y));
+
         // Display width of the words when rendered to the physical display
-        try eq(94, @round(l.minimum_needed_width(display, 500) / display.pixel_scale));
-        try eq(display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
+        try eq(91, @round(l.minimum_needed_width(display, 500)));
+        try eq(
+            display.text_height.pixel_height(display.pixel_scale),
+            l.minimum_needed_height(display, 500),
+        );
         // Display width on physical display with word wrap
         try eq(2 * display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 40 * display.pixel_scale));
+        panel.remove_entities(allocator, display);
     }
 
-    var panel = try display.add_panel(allocator, .{
+    panel = try display.add_panel(allocator, .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },

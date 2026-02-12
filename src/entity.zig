@@ -91,6 +91,24 @@ pub fn Entity(comptime T: type) type {
             text_input: TextInput(T),
         },
 
+        pub fn setup(
+            entity: *Entity(T),
+            allocator: Allocator,
+            display: *Display(T),
+        ) (Error || Allocator.Error || Resources.Error)!void {
+            switch (entity.type) {
+                .panel => try entity.setup_panel(allocator, display),
+                .button => try entity.setup_button(allocator, display),
+                .label => try entity.setup_label(allocator, display),
+                .rectangle => try entity.setup_rect(allocator),
+                .checkbox => try entity.setup_checkbox(allocator, display),
+                .sprite => try entity.setup_sprite(allocator, display),
+                .progress_bar => try entity.setup_progress_bar(allocator, display),
+                .expander => try entity.setup_expander(allocator, display),
+                .text_input => try entity.setup_text_input(allocator, display),
+            }
+        }
+
         /// Cleanup memory associated with this entity. This is automatically
         /// called on all entities inside the display when the display is destroyed.
         ///
@@ -828,7 +846,7 @@ pub fn Entity(comptime T: type) type {
             std.debug.assert(self.type == .panel);
             const child = try allocator.create(Self);
             child.* = conf;
-            try display.setup_entity(allocator, child);
+            try child.setup(allocator, display);
             try self.type.panel.children.append(allocator, child);
             if (child.visible != .hidden and self.visible != .hidden)
                 display.need_relayout = true;
@@ -848,7 +866,7 @@ pub fn Entity(comptime T: type) type {
             std.debug.assert(location <= self.type.panel.children.items.len);
             const child = try allocator.create(Self);
             child.* = conf;
-            try display.setup_entity(allocator, child);
+            try child.setup(allocator, display);
             try self.type.panel.children.insert(allocator, location, child);
             if (child.visible != .hidden and self.visible != .hidden)
                 display.need_relayout = true;
