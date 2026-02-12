@@ -52,7 +52,10 @@ pub fn Label(comptime T: type) type {
                 entity.layout.x,
                 @max(0, entity.minimum.width - padding),
                 @max(0, parent_inner_width - padding),
-                @max(0, entity.maximum.width - padding),
+                @max(0, @min(
+                    entity.maximum.width - padding,
+                    parent_inner_width - padding,
+                )),
             );
 
             // How wide does the label text get when laying it out.
@@ -142,6 +145,10 @@ test "label_panel_placement" {
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
+    display.root.minimum.width = 300;
+    display.root.minimum.height = 200;
+    display.root.maximum.width = 300;
+    display.root.maximum.height = 200;
 
     const panel = try display.add_panel(allocator, .{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
@@ -197,12 +204,8 @@ test "label_single_word_alignment" {
     const allocator = std.testing.allocator;
     // The display takes ownership of the resources object
 
-    var display = try Display(TextSize(10)).create(allocator, test_config);
+    var display = try headless_display(allocator, TextSize(10), 300, 200, 2);
     defer display.destroy(allocator);
-    _ = try display.load_font(allocator, "Roboto-Light");
-    try eq(1, display.fonts.items.len);
-    display.root.rect.width = 300;
-    display.root.rect.height = 200;
 
     const panel = try display.add_panel(allocator, .{
         .name = "parent",
@@ -315,15 +318,8 @@ test "label_single_word_alignment" {
 test "label_multiword_align" {
     const allocator = std.testing.allocator;
 
-    var display = try Display(TextSize(10)).create(allocator, test_config);
+    var display = try headless_display(allocator, TextSize(10), 200, 200, 2);
     defer display.destroy(allocator);
-    display.pixel_scale = 2;
-    display.scale = 2;
-    display.user_scale = 1;
-    _ = try display.load_font(allocator, "Roboto-Light");
-    try eq(1, display.fonts.items.len);
-    display.root.rect.width = 200;
-    display.root.rect.height = 200;
 
     const panel = try display.add_panel(allocator, .{
         .name = "parent",
@@ -413,14 +409,9 @@ test "label_multiword_align" {
 
 test "shrunk_label_in_panel" {
     const allocator = std.testing.allocator;
-    // The display takes ownership of the resources object
 
-    var display = try Display(TextSize(10)).create(allocator, test_config);
+    var display = try headless_display(allocator, TextSize(10), 200, 100, 2);
     defer display.destroy(allocator);
-    _ = try display.load_font(allocator, "Roboto-Light");
-    try eq(1, display.fonts.items.len);
-    display.root.rect.width = 200;
-    display.root.rect.height = 100;
 
     const panel = try display.add_panel(allocator, .{
         .layout = .{ .x = .grows, .y = .grows },
@@ -505,3 +496,4 @@ const BoolCallback = engine.BoolCallback;
 const UpdateCallback = engine.UpdateCallback;
 
 const test_config = @import("test.zig").test_config;
+const headless_display = @import("test.zig").headless_display;

@@ -2706,11 +2706,9 @@ test "init catch" {
 
 test "button sizing" {
     const allocator = std.testing.allocator;
-    // The display takes ownership of the resources object
-    var display = try Display(TextSize(22)).create(allocator, test_config);
+
+    var display = try headless_display(allocator, TextSize(22), 1024, 720, 2);
     defer display.destroy(allocator);
-    _ = try display.load_font(allocator, "Roboto-Light");
-    try eq(1, display.fonts.items.len);
 
     const panel = try display.add_panel(allocator, .{
         .minimum = .{ .width = 5, .height = 8 },
@@ -2730,6 +2728,7 @@ test "button sizing" {
         .maximum = .{ .width = 82, .height = not_quite_two_lines },
         .type = .{ .button = .{ .text = "" } },
     });
+    display.need_relayout = true;
     display.relayout();
     try eq(50, button.minimum_needed_width(display, 500));
     try eq(50, button.minimum_needed_height(display, 500));
@@ -2739,10 +2738,12 @@ test "button sizing" {
     // The words will overflow the bottom of the box
     try eq(not_quite_one_line, button.minimum_needed_height(display, 500));
 
+    display.need_relayout = true;
     display.relayout();
     try eq(30, panel.minimum_needed_width(display, 500));
     try eq(30, button.rect.width);
-    try eq(5, panel.rect.width);
+    // panel has min width 5, but button pushes it out to 30
+    try eq(30, panel.rect.width);
     try eq(not_quite_one_line, button.rect.height);
     try eq(8, panel.rect.height);
 
@@ -2799,14 +2800,9 @@ fn create_label(
 
 test "text input sizing" {
     const allocator = std.testing.allocator;
-    // The display takes ownership of the resources object
-    var display = try Display(TextSize(22)).create(allocator, test_config);
+
+    var display = try headless_display(allocator, TextSize(22), 1000, 1600, 2);
     defer display.destroy(allocator);
-    display.root.rect.width = 1000;
-    display.root.rect.height = 1600;
-    display.pixel_scale = 2;
-    display.scale = 2;
-    display.user_scale = 1;
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
@@ -3057,6 +3053,7 @@ pub const ThemeColour = @import("theme.zig").ThemeColour;
 pub const Colour = @import("theme.zig").Colour;
 
 const test_config = @import("test.zig").test_config;
+const headless_display = @import("test.zig").headless_display;
 pub const BundleLoader = @import("read_write.zig");
 pub const init_resource_loader = BundleLoader.init_resource_loader;
 pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
