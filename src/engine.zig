@@ -669,7 +669,17 @@ pub fn Display(comptime T: type) type {
         }
 
         /// Apply the relayout algorithm to the currently visible root
-        /// panels/scenes, then descend to relayout each of the child panels.
+        /// panels/scenes, descending down to each child in the tree.
+        ///
+        /// If any entity has an on_resized handler, and that handler
+        /// returns `true` indicating that the entity size was manually
+        /// changed in some way. If one entity changes its size, the
+        /// relayout must be completely redone. i.e. If an entity changes
+        /// size, its parent and or child entities may all be impacted.
+        ///
+        /// if an entity continually returns `on_resized` = `true` then an
+        /// infinite loop will occur. on_resized=true should be used with
+        /// caution.
         pub fn relayout(display: *Self) void {
             if (display.need_relayout == false) return;
 
@@ -677,7 +687,9 @@ pub fn Display(comptime T: type) type {
 
             display.need_relayout = false;
 
-            const resized = display.root.type.panel.layout(display, &display.root);
+            var resized = display.root.type.panel.layout(display, &display.root);
+            resized = display.root.type.panel.layout(display, &display.root) or resized;
+
             if (resized) {
                 if (display.on_resized.call(display, &display.root)) {
                     _ = display.root.type.panel.layout(display, &display.root);
@@ -754,6 +766,7 @@ pub fn Display(comptime T: type) type {
 
             // Step 2: Update and draw all entities to the screen
             display.root.update(display);
+            display.relayout();
             display.root.draw(display, .{ .x = 0, .y = 0 }, null);
 
             // Step 3: Send everything to the display.
