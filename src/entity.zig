@@ -99,7 +99,7 @@ pub fn Entity(comptime T: type) type {
             switch (entity.type) {
                 .panel => try entity.setup_panel(allocator, display),
                 .button => try entity.setup_button(allocator, display),
-                .label => try entity.setup_label(allocator, display),
+                .label => try entity.type.label.setup(allocator, display, entity),
                 .rectangle => try entity.setup_rect(allocator),
                 .checkbox => try entity.setup_checkbox(allocator, display),
                 .sprite => try entity.setup_sprite(allocator, display),
@@ -107,6 +107,36 @@ pub fn Entity(comptime T: type) type {
                 .expander => try entity.setup_expander(allocator, display),
                 .text_input => try entity.setup_text_input(allocator, display),
             }
+
+            // Catch invalid layout states
+            var float_error = false;
+            switch (entity.layout.x) {
+                .grows => if (entity.layout.position == .float) {
+                    entity.layout.x = .fixed;
+                    float_error = true;
+                },
+                .shrinks => if (entity.layout.position == .float) {
+                    entity.layout.x = .fixed;
+                    float_error = true;
+                },
+                .fixed => {},
+            }
+            switch (entity.layout.y) {
+                .grows => if (entity.layout.position == .float) {
+                    entity.layout.y = .fixed;
+                    float_error = true;
+                },
+                .shrinks => if (entity.layout.position == .float) {
+                    entity.layout.y = .fixed;
+                    float_error = true;
+                },
+                .fixed => {},
+            }
+            if (float_error)
+                err("floating items cant grow or shrink. {s} {s}", .{
+                    entity.name,
+                    @tagName(entity.type),
+                });
         }
 
         /// Cleanup memory associated with this entity. This is automatically
@@ -832,6 +862,28 @@ pub fn Entity(comptime T: type) type {
                     warn("set_text({s}) invalid for {s}", .{ @tagName(self.type), new_text });
                 },
             }
+
+            // Set an initial label width and height as placeholders until
+            // the label is laied out in the entity tree.
+            if (self.type == .label or self.type == .checkbox) {
+                const width = if (self.layout.x == .fixed) self.rect.width else display.root.rect.width;
+                const content_size = self.layout_label(display.scale, width);
+                self.rect.width = switch (self.layout.x) {
+                    .grows, .shrinks => @max(
+                        content_size.width + self.pad.left + self.pad.right,
+                        self.minimum.width,
+                    ),
+                    .fixed => self.rect.width,
+                };
+                self.rect.height = switch (self.layout.y) {
+                    .grows, .shrinks => @max(
+                        content_size.height + self.pad.top + self.pad.bottom,
+                        self.minimum.height,
+                    ),
+                    .fixed => self.rect.height,
+                };
+            }
+
             if (self.visible != .hidden) display.need_relayout = true;
         }
 
@@ -1719,37 +1771,6 @@ pub fn Entity(comptime T: type) type {
             entity.focus = .never_focus;
         }
 
-        pub fn setup_label(
-            entity: *Self,
-            allocator: Allocator,
-            self: *Display(T),
-        ) (Error || Allocator.Error || Resources.Error)!void {
-            entity.texture = null;
-            entity.background.image = null;
-            entity.type.label.translated = "";
-            entity.type.label.elements = .empty;
-            entity.type.label.font = try select_font(self.fonts.items, entity.type.label.font_name);
-
-            if (entity.focus == .unspecified) {
-                if (entity.type.label.on_click.func != null)
-                    entity.focus = .can_focus
-                else
-                    entity.focus = .accessibility_focus;
-            }
-            try entity.set_text(allocator, self, entity.type.label.text);
-
-            // Is there a background for this label?
-            if (entity.background.image_name) |name| {
-                if (try self.load_texture(allocator, name)) |texture|
-                    entity.background.image = texture;
-            }
-
-            if (entity.pad.top == 0 and entity.pad.bottom == 0 and entity.pad.left == 0 and entity.pad.right == 0) {
-                entity.pad.top = self.text_height.pixel_height(self.scale * 0.3);
-                entity.pad.bottom = self.text_height.pixel_height(self.scale * 0.3);
-            }
-        }
-
         pub fn setup_text_input(
             entity: *Self,
             allocator: Allocator,
@@ -1840,20 +1861,6 @@ pub fn Entity(comptime T: type) type {
                 trace("sprite {s} fg {s}", .{ entity.name, entity.texture_name.? });
             if (entity.background.image_name != null)
                 trace("sprite {s} bg {s}", .{ entity.name, entity.background.image_name.? });
-        }
-
-        fn select_font(fonts: []*Font, name: ?[]const u8) error{FontRequired}!*Font {
-            if (name) |font_name| {
-                for (fonts) |font| {
-                    if (std.mem.eql(u8, font.name, font_name)) {
-                        return font;
-                    }
-                }
-                err("select_font({s}) called, but no fonts have been loaded.", .{name.?});
-            }
-            if (fonts.len > 0) return fonts[0];
-
-            return Error.FontRequired;
         }
 
         pub fn setup_button(
@@ -2089,6 +2096,19 @@ pub const Background = struct {
     /// If the background texture has corners, how many pixels wide should the corner be rendered on the display.
     corner_radius: f32 = 0,
 };
+
+pub fn select_font(fonts: []*Font, name: ?[]const u8) error{FontRequired}!*Font {
+    if (name) |font_name| {
+        for (fonts) |font| {
+            if (std.mem.eql(u8, font.name, font_name)) {
+                return font;
+            }
+        }
+        err("select_font({s}) called, but no fonts have been loaded.", .{name.?});
+    }
+    if (fonts.len > 0) return fonts[0];
+    return Error.FontRequired;
+}
 
 pub const TextElement = struct {
     text: []const u8 = "",

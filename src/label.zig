@@ -11,6 +11,38 @@ pub fn Label(comptime T: type) type {
         text_size: T = .normal,
         on_click: Entity(T).Callback = .empty,
 
+        pub fn setup(
+            label: *Self,
+            allocator: Allocator,
+            display: *Display(T),
+            entity: *Entity(T),
+        ) (Error || Allocator.Error || Resources.Error)!void {
+            entity.texture = null;
+            entity.background.image = null;
+            label.translated = "";
+            label.elements = .empty;
+            label.font = try select_font(display.fonts.items, label.font_name);
+
+            if (entity.focus == .unspecified) {
+                if (entity.type.label.on_click.func != null)
+                    entity.focus = .can_focus
+                else
+                    entity.focus = .accessibility_focus;
+            }
+            try entity.set_text(allocator, display, entity.type.label.text);
+
+            // Is there a background for this label?
+            if (entity.background.image_name) |name| {
+                if (try display.load_texture(allocator, name)) |texture|
+                    entity.background.image = texture;
+            }
+
+            if (entity.pad.top == 0 and entity.pad.bottom == 0 and entity.pad.left == 0 and entity.pad.right == 0) {
+                entity.pad.top = display.text_height.pixel_height(display.scale * 0.3);
+                entity.pad.bottom = display.text_height.pixel_height(display.scale * 0.3);
+            }
+        }
+
         /// Calculate the layout of all elements, and optionally render every entity.
         ///
         /// Normally text is converted to an image and rendered left to right, starting
@@ -466,10 +498,14 @@ test "shrunk_label_in_panel" {
 }
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const eq = std.testing.expectEqual;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
 const sdl = @import("sdl");
+
+const resources = @import("resources");
+const Resources = resources.Resources;
 
 const engine = @import("engine.zig");
 const err = engine.err;
@@ -495,5 +531,6 @@ const Callback = engine.Callback;
 const BoolCallback = engine.BoolCallback;
 const UpdateCallback = engine.UpdateCallback;
 
+const select_font = @import("entity.zig").select_font;
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;

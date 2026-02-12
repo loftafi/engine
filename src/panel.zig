@@ -336,36 +336,6 @@ pub fn Panel(comptime T: type) type {
         ) bool {
             var child_resized = false;
 
-            // Catch invalid layout states
-            var float_error = false;
-            switch (entity.layout.x) {
-                .grows => if (entity.layout.position == .float) {
-                    entity.layout.x = .fixed;
-                    float_error = true;
-                },
-                .shrinks => if (entity.layout.position == .float) {
-                    entity.layout.x = .fixed;
-                    float_error = true;
-                },
-                .fixed => {},
-            }
-            switch (entity.layout.y) {
-                .grows => if (entity.layout.position == .float) {
-                    entity.layout.y = .fixed;
-                    float_error = true;
-                },
-                .shrinks => if (entity.layout.position == .float) {
-                    entity.layout.y = .fixed;
-                    float_error = true;
-                },
-                .fixed => {},
-            }
-            if (float_error)
-                err("floating items cant grow or shrink. {s} {s}", .{
-                    entity.name,
-                    @tagName(entity.type),
-                });
-
             switch (entity.layout.x) {
                 .grows => {
                     trace("do grow {s}. parent width={d}", .{ entity.name, parent.rect.width });
@@ -923,18 +893,9 @@ test "panel_padding" {
 
 test "centre_text_bug" {
     const allocator = std.testing.allocator;
-    // The display takes ownership of the resources object
 
-    var display = try Display(TextSize(10)).create(allocator, test_config);
+    var display = try headless_display(allocator, TextSize(10), 600, 800, 2);
     defer display.destroy(allocator);
-    _ = try display.load_font(allocator, "Roboto-Light");
-    try eq(1, display.fonts.items.len);
-    display.root.rect.width = 600;
-    display.root.rect.height = 800;
-    display.root.minimum.width = 600;
-    display.root.minimum.height = 800;
-    display.root.maximum.width = 600;
-    display.root.maximum.height = 800;
 
     const panel = try display.add_panel(allocator, .{
         .type = .{ .panel = .{ .direction = .left_to_right, .spacing = 5 } },
@@ -1079,3 +1040,4 @@ const Callback = engine.Callback;
 const UpdateCallback = engine.UpdateCallback;
 
 const test_config = @import("test.zig").test_config;
+const headless_display = @import("test.zig").headless_display;
