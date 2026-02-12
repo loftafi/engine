@@ -185,17 +185,17 @@ pub fn Panel(comptime T: type) type {
                     // a, then b underneath, thn c underneath...
                     //
                     // Need to just find maximum width item
-                    var minimum_needed: f32 = 0;
-                    for (panel.children.items) |entity| {
-                        if (entity.layout.position == .float) continue;
-                        if (entity.visible == .hidden) continue;
+                    var minimum_needed: f32 = parent.pad.left + parent.pad.right;
+                    for (panel.children.items) |child| {
+                        if (child.layout.position == .float) continue;
+                        if (child.visible == .hidden) continue;
 
-                        const child_width = entity.minimum_needed_width(display, available_width);
-                        if (false) {
+                        const child_width = child.minimum_needed_width(display, available_width);
+                        if (true) {
                             debug("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
                                 parent.name,
-                                entity.name,
-                                entity.type,
+                                child.name,
+                                child.type,
                                 minimum_needed,
                                 child_width,
                                 available_width,
@@ -241,75 +241,24 @@ pub fn Panel(comptime T: type) type {
             const available_height = parent.inner_height();
 
             for (self.children.items) |entity| {
+                if (engine.dev_build)
+                    if (std.mem.eql(u8, parent.name, display.root.name))
+                        trace("layout {s} panel {s} {t}", .{ parent.name, entity.name, entity.visible });
+
                 if (entity.visible == .hidden) continue;
 
-                var child_resized = false;
-                if ((engine.dev_build or engine.dev_mode) and entity.layout.position == .float) {
-                    if (entity.layout.x == .grows) {
-                        err("floating items cant grow. {s} {s}", .{ entity.name, @tagName(entity.type) });
-                        entity.layout.x = .fixed;
-                    }
-                    if (entity.layout.x == .shrinks) {
-                        err("floating items cant shrink. {s} {s}", .{ entity.name, @tagName(entity.type) });
-                        entity.layout.x = .fixed;
-                    }
-                }
+                const child_resized = self.calculate_child_size(display, entity, parent, available_width);
 
-                switch (entity.layout.x) {
-                    .grows => {
-                        // Grow to the parent width, not including padding.
-                        var new_width = parent.rect.width - (parent.pad.left + parent.pad.right);
-                        if (entity.maximum.width > 0 and new_width > entity.maximum.width) {
-                            new_width = entity.maximum.width;
-                        }
-                        if (entity.rect.width != new_width) {
-                            entity.rect.width = new_width;
-                            child_resized = true;
-                        }
-                    },
-                    .shrinks => {
-                        // Shrink to the smallest the children will allow.
-                        const new_width = entity.minimum_needed_width(display, available_width);
-                        if (entity.rect.width != new_width) {
-                            entity.rect.width = new_width;
-                            child_resized = true;
-                        }
-                    },
-                    .fixed => {
-                        // No shrinking or growing applies.
-                    },
-                }
-
-                switch (entity.layout.y) {
-                    .grows => {
-                        // Grow to the parent height, not including padding.
-                        entity.rect.height = parent.rect.height - (parent.pad.top + parent.pad.bottom);
-                        if (entity.maximum.height > 0 and entity.rect.height > entity.maximum.height) {
-                            entity.rect.height = entity.maximum.height;
-                        }
-                    },
-                    .shrinks => {
-                        // Shrink to the smallest the children will allow
-                        const new_height = entity.minimum_needed_height(display, available_width);
-                        if (entity.rect.height != new_height) {
-                            entity.rect.height = new_height;
-                            child_resized = true;
-                        }
-                    },
-                    .fixed => {
-                        // No shrinking or growing applies.
-                    },
-                }
-
-                if (child_resized)
+                if (child_resized) {
                     resized = true;
 
-                if (child_resized and entity.on_resized.func != null) {
-                    trace("entity {s} resized. callback = {any}", .{
-                        entity.name,
-                        entity.on_resized.func != null,
-                    });
-                    _ = entity.on_resized.call(display, entity);
+                    if (entity.on_resized.func != null) {
+                        trace("entity {s} resized. callback = {any}", .{
+                            entity.name,
+                            entity.on_resized.func != null,
+                        });
+                        _ = entity.on_resized.call(display, entity);
+                    }
                 }
 
                 if (entity.type == .expander) {
@@ -318,17 +267,20 @@ pub fn Panel(comptime T: type) type {
                 }
             }
 
+            // Now that label entity sizes are known, do actual
+            // layout of label text.
             for (self.children.items) |entity| {
                 if (entity.visible == .hidden) continue;
+                const max_allowed = @max(0, available_width - entity.pad.left - entity.pad.right);
                 if (entity.type == .label) {
-                    const content_size = entity.layout_label(display.scale, available_width);
+                    const content_size = entity.layout_label(display.scale, max_allowed);
                     entity.rect.width = switch (entity.layout.x) {
-                        .grows => available_width + entity.pad.left + entity.pad.right,
+                        .grows => available_width,
                         .shrinks => content_size.width + entity.pad.left + entity.pad.right,
                         .fixed => entity.rect.width,
                     };
                     entity.rect.height = switch (entity.layout.y) {
-                        .grows => available_height + entity.pad.top + entity.pad.bottom,
+                        .grows => available_height,
                         .shrinks => content_size.height + entity.pad.top + entity.pad.bottom,
                         .fixed => entity.rect.height,
                     };
@@ -355,6 +307,7 @@ pub fn Panel(comptime T: type) type {
 
             // Descend into child entities to allow child panels to also resize.
             for (self.children.items) |child| {
+                if (child.visible == .hidden) continue;
                 if (child.type == .panel) {
                     if (child.type.panel.layout(display, child))
                         resized = true;
@@ -364,7 +317,96 @@ pub fn Panel(comptime T: type) type {
             return resized;
         }
 
-        // self == display
+        /// Set the width and height of an entity. Check for invalid
+        /// entity configurations that cause confusing on screen effects.
+        inline fn calculate_child_size(
+            _: *Self,
+            display: *Display(T),
+            entity: *Entity(T),
+            parent: *Entity(T),
+            available_width: f32,
+        ) bool {
+            var child_resized = false;
+
+            // Catch invalid layout states
+            var float_error = false;
+            switch (entity.layout.x) {
+                .grows => if (entity.layout.position == .float) {
+                    entity.layout.x = .fixed;
+                    float_error = true;
+                },
+                .shrinks => if (entity.layout.position == .float) {
+                    entity.layout.x = .fixed;
+                    float_error = true;
+                },
+                .fixed => {},
+            }
+            switch (entity.layout.y) {
+                .grows => if (entity.layout.position == .float) {
+                    entity.layout.y = .fixed;
+                    float_error = true;
+                },
+                .shrinks => if (entity.layout.position == .float) {
+                    entity.layout.y = .fixed;
+                    float_error = true;
+                },
+                .fixed => {},
+            }
+            if (float_error)
+                err("floating items cant grow or shrink. {s} {s}", .{
+                    entity.name,
+                    @tagName(entity.type),
+                });
+
+            switch (entity.layout.x) {
+                .grows => {
+                    // Grow to the parent width, not including padding.
+                    var new_width = parent.rect.width - (parent.pad.left + parent.pad.right);
+                    if (entity.maximum.width > 0 and new_width > entity.maximum.width) {
+                        new_width = entity.maximum.width;
+                    }
+                    if (entity.rect.width != new_width) {
+                        entity.rect.width = new_width;
+                        child_resized = true;
+                    }
+                },
+                .shrinks => {
+                    // Shrink to the smallest the children will allow.
+                    const new_width = entity.minimum_needed_width(display, available_width);
+                    if (entity.rect.width != new_width) {
+                        entity.rect.width = new_width;
+                        child_resized = true;
+                    }
+                },
+                .fixed => {
+                    // No shrinking or growing applies.
+                },
+            }
+
+            switch (entity.layout.y) {
+                .grows => {
+                    // Grow to the parent height, not including padding.
+                    entity.rect.height = parent.rect.height - (parent.pad.top + parent.pad.bottom);
+                    if (entity.maximum.height > 0 and entity.rect.height > entity.maximum.height) {
+                        entity.rect.height = entity.maximum.height;
+                    }
+                },
+                .shrinks => {
+                    // Shrink to the smallest the children will allow
+                    const new_height = entity.minimum_needed_height(display, available_width);
+                    if (entity.rect.height != new_height) {
+                        entity.rect.height = new_height;
+                        child_resized = true;
+                    }
+                },
+                .fixed => {
+                    // No shrinking or growing applies.
+                },
+            }
+
+            return child_resized;
+        }
+
         inline fn place_children_centred(
             panel: *Self,
             entity: *Entity(T),
@@ -379,18 +421,6 @@ pub fn Panel(comptime T: type) type {
                 if (child.type == .expander) {
                     warn("expander panel '{s}' ignored due to centre layout.", .{entity.name});
                     continue;
-                }
-
-                if (std.mem.eql(u8, "preferences.screen", child.name)) {
-                    warn("'{s}' centred using width={d} height={d}  (parent width={d} height={d} inner_width={d} inner_height={d})", .{
-                        child.name,
-                        child.rect.width,
-                        child.rect.height,
-                        entity.rect.width,
-                        entity.rect.height,
-                        inner_width,
-                        inner_height,
-                    });
                 }
 
                 child.rect.x = entity.rect.x + entity.pad.left + @round(inner_width / 2 - child.rect.width / 2);
@@ -466,12 +496,6 @@ pub fn Panel(comptime T: type) type {
                     current.y += child.rect.height;
 
                 if (child.type != .expander) first = false;
-
-                if (child.layout.x == .grows) {
-                    child.rect.width = parent.rect.width - parent.pad.left - parent.pad.right;
-                    if (child.maximum.width > 0)
-                        child.rect.width = @min(child.maximum.width, child.rect.width);
-                }
             }
             const needed_height = current.y - parent.rect.y - parent.pad.top;
             const overflow_height = (parent.rect.y + parent.rect.height - parent.pad.bottom) - current.y;

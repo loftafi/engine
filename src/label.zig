@@ -50,16 +50,16 @@ pub fn Label(comptime T: type) type {
             //const allowed_width = clamp(
             const allowed_width = engine.directional_clamp(
                 entity.layout.x,
-                entity.minimum.width - padding,
-                parent_inner_width - padding,
-                entity.maximum.width - padding,
+                @max(0, entity.minimum.width - padding),
+                @max(0, parent_inner_width - padding),
+                @max(0, entity.maximum.width - padding),
             );
 
             // How wide does the label text get when laying it out.
             return switch (entity.layout.x) {
                 .shrinks,
                 .grows,
-                => return entity.layout_label(display.scale, allowed_width).width,
+                => return entity.layout_label(display.scale, allowed_width).width + padding,
                 .fixed,
                 => entity.rect.width,
             };
@@ -76,16 +76,19 @@ pub fn Label(comptime T: type) type {
             const padding = entity.pad.left + entity.pad.right;
             const allowed_width = engine.directional_clamp(
                 entity.layout.x,
-                entity.minimum.width - padding,
-                parent_inner_width - padding,
-                entity.maximum.width - padding,
+                @max(0, entity.minimum.width - padding),
+                @max(0, parent_inner_width - padding),
+                @max(0, entity.maximum.width - padding),
             );
 
             // How high does the label text get when laying it out.
             return switch (entity.layout.y) {
                 .shrinks,
                 .grows,
-                => entity.layout_label(display.scale, allowed_width).height,
+                => @max(
+                    entity.layout_label(display.scale, allowed_width).height + entity.pad.top + entity.pad.bottom,
+                    entity.minimum.height,
+                ),
                 .fixed,
                 => entity.rect.height,
             };

@@ -368,6 +368,17 @@ pub fn Entity(comptime T: type) type {
                     self.maximum.height,
                 });
             }
+            if (self.pad.left > 0 or self.pad.right > 0 or self.pad.top > 0 or self.pad.bottom > 0) {
+                _ = try out.write(" pad=");
+                if (self.pad.left > 0)
+                    _ = try out.print("{d:1.0}l", .{self.pad.left});
+                if (self.pad.right > 0)
+                    _ = try out.print("{d:1.0}r", .{self.pad.right});
+                if (self.pad.top > 0)
+                    _ = try out.print("{d:1.0}t", .{self.pad.top});
+                if (self.pad.bottom > 0)
+                    _ = try out.print("{d:1.0}b", .{self.pad.bottom});
+            }
             if (self.style != .normal) {
                 _ = try out.write(" style=");
                 _ = try out.write(@tagName(self.style));
@@ -1215,10 +1226,13 @@ pub fn Entity(comptime T: type) type {
         /// If the text is centred or right aligned, then each line must be pushed along
         /// by a certain offset amount.
         ///
-        /// `parent_inner_width` should be the actual width the parent is
-        /// willing/able to down to this child entity, minus the parent
-        /// left and right padding, and clamped to the min/max
-        /// width (including padding)
+        /// `maximum_width` is maximum number of pixels this label is able
+        /// to grow into. left and right padding of this label is _not_ part
+        /// of the maximum width. When calling this function, subtract padding
+        /// first, and apply limit placed by `entity.maximum`width`
+        ///
+        /// Returns the width and height of the text content, _not_ including any
+        /// padding
         pub inline fn layout_label(
             entity: *const Self,
             display_scale: f32,
@@ -1226,10 +1240,7 @@ pub fn Entity(comptime T: type) type {
         ) Size {
             std.debug.assert(entity.type == .label or entity.type == .checkbox);
 
-            const empty: Size = .{
-                .width = entity.pad.left + entity.pad.right,
-                .height = entity.pad.top + entity.pad.bottom,
-            };
+            const empty: Size = .{ .width = 0, .height = 0 };
             if (entity.type == .label and entity.type.label.text.len == 0) return empty;
             if (entity.type == .checkbox and entity.type.checkbox.text.len == 0) return empty;
 
