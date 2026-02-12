@@ -47,7 +47,7 @@ pub fn Label(comptime T: type) type {
             parent_inner_width: f32,
         ) f32 {
             const padding = entity.pad.left + entity.pad.right;
-            //const allowed_width = clamp(
+
             const allowed_width = engine.directional_clamp(
                 entity.layout.x,
                 @max(0, entity.minimum.width - padding),
@@ -59,7 +59,10 @@ pub fn Label(comptime T: type) type {
             return switch (entity.layout.x) {
                 .shrinks,
                 .grows,
-                => return entity.layout_label(display.scale, allowed_width).width + padding,
+                => return @max(
+                    entity.layout_label(display.scale, allowed_width).width + padding,
+                    entity.minimum.width,
+                ),
                 .fixed,
                 => entity.rect.width,
             };

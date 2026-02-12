@@ -320,8 +320,8 @@ pub fn Entity(comptime T: type) type {
             }
         }
 
-        // Find the avaialble inner width of this entity. This is the
-        // width of the entity minus any padding.
+        /// Find the avaialble inner width of this entity. This is the
+        /// width of the entity minus any padding.
         pub inline fn inner_width(self: *const Self) f32 {
             const padding = self.pad.left + self.pad.right;
 
@@ -332,8 +332,8 @@ pub fn Entity(comptime T: type) type {
             );
         }
 
-        // Find the avaialble inner height of this entity. This is the
-        // height of the entity minus any padding.
+        /// Find the avaialble inner height of this entity. This is the
+        /// height of the entity minus any padding.
         pub inline fn inner_height(self: *const Self) f32 {
             const padding = self.pad.top + self.pad.bottom;
 

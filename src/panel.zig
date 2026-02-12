@@ -192,7 +192,7 @@ pub fn Panel(comptime T: type) type {
 
                         const child_width = child.minimum_needed_width(display, available_width);
                         if (true) {
-                            debug("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
+                            trace("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
                                 parent.name,
                                 child.name,
                                 child.type,
@@ -213,6 +213,7 @@ pub fn Panel(comptime T: type) type {
         ///
         pub fn layout(self: *Self, display: *Display(T), parent: *Entity(T)) bool {
             var resized = false;
+            trace("layout on {s}", .{parent.name});
 
             // Keep track of each expander in the panel. At the end, expand
             // each expander according to the leftover space.
@@ -276,12 +277,18 @@ pub fn Panel(comptime T: type) type {
                     const content_size = entity.layout_label(display.scale, max_allowed);
                     entity.rect.width = switch (entity.layout.x) {
                         .grows => available_width,
-                        .shrinks => content_size.width + entity.pad.left + entity.pad.right,
+                        .shrinks => @max(
+                            content_size.width + entity.pad.left + entity.pad.right,
+                            entity.minimum.width,
+                        ),
                         .fixed => entity.rect.width,
                     };
                     entity.rect.height = switch (entity.layout.y) {
                         .grows => available_height,
-                        .shrinks => content_size.height + entity.pad.top + entity.pad.bottom,
+                        .shrinks => @max(
+                            content_size.height + entity.pad.top + entity.pad.bottom,
+                            entity.minimum.height,
+                        ),
                         .fixed => entity.rect.height,
                     };
                 }
@@ -309,6 +316,7 @@ pub fn Panel(comptime T: type) type {
             for (self.children.items) |child| {
                 if (child.visible == .hidden) continue;
                 if (child.type == .panel) {
+                    trace("parent({s}).layout() calling child({s}).layout()", .{ parent.name, child.name });
                     if (child.type.panel.layout(display, child))
                         resized = true;
                 }
@@ -360,8 +368,9 @@ pub fn Panel(comptime T: type) type {
 
             switch (entity.layout.x) {
                 .grows => {
+                    trace("do grow {s}. parent width={d}", .{ entity.name, parent.rect.width });
                     // Grow to the parent width, not including padding.
-                    var new_width = parent.rect.width - (parent.pad.left + parent.pad.right);
+                    var new_width = parent.inner_width();
                     if (entity.maximum.width > 0 and new_width > entity.maximum.width) {
                         new_width = entity.maximum.width;
                     }
@@ -386,7 +395,7 @@ pub fn Panel(comptime T: type) type {
             switch (entity.layout.y) {
                 .grows => {
                     // Grow to the parent height, not including padding.
-                    entity.rect.height = parent.rect.height - (parent.pad.top + parent.pad.bottom);
+                    entity.rect.height = parent.inner_height();
                     if (entity.maximum.height > 0 and entity.rect.height > entity.maximum.height) {
                         entity.rect.height = entity.maximum.height;
                     }
@@ -614,24 +623,35 @@ pub fn Panel(comptime T: type) type {
 
                 child.rect.x = current.x;
                 child.rect.y = current.y;
+                trace("drop {s} at position {d}x{d} size:{d}x{d}", .{
+                    child.name,
+                    child.rect.x,
+                    child.rect.y,
+                    child.rect.width,
+                    child.rect.height,
+                });
 
                 if (child.type != .expander)
                     current.x += child.rect.width;
 
                 if (child.type != .expander) first = false;
 
-                if (child.layout.y == .grows) {
-                    child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
-                    if (child.maximum.height > 0)
-                        child.rect.height = @min(child.maximum.height, child.rect.height);
-                }
+                // if (child.layout.y == .grows) {
+                //     child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
+                //     if (child.maximum.height > 0)
+                //         child.rect.height = @min(child.maximum.height, child.rect.height);
+                //}
             }
             const needed_width = current.x - parent.rect.x - parent.pad.left;
             const overflow_width = (parent.rect.x + parent.rect.width - parent.pad.right) - current.x;
             parent.type.panel.scrollable.size.width = @max(needed_width, parent.rect.width);
 
-            // On second pass, we can add in the expanders.
+            // Child entities have been now been placed.
+            // Do we need to push them apart with expanders?
+            // Do we need to centre or right align them?
+
             if (expanders.len > 0 or expander_weights > 0) {
+                // Expanders detected, push entities apart.
                 trace("expanders: {s} has {any} expanders.  needed_width={d} available_width={d}", .{
                     parent.name,
                     expanders.len,
@@ -927,7 +947,7 @@ test "centre_text_bug" {
     try eq(800, panel.rect.height);
 
     var footer = try panel.add(allocator, display, .{
-        .name = "footer",
+        .name = "panel_left_to_right",
         .focus = .never_focus,
         .minimum = .{ .width = 180 },
         .maximum = .{ .width = 400 },
@@ -945,7 +965,7 @@ test "centre_text_bug" {
     try eq(15 + 11, footer.rect.height);
 
     const icon = try footer.add(allocator, display, .{
-        .name = "question.icon",
+        .name = "test.icon",
         .focus = .never_focus,
         .child_align = .{ .x = .centre },
         .rect = .{ .width = 50, .height = 50 },
@@ -963,7 +983,7 @@ test "centre_text_bug" {
     // The text is just a little smaller than the minmum width, so we can
     // test child start, centre, end align in child panels.
     const label = try footer.add(allocator, display, .{
-        .name = "unit.question",
+        .name = "test.label",
         .focus = .accessibility_focus,
         .style = .tinted,
         .minimum = .{ .width = 150 },
@@ -982,9 +1002,9 @@ test "centre_text_bug" {
             panel.child_align.x = .start;
             display.need_relayout = true;
             display.relayout();
+            try eq(full_width, footer.rect.width);
             try eq(150, label.rect.width); // text smaller than minimum
             try eq(20, label.rect.height);
-            try eq(full_width, footer.rect.width);
             try eq(icon.rect.x, footer.rect.x + footer.pad.left);
             try eq(icon.rect.y, footer.rect.y + footer.pad.top);
             try eq(label.rect.x, footer.rect.x + footer.pad.left + 12 + icon.rect.width);
