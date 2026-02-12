@@ -3052,6 +3052,7 @@ const default_themes = @import("theme.zig").default_themes;
 pub const Theme = @import("theme.zig").Theme;
 pub const ThemeColour = @import("theme.zig").ThemeColour;
 pub const Colour = @import("theme.zig").Colour;
+pub const BoxLayout = @import("box_layout.zig").BoxLayout;
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;

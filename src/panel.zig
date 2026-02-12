@@ -92,7 +92,29 @@ pub fn Panel(comptime T: type) type {
                     return result;
                 },
 
-                .centre, .left_to_right, .left_to_right_wrap, .top_left, .top_right => {
+                .left_to_right_wrap => {
+                    var box: engine.BoxLayout = .init(
+                        available_width,
+                        parent.type.panel.spacing,
+                        parent.type.panel.spacing,
+                    );
+
+                    for (parent.type.panel.children.items) |child| {
+                        if (child.layout.position == .float) continue;
+                        if (child.visible == .hidden) continue;
+                        if (child.type == .expander) continue;
+
+                        const width = child.minimum_needed_width(display, available_width);
+                        _ = box.place(width, child.rect.height);
+                    }
+                    box.finalise();
+                    return @max(
+                        box.final.height + parent.pad.top + parent.pad.bottom,
+                        parent.minimum.height,
+                    );
+                },
+
+                .centre, .left_to_right, .top_left, .top_right => {
                     // centred all together
                     // a, next to b, next c.
                     //
@@ -126,7 +148,11 @@ pub fn Panel(comptime T: type) type {
         ///
         /// If parent fills children left-to-right, we must add the heights.
         /// If parent fills children top-to-bottom simply find the widest item.
-        fn find_minimum_panel_width(panel: *Self, parent: *const Entity(T), display: *Display(T)) f32 {
+        fn find_minimum_panel_width(
+            panel: *Self,
+            parent: *const Entity(T),
+            display: *Display(T),
+        ) f32 {
             std.debug.assert(parent.type == .panel);
             if (parent.visible == .hidden) return 0;
             if (parent.layout.position == .float) return 0;
@@ -160,25 +186,22 @@ pub fn Panel(comptime T: type) type {
                     return @max(minimum_needed, parent.minimum.width);
                 },
                 .left_to_right_wrap => {
-                    var minimum_needed: f32 = parent.pad.left + parent.pad.right;
-                    var first = true;
-                    for (panel.children.items) |entity| {
-                        if (entity.layout.position == .float) continue;
-                        if (entity.visible == .hidden) continue;
+                    var box: engine.BoxLayout = .init(
+                        available_width,
+                        parent.type.panel.spacing,
+                        parent.type.panel.spacing,
+                    );
 
-                        // Add space between each entity.
-                        if (first)
-                            first = false
-                        else
-                            minimum_needed += panel.spacing;
+                    for (panel.children.items) |child| {
+                        if (child.layout.position == .float) continue;
+                        if (child.visible == .hidden) continue;
+                        if (child.type == .expander) continue;
 
-                        const width = entity.minimum_needed_width(display, available_width);
-                        minimum_needed = @max(minimum_needed, width);
+                        const width = child.minimum_needed_width(display, available_width);
+                        _ = box.place(width, child.rect.height);
                     }
-                    // Bound to the minimum/maximum width
-                    if (parent.maximum.width > 0)
-                        minimum_needed = @min(parent.maximum.width, minimum_needed);
-                    return @max(minimum_needed, parent.minimum.width);
+                    box.finalise();
+                    return @max(box.final.width, parent.minimum.width);
                 },
                 .centre, .top_to_bottom, .top_left, .top_right => {
                     // a, centred upon b, centred upon c
@@ -713,37 +736,23 @@ pub fn Panel(comptime T: type) type {
                 .y = parent.rect.y + parent.pad.top,
             };
 
-            // Track how much hight the current line needs
-            var line_height: f32 = 0;
+            var box: engine.BoxLayout = .init(
+                parent.rect.width,
+                parent.type.panel.spacing,
+                parent.type.panel.spacing,
+            );
 
-            // Draw along the line, and wrap when we hit the end of the line
-            const line_end: f32 = parent.rect.x + parent.rect.width - parent.pad.right;
-
-            var first = true;
             for (parent.type.panel.children.items) |child| {
-                if (child.visible == .hidden) continue;
                 if (child.layout.position == .float) continue;
+                if (child.visible == .hidden) continue;
+                if (child.type == .expander) continue;
 
-                if (!first and child.type != .expander)
-                    current.x += parent.type.panel.spacing;
-
-                if (child.type != .expander) first = false;
-
-                if (current.x + child.rect.width > line_end) {
-                    current.x = parent.rect.x + parent.pad.left;
-                    current.y += line_height + parent.type.panel.spacing;
-                    line_height = 0;
-                    first = true;
-                    //TODO: We could y grow the entities that want grow.
-                    //TODO We could centre the items on this line `parent.child_align.x`
-                }
-
-                child.rect.x = current.x;
-                child.rect.y = current.y;
-                current.x += child.rect.width;
-                const item_height = @max(child.rect.height, child.minimum.height);
-                line_height = @max(item_height, line_height);
+                const item = box.place(child.rect.width, child.rect.height);
+                child.rect.x = current.x + item.x;
+                child.rect.y = current.y + item.y;
             }
+            box.finalise();
+
             current.y += parent.pad.bottom;
             const needed_height = current.y - parent.rect.y;
             parent.type.panel.scrollable.size.height = @max(needed_height, parent.rect.height);
