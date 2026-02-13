@@ -1715,14 +1715,6 @@ pub fn Entity(comptime T: type) type {
                     entity.background.image = texture;
             }
 
-            if (entity.pad.top == 0 and entity.pad.bottom == 0 and entity.pad.left == 0 and entity.pad.right == 0) {
-                //TODO:REMOVE!
-                entity.pad.left = display.text_height.pixel_height(display.scale * 0.8);
-                entity.pad.right = display.text_height.pixel_height(display.scale * 0.8);
-                entity.pad.top = display.text_height.pixel_height(display.scale * 0.3);
-                entity.pad.bottom = display.text_height.pixel_height(display.scale * 0.3);
-            }
-
             if (entity.type.checkbox.checkbox_size.width == 0 or entity.type.checkbox.checkbox_size.height == 0) {
                 entity.type.checkbox.checkbox_size.width = display.text_height.pixel_height(display.pixel_scale);
                 entity.type.checkbox.checkbox_size.height = display.text_height.pixel_height(display.pixel_scale);

@@ -53,20 +53,29 @@ pub fn Checkbox(comptime T: type) type {
             _: *Self,
             display: *Display(T),
             entity: *Entity(T),
-            parent_inner_width: f32,
+            max_width: f32,
         ) f32 {
+            const margins = entity.pad.left + entity.pad.right + entity.type.checkbox.checkbox_size.width;
+
+            const allowed_width = engine.directional_clamp(
+                entity.layout.x,
+                @max(0, entity.minimum.width - margins),
+                @max(0, max_width - margins),
+                @max(0, @min(
+                    entity.maximum.width - margins,
+                    max_width - margins,
+                )),
+            );
+
             switch (entity.layout.x) {
-                .shrinks, .grows => {
-                    // Growing or shrinking, our task here is to find
-                    // the minimum that would be needed.
-                    _ = entity.layout_label(display.scale, parent_inner_width);
-                    //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                    return entity.rect.width + entity.pad.left + entity.type.checkbox.checkbox_size.width;
-                },
-                .fixed => {
-                    //err("{s} {s} use width {d}", .{ self.name, @tagName(self.type), choose });
-                    return entity.rect.width;
-                },
+                .shrinks, .grows => return @max(
+                    entity.layout_label(display.scale, allowed_width).width +
+                        margins +
+                        entity.type.checkbox.checkbox_size.width,
+                    entity.minimum.width,
+                ),
+                //return entity.rect.width + entity.pad.left + entity.type.checkbox.checkbox_size.width
+                .fixed => return entity.rect.width,
             }
         }
 
