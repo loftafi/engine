@@ -1365,7 +1365,6 @@ pub fn Entity(comptime T: type) type {
                 var end: usize = 0;
                 while (true) : (end += 1) {
                     if (end + 1 == children.len) {
-                        err("{s} justify {d}..{d} ", .{ entity.name, start, end + 1 });
                         entity.do_line_justification(
                             children[end].location.x + children[end].location.width,
                             usable_width,
@@ -1374,7 +1373,6 @@ pub fn Entity(comptime T: type) type {
                         break;
                     }
                     if (children[end].location.x >= children[end + 1].location.x) {
-                        err("{s} justify {d}..{d} ", .{ entity.name, start, end + 1 });
                         entity.do_line_justification(
                             children[end].location.x + children[end].location.width,
                             usable_width,
