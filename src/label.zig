@@ -36,11 +36,6 @@ pub fn Label(comptime T: type) type {
                 if (try display.load_texture(allocator, name)) |texture|
                     entity.background.image = texture;
             }
-
-            if (entity.pad.top == 0 and entity.pad.bottom == 0 and entity.pad.left == 0 and entity.pad.right == 0) {
-                entity.pad.top = display.text_height.pixel_height(display.scale * 0.3);
-                entity.pad.bottom = display.text_height.pixel_height(display.scale * 0.3);
-            }
         }
 
         /// Calculate the layout of all elements, and optionally render every entity.
