@@ -84,10 +84,27 @@ test "box_layout" {
     try eq(22, shape.final.height);
     try eq(l4.x, 0);
     try eq(l4.y, 12);
+}
 
-    try eq(l4.y, 99);
+test "box_word_overflow" {
+    var shape: BoxLayout = .init(200, 5, 2);
+
+    const l1 = shape.place(100, 10);
+    const l2 = shape.place(220, 5);
+    const l3 = shape.place(50, 10);
+    shape.finalise();
+    try eq(220, shape.final.width);
+    try eq(10 + 2 + 5 + 2 + 10, shape.final.height);
+
+    try eq(l1.x, 0);
+    try eq(l1.y, 0);
+    try eq(l2.x, 0);
+    try eq(l2.y, 12);
+    try eq(l3.x, 0);
+    try eq(l3.y, 19);
 }
 
 const Vector = @import("engine.zig").Vector;
 const Size = @import("engine.zig").Size;
-const eq = @import("std").testing.expectEqual;
+const std = @import("std");
+const eq = std.testing.expectEqual;

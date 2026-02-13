@@ -628,12 +628,6 @@ pub fn Panel(comptime T: type) type {
                     current.x += child.rect.width;
 
                 if (child.type != .expander) first = false;
-
-                // if (child.layout.y == .grows) {
-                //     child.rect.height = parent.rect.height - parent.pad.top - parent.pad.bottom;
-                //     if (child.maximum.height > 0)
-                //         child.rect.height = @min(child.maximum.height, child.rect.height);
-                //}
             }
             const needed_width = current.x - parent.rect.x - parent.pad.left;
             const overflow_width = (parent.rect.x + parent.rect.width - parent.pad.right) - current.x;
