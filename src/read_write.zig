@@ -54,7 +54,8 @@ pub fn init_resource_loader(
         // Fallback to loading resources from the development resources
         // folder if it is available.
         if (resource_folder.?.len > 0) {
-            warn("Fallback to loading repo from folder: {s}", .{resource_folder.?});
+            if (bundle_filename != null and bundle_filename.?.len > 0)
+                warn("Fallback to loading repo from folder: {s}", .{resource_folder.?});
             loaded = resources.load_directory(resource_folder.?, filename_filter) catch |e| {
                 err("error loading repo from {s}. {any}", .{ resource_folder.?, e });
                 return e;
