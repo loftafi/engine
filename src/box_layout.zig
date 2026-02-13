@@ -62,6 +62,7 @@ pub const BoxLayout = struct {
     /// Set the `final.width` and `final.height` so that these
     /// variables may be read.
     pub fn finalise(self: *BoxLayout) void {
+        if (self.needed.width == 0 and self.needed.height == 0) return;
         self.trailing_space = self.max_width - self.needed.width;
         self.final.width = @max(self.final.width, self.needed.width);
         self.final.height += self.needed.height;

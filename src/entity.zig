@@ -1327,94 +1327,69 @@ pub fn Entity(comptime T: type) type {
                 else => unreachable,
             };
 
-            // Track the minimum needed width. Remember the longest line. Include
-            // any left/right padding.
-            var needed_width: f32 = 0;
-
             const word_spacing = text_height.word_spacing(display_scale);
 
-            var x: f32 = 0;
-            var y: f32 = 0;
-
-            // A line must have at least one word before a line break is inserted
-            // otherwise we are just drawing pointless broken blank lines.
-            var line_word_count: usize = 0;
-            var current_child: usize = 0;
+            var box: BoxLayout = .init(maximum_width, word_spacing, 0);
 
             // Lay down each word one by one and wrap before we hit the
             // `wrap_at` boundary.
-            for (children, 0..) |*item, i| {
-                const is_cr = item.text.len == 1 and item.text[0] == '\n';
-                const size = text_height.pixel_size(display_scale, item.texture);
-                // Would drawing this word overflow?
-                if ((x + word_spacing + size.width > maximum_width and line_word_count > 0) or is_cr) {
-                    needed_width = @max(needed_width, x);
-                    // Wrap to next line
-                    x = 0;
-                    y += size.height;
-                    line_word_count = 0;
-                    current_child = i;
+            for (children) |*item| {
+                if (item.text.len == 1 and item.text[0] == '\n') {
+                    item.location = .{ .x = 0, .y = 0, .width = 0, .height = 0 };
+                    box.finalise();
+                    continue;
                 }
 
-                if (line_word_count > 0 and !is_cr) x += word_spacing;
+                const size = text_height.pixel_size(display_scale, item.texture);
+
+                const location = box.place(size.width, size.height);
 
                 item.location = .{
-                    .x = @round(x),
-                    .y = @round(y),
-                    .width = if (is_cr) 0 else @round(size.width),
+                    .x = @round(location.x),
+                    .y = @round(location.y),
+                    .width = @round(size.width),
                     .height = size.height,
                 };
-
-                if (!is_cr) x += @round(size.width);
-                if (!is_cr) line_word_count += 1;
             }
-            needed_width = @max(needed_width, x);
-
-            if (children.len > 0) {
-                if (current_child != children.len) {
-                    const size = text_height.pixel_size(display_scale, children[current_child].texture);
-                    y += size.height;
-                }
-            }
-
-            // Add y padding at the bottom so that we can calculate the final height.
-            const needed_height = @round(y);
-
-            needed_width = @round(needed_width);
+            box.finalise();
 
             // Align words to centre or right if requested.
             // centre and end alignment might need the `grows`
             // full width, or the `shrinks` minimum width.
             if (entity.child_align.x == .centre or entity.child_align.x == .end) {
-                var line_start: usize = 0;
-                var line_end: usize = 0;
                 const usable_width = switch (entity.layout.x) {
-                    .grows => maximum_width,
-                    .shrinks => needed_width,
-                    .fixed => maximum_width,
+                    .shrinks => @round(box.final.width),
+                    .grows, .fixed => maximum_width,
                 };
-                while (true) : (line_end += 1) {
-                    if (line_end + 1 == children.len) {
+                var start: usize = 0;
+                var end: usize = 0;
+                while (true) : (end += 1) {
+                    if (end + 1 == children.len) {
+                        err("{s} justify {d}..{d} ", .{ entity.name, start, end + 1 });
                         entity.do_line_justification(
-                            children[line_end].location.x + children[line_end].location.width,
+                            children[end].location.x + children[end].location.width,
                             usable_width,
-                            children[line_start .. line_end + 1],
+                            children[start .. end + 1],
                         );
                         break;
                     }
-                    if (children[line_end].location.x >= children[line_end + 1].location.x) {
+                    if (children[end].location.x >= children[end + 1].location.x) {
+                        err("{s} justify {d}..{d} ", .{ entity.name, start, end + 1 });
                         entity.do_line_justification(
-                            children[line_end].location.x + children[line_end].location.width,
+                            children[end].location.x + children[end].location.width,
                             usable_width,
-                            children[line_start .. line_end + 1],
+                            children[start .. end + 1],
                         );
-                        line_start = line_end + 1;
+                        start = end + 1;
                         continue;
                     }
                 }
             }
 
-            return .{ .width = needed_width, .height = needed_height };
+            return .{
+                .width = @round(box.final.width),
+                .height = @round(box.final.height),
+            };
         }
 
         pub fn keypress(
@@ -2425,3 +2400,4 @@ const Sprite = @import("sprite.zig").Sprite;
 const Label = @import("label.zig").Label;
 const Rectangle = @import("rectangle.zig").Rectangle;
 const TextInput = @import("text_input.zig").TextInput;
+const BoxLayout = @import("box_layout.zig").BoxLayout;
