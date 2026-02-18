@@ -175,10 +175,10 @@ pub fn Entity(comptime T: type) type {
                     }
                     i.*.children.deinit(allocator);
                 },
-                .progress_bar => |_| {
+                .progress_bar => {
                     //
                 },
-                .expander => |_| {
+                .expander => {
                     //
                 },
                 .text_input => |*i| {

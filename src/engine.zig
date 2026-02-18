@@ -2204,7 +2204,7 @@ pub const LanguageFont = struct {
 
 pub const SurfaceInfo = struct {
     buffer: []const u8,
-    img: zigimg.Image,
+    img: zstbi.Image,
     surface: *sdl.SDL_Surface,
 
     pub fn deinit(si: *@This(), gpa: Allocator) void {
@@ -2223,7 +2223,7 @@ fn load_image_resource(
 ) (Error || Allocator.Error)!void {
     si.buffer = try sdl_load_resource(bucket, resource, allocator);
     errdefer allocator.free(si.buffer);
-    si.img = zigimg.Image.fromMemory(allocator, si.buffer[0..]) catch |e| {
+    si.img = zstbi.Image.fromMemory(allocator, si.buffer[0..]) catch |e| {
         if (e == error.OutOfMemory) return error.OutOfMemory;
         return error.UnknownImageFormat;
     };
@@ -2519,7 +2519,7 @@ pub const LogLevel = enum {
 /// Write a log message to stderr in debug mode or to SDL in release mode
 pub fn log_output(
     comptime level: LogLevel,
-    comptime scope: @Type(.enum_literal),
+    comptime scope: @EnumLiteral(),
     comptime format: []const u8,
     args: anytype,
 ) void {
@@ -2572,7 +2572,7 @@ pub const std_options: std.Options = .{
 /// Zig log output handler captures zig log calls
 pub fn log_output_handler(
     comptime level: std.log.Level,
-    comptime scope: @Type(.enum_literal),
+    comptime scope: @EnumLiteral(),
     comptime format: []const u8,
     args: anytype,
 ) void {
@@ -3001,7 +3001,7 @@ const sdl = @import("sdl");
 const builtin = @import("builtin");
 const assert = std.debug.assert;
 
-const zigimg = @import("zigimg");
+const zstbi = @import("zstbi");
 
 pub const engine = @import("engine.zig");
 pub const Animator = @import("animator.zig").Animator;
