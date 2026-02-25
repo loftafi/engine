@@ -160,13 +160,15 @@ pub inline fn is_chinese_letter(c: u21) bool {
 
 test "read_chunks" {
     const allocator = std.testing.allocator;
-    var display = try Display(TextSize(22)).create(allocator, test_config);
+    const io = std.testing.io;
+
+    var display = try Display(TextSize(22)).create(allocator, io, test_config);
     defer display.destroy(allocator);
-    _ = try display.load_font(allocator, "Roboto-Light");
+    _ = try display.loadFont(allocator, io, "Roboto-Light");
     try expectEqual(1, display.fonts.items.len);
-    display.font.greek = try display.load_font(allocator, "Roboto-Black");
-    display.font.chinese = try display.load_font(allocator, "Roboto-Bold");
-    display.font.korean = try display.load_font(allocator, "Roboto-Thin");
+    display.font.greek = try display.loadFont(allocator, io, "Roboto-Black");
+    display.font.chinese = try display.loadFont(allocator, io, "Roboto-Bold");
+    display.font.korean = try display.loadFont(allocator, io, "Roboto-Thin");
     try expectEqual(4, display.fonts.items.len);
 
     var data = Chunker.init("the fish");

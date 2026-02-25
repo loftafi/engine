@@ -592,13 +592,13 @@ pub fn Entity(comptime T: type) type {
             repository: *Resources,
             name: []const u8,
         ) (Allocator.Error || Resources.Error || engine.Error)!?*Texture {
-            const start = std.time.milliTimestamp();
+            const start = std.Io.Timestamp.now(display.io, .real).toMilliseconds();
             const texture = try display.load_bundle_texture(gpa, repository, name);
             if (texture == null) {
                 info("set_image failed to find image resource named \"{s}\"", .{name});
                 return null;
             }
-            const end = std.time.milliTimestamp();
+            const end = std.Io.Timestamp.now(display.io, .real).toMilliseconds();
             debug("set_image loaded image named \"{s}\" in {d}ms", .{ name, end - start });
             self.texture_name = name;
 

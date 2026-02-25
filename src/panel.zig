@@ -757,11 +757,12 @@ pub fn Panel(comptime T: type) type {
 
 test "root_panel_alignment" {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
     // The display takes ownership of the resources object
 
-    var display = try Display(TextSize(10)).create(allocator, test_config);
+    var display = try Display(TextSize(10)).create(allocator, io, test_config);
     defer display.destroy(allocator);
-    _ = try display.load_font(allocator, "Roboto-Light");
+    _ = try display.loadFont(allocator, io, "Roboto-Light");
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
@@ -802,11 +803,13 @@ test "root_panel_alignment" {
 
 test "panel_padding" {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
     // The display takes ownership of the resources object
 
-    var display = try Display(TextSize(10)).create(allocator, test_config);
+    var display = try Display(TextSize(10)).create(allocator, io, test_config);
     defer display.destroy(allocator);
-    _ = try display.load_font(allocator, "Roboto-Light");
+    _ = try display.loadFont(allocator, io, "Roboto-Light");
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
@@ -896,8 +899,9 @@ test "panel_padding" {
 
 test "centre_text_bug" {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
-    var display = try headless_display(allocator, TextSize(10), 600, 800, 2);
+    var display = try headless_display(allocator, io, TextSize(10), 600, 800, 2);
     defer display.destroy(allocator);
 
     const panel = try display.add_panel(allocator, .{

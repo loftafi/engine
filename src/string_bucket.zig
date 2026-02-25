@@ -82,7 +82,7 @@ pub const StringBucket = struct {
     /// Replace fields in the `fmt` string with contents of the  `args` struct. i.e.
     /// `tagFormat("my name is {name}", .{.name = "Frank"}, &buffer);
     pub fn addRemoveCRLF(self: *StringBucket, string: []const u8, buf: []u8) error{ NoSpaceLeft, OutOfMemory }![]const u8 {
-        var w: std.io.Writer = .fixed(buf);
+        var w: std.Io.Writer = .fixed(buf);
 
         var data = string;
         var previous: u8 = 0;
@@ -117,7 +117,7 @@ const TAB = '\t';
 /// Replace fields in the `fmt` string with contents of the  `args` struct. i.e.
 /// `tagFormat("my name is {name}", .{.name = "Frank"}, &buffer);
 pub fn tagFormat(fmt: []const u8, args: anytype, buf: []u8) error{NoSpaceLeft}![]u8 {
-    var w: std.io.Writer = .fixed(buf);
+    var w: std.Io.Writer = .fixed(buf);
 
     var start: usize = 0;
     while (start < fmt.len) {

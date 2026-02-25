@@ -27,6 +27,7 @@ pub const font_pixel_density: f32 = 2.0;
 pub fn Display(comptime T: type) type {
     return struct {
         allocator: Allocator,
+        io: std.Io,
 
         window: *sdl.SDL_Window,
         renderer: *sdl.SDL_Renderer,
@@ -182,8 +183,12 @@ pub fn Display(comptime T: type) type {
 
         pub fn create(
             gpa: Allocator,
+            io: std.Io,
             config: Config,
-        ) (Error || Allocator.Error || Resources.Error || engine.Error || error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte } || std.fs.Dir.StatError || std.fs.File.StatError || std.fs.File.OpenError)!*Self {
+        ) (Error || Allocator.Error || Resources.Error || engine.Error ||
+            error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte } ||
+            std.Io.Dir.StatError || std.Io.File.StatError ||
+            std.Io.File.OpenError)!*Self {
             var bucket = StringBucket.init(gpa);
             errdefer bucket.deinit();
 
@@ -304,29 +309,13 @@ pub fn Display(comptime T: type) type {
             debug("Initialising resource loader", .{});
             const resources = try init_resource_loader(
                 gpa,
+                io,
                 config.bundle_filename,
                 config.resource_folder,
                 config.resource_filter,
             );
 
-            const now = std.time.microTimestamp();
-
-            if (config.desktop_icon) |desktop_icon| {
-                if (try resources.lookupOne(desktop_icon, .image, gpa)) |resource| {
-                    var surface: SurfaceInfo = undefined;
-                    try load_image_resource(resources, resource, gpa, &surface);
-                    defer surface.deinit(gpa);
-                    if (!sdl.SDL_SetWindowIcon(window, surface.surface)) {
-                        err("Failed to set set desktop icon", .{});
-                    } else {
-                        trace("Successfully set desktop icon", .{});
-                    }
-                } else {
-                    err("No 'desktop icon' in resource bundle.", .{});
-                }
-            } else {
-                info("No config.desktop_icon set.", .{});
-            }
+            const now = std.Io.Timestamp.now(io, .real).toMilliseconds();
 
             var themes = try gpa.alloc(*Theme, default_themes.len);
             errdefer gpa.free(themes);
@@ -340,6 +329,7 @@ pub fn Display(comptime T: type) type {
             var display = try gpa.create(Display(T));
             display.* = .{
                 .allocator = gpa,
+                .io = io,
                 .hovered = null,
                 .selected = null,
                 .keyboard_activity = false,
@@ -410,9 +400,27 @@ pub fn Display(comptime T: type) type {
                 },
             };
 
+            zstbi.init(display.allocator, display.io);
+
+            if (config.desktop_icon) |desktop_icon| {
+                if (try resources.lookupOne(desktop_icon, .image, gpa)) |resource| {
+                    var surface: SurfaceInfo = undefined;
+                    try display.loadImage(resources, resource, &surface);
+                    defer surface.deinit(gpa);
+                    if (!sdl.SDL_SetWindowIcon(window, surface.surface))
+                        err("Failed to set set desktop icon", .{})
+                    else
+                        trace("Successfully set desktop icon", .{});
+                } else {
+                    err("No 'desktop icon' in resource bundle.", .{});
+                }
+            } else {
+                info("No config.desktop_icon set.", .{});
+            }
+
             if (config.translation_filename) |translation_filename| {
                 if (try resources.lookupOne(translation_filename, .csv, gpa)) |resource| {
-                    const data = try sdl_load_resource(resources, resource, gpa);
+                    const data = try loadResourceSdl(gpa, io, resources, resource);
                     defer gpa.free(data);
                     try display.translation.load_translation_data(gpa, data);
                     debug("Translation file '{s}' loaded", .{translation_filename});
@@ -500,6 +508,8 @@ pub fn Display(comptime T: type) type {
             self.keybindings.deinit(gpa);
             self.translation.deinit(gpa);
             gpa.destroy(self);
+
+            zstbi.deinit();
         }
 
         pub fn haptic_feedback_available(_: *Self) bool {
@@ -727,7 +737,7 @@ pub fn Display(comptime T: type) type {
 
         /// Update and draw all entities on the display.
         pub fn draw(display: *Self) Allocator.Error!void {
-            const now = std.time.microTimestamp();
+            const now = std.Io.Timestamp.now(display.io, .real).toMilliseconds();
             display.last_delta = now - display.last_draw;
             display.last_draw = now;
             //info("animate delta={d}", .{delta});
@@ -774,19 +784,20 @@ pub fn Display(comptime T: type) type {
         }
 
         /// Load and associate a font file with a font name.
-        pub fn load_font(
+        pub fn loadFont(
             self: *Self,
             allocator: Allocator,
+            io: std.Io,
             name: []const u8,
         ) (Error || Allocator.Error || Resources.Error)!*Font {
             assert(self.pixel_scale > 0);
 
             const resource = try self.resources.lookupOne(name, .font, allocator);
             if (resource == null) {
-                err("load_font({s}) Font not in resource folder", .{name});
+                err("loadFont({s}) Font not in resource folder", .{name});
                 return error.ResourceNotFound;
             }
-            const font_buffer = try sdl_load_resource(self.resources, resource.?, allocator);
+            const font_buffer = try loadResourceSdl(allocator, io, self.resources, resource.?);
 
             const fio = sdl.SDL_IOFromConstMem(font_buffer.ptr, font_buffer.len) orelse {
                 err("SDL_IOFromConstMem: {s}", .{sdl.SDL_GetError()});
@@ -839,6 +850,35 @@ pub fn Display(comptime T: type) type {
             }
 
             return font_info;
+        }
+
+        /// Load image data from a resource bucket into a `si` SurfaceInfo
+        /// struct.
+        fn loadImage(
+            self: *Self,
+            bucket: *Resources,
+            resource: *Resource,
+            si: *SurfaceInfo,
+        ) (Error || Allocator.Error)!void {
+            si.buffer = try loadResourceSdl(self.allocator, self.io, bucket, resource);
+            errdefer self.allocator.free(si.buffer);
+
+            si.img = zstbi.Image.loadFromMemory(si.buffer, 4) catch |e| {
+                if (e == error.OutOfMemory) return error.OutOfMemory;
+                return error.UnknownImageFormat;
+            };
+            errdefer si.img.deinit(self.gpa);
+
+            const sdl_format: sdl.SDL_PixelFormat = sdl.SDL_PIXELFORMAT_RGBA32;
+            const row_size: c_int = @intCast(si.img.width * 4);
+
+            si.surface = sdl.SDL_CreateSurfaceFrom(
+                @intCast(si.img.width),
+                @intCast(si.img.height),
+                sdl_format,
+                si.img.data.ptr,
+                row_size,
+            );
         }
 
         /// Add an animator that points to a currently active/valid entity.
@@ -980,7 +1020,7 @@ pub fn Display(comptime T: type) type {
         ) (Error || Allocator.Error || Resources.Error)!?*Texture {
             if (name.len == 0) return null;
 
-            var start = std.time.milliTimestamp();
+            var start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
             const resource = try bundle.lookupOne(name, .image, gpa);
             if (resource == null) return null;
 
@@ -990,19 +1030,19 @@ pub fn Display(comptime T: type) type {
                 return texture;
             }
 
-            var end = std.time.milliTimestamp();
+            var end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
             trace("search image named \"{s}\" in {d}ms", .{ name, end - start });
             start = end;
 
             var si: SurfaceInfo = undefined;
-            try load_image_resource(bundle, resource.?, gpa, &si);
+            try self.loadImage(bundle, resource.?, &si);
             defer si.deinit(gpa);
-            end = std.time.milliTimestamp();
+            end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
             trace("made surface named \"{s}\" in {d}ms", .{ name, end - start });
 
-            start = std.time.milliTimestamp();
+            start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
             const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, si.surface);
-            end = std.time.milliTimestamp();
+            end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
             trace("sdl create texture in {d}ms", .{end - start});
 
             const ti = try Texture.create(gpa, resource.?.uid, texture);
@@ -1011,21 +1051,23 @@ pub fn Display(comptime T: type) type {
             return ti;
         }
 
-        /// Load an image from the default resource bundle.
-        pub inline fn play_resource(
+        /// Load an image from the formatted_default resource bundle.
+        pub inline fn playResource(
             self: *Self,
             gpa: Allocator,
+            io: std.Io,
             name: []const u8,
             autorelease: Retain,
             volume: f32,
         ) (Error || Allocator.Error || Resources.Error)!?*Audio {
-            return self.play_bundle_resource(gpa, self.resources, name, autorelease, volume);
+            return self.playBundleResource(gpa, io, self.resources, name, autorelease, volume);
         }
 
         /// Load an image from a specific resource bundle.
-        pub fn play_bundle_resource(
+        pub fn playBundleResource(
             self: *Self,
             gpa: Allocator,
+            io: std.Io,
             bundle: *Resources,
             name: []const u8,
             autorelease: Retain,
@@ -1048,19 +1090,19 @@ pub fn Display(comptime T: type) type {
                 item = i;
             } else {
                 // Load audio from resource bundle
-                var start = std.time.milliTimestamp();
+                var start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
                 const resource = try bundle.lookupOne(name, .audio, gpa);
                 if (resource == null) {
                     err("search audio named \"{s}\" not found.", .{name});
                     return null;
                 }
-                var end = std.time.milliTimestamp();
+                var end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
                 debug("search audio named \"{s}\" in {d}ms", .{ name, end - start });
 
                 start = end;
-                const audio = try sdl_load_resource(bundle, resource.?, gpa);
+                const audio = try loadResourceSdl(gpa, io, bundle, resource.?);
                 errdefer gpa.free(audio);
-                end = std.time.milliTimestamp();
+                end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
 
                 debug("read audio named \"{s}\" size {d} in {d}ms", .{
                     name,
@@ -2011,45 +2053,45 @@ pub fn Display(comptime T: type) type {
             _: *Entity(T),
             _: Allocator,
         ) error{OutOfMemory}!void {
-            if (!dev_build) {
-                return;
-            }
+            if (!dev_build) return;
 
             if (display.bundle_filename == null) {
                 info("no config.bundle_filename. Not making bundle.", .{});
                 return;
             }
 
-            //const allocator = app_context.?.allocator;
-            if (display.resources.used_resource_list) |manifest| {
-                if (manifest.items.len == 0) {
-                    info("no resources in manifest, nothing to bundle.", .{});
-                    return;
-                }
-                //const base_folder = find_base_folder(allocator, RESOURCE_BUNDLE_FILENAME) catch |e| {
-                //    err("make_bundle failed to find app folder. {any}", .{e});
-                //    return;
-                //};
-                //defer if (base_folder.len > 0) {
-                //    allocator.free(base_folder);
-                //};
-
-                const base_folder = "/tmp/";
-                var buffer = BoundedArray(u8, 1000){};
-                buffer.appendSlice(base_folder) catch {
-                    return Allocator.Error.OutOfMemory;
-                };
-                buffer.appendSlice(display.bundle_filename.?) catch {
-                    return std.mem.Allocator.Error.OutOfMemory;
-                };
-                info("making resource bundle: {s}", .{buffer.slice()});
-
-                display.resources.save_bundle(buffer.slice(), manifest.items, .{}, "/tmp") catch |e| {
-                    info("save resource bundle failed. {s} {any}", .{ buffer.slice(), e });
-                };
-            } else {
-                info("no resource bundle manifest", .{});
+            if (display.resources.used_resources == null) {
+                info("no resources in manifest, nothing to bundle.", .{});
+                return;
             }
+
+            const manifest = display.resources.used_resources.?;
+            if (manifest.count() == 0) {
+                info("no used resources in manifest, nothing to bundle.", .{});
+                return;
+            }
+
+            //const base_folder = find_base_folder(allocator, RESOURCE_BUNDLE_FILENAME) catch |e| {
+            //    err("make_bundle failed to find app folder. {any}", .{e});
+            //    return;
+            //};
+            //defer if (base_folder.len > 0) {
+            //    allocator.free(base_folder);
+            //};
+
+            const base_folder = "/tmp/";
+            var buffer = BoundedArray(u8, 1000){};
+            buffer.appendSlice(base_folder) catch {
+                return Allocator.Error.OutOfMemory;
+            };
+            buffer.appendSlice(display.bundle_filename.?) catch {
+                return std.mem.Allocator.Error.OutOfMemory;
+            };
+            info("making resource bundle: {s}", .{buffer.slice()});
+
+            display.resources.saveBundle(display.io, buffer.slice(), manifest, .{}, "/tmp") catch |e| {
+                info("save resource bundle failed. {s} {any}", .{ buffer.slice(), e });
+            };
         }
 
         /// Provides a standardised way to place a back button in the top left
@@ -2209,62 +2251,10 @@ pub const SurfaceInfo = struct {
 
     pub fn deinit(si: *@This(), gpa: Allocator) void {
         gpa.free(si.buffer);
-        si.img.deinit(gpa);
+        si.img.deinit();
         sdl.SDL_DestroySurface(si.surface);
     }
 };
-
-///TODO: Move inside
-fn load_image_resource(
-    bucket: *Resources,
-    resource: *Resource,
-    allocator: Allocator,
-    si: *SurfaceInfo,
-) (Error || Allocator.Error)!void {
-    si.buffer = try sdl_load_resource(bucket, resource, allocator);
-    errdefer allocator.free(si.buffer);
-    si.img = zstbi.Image.fromMemory(allocator, si.buffer[0..]) catch |e| {
-        if (e == error.OutOfMemory) return error.OutOfMemory;
-        return error.UnknownImageFormat;
-    };
-    errdefer si.img.deinit(allocator);
-
-    var row_size: c_int = 0;
-    var sdl_format: sdl.SDL_PixelFormat = sdl.SDL_PIXELFORMAT_UNKNOWN;
-    switch (si.img.pixels) {
-        //1 => //PIXELFORMAT_UNCOMPRESSED_GRAYSCALE,
-        //2 => //PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA,
-        .rgb24 => {
-            sdl_format = sdl.SDL_PIXELFORMAT_RGB24;
-            row_size = @intCast(si.img.width * 3);
-        },
-        .rgba32 => {
-            sdl_format = sdl.SDL_PIXELFORMAT_ABGR8888;
-            row_size = @intCast(si.img.width * 4);
-        },
-        else => {
-            if (resource.filename) |name| {
-                warn("unknown file format. Loading {s} format {s}", .{ name, @tagName(si.img.pixels) });
-            } else if (resource.sentences.items.len > 0) {
-                warn("unknown file format. Loading {s} format {s}", .{
-                    resource.sentences.items[0],
-                    @tagName(si.img.pixels),
-                });
-            }
-            return error.UnknownImageFormat;
-        },
-    }
-
-    const img_width: c_int = @intCast(si.img.width);
-    const img_height: c_int = @intCast(si.img.height);
-    si.surface = sdl.SDL_CreateSurfaceFrom(
-        img_width,
-        img_height,
-        sdl_format,
-        si.img.pixels.asBytes().ptr,
-        row_size,
-    );
-}
 
 /// Draw an outline of a rectangle. Used in debug mode to highlight where
 /// items appear on the screen.
@@ -2406,7 +2396,7 @@ pub const SdlLogPriority = enum(c_uint) {
     unknown = 9999,
 
     pub fn fromInt(priority: c_uint) SdlLogPriority {
-        return std.meta.intToEnum(SdlLogPriority, priority) catch .unknown;
+        return std.enums.fromInt(SdlLogPriority, priority) orelse .unknown;
     }
 };
 
@@ -2427,7 +2417,7 @@ pub const SdlLogCategory = enum(c_int) {
     unknown = 9999,
 
     pub fn fromInt(category: c_int) SdlLogCategory {
-        return std.meta.intToEnum(SdlLogCategory, category) catch .unknown;
+        return std.enums.fromInt(SdlLogCategory, category) orelse .unknown;
     }
 };
 
@@ -2437,7 +2427,7 @@ pub const SdlLogCategory = enum(c_int) {
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
     if (dev_build)
         if (dev_mode)
-            log_output(.trace, .engine, format, args);
+            formatted_log_output(.trace, .engine, format, args);
 }
 
 /// A `debug` message should only be used when it is generally useful for
@@ -2516,53 +2506,6 @@ pub const LogLevel = enum {
     alert,
 };
 
-/// Write a log message to stderr in debug mode or to SDL in release mode
-pub fn log_output(
-    comptime level: LogLevel,
-    comptime scope: @EnumLiteral(),
-    comptime format: []const u8,
-    args: anytype,
-) void {
-    var buffer: [1024 * 5]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&buffer);
-    const stderr = &stderr_writer.interface;
-
-    if (builtin.mode == .Debug) {
-        const prefix = switch (level) {
-            .trace => "\x1B[90m[\x1B[1mtrace\x1B[22m] ",
-            .debug => "\x1B[34m[\x1B[1mdebug\x1B[22m] ",
-            .info => "\x1B[36m[\x1B[1minfo\x1B[22m]  ",
-            .notice => "\x1B[91m[\x1B[1minfo\x1B[22m] ",
-            .warn => "\x1B[33m[\x1B[1mwarn\x1B[22m]  ",
-            .err => "\x1B[31m[\x1B[1merror\x1B[22m] ",
-            .alert => "\x1B[31m[\x1B[1malert\x1B[22m] ",
-        };
-        // Log to terminal in debug mode
-        std.debug.lockStdErr();
-        defer std.debug.unlockStdErr();
-        nosuspend stderr.print(prefix ++ format ++ "\x1B[0m\n", args) catch return;
-        stderr.flush() catch {};
-    } else {
-        const prefix = switch (level) {
-            .trace => "[trace] ",
-            .debug => "[debug] ",
-            .info => "[info] ",
-            .notice => "[info] ",
-            .warn => "[warn] ",
-            .err => "[error] ",
-            .alert => "[alert] ",
-        };
-        // Log using SDL when in release mode
-        if (scope != .term_scope) {
-            if (std.fmt.bufPrintZ(&buffer, prefix ++ format, args)) |f| {
-                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), f.ptr);
-            } else |_| {
-                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ format);
-            }
-        }
-    }
-}
-
 /// Tell zig to pass log messages to a custom `log_output_handler`
 pub const std_options: std.Options = .{
     .log_level = .debug,
@@ -2578,10 +2521,57 @@ pub fn log_output_handler(
 ) void {
     // Map the limit zig log options to proper log levels.
     switch (level) {
-        .debug => log_output(.debug, scope, format, args),
-        .info => log_output(.info, scope, format, args),
-        .warn => log_output(.warn, scope, format, args),
-        .err => log_output(.err, scope, format, args),
+        .debug => formatted_log_output(.debug, scope, format, args),
+        .info => formatted_log_output(.info, scope, format, args),
+        .warn => formatted_log_output(.warn, scope, format, args),
+        .err => formatted_log_output(.err, scope, format, args),
+    }
+}
+
+/// Write a log message to stderr in debug mode or to SDL in release mode
+pub fn formatted_log_output(
+    comptime level: LogLevel,
+    comptime scope: @EnumLiteral(),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    if (builtin.mode == .Debug) {
+        const prefix = switch (level) {
+            .trace => "\x1B[90m[\x1B[1mtrace\x1B[22m] ",
+            .debug => "\x1B[34m[\x1B[1mdebug\x1B[22m] ",
+            .info => "\x1B[36m[\x1B[1minfo\x1B[22m]  ",
+            .notice => "\x1B[91m[\x1B[1minfo\x1B[22m] ",
+            .warn => "\x1B[33m[\x1B[1mwarn\x1B[22m]  ",
+            .err => "\x1B[31m[\x1B[1merror\x1B[22m] ",
+            .alert => "\x1B[31m[\x1B[1malert\x1B[22m] ",
+        };
+        // Log to terminal in debug mode
+        //var buffer: [1024 * 5]u8 = undefined;
+        //var stderr_writer = std.Io.File.stderr().writer(std.Options.debug_io, &buffer);
+        //const stderr = &stderr_writer.interface;
+        var stderr = std.debug.lockStderr(&.{}).terminal().writer;
+        defer std.debug.unlockStderr();
+        nosuspend stderr.print(prefix ++ format ++ "\x1B[0m\n", args) catch return;
+        stderr.flush() catch {};
+    } else {
+        const prefix = switch (level) {
+            .trace => "[trace] ",
+            .debug => "[debug] ",
+            .info => "[info] ",
+            .notice => "[info] ",
+            .warn => "[warn] ",
+            .err => "[error] ",
+            .alert => "[alert] ",
+        };
+        // Log using SDL when in release mode
+        if (scope != .term_scope) {
+            var buffer: [1024 * 5]u8 = undefined;
+            if (std.fmt.bufPrintZ(&buffer, prefix ++ format, args)) |f| {
+                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), f.ptr);
+            } else |_| {
+                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ format);
+            }
+        }
     }
 }
 
@@ -2681,15 +2671,17 @@ const eq = std.testing.expectEqual;
 
 test "init catch" {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
     // The display takes ownership of the resources object
-    var display = try Display(TextSize(22)).create(allocator, test_config);
+    var display = try Display(TextSize(22)).create(allocator, io, test_config);
     defer display.destroy(allocator);
 }
 
 test "button sizing" {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
-    var display = try headless_display(allocator, TextSize(22), 1024, 720, 2);
+    var display = try headless_display(allocator, io, TextSize(22), 1024, 720, 2);
     defer display.destroy(allocator);
 
     const panel = try display.add_panel(allocator, .{
@@ -2746,7 +2738,7 @@ test "button sizing" {
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    _ = try display.load_font(allocator, "Roboto-Light");
+    _ = try display.loadFont(allocator, io, "Roboto-Light");
 
     try button.set_text(allocator, display, "Hello");
     display.need_relayout = true;
@@ -2783,8 +2775,9 @@ fn create_label(
 
 test "text input sizing" {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
-    var display = try headless_display(allocator, TextSize(22), 1000, 1600, 2);
+    var display = try headless_display(allocator, io, TextSize(22), 1000, 1600, 2);
     defer display.destroy(allocator);
 
     var panel = try display.add_panel(allocator, .{
@@ -2794,7 +2787,7 @@ test "text input sizing" {
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    _ = try display.load_font(allocator, "Roboto-Light");
+    _ = try display.loadFont(allocator, io, "Roboto-Light");
 
     {
         // Create a fixed sized label with enough space
@@ -2889,12 +2882,16 @@ test "text input sizing" {
 
         // Display width of the words when rendered to the physical display
         try eq(91, @round(l.minimum_needed_width(display, 500)));
+        // TODO: Is this correct? Why is it * 2 ?
         try eq(
-            display.text_height.pixel_height(display.pixel_scale),
+            2 * display.text_height.pixel_height(display.pixel_scale),
             l.minimum_needed_height(display, 500),
         );
         // Display width on physical display with word wrap
-        try eq(2 * display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 40 * display.pixel_scale));
+        try eq(
+            2 * display.text_height.pixel_height(display.pixel_scale),
+            l.minimum_needed_height(display, 40 * display.pixel_scale),
+        );
         panel.remove_entities(allocator, display);
     }
 
@@ -2971,7 +2968,9 @@ test "text input sizing" {
 
 test "test_init" {
     const allocator = std.testing.allocator;
-    var display: *Display(TextSize(22)) = try .create(allocator, test_config);
+    const io = std.testing.io;
+
+    var display: *Display(TextSize(22)) = try .create(allocator, io, test_config);
     defer display.destroy(allocator);
 
     var panel = try display.add_panel(allocator, .{
@@ -3019,10 +3018,14 @@ pub const Translation = @import("translation.zig").Translation;
 pub const StringBucket = @import("string_bucket.zig").StringBucket;
 pub const TextSize = @import("text_size.zig").TextSize;
 
-const uid_writer = @import("resources").uid_writer;
+const uid_writer = @import("resources").base62.uid_writer;
 const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
 const FileType = @import("resources").FileType;
+
+const random = praxis.random;
+const seed = random.seed;
+const random_string = random.randm_string;
 
 pub const Background = @import("entity.zig").Background;
 pub const Clip = @import("entity.zig").Clip;
@@ -3056,11 +3059,10 @@ pub const BoxLayout = @import("box_layout.zig").BoxLayout;
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
-pub const BundleLoader = @import("read_write.zig");
-pub const init_resource_loader = BundleLoader.init_resource_loader;
-pub const sdl_load_bundle = BundleLoader.sdl_load_bundle;
-pub const sdl_load_resource = BundleLoader.sdl_load_resource;
-pub const load_preference_data = BundleLoader.load_preference_data;
-pub const save_preference_data = BundleLoader.save_preference_data;
-pub const remove_preference_data = BundleLoader.remove_preference_data;
-pub const random_string = BundleLoader.random_string;
+pub const resources_sdl = @import("resources_sdl.zig");
+pub const init_resource_loader = resources_sdl.init_resource_loader;
+pub const loadBundleSdl = resources_sdl.loadBundleSdl;
+pub const loadResourceSdl = resources_sdl.loadResourceSdl;
+pub const loadPreferenceData = resources_sdl.loadPreferenceData;
+pub const save_preference_data = resources_sdl.save_preference_data;
+pub const remove_preference_data = resources_sdl.remove_preference_data;

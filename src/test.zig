@@ -8,9 +8,16 @@ pub const test_config = Config{
     .full_screen = false,
 };
 
-pub fn headless_display(allocator: std.mem.Allocator, text_size: type, width: f32, height: f32, pixel_scale: f32) !*Display(text_size) {
-    var display = try Display(text_size).create(allocator, test_config);
-    _ = try display.load_font(allocator, "Roboto-Light");
+pub fn headless_display(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    text_size: type,
+    width: f32,
+    height: f32,
+    pixel_scale: f32,
+) !*Display(text_size) {
+    var display = try Display(text_size).create(allocator, io, test_config);
+    _ = try display.loadFont(allocator, io, "Roboto-Light");
     display.root.rect.width = width;
     display.root.rect.height = height;
     display.root.maximum.width = width;
