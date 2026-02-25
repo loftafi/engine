@@ -372,8 +372,6 @@ fn load_folder_file_bytes(
         break;
     }
 
-    trace("loaded file bytes {s} read {s}", .{ filename, buffer.items });
-
     return buffer.toOwnedSlice(gpa);
 }
 
