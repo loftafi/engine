@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.14.0",
+    .version = "0.14.1",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
@@ -30,5 +30,6 @@
         "libs/SDL3.xcframework",
         "libs/SDL3_ttf.xcframework",
         "libs/SDL3_mixer.xcframework",
+        "build/find_ndk.zig",
     },
 }
