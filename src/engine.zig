@@ -3006,6 +3006,7 @@ pub const Animator = @import("animator.zig").Animator;
 pub const Font = @import("font.zig");
 pub const Texture = @import("texture.zig");
 pub const Audio = @import("audio.zig");
+pub const seconds = @import("animator.zig").seconds;
 
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;

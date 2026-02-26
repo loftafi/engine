@@ -213,6 +213,8 @@ pub fn Animator(comptime T: type) type {
     };
 }
 
+pub const seconds = 1000;
+
 fn lerp_float(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
     return end - (((end - start) * (@as(T, @floatFromInt(step))) / @as(T, @floatFromInt(total_steps))));
 }
@@ -328,7 +330,7 @@ test "animator_init" {
     const animator = try Animator(TextSize(10)).create(gpa, &.{
         .mode = .{ .move = .{} },
         .target = &display.root,
-        .duration = 10000,
+        .duration = 10 * seconds,
     });
     defer animator.destroy(gpa);
 }
