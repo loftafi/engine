@@ -309,11 +309,41 @@ inline fn read_slice(
 
 /// Load a preferences data file from the system standard preferences folder.
 /// Returns null if the file does not exist. Release the data array after using.
+pub fn deletePreferenceData(
+    gpa: Allocator,
+    config: *const engine.Config,
+    filename: []const u8,
+) error{OutOfMemory}!void {
+    const preference_file = try make_preference_file_path(gpa, config, filename);
+    defer gpa.free(preference_file);
+    if (!sdl.SDL_GetPathInfo(preference_file.ptr, null)) return;
+    _ = sdl.SDL_RemovePath(preference_file.ptr);
+}
+
+/// Load a preferences data file from the system standard preferences folder.
+/// `filename` is the name of the file without any path information.
+/// Returns null if the file does not exist. Release the data array after using.
 pub fn loadPreferenceData(
     gpa: Allocator,
     config: *const engine.Config,
     filename: []const u8,
 ) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
+    const preference_file = try make_preference_file_path(gpa, config, filename);
+    defer gpa.free(preference_file);
+
+    const data = load_folder_file_bytes(gpa, preference_file) catch |e| {
+        if (!sdl.SDL_GetPathInfo(preference_file.ptr, null)) return null;
+        warn("Read preferences file failed. {s} {any}", .{ preference_file, e });
+        return error.ResourceReadError;
+    };
+    return data;
+}
+
+fn make_preference_file_path(
+    gpa: Allocator,
+    config: *const engine.Config,
+    filename: []const u8,
+) error{OutOfMemory}![:0]const u8 {
     const app_org_z = try gpa.dupeZ(u8, config.app_org orelse default_org_name);
     defer gpa.free(app_org_z);
     const app_name_z = try gpa.dupeZ(u8, config.app_name orelse default_app_name);
@@ -330,24 +360,23 @@ pub fn loadPreferenceData(
     if (file.items[file.items.len - 1] != '/' and file.items[file.items.len - 1] != '/')
         try file.append(gpa, guess_separator(zpath));
     try file.appendSlice(gpa, filename);
-    try file.append(gpa, 0);
-    const file_z: [*:0]const u8 = file.items[0 .. file.items.len - 1 :0];
-    const data = load_folder_file_bytes(gpa, file_z) catch |e| {
-        warn("Read preferences file failed. {s} {any}", .{ path, e });
-        return error.ResourceReadError;
-    };
-    trace("read filename={s} returned bytes={d}", .{ filename, data.len });
-    return data;
+    return gpa.dupeSentinel(u8, file.items, 0);
 }
 
 // `filename` must end with a 0
 fn load_folder_file_bytes(
     gpa: Allocator,
-    filename: [*:0]const u8,
-) error{ OutOfMemory, ResourceReadError }![]const u8 {
-    const in = sdl.SDL_IOFromFile(filename, "rb");
+    filename: []const u8,
+) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
+    _ = sdl.SDL_ClearError();
+    const in = sdl.SDL_IOFromFile(filename.ptr, "rb");
     if (in == null) {
-        err("Open file '{s}' failed", .{filename});
+        if (!sdl.SDL_GetPathInfo(filename.ptr, null)) return null;
+        const sdl_error = sdl.SDL_GetError();
+        if (sdl_error != null)
+            err("Open file '{s}' failed. {s}", .{ filename, sdl_error })
+        else
+            err("Open file '{s}' failed", .{filename});
         return error.ResourceReadError;
     }
     const input = in.?;
@@ -372,13 +401,14 @@ fn load_folder_file_bytes(
         break;
     }
 
-    return buffer.toOwnedSlice(gpa);
+    const data = try buffer.toOwnedSlice(gpa);
+    return data;
 }
 
 /// Output preference data to a file inside the OS's preferenence data folder.
 /// First writes data to a temporary file to ensure the data can be completely
 /// written, then replaces the data file with the temporary file.
-pub fn save_preference_data(
+pub fn savePreferenceData(
     gpa: Allocator,
     io: std.Io,
     config: *const engine.Config,
@@ -422,44 +452,6 @@ pub fn save_preference_data(
     info("Saved preferences data. Moved contents from={s} to={s}", .{ temp_filename, filename });
 }
 
-/// Remove a preference data file from the standard system preference
-/// file location.
-pub fn remove_preference_data(
-    gpa: Allocator,
-    io: std.Io,
-    config: *const engine.Config,
-    filename: []const u8,
-) error{ ResourceDeleteError, OutOfMemory }!void {
-    const app_org_z = try gpa.dupeZ(u8, config.app_org orelse default_org_name);
-    defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, config.app_name orelse default_app_name);
-    defer gpa.free(app_name_z);
-
-    const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
-    const zpath = std.mem.sliceTo(path, 0);
-
-    // Check the folder exists
-    std.Io.Dir.cwd().access(io, zpath, .{}) catch |f| {
-        if (f == error.FileNotFound) return;
-        return error.ResourceDeleteError;
-    };
-
-    var folder = std.Io.Dir.openDirAbsolute(io, zpath, .{}) catch |e| {
-        warn("Open preferences path failed. {s} {any}", .{ path, e });
-        return error.ResourceDeleteError;
-    };
-
-    // Check the file exists
-    folder.access(io, filename, .{}) catch |f| {
-        if (f == error.FileNotFound) return;
-        return error.ResourceDeleteError;
-    };
-    folder.deleteFile(io, filename) catch |e| {
-        warn("Delete preferences file '{s}' failed. {s} {any}", .{ filename, path, e });
-        return error.ResourceDeleteError;
-    };
-}
-
 // Fill an array with random alphanumeric characters, A-Z, a-z, 0-9.
 pub fn random_string(data: []u8) void {
     for (0..data.len) |i| {
@@ -481,27 +473,32 @@ test "load_save_preferences" {
     var app_name: [20]u8 = undefined;
     random_string(&app_name);
 
-    const filename = "settings.cfg";
-    const data = "file\ndata";
+    const filename = "test_settings.cfg";
+    const data = "file\ndata\nWould you like a cup of tea?";
 
-    try save_preference_data(gpa, io, &test_config, filename, data);
+    try deletePreferenceData(gpa, &test_config, filename);
+    const none = try loadPreferenceData(gpa, &test_config, filename);
+    try expectEqual(null, none);
+
+    try savePreferenceData(gpa, io, &test_config, filename, data);
     const read = try loadPreferenceData(gpa, &test_config, filename);
     try expect(read != null);
     defer gpa.free(read.?);
     try expectEqualStrings(data, read.?);
 
     const data2 = "file\ndata2";
-    try save_preference_data(gpa, io, &test_config, filename, data2);
+    try savePreferenceData(gpa, io, &test_config, filename, data2);
     const read2 = try loadPreferenceData(gpa, &test_config, filename);
     try expect(read2 != null);
     defer gpa.free(read2.?);
     try expectEqualStrings(data2, read2.?);
 
-    try remove_preference_data(gpa, io, &test_config, filename);
+    try deletePreferenceData(gpa, &test_config, filename);
 }
 
 const std = @import("std");
 const expectEqualStrings = std.testing.expectEqualStrings;
+const expectEqual = std.testing.expectEqual;
 const expect = std.testing.expect;
 
 const builtin = @import("builtin");

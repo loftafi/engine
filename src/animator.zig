@@ -58,15 +58,44 @@ pub fn Animator(comptime T: type) type {
         },
 
         movement: Ease = .ease,
+
+        /// Total number of milliseconds to animate over
+        duration: i64 = 0,
+
         target: *Entity(T),
-        duration: i64 = 0, // number of nanoseconds to animate over
+
         on_end: Entity(T).Callback = .{ .func = null },
 
-        setup: bool = false,
-        start_time: i64 = 0,
-        end_time: i64 = 0,
+        internal: struct {
+            /// An animator is not initially setup. It becomes setup when the
+            /// animation starts.
+            setup: bool = false,
 
-        /// Reposition/adjust an entity based on the current_time in nanoseconds.
+            /// Start time of animation in milliseconds.
+            start_time: i64 = 0,
+
+            /// End time of animation in milliseconds.
+            end_time: i64 = 0,
+        } = .{ .setup = false },
+
+        /// Create an Animator struct.
+        pub fn create(allocator: Allocator, animator: *const Animator(T)) Allocator.Error!*Animator(T) {
+            var new_animator = try allocator.create(Animator(T));
+            new_animator.* = animator.*;
+            new_animator.internal.setup = false;
+            if (new_animator.duration == 0) {
+                warn("add_animator called with duration of 0", .{});
+                new_animator.duration = 10;
+            }
+            return new_animator;
+        }
+
+        /// Destroy a previously `create`d Animator.
+        pub fn destroy(self: *Animator(T), allocator: Allocator) void {
+            allocator.destroy(self);
+        }
+
+        /// Reposition/adjust an entity based on the current_time in milliseconds.
         /// When an animation starts, an `Ease` formula calculates the current
         /// position/adjustment of an `Entity` based on the `start_time` and expected
         /// `end_time` of the animation.
@@ -74,11 +103,17 @@ pub fn Animator(comptime T: type) type {
         /// Animators may change visibility of an entity, so the animate event may
         /// return errors associated with a visibility change.
         pub fn animate(self: *@This(), current_time: i64) Allocator.Error!bool {
-            if (!self.setup) {
-                self.setup = true;
-                self.start_time = current_time;
-                self.end_time = current_time + self.duration;
-                trace("animate {s} {s} from {d}ns to {d}ns (duration={d})", .{ self.target.name, @tagName(self.mode), self.start_time, self.end_time, self.duration });
+            if (!self.internal.setup) {
+                self.internal.setup = true;
+                self.internal.start_time = current_time;
+                self.internal.end_time = current_time + self.duration;
+                trace("animate {s} {s} from {d}ns to {d}ns (duration={d})", .{
+                    self.target.name,
+                    @tagName(self.mode),
+                    self.internal.start_time,
+                    self.internal.end_time,
+                    self.duration,
+                });
                 if (self.mode != .pause) {
                     //self.target.visible = .hidden;
                 }
@@ -86,8 +121,8 @@ pub fn Animator(comptime T: type) type {
 
             // An item moves along its parth from the start time to the end time.
             // `step` indicates how close (in time) we are to the end point.
-            var step: i64 = self.end_time - current_time;
-            if (current_time > self.end_time) step = 0;
+            var step: i64 = self.internal.end_time - current_time;
+            if (current_time > self.internal.end_time) step = 0;
 
             switch (self.mode) {
                 .pause => {
@@ -150,7 +185,7 @@ pub fn Animator(comptime T: type) type {
                 },
             }
 
-            if (current_time > self.end_time) {
+            if (current_time > self.internal.end_time) {
                 // At end of animation, clamp to end value
                 switch (self.mode) {
                     .move => |m| {
@@ -262,12 +297,14 @@ const Colour = @import("theme.zig").Colour;
 
 const engine = @import("engine.zig");
 const Display = engine.Display;
+const TextSize = engine.TextSize;
 const err = engine.err;
 const warn = engine.warn;
 const info = engine.info;
 const trace = engine.trace;
 const debug = engine.debug;
 const eq = std.testing.expectEqual;
+const headless_display = @import("test.zig").headless_display;
 
 test "stretch formula" {
 
@@ -279,4 +316,19 @@ test "stretch formula" {
     try eq(200, stretch_int(u8, 200, 20, 0, 10));
     try eq(200, stretch_int(u8, 200, 20, 10, 10));
     try eq(220, stretch_int(u8, 200, 20, 5, 10));
+}
+
+test "animator_init" {
+    const gpa = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(gpa, io, TextSize(10), 300, 300, 2);
+    defer display.destroy(gpa);
+
+    const animator = try Animator(TextSize(10)).create(gpa, &.{
+        .mode = .{ .move = .{} },
+        .target = &display.root,
+        .duration = 10000,
+    });
+    defer animator.destroy(gpa);
 }
