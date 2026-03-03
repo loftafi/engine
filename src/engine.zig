@@ -307,7 +307,7 @@ pub fn Display(comptime T: type) type {
             info("WindowPixelDensity: {d}", .{density});
 
             debug("Initialising resource loader", .{});
-            const resources = try init_resource_loader(
+            const resources = try initResourcesSdl(
                 gpa,
                 io,
                 config.bundle_filename,
@@ -3060,7 +3060,7 @@ pub const BoxLayout = @import("box_layout.zig").BoxLayout;
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
 pub const resources_sdl = @import("resources_sdl.zig");
-pub const init_resource_loader = resources_sdl.init_resource_loader;
+pub const initResourcesSdl = resources_sdl.initResourcesSdl;
 pub const loadBundleSdl = resources_sdl.loadBundleSdl;
 pub const loadResourceSdl = resources_sdl.loadResourceSdl;
 pub const loadPreferenceData = resources_sdl.loadPreferenceData;

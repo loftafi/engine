@@ -5,11 +5,11 @@
 /// The reason for existence of this function, is that we need to replace
 /// the `Resources` load bundle function with a custom function that attempts
 /// to use SDL to load resources.
-pub fn init_resource_loader(
+pub fn initResourcesSdl(
     allocator: Allocator,
     io: std.Io,
     bundle_filename: ?[]const u8,
-    resource_folder: ?[]const u8,
+    dev_resource_folder: ?[]const u8,
     filename_filter: ?*const fn (name: []const u8, extension: FileType) bool,
 ) (Allocator.Error || Resources.Error || engine.Error || std.Io.Dir.StatError ||
     std.Io.File.StatError || std.Io.File.OpenError || error{
@@ -24,49 +24,57 @@ pub fn init_resource_loader(
     var bundle = try Resources.create(allocator);
     errdefer bundle.destroy();
 
-    var loaded = false;
-
-    if (bundle_filename != null) {
-        if (loadBundleSdl(bundle, bundle_filename.?)) |_| {
-            const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
-            info("Resource list scanned in {d}ms.", .{end - start});
-            return bundle;
+    // Fallback to loading resources from the development resources
+    // folder if it is available.
+    if (dev_resource_folder != null and dev_resource_folder.?.len > 0) {
+        if (bundle.loadDirectory(io, dev_resource_folder.?, filename_filter)) |loaded| {
+            if (loaded) {
+                const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
+                info("initResourcesSdl() Dev Resource folder loaded from '{s}' in {d}ms.", .{ dev_resource_folder.?, end - start });
+                return bundle;
+            }
         } else |e| {
-            warn("loadBundleSdl failed. {any}", .{e});
+            err("initResourcesSdl() error loading repo from '{s}'. {any}", .{ dev_resource_folder.?, e });
+        }
+    }
+
+    if (bundle_filename != null and bundle_filename.?.len > 0) {
+        // Try to load bundle from current/default path.
+        if (loadBundleSdl(bundle, bundle_filename.?)) |loaded| {
+            if (loaded) {
+                const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
+                info("initResourcesSdl() Resource list loaded from bundle '{s}' in {d}ms.", .{ bundle_filename.?, end - start });
+                return bundle;
+            }
+        } else |e| {
+            warn("initResourcesSdl() did not load bundle filename '{s}'. {any}", .{ bundle_filename.?, e });
         }
 
-        if (try find_base_folder(allocator, bundle_filename.?)) |base_folder| {
-            defer allocator.free(base_folder);
-            info("find_base_folder returned: {s}", .{base_folder});
+        if (try find_base_folder(allocator, bundle_filename.?)) |bf| {
+            defer allocator.free(bf);
+            info("find_base_folder returned: {s}", .{bf});
 
-            if (try folder_has_file(base_folder, bundle_filename.?)) {
-                loaded = loadBundleSdl(bundle, bundle_filename.?) catch |e| {
-                    if (e == error.OutOfMemory) {
-                        return error.OutOfMemory;
-                    } else {
-                        warn("loadBundleSdl failed. {any}", .{e});
-                        return e;
-                    }
-                };
+            if (loadBundleSdl(bundle, bf)) |loaded| {
+                if (loaded) {
+                    const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
+                    info("Resource list loaded from {s} in {d}ms.", .{ bf, end - start });
+                    return bundle;
+                }
+            } else |e| {
+                if (e == error.OutOfMemory) {
+                    return error.OutOfMemory;
+                } else {
+                    warn("loadBundleSdl failed. {any}", .{e});
+                    return e;
+                }
             }
         }
     }
 
-    if (!loaded and resource_folder != null) {
-        // Fallback to loading resources from the development resources
-        // folder if it is available.
-        if (resource_folder.?.len > 0) {
-            if (bundle_filename != null and bundle_filename.?.len > 0)
-                warn("Fallback to loading repo from folder: {s}", .{resource_folder.?});
-            loaded = bundle.loadDirectory(io, resource_folder.?, filename_filter) catch |e| {
-                err("error loading repo from {s}. {any}", .{ resource_folder.?, e });
-                return e;
-            };
-        }
-    }
-
-    const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
-    info("Resource loader setup in {d}ms. loaded={any}", .{ end - start, loaded });
+    err("No resources loaded into bundle from {s} or {s}", .{
+        bundle_filename orelse "",
+        dev_resource_folder orelse "",
+    });
     return bundle;
 }
 
@@ -80,22 +88,22 @@ fn find_base_folder(
     // First check in the SDL reported base path.
     if (sdl.SDL_GetBasePath()) |sdl_base| {
         const base_path = std.mem.span(sdl_base);
-        if (!try folder_has_file(base_path, expected_file)) {
-            debug("SDL_GetBasePath(): {s} doesnt contain {s}", .{ base_path, expected_file });
+        if (try make_sdl_file_path(allocator, base_path, expected_file)) |p| {
+            info("Found Base Folder: {s} contains {s}", .{ p, expected_file });
+            return p;
         } else {
-            info("Found Base Folder: {s} contains {s}", .{ base_path, expected_file });
-            return try allocator.dupe(u8, std.mem.span(sdl_base));
+            debug("SDL_GetBasePath(): {s} doesnt contain {s}", .{ base_path, expected_file });
         }
     }
 
-    // First check in the SDL reported current path.
+    // Fall back to check in the SDL reported current path.
     if (sdl.SDL_GetCurrentDirectory()) |sdl_base| {
         const base_path = std.mem.span(sdl_base);
-        if (!try folder_has_file(base_path, expected_file)) {
-            debug("SDL_GetCurrentDirectory(): {s} doesnt contain {s}", .{ base_path, expected_file });
-        } else {
+        if (try make_sdl_file_path(allocator, base_path, expected_file)) |p| {
             info("Found Base Folder: {s} contains {s}", .{ base_path, expected_file });
-            return try allocator.dupe(u8, std.mem.span(sdl_base));
+            return p;
+        } else {
+            debug("SDL_GetCurrentDirectory(): {s} doesnt contain {s}", .{ base_path, expected_file });
         }
     }
 
@@ -116,23 +124,25 @@ fn guess_separator(base_folder: []const u8) u8 {
 }
 
 /// Assumes base_folder has a trailing / provided by `SDL_GetBasePath()`
-fn folder_has_file(base_folder: []const u8, expected_file: []const u8) error{ OutOfMemory, ResourceReadError }!bool {
-    var path_info: sdl.SDL_PathInfo = undefined;
-    var tmp: [1000]u8 = undefined;
-    var buffer = std.Io.Writer.fixed(&tmp);
-    buffer.writeAll(base_folder) catch return error.ResourceReadError;
+fn make_sdl_file_path(allocator: Allocator, base_folder: []const u8, expected_file: []const u8) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
+    // Make the folder/file path
+    var buffer: std.ArrayListUnmanaged(u8) = .empty;
+    buffer.appendSlice(allocator, base_folder) catch return error.ResourceReadError;
     if (!std.mem.endsWith(u8, base_folder, "/") and !std.mem.endsWith(u8, base_folder, "\\")) {
-        buffer.writeByte(guess_separator(base_folder)) catch return error.ResourceReadError;
+        buffer.append(allocator, guess_separator(base_folder)) catch return error.ResourceReadError;
     }
-    buffer.writeAll(expected_file) catch return error.ResourceReadError;
-    buffer.writeByte(0) catch return error.ResourceReadError;
-    if (sdl.SDL_GetPathInfo(buffer.buffer[0..buffer.end].ptr, &path_info)) {
-        trace("folder_has_file() check file {s} exists return=true", .{buffer.buffer[0..buffer.end]});
-        return true;
+    buffer.appendSlice(allocator, expected_file) catch return error.ResourceReadError;
+    buffer.append(allocator, 0) catch return error.ResourceReadError;
+
+    // Check if it exists
+    var path_info: sdl.SDL_PathInfo = undefined;
+    if (sdl.SDL_GetPathInfo(buffer.items[0..buffer.items.len].ptr, &path_info)) {
+        trace("make_sdl_file_path() check file {s} exists return=true", .{buffer.items[0..buffer.items.len]});
+        return try buffer.toOwnedSlice(allocator);
     }
     // Either the file doesn't exist or an error occurred
-    trace("folder_has_file() check file {s} exists return=false", .{buffer.buffer[0..buffer.end]});
-    return false;
+    trace("make_sdl_file_path() check file {s} exists return=false", .{buffer.items[0..buffer.items.len]});
+    return null;
 }
 /// Try and load using SDL first, otherwise, use the normal resource loader.
 pub inline fn loadResourceSdl(
