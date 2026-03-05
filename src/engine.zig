@@ -472,7 +472,7 @@ pub fn Display(comptime T: type) type {
             while (i.next()) |x| {
                 if (x.value_ptr.*.references > 0) {
                     warn("texture was not deallocated. {f} has {d} references", .{
-                        uid_writer(u64, x.key_ptr.*),
+                        base62.writer(u64, x.key_ptr.*),
                         x.value_ptr.*.references,
                     });
                 }
@@ -963,13 +963,13 @@ pub fn Display(comptime T: type) type {
             ti.references -= 1;
             if (ti.references != 0) {
                 if (ti.references < 0) {
-                    err("free texture \"{f}\" (duplicate free)", .{uid_writer(u64, ti.uid)});
+                    err("free texture \"{f}\" (duplicate free)", .{base62.writer(u64, ti.uid)});
                 } else {
-                    trace("free texture \"{f}\" (not yet {d})", .{ uid_writer(u64, ti.uid), ti.references });
+                    trace("free texture \"{f}\" (not yet {d})", .{ base62.writer(u64, ti.uid), ti.references });
                 }
                 return;
             }
-            trace("free texture \"{f}\" (now)", .{uid_writer(u64, ti.uid)});
+            trace("free texture \"{f}\" (now)", .{base62.writer(u64, ti.uid)});
             _ = self.textures.remove(ti.uid);
             ti.destroy(allocator);
         }
@@ -2087,7 +2087,13 @@ pub fn Display(comptime T: type) type {
             };
             info("making resource bundle: {s}", .{buffer.slice()});
 
-            display.resources.saveBundle(display.io, buffer.slice(), manifest, .{}, "/tmp") catch |e| {
+            display.resources.saveBundle(
+                display.io,
+                buffer.slice(),
+                manifest,
+                &.{},
+                "/tmp",
+            ) catch |e| {
                 info("save resource bundle failed. {s} {any}", .{ buffer.slice(), e });
             };
         }
@@ -3018,14 +3024,13 @@ pub const Translation = @import("translation.zig").Translation;
 pub const StringBucket = @import("string_bucket.zig").StringBucket;
 pub const TextSize = @import("text_size.zig").TextSize;
 
-const uid_writer = @import("resources").base62.uid_writer;
+const base62 = @import("resources").base62;
 const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
 const FileType = @import("resources").FileType;
 
 const random = praxis.random;
 const seed = random.seed;
-const random_string = random.randm_string;
 
 pub const Background = @import("entity.zig").Background;
 pub const Clip = @import("entity.zig").Clip;
