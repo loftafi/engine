@@ -236,7 +236,7 @@ pub fn Panel(comptime T: type) type {
         ///
         pub fn layout(self: *Self, display: *Display(T), parent: *Entity(T)) bool {
             var resized = false;
-            trace("layout on {s}", .{parent.name});
+            //trace("layout on {s}", .{parent.name});
 
             // Keep track of each expander in the panel. At the end, expand
             // each expander according to the leftover space.
@@ -339,7 +339,7 @@ pub fn Panel(comptime T: type) type {
             for (self.children.items) |child| {
                 if (child.visible == .hidden) continue;
                 if (child.type == .panel) {
-                    trace("parent({s}).layout() calling child({s}).layout()", .{ parent.name, child.name });
+                    //trace("parent({s}).layout() calling child({s}).layout()", .{ parent.name, child.name });
                     if (child.type.panel.layout(display, child))
                         resized = true;
                 }
@@ -361,7 +361,7 @@ pub fn Panel(comptime T: type) type {
 
             switch (entity.layout.x) {
                 .grows => {
-                    trace("do grow {s}. parent width={d}", .{ entity.name, parent.rect.width });
+                    //trace("do grow {s}. parent width={d}", .{ entity.name, parent.rect.width });
                     // Grow to the parent width, not including padding.
                     var new_width = parent.inner_width();
                     if (entity.maximum.width > 0 and new_width > entity.maximum.width) {
@@ -616,13 +616,13 @@ pub fn Panel(comptime T: type) type {
 
                 child.rect.x = current.x;
                 child.rect.y = current.y;
-                trace("drop {s} at position {d}x{d} size:{d}x{d}", .{
-                    child.name,
-                    child.rect.x,
-                    child.rect.y,
-                    child.rect.width,
-                    child.rect.height,
-                });
+                //trace("drop {s} at position {d}x{d} size:{d}x{d}", .{
+                //    child.name,
+                //    child.rect.x,
+                //    child.rect.y,
+                //    child.rect.width,
+                //    child.rect.height,
+                //});
 
                 if (child.type != .expander)
                     current.x += child.rect.width;

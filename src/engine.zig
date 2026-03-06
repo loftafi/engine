@@ -78,7 +78,7 @@ pub fn Display(comptime T: type) type {
         textures: std.AutoHashMapUnmanaged(u64, *Texture),
 
         /// Cache of currently loaded audio files.
-        audio: std.StringHashMapUnmanaged(*Audio),
+        audio: std.StringArrayHashMapUnmanaged(*Audio),
 
         /// Four possible theme options are available.
         themes: []*Theme,
@@ -996,8 +996,10 @@ pub fn Display(comptime T: type) type {
                 return;
             }
             trace("free audio \"{s}\" (now)", .{ai.name});
-            _ = self.audio.remove(ai.name);
+            _ = self.audio.swapRemove(ai.name);
             ai.destroy(allocator);
+
+            self.clearUnusedAudio(allocator);
         }
 
         /// Load an image from the default resource bundle.
@@ -1076,15 +1078,19 @@ pub fn Display(comptime T: type) type {
                 return null;
             }
 
+            self.clearUnusedAudio(gpa);
+
             // Load audio from memory cache if possible
             var item: ?*Audio = null;
             if (self.audio.get(name)) |i| {
+                // Audio already in memory cache
                 if (autorelease == .retain and i.autorelease == .autorelease) {
                     // This audio item is converting to permanent memory
+                    debug("cache hit on audio named \"{s}\" convert to `retain`", .{name});
                     i.autorelease = .retain;
                     i.references += 1;
                 }
-                i.references += 1;
+                debug("cache hit on audio named \"{s}\" (pre ref count={d})", .{ name, i.references });
                 item = i;
             } else {
                 // Load audio from resource bundle
@@ -1109,8 +1115,8 @@ pub fn Display(comptime T: type) type {
                 });
 
                 const ai = try Audio.create(gpa, name, audio, autorelease);
-                ai.references += 1;
                 ai.resource = resource;
+                if (autorelease == .retain) ai.autorelease = .retain;
                 try self.audio.put(gpa, ai.name, ai);
                 item = ai;
             }
@@ -1127,9 +1133,12 @@ pub fn Display(comptime T: type) type {
                 err("create track for \"{s}\" failed", .{name});
                 return null;
             }
+
+            item.?.references += 1;
+
             _ = mixer.MIX_SetTrackAudio(track, buff.?);
             _ = mixer.MIX_SetTrackGain(track, volume);
-            //_ = mixer.MIX_SetTrackStoppedCallback(track, cb: ?*const fn (?*anyopaque, ?*struct_MIX_Track) void, userdata: ?*anyopaque);
+            _ = mixer.MIX_SetTrackStoppedCallback(track, audio_playback_complete, item);
             _ = mixer.MIX_PlayTrack(
                 track,
                 0, // used to request looping or play starting point
@@ -1137,6 +1146,19 @@ pub fn Display(comptime T: type) type {
             //_ = mixer.MIX_PlayAudio(self.mix, buff.?);
 
             return item;
+        }
+
+        pub fn clearUnusedAudio(self: *Self, gpa: Allocator) void {
+            // Remove any no longer used audio
+            const old = self.audio.values();
+            for (0..old.len) |i| {
+                const a = old[i];
+                if (a.references == 0 and a.autorelease == .autorelease) {
+                    debug("cleanup/dealloc audio {s}", .{a.name});
+                    _ = self.audio.swapRemove(a.name);
+                    a.destroy(gpa);
+                }
+            }
         }
 
         pub fn select_first_entity(
@@ -2209,6 +2231,23 @@ pub fn Display(comptime T: type) type {
             }
         };
     };
+}
+
+fn audio_playback_complete(audio: ?*anyopaque, _: ?*mixer.MIX_Track) callconv(.c) void {
+    const audio_ref: ?*Audio = @ptrCast(@alignCast(audio));
+    if (audio_ref) |a| {
+        std.log.info("playback complete {s} refs {d} ({t})", .{ a.name, a.references, a.autorelease });
+
+        if (a.references > 0) a.references -= 1;
+        std.log.info("   refs {d}", .{audio_ref.?.references});
+
+        if (a.references == 0)
+            if (a.autorelease == .retain)
+                std.log.info("playback complete {s}. autorelease unexpectedly hit 0 refs ({t})", .{ a.name, a.autorelease });
+
+        return;
+    }
+    std.log.info("playback complete [unknown].", .{});
 }
 
 pub const U32Callback = struct {
