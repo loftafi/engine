@@ -217,6 +217,8 @@ pub fn Display(comptime T: type) type {
                 _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_SYSTEM, sdl.SDL_LOG_PRIORITY_INFO);
             }
 
+            _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_APPLICATION, sdl.SDL_LOG_PRIORITY_DEBUG);
+
             if (!builtin.abi.isAndroid()) {
                 // On android, the builtin SDL log function is used
                 // to output log info to logcat.
@@ -2500,9 +2502,8 @@ pub const SdlLogCategory = enum(c_int) {
 /// log messages in programs that are under active development. Is never
 /// included in a production ready build of an application.
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
-    if (dev_build)
-        if (dev_mode)
-            formatted_log_output(.trace, .engine, format, args);
+    if (dev_build and dev_mode)
+        formatted_log_output(.trace, .engine, format, args);
 }
 
 /// A `debug` message should only be used when it is generally useful for
@@ -2514,7 +2515,7 @@ pub inline fn trace(comptime format: []const u8, args: anytype) void {
 /// actions might have lead to an unexpected program state.
 pub inline fn debug(comptime format: []const u8, args: anytype) void {
     if (dev_build or dev_mode) {
-        log_output_handler(.debug, .engine, format, args);
+        formatted_log_output(.debug, .engine, format, args);
     }
 }
 
@@ -2523,7 +2524,7 @@ pub inline fn debug(comptime format: []const u8, args: anytype) void {
 ///
 /// Examples of this might include reporting creation of a new user account.
 pub inline fn info(comptime format: []const u8, args: anytype) void {
-    log_output_handler(.info, .engine, format, args);
+    formatted_log_output(.info, .engine, format, args);
 }
 
 /// A `notice` info log message is like a regular `info` log message but
@@ -2534,13 +2535,13 @@ pub inline fn info(comptime format: []const u8, args: anytype) void {
 /// of a new user account, but with an IP address of a country that is not
 /// expected to be accessing the application.
 pub inline fn notice(comptime format: []const u8, args: anytype) void {
-    log_output_handler(.notice, .engine, format, args);
+    formatted_log_output(.notice, .engine, format, args);
 }
 
 /// A `warn` indicates something unexpected or unusual that might not
 /// be an error.
 pub inline fn warn(comptime format: []const u8, args: anytype) void {
-    log_output_handler(.warn, .engine, format, args);
+    formatted_log_output(.warn, .engine, format, args);
 }
 
 /// An `err` indicates abnormal behaviour that requires attention at
@@ -2551,7 +2552,7 @@ pub inline fn warn(comptime format: []const u8, args: anytype) void {
 /// Examples of this might include: an app that cant find an image resource
 /// to display but will continue to function correctly;
 pub inline fn err(comptime format: []const u8, args: anytype) void {
-    log_output_handler(.err, .engine, format, args);
+    formatted_log_output(.err, .engine, format, args);
 }
 
 /// An `alert` is an error that may require immediate or high priority
@@ -2562,7 +2563,7 @@ pub inline fn err(comptime format: []const u8, args: anytype) void {
 /// Examples of this might include: a web server unable to contact the
 /// database; or actvity that is indicative of a security intrusion.
 pub inline fn alert(comptime format: []const u8, args: anytype) void {
-    log_output_handler(.alert, .engine, format, args);
+    formatted_log_output(.alert, .engine, format, args);
 }
 
 /// A log level enum that adds `trace`, `notice`, and `alert`
@@ -2581,36 +2582,39 @@ pub const LogLevel = enum {
     alert,
 };
 
-/// Tell zig to pass log messages to a custom `log_output_handler`
+/// Capture _all_ zig log messages for the engine log system.
 pub const std_options: std.Options = .{
     .log_level = .debug,
-    .logFn = log_output_handler,
+    .logFn = formatted_log_output,
 };
 
-/// Zig log output handler captures zig log calls
-pub fn log_output_handler(
+/// Write a log message to stderr in to SDL for Android
+pub fn log_capture(
     comptime level: std.log.Level,
     comptime scope: @EnumLiteral(),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    // Map the limit zig log options to proper log levels.
-    switch (level) {
-        .debug => formatted_log_output(.debug, scope, format, args),
-        .info => formatted_log_output(.info, scope, format, args),
-        .warn => formatted_log_output(.warn, scope, format, args),
-        .err => formatted_log_output(.err, scope, format, args),
-    }
+    formatted_log_output(switch (level) {
+        .debug => .debug,
+        .info => .info,
+        .warn => .warn,
+        .err => .err,
+    }, scope, format, args);
 }
 
-/// Write a log message to stderr in debug mode or to SDL in release mode
 pub fn formatted_log_output(
     comptime level: LogLevel,
     comptime scope: @EnumLiteral(),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    if (builtin.mode == .Debug) {
+    if (!dev_build) {
+        if (level == .trace) return;
+        if (level == .debug and dev_mode == false) return;
+    }
+
+    if (!builtin.abi.isAndroid()) {
         const prefix = switch (level) {
             .trace => "\x1B[90m[\x1B[1mtrace\x1B[22m] ",
             .debug => "\x1B[34m[\x1B[1mdebug\x1B[22m] ",
@@ -2638,6 +2642,7 @@ pub fn formatted_log_output(
             .err => "[error] ",
             .alert => "[alert] ",
         };
+
         // Log using SDL when in release mode
         if (scope != .term_scope) {
             var buffer: [1024 * 5]u8 = undefined;

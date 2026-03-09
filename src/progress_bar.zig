@@ -50,7 +50,7 @@ pub fn ProgressBar(comptime T: type) type {
                     tint = display.theme.progress_bar_foreground;
                     if (entity.style == .custom)
                         tint = entity.colour;
-                    dest.width *= entity.type.progress_bar.progress;
+                    dest.width *= @min(entity.type.progress_bar.progress, 1);
                     _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
                     _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
                     if (entity.background.image_corner_radius == 0) {
