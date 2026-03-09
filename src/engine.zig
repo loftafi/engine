@@ -262,8 +262,8 @@ pub fn Display(comptime T: type) type {
 
             const window = sdl.SDL_CreateWindow(
                 try bucket.addZ(config.app_name orelse "Engine"),
-                600,
-                800,
+                if (config.width == 0) 600 else @intCast(config.width),
+                if (config.height == 0) 800 else @intCast(config.height),
                 sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY | gui_flags,
             ) orelse {
                 err("No Window created. {s}", .{sdl.SDL_GetError()});
@@ -2663,6 +2663,8 @@ pub const Config = struct {
     translation_filename: ?[]const u8 = null,
     desktop_icon: ?[]const u8 = null,
     full_screen: bool = false,
+    width: usize = 0,
+    height: usize = 0,
 };
 
 pub inline fn clamp(min: f32, value: f32, max: f32) f32 {
