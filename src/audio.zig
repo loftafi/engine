@@ -3,13 +3,13 @@
 /// If an audio file is in use by more than one entity, then the `references`
 /// counter keeps track of how many entities are currently depending on
 /// this audio file.
+const Audio = @This();
+
 name: []const u8,
 audio: []const u8,
 references: i32,
 resource: ?*Resource,
 autorelease: Retain,
-
-const Audio = @This();
 
 pub const empty = .{
     .name = "",
@@ -49,6 +49,31 @@ pub fn clone(self: *Audio) *Audio {
     return self;
 }
 
+/// When an audio file is finished playing,  this `Progress` struct enables
+/// cleanup and notification.
+pub const Progress = struct {
+    gpa: Allocator,
+    audio: *Audio,
+    callback: ?Callback,
+};
+
+/// Information about what callback handler to trigger when an audio file
+/// is finished playing.
+pub const Callback = struct {
+    func: ?*const fn (ptr: *anyopaque, allocator: Allocator, audio: *Audio) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+
+    pub const empty = .{ .func = null };
+
+    pub fn call(
+        self: Callback,
+        allocator: Allocator,
+        audio: *Audio,
+    ) Allocator.Error!void {
+        if (self.func) |f| return f(self.ptr, allocator, audio);
+    }
+};
+
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
@@ -58,4 +83,5 @@ const engine = @import("engine.zig");
 const debug = engine.debug;
 const Retain = engine.Retain;
 
+const Display = @import("engine.zig").Display;
 const Resource = @import("resources").Resource;

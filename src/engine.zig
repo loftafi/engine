@@ -1059,8 +1059,17 @@ pub fn Display(comptime T: type) type {
             name: []const u8,
             autorelease: Retain,
             volume: f32,
+            callback: ?Audio.Callback,
         ) (Error || Allocator.Error || Resources.Error)!?*Audio {
-            return self.playBundleResource(gpa, io, self.resources, name, autorelease, volume);
+            return self.playBundleResource(
+                gpa,
+                io,
+                self.resources,
+                name,
+                autorelease,
+                volume,
+                callback,
+            );
         }
 
         /// Load an image from a specific resource bundle.
@@ -1072,6 +1081,7 @@ pub fn Display(comptime T: type) type {
             name: []const u8,
             autorelease: Retain,
             volume: f32,
+            callback: ?Audio.Callback,
         ) (Error || Allocator.Error || Resources.Error)!?*Audio {
             if (name.len == 0) {
                 err("play_bundle_resource(\"{s}\") resource name empty", .{name});
@@ -1138,7 +1148,13 @@ pub fn Display(comptime T: type) type {
 
             _ = mixer.MIX_SetTrackAudio(track, buff.?);
             _ = mixer.MIX_SetTrackGain(track, volume);
-            _ = mixer.MIX_SetTrackStoppedCallback(track, audio_playback_complete, item);
+            const progress = try gpa.create(Audio.Progress);
+            progress.* = .{ .audio = item.?, .callback = callback, .gpa = gpa };
+            _ = mixer.MIX_SetTrackStoppedCallback(
+                track,
+                audio_playback_complete,
+                progress,
+            );
             _ = mixer.MIX_PlayTrack(
                 track,
                 0, // used to request looping or play starting point
@@ -2233,21 +2249,37 @@ pub fn Display(comptime T: type) type {
     };
 }
 
+/// When an audio file finishes playing, a `handler` object handles
+/// any playback completion notification that might be needed.
 fn audio_playback_complete(audio: ?*anyopaque, _: ?*mixer.MIX_Track) callconv(.c) void {
-    const audio_ref: ?*Audio = @ptrCast(@alignCast(audio));
-    if (audio_ref) |a| {
-        std.log.info("playback complete {s} refs {d} ({t})", .{ a.name, a.references, a.autorelease });
+    const progress: ?*Audio.Progress = @ptrCast(@alignCast(audio));
+    if (progress) |handler| {
+        const a = handler.audio;
+        trace("playback complete {s} refs {d} ({t})", .{
+            a.name,
+            a.references,
+            a.autorelease,
+        });
 
         if (a.references > 0) a.references -= 1;
-        std.log.info("   refs {d}", .{audio_ref.?.references});
+        //std.log.info("   refs {d}", .{a.references});
 
         if (a.references == 0)
             if (a.autorelease == .retain)
-                std.log.info("playback complete {s}. autorelease unexpectedly hit 0 refs ({t})", .{ a.name, a.autorelease });
+                err("playback complete {s}. autorelease unexpectedly hit 0 refs ({t})", .{
+                    a.name,
+                    a.autorelease,
+                });
 
+        if (handler.callback) |callback| {
+            callback.call(handler.gpa, handler.audio) catch |e| {
+                err("audio_playback_complete callback handler failed. {any}", .{e});
+            };
+        }
+        handler.gpa.destroy(handler);
         return;
     }
-    std.log.info("playback complete [unknown].", .{});
+    err("playback complete handler called with null callback handler.", .{});
 }
 
 pub const U32Callback = struct {
