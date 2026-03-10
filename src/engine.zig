@@ -1075,6 +1075,14 @@ pub fn Display(comptime T: type) type {
         }
 
         /// Load an image from a specific resource bundle.
+        pub fn stopAllAudio(
+            self: *Self,
+            fade_out_ms: i64,
+        ) (Error || Allocator.Error)!void {
+            _ = mixer.MIX_StopAllTracks(self.mix, fade_out_ms);
+        }
+
+        /// Load an image from a specific resource bundle.
         pub fn playBundleResource(
             self: *Self,
             gpa: Allocator,
