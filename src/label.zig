@@ -531,17 +531,13 @@ const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
-const LayoutDirection = engine.LayoutDirection;
-const Scroller = engine.Scroller;
 const Size = engine.Size;
-const TextElement = engine.TextElement;
 const TextSize = engine.TextSize;
 const Texture = engine.Texture;
 const ToggleState = engine.ToggleState;
-const Vector = engine.Vector;
-const Callback = engine.Callback;
-const BoolCallback = engine.BoolCallback;
-const UpdateCallback = engine.UpdateCallback;
+
+const TextElement = @import("entity.zig").TextElement;
+const Vector = @import("entity.zig").Vector;
 
 const select_font = @import("entity.zig").select_font;
 const test_config = @import("test.zig").test_config;

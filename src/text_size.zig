@@ -47,5 +47,5 @@ pub fn TextSize(text_height: comptime_float) type {
     };
 }
 
-const Size = @import("engine.zig").Size;
+const Size = @import("entity.zig").Size;
 const sdl = @import("sdl");

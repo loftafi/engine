@@ -123,7 +123,8 @@ test "box_word_overflow" {
     try eq(l3.y, 19);
 }
 
-const Vector = @import("engine.zig").Vector;
-const Size = @import("engine.zig").Size;
 const std = @import("std");
 const eq = std.testing.expectEqual;
+
+const Vector = @import("entity.zig").Vector;
+const Size = @import("entity.zig").Size;

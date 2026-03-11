@@ -583,12 +583,12 @@ pub fn Display(comptime T: type) type {
         /// Return pointer to a top level panel if it exists. Can be used
         /// to update the contents of a top level panel.
         pub fn get_panel(self: *Self, name: []const u8) ?*Entity(T) {
-            for (self.root.type.panel.children.items) |entity| {
-                if (entity.type != .panel) {
+            for (self.root.type.panel.children.items) |item| {
+                if (item.type != .panel) {
                     continue;
                 }
-                if (std.mem.eql(u8, name, entity.name)) {
-                    return entity;
+                if (std.mem.eql(u8, name, item.name)) {
+                    return item;
                 }
             }
             return null;
@@ -606,31 +606,31 @@ pub fn Display(comptime T: type) type {
 
             var found = false;
             self.update_screen_metrics(false);
-            for (self.root.type.panel.children.items) |entity| {
-                if (entity.type != .panel) continue;
-                if (std.mem.eql(u8, "background", entity.name)) continue;
-                if (std.mem.eql(u8, "menu", entity.name)) continue;
+            for (self.root.type.panel.children.items) |item| {
+                if (item.type != .panel) continue;
+                if (std.mem.eql(u8, "background", item.name)) continue;
+                if (std.mem.eql(u8, "menu", item.name)) continue;
 
-                if (std.mem.eql(u8, name, entity.name)) {
-                    if (entity.visible != .visible) {
+                if (std.mem.eql(u8, name, item.name)) {
+                    if (item.visible != .visible) {
                         if (old_panel) |old| {
                             info("choose panel. {s} -> {s}", .{ old.name, name });
                         } else {
                             info("choose panel. ___ -> {s}", .{name});
                         }
-                        try entity.set_visibility(self, .visible);
-                        if (entity.on_resized.call(self, entity)) {
+                        try item.set_visibility(self, .visible);
+                        if (item.on_resized.call(self, item)) {
                             self.need_relayout = true;
                         }
-                        self.on_panel_change.call(gpa, self, old_panel, entity) catch |e| {
-                            trace("panel handler error. to {s} {any}", .{ entity.name, e });
+                        self.on_panel_change.call(gpa, self, old_panel, item) catch |e| {
+                            trace("panel handler error. to {s} {any}", .{ item.name, e });
                         };
                     }
                 } else {
                     // Other panels not matching `name` are hidden.
-                    if (entity.visible != .hidden) {
-                        debug("choose_panel({s}) hiding panel {s}.", .{ name, entity.name });
-                        try entity.set_visibility(self, .hidden);
+                    if (item.visible != .hidden) {
+                        debug("choose_panel({s}) hiding panel {s}.", .{ name, item.name });
+                        try item.set_visibility(self, .hidden);
                     }
                 }
                 found = true;
@@ -647,14 +647,14 @@ pub fn Display(comptime T: type) type {
         /// Get the name of the currently visible top panel that isn't
         /// the background or menu panel.
         pub fn current_panel(self: *Self) ?*Entity(T) {
-            for (self.root.type.panel.children.items) |entity| {
-                if (entity.type != .panel) {
-                    err("root panel contains {t} which is not a panel", .{entity.type});
+            for (self.root.type.panel.children.items) |item| {
+                if (item.type != .panel) {
+                    err("root panel contains {t} which is not a panel", .{item.type});
                     continue;
                 }
-                if (std.mem.eql(u8, "background", entity.name)) continue;
-                if (std.mem.eql(u8, "menu", entity.name)) continue;
-                if (entity.visible == .visible) return entity;
+                if (std.mem.eql(u8, "background", item.name)) continue;
+                if (std.mem.eql(u8, "menu", item.name)) continue;
+                if (item.visible == .visible) return item;
             }
             trace("current_panel() did not find panel.", .{});
             return null;
@@ -725,12 +725,12 @@ pub fn Display(comptime T: type) type {
             });
             display.current_language = language;
             display.translation.set_language(language);
-            for (display.root.type.panel.children.items) |entity| {
-                switch (entity.type) {
-                    .label => try entity.language_changed(allocator, display, language),
-                    .checkbox => try entity.language_changed(allocator, display, language),
-                    .button => try entity.language_changed(allocator, display, language),
-                    .panel => try entity.language_changed(allocator, display, language),
+            for (display.root.type.panel.children.items) |item| {
+                switch (item.type) {
+                    .label => try item.language_changed(allocator, display, language),
+                    .checkbox => try item.language_changed(allocator, display, language),
+                    .button => try item.language_changed(allocator, display, language),
+                    .panel => try item.language_changed(allocator, display, language),
                     else => {},
                 }
             }
@@ -899,17 +899,17 @@ pub fn Display(comptime T: type) type {
         pub inline fn add_panel(
             self: *Self,
             allocator: Allocator,
-            entity: Entity(T),
+            item: Entity(T),
         ) (Allocator.Error || Resources.Error || Error)!*Entity(T) {
-            if (entity.type != .panel) {
+            if (item.type != .panel) {
                 warn("parent display should contan panels. Not {s} {s}", .{
-                    @tagName(entity.type),
-                    entity.name,
+                    @tagName(item.type),
+                    item.name,
                 });
                 return Error.RootAcceptsPanelsOnly;
             }
 
-            return self.root.add(allocator, self, entity);
+            return self.root.add(allocator, self, item);
         }
 
         /// Convert a text string into an image that is sent as a texture to
@@ -1192,23 +1192,23 @@ pub fn Display(comptime T: type) type {
             entities: []*Entity(T),
             gpa: Allocator,
         ) bool {
-            for (entities) |entity| {
-                if (entity.visible != .visible) continue;
+            for (entities) |item| {
+                if (item.visible != .visible) continue;
 
-                if (entity.type == .panel) {
-                    if (self.select_first_entity(entity.type.panel.children.items, gpa))
+                if (item.type == .panel) {
+                    if (self.select_first_entity(item.type.panel.children.items, gpa))
                         return true;
 
-                    if (entity.type.panel.on_click.func == null)
+                    if (item.type.panel.on_click.func == null)
                         continue;
                 }
-                if (entity.focus == .never_focus or entity.focus == .unspecified)
+                if (item.focus == .never_focus or item.focus == .unspecified)
                     continue;
 
-                if (entity.focus == .accessibility_focus and self.accessibility == false)
+                if (item.focus == .accessibility_focus and self.accessibility == false)
                     continue;
 
-                entity.selected(self, gpa);
+                item.selected(self, gpa);
                 return true;
             }
             return false;
@@ -1225,12 +1225,12 @@ pub fn Display(comptime T: type) type {
             trace("select_next_entity() find next entity", .{});
             var state = SelectState.no_selectable_items;
             var previous: ?*Entity(T) = null;
-            const entity = self.do_select_next_entity(
+            const item = self.do_select_next_entity(
                 self.root.type.panel.children.items,
                 &state,
                 &previous,
             );
-            if (entity) |found| {
+            if (item) |found| {
                 found.selected(self, gpa);
                 return;
             }
@@ -1263,33 +1263,33 @@ pub fn Display(comptime T: type) type {
             state: *SelectState,
             previous: *?*Entity(T),
         ) ?*Entity(T) {
-            for (entities) |entity| {
+            for (entities) |item| {
                 trace("search: {s} inspect {s}/{s}/{s}", .{
                     @tagName(state.*),
-                    @tagName(entity.type),
-                    @tagName(entity.focus),
-                    entity.name,
+                    @tagName(item.type),
+                    @tagName(item.focus),
+                    item.name,
                 });
-                if (entity.visible != .visible) {
-                    trace("     skip not visible {s}/{s}", .{ @tagName(entity.type), entity.name });
+                if (item.visible != .visible) {
+                    trace("     skip not visible {s}/{s}", .{ @tagName(item.type), item.name });
                     continue;
                 }
-                if (entity.type == .panel) {
-                    if (self.do_select_next_entity(entity.type.panel.children.items, state, previous)) |found| {
+                if (item.type == .panel) {
+                    if (self.do_select_next_entity(item.type.panel.children.items, state, previous)) |found| {
                         return found;
                     }
-                    if (entity.type.panel.on_click.func == null)
+                    if (item.type.panel.on_click.func == null)
                         continue;
                 }
-                if (entity.focus == .never_focus or entity.focus == .unspecified)
+                if (item.focus == .never_focus or item.focus == .unspecified)
                     continue;
 
-                if (entity.focus == .accessibility_focus) {
+                if (item.focus == .accessibility_focus) {
                     if (self.accessibility == false) {
-                        trace("     skip no accessibility {s}/{s}", .{ @tagName(entity.type), entity.name });
+                        trace("     skip no accessibility {s}/{s}", .{ @tagName(item.type), item.name });
                         continue;
                     }
-                    if (entity.type == .label and entity.type.label.translated.len == 0) {
+                    if (item.type == .label and item.type.label.translated.len == 0) {
                         continue;
                     }
                 }
@@ -1299,17 +1299,17 @@ pub fn Display(comptime T: type) type {
                     //debug("    --> {any}\n", .{state.*});
                 }
                 if (state.* == .has_selectable_item) {
-                    if (entity == self.selected) {
+                    if (item == self.selected) {
                         state.* = .found_currently_selected_item;
                         //debug("    --> {any}\n", .{state.*});
                         continue;
                     }
-                    previous.* = entity;
+                    previous.* = item;
                     continue;
                 }
                 state.* = .selected_item;
                 //debug("    --> {any}\n", .{state.*});
-                return entity;
+                return item;
             }
             return null;
         }
@@ -1348,63 +1348,63 @@ pub fn Display(comptime T: type) type {
 
             var i = entities.len;
             while (i > 0) : (i -= 1) {
-                const entity: *Entity(T) = entities[i - 1];
+                const item: *Entity(T) = entities[i - 1];
                 //debug("seek={s} visible={any} {s} {s}", .{ @tagName(query), entity.visible, @tagName(entity.type), entity.name });
-                if (entity.visible != .visible) continue;
+                if (item.visible != .visible) continue;
 
-                const is_under_cursor = entity.at_point(cursor, scroll_offset);
-                if (!is_under_cursor and entity.type != .panel) continue;
+                const is_under_cursor = item.at_point(cursor, scroll_offset);
+                if (!is_under_cursor and item.type != .panel) continue;
 
-                //debug("under cursor {s}.{s}", .{ @tagName(entity.type), entity.name });
-                if (entity.type == .panel) {
-                    const so = scroll_offset.add(entity.offset);
-                    if (display.find_under_cursor(entity.type.panel.children.items, cursor, so, query)) |found| {
+                //debug("under cursor {s}.{s}", .{ @tagName(item.type), item.name });
+                if (item.type == .panel) {
+                    const so = scroll_offset.add(item.offset);
+                    if (display.find_under_cursor(item.type.panel.children.items, cursor, so, query)) |found| {
                         return found;
                     }
                 }
                 // This item is under the cursor
                 if (query == .any) {
                     // Search for any entity
-                    if (entity.focus == .never_focus) continue;
+                    if (item.focus == .never_focus) continue;
 
                     // Panels get special handling,
-                    if (entity.type != .panel) return entity;
+                    if (item.type != .panel) return item;
 
                     if (is_under_cursor) {
-                        if (entity.type.panel.on_click.func != null)
-                            return entity;
+                        if (item.type.panel.on_click.func != null)
+                            return item;
 
-                        if (entity.type.panel.scrollable.scroll.x == true or entity.type.panel.scrollable.scroll.y == true)
-                            return entity;
+                        if (item.type.panel.scrollable.scroll.x == true or item.type.panel.scrollable.scroll.y == true)
+                            return item;
                     }
                 }
 
                 if (query == .clickable or query == .clickable_or_scrollable) {
-                    if (entity.focus != .never_focus) switch (entity.type) {
-                        .text_input, .checkbox => return entity,
-                        .button => if (entity.type.button.clickable()) {
-                            if (query == .clickable) return entity;
-                            if (top_entity != null) top_entity = entity;
+                    if (item.focus != .never_focus) switch (item.type) {
+                        .text_input, .checkbox => return item,
+                        .button => if (item.type.button.clickable()) {
+                            if (query == .clickable) return item;
+                            if (top_entity != null) top_entity = item;
                         },
-                        .label => if (entity.type.label.clickable()) {
-                            if (query == .clickable) return entity;
-                            if (top_entity != null) top_entity = entity;
+                        .label => if (item.type.label.clickable()) {
+                            if (query == .clickable) return item;
+                            if (top_entity != null) top_entity = item;
                         },
-                        .sprite => if (entity.type.sprite.on_click.func != null) {
-                            if (query == .clickable) return entity;
-                            if (top_entity != null) top_entity = entity;
+                        .sprite => if (item.type.sprite.on_click.func != null) {
+                            if (query == .clickable) return item;
+                            if (top_entity != null) top_entity = item;
                         },
                         .panel => |p| if (is_under_cursor and p.on_click.func != null) {
-                            if (query == .clickable) return entity;
-                            if (top_entity != null) top_entity = entity;
+                            if (query == .clickable) return item;
+                            if (top_entity != null) top_entity = item;
                         },
                         .rectangle, .progress_bar, .expander => {},
                     };
                 }
                 if (query == .scrollable or query == .clickable_or_scrollable) {
-                    if (entity.type == .panel and is_under_cursor) {
-                        if (entity.type.panel.scrollable.scroll.x or entity.type.panel.scrollable.scroll.y) {
-                            return entity;
+                    if (item.type == .panel and is_under_cursor) {
+                        if (item.type.panel.scrollable.scroll.x or item.type.panel.scrollable.scroll.y) {
+                            return item;
                         }
                     }
                 }
@@ -3166,29 +3166,21 @@ const FileType = @import("resources").FileType;
 const random = praxis.random;
 const seed = random.seed;
 
-pub const Background = @import("entity.zig").Background;
-pub const Clip = @import("entity.zig").Clip;
 pub const Entity = @import("entity.zig").Entity;
-pub const Fit = @import("entity.zig").Fit;
-pub const LayoutSize = @import("entity.zig").LayoutSize;
-pub const LayoutAlign = @import("entity.zig").LayoutAlign;
-pub const LayoutMode = @import("entity.zig").LayoutMode;
-pub const Rect = @import("entity.zig").Rect;
-pub const Scale = @import("entity.zig").Scale;
-pub const Size = @import("entity.zig").Size;
-pub const TextElement = @import("entity.zig").TextElement;
-pub const ToggleState = @import("entity.zig").ToggleState;
-pub const Vector = @import("entity.zig").Vector;
-pub const Visibility = @import("entity.zig").Visibility;
+const Background = @import("entity.zig").Background;
+const Clip = @import("entity.zig").Clip;
+const Fit = @import("entity.zig").Fit;
+const LayoutSize = @import("entity.zig").LayoutSize;
+const LayoutAlign = @import("entity.zig").LayoutAlign;
+const LayoutMode = @import("entity.zig").LayoutMode;
+const Rect = @import("entity.zig").Rect;
+const Scale = @import("entity.zig").Scale;
+const Size = @import("entity.zig").Size;
+const TextElement = @import("entity.zig").TextElement;
+const ToggleState = @import("entity.zig").ToggleState;
+const Vector = @import("entity.zig").Vector;
 
-pub const Button = @import("button.zig").Button;
-pub const Checkbox = @import("checkbox.zig").Checkbox;
-pub const Expander = @import("expander.zig").Expander;
-pub const Label = @import("label.zig").Label;
-pub const Panel = @import("panel.zig").Panel;
-pub const Rectangle = @import("rectangle.zig").Rectangle;
-pub const Sprite = @import("sprite.zig").Sprite;
-pub const TextInput = @import("text_input.zig").TextInput;
+//pub const entity = @import("entity.zig");
 
 pub const Theme = @import("Theme.zig");
 pub const Colour = @import("Colour.zig");

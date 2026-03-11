@@ -1037,14 +1037,13 @@ const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
+
 const LayoutDirection = @import("entity.zig").LayoutDirection;
 const Scroller = @import("entity.zig").Scroller;
+const Vector = @import("entity.zig").Vector;
+
 const Size = engine.Size;
 const TextSize = engine.TextSize;
-const Vector = engine.Vector;
-const BoolCallback = engine.BoolCallback;
-const Callback = engine.Callback;
-const UpdateCallback = engine.UpdateCallback;
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
