@@ -1374,22 +1374,18 @@ pub fn Display(comptime T: type) type {
                 }
 
                 if (query == .clickable or query == .clickable_or_scrollable) {
-                    // Search only clickable entities
-                    if (entity.focus == .never_focus) continue;
-
-                    switch (entity.type) {
+                    if (entity.focus != .never_focus) switch (entity.type) {
                         .text_input, .checkbox => return entity,
                         .button => if (entity.type.button.clickable()) return entity,
                         .label => if (entity.type.label.clickable()) return entity,
                         .sprite => if (entity.type.sprite.on_click.func != null) {
                             return entity;
                         },
-                        .panel => if (is_under_cursor and entity.type.panel.on_click.func != null) {
+                        .panel => |p| if (is_under_cursor and p.on_click.func != null) {
                             return entity;
                         },
                         .rectangle, .progress_bar, .expander => {},
-                    }
-                    continue;
+                    };
                 }
                 if (query == .scrollable or query == .clickable_or_scrollable) {
                     if (entity.type == .panel and is_under_cursor) {
@@ -1397,7 +1393,6 @@ pub fn Display(comptime T: type) type {
                             return entity;
                         }
                     }
-                    continue;
                 }
             }
             return null;
@@ -1833,19 +1828,19 @@ pub fn Display(comptime T: type) type {
                 .{},
                 .clickable_or_scrollable,
             )) |found| {
-                if (found.type == .panel and (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y)) {
-                    if (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y) {
-                        display.scrolling = found;
-                        // scroll_start is the cursor position when drag
-                        // started, used to calculate drag distance.
-                        display.scroll_start = cursor;
-                        // If a previos drag occured then this new drag
-                        // adds to the previous drag.
-                        display.scroll_initial_offset = found.offset;
-                        trace("begin scrolling {s} at {any}", .{ found.name, cursor });
-                    }
-                }
                 switch (found.type) {
+                    .panel => {
+                        if (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y) {
+                            display.scrolling = found;
+                            // scroll_start is the cursor position when drag
+                            // started, used to calculate drag distance.
+                            display.scroll_start = cursor;
+                            // If a previos drag occured then this new drag
+                            // adds to the previous drag.
+                            display.scroll_initial_offset = found.offset;
+                            trace("begin scrolling {s} at {any}", .{ found.name, cursor });
+                        }
+                    },
                     .label => try found.type.label.on_mouse_down.call(
                         gpa,
                         display,
