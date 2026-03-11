@@ -1,10 +1,10 @@
 /// A font is held in memory for the entire duration it might be needed.
 /// Typically this is the lifetime of the app.
+const Font = @This();
+
 name: []const u8,
 font: *sdl.TTF_Font,
 font_buffer: []const u8,
-
-const Font = @This();
 
 pub fn create(
     allocator: Allocator,

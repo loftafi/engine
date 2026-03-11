@@ -295,7 +295,7 @@ const Entity = entity.Entity;
 const Visibility = entity.Visibility;
 const Rect = entity.Rect;
 
-const Colour = @import("theme.zig").Colour;
+const Colour = @import("Colour.zig");
 
 const engine = @import("engine.zig");
 const Display = engine.Display;

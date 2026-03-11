@@ -319,12 +319,12 @@ pub fn Display(comptime T: type) type {
 
             const now = std.Io.Timestamp.now(io, .real).toMilliseconds();
 
-            var themes = try gpa.alloc(*Theme, default_themes.len);
+            var themes = try gpa.alloc(*Theme, Theme.default_themes.len);
             errdefer gpa.free(themes);
             for (0..themes.len) |x| {
                 themes[x] = try gpa.create(Theme);
                 errdefer gpa.free(themes[x]);
-                themes[x].* = default_themes[x];
+                themes[x].* = Theme.default_themes[x];
             }
             const default_theme = themes[0];
 
@@ -3143,9 +3143,9 @@ const zstbi = @import("zstbi");
 
 pub const engine = @import("engine.zig");
 pub const Animator = @import("animator.zig").Animator;
-pub const Font = @import("font.zig");
+pub const Font = @import("Font.zig");
 pub const Texture = @import("texture.zig");
-pub const Audio = @import("audio.zig");
+pub const Audio = @import("Audio.zig");
 pub const seconds = @import("animator.zig").seconds;
 
 const praxis = @import("praxis");
@@ -3190,11 +3190,9 @@ pub const Rectangle = @import("rectangle.zig").Rectangle;
 pub const Sprite = @import("sprite.zig").Sprite;
 pub const TextInput = @import("text_input.zig").TextInput;
 
-const default_themes = @import("theme.zig").default_themes;
-pub const Theme = @import("theme.zig").Theme;
-pub const ThemeColour = @import("theme.zig").ThemeColour;
-pub const Colour = @import("theme.zig").Colour;
-pub const BoxLayout = @import("box_layout.zig").BoxLayout;
+pub const Theme = @import("Theme.zig");
+pub const Colour = @import("Colour.zig");
+pub const BoxLayout = @import("BoxLayout.zig");
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;

@@ -1,50 +1,50 @@
 /// Describe the colour and theme of every visual element. Attributes
 /// of all visual elements must never be hardcoded.
-pub const Theme = struct {
-    // zig enum formmatted tag. No spaces.
-    tag: []const u8,
+pub const Theme = @This();
 
-    // Default background and text colour for all elements.
-    background_colour: Colour,
-    text_colour: Colour,
+// zig enum formmatted tag. No spaces.
+tag: []const u8,
 
-    // Text edit box theming
-    placeholder_text_colour: Colour,
-    cursor_colour: Colour,
+// Default background and text colour for all elements.
+background_colour: Colour,
+text_colour: Colour,
 
-    label_background_colour: Colour,
-    tinted_text_colour: Colour,
+// Text edit box theming
+placeholder_text_colour: Colour,
+cursor_colour: Colour,
 
-    // Some elements can switch from default background and text colour to
-    // an alternate stronger text and background colour.
-    emphasised_panel_colour: Colour,
-    emphasised_text_colour: Colour,
+label_background_colour: Colour,
+tinted_text_colour: Colour,
 
-    // Switch from default panel style to a faded/de-emphasised panel style.
-    faded_panel_colour: Colour,
-    faded_text_colour: Colour,
+// Some elements can switch from default background and text colour to
+// an alternate stronger text and background colour.
+emphasised_panel_colour: Colour,
+emphasised_text_colour: Colour,
 
-    // Use for success dialogue boxes and panels.
-    success_panel_colour: Colour,
-    success_text_colour: Colour,
-    success_button_colour: Colour,
+// Switch from default panel style to a faded/de-emphasised panel style.
+faded_panel_colour: Colour,
+faded_text_colour: Colour,
 
-    // Use for error dialogue boxes and panels.
-    failed_panel_colour: Colour,
-    failed_text_colour: Colour,
-    failed_button_colour: Colour,
+// Use for success dialogue boxes and panels.
+success_panel_colour: Colour,
+success_text_colour: Colour,
+success_button_colour: Colour,
 
-    // Backgorund colour for buttons that can be toggled
-    toggle_button: Colour,
-    toggle_button_picked: Colour,
-    toggle_button_correct: Colour,
-    toggle_button_incorrect: Colour,
+// Use for error dialogue boxes and panels.
+failed_panel_colour: Colour,
+failed_text_colour: Colour,
+failed_button_colour: Colour,
 
-    progress_bar_background: Colour,
-    progress_bar_foreground: Colour,
-};
+// Backgorund colour for buttons that can be toggled
+toggle_button: Colour,
+toggle_button_picked: Colour,
+toggle_button_correct: Colour,
+toggle_button_incorrect: Colour,
 
-pub const ThemeColour = enum {
+progress_bar_background: Colour,
+progress_bar_foreground: Colour,
+
+pub const Style = enum {
     normal,
     faded,
     tinted,
@@ -54,7 +54,7 @@ pub const ThemeColour = enum {
     background,
     custom,
 
-    pub fn text(self: ThemeColour, theme: *Theme, custom: Colour) Colour {
+    pub fn text(self: Style, theme: *Theme, custom: Colour) Colour {
         return switch (self) {
             .normal => theme.text_colour,
             .faded => theme.faded_panel_colour,
@@ -67,7 +67,7 @@ pub const ThemeColour = enum {
         };
     }
 
-    pub fn panel(self: ThemeColour, theme: *Theme, custom: Colour) Colour {
+    pub fn panel(self: Style, theme: *Theme, custom: Colour) Colour {
         return switch (self) {
             .normal => theme.text_colour,
             .background => theme.background_colour,
@@ -213,14 +213,4 @@ pub const default_themes = [5]Theme{
     },
 };
 
-pub const Colour = struct {
-    r: u8 = 0,
-    g: u8 = 0,
-    b: u8 = 0,
-    a: u8 = 0,
-
-    pub const TRANSPARENT: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
-    pub const WHITE: Colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-    pub const BLACK: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
-    pub const RED: Colour = .{ .r = 255, .g = 0, .b = 0, .a = 255 };
-};
+const Colour = @import("Colour.zig");

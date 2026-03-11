@@ -62,7 +62,7 @@ pub fn Entity(comptime T: type) type {
         texture: ?*Texture = null,
         texture_name: ?[]const u8 = null,
 
-        style: ThemeColour = .normal,
+        style: Theme.Style = .normal,
         colour: Colour = Colour.WHITE,
 
         background: Background = .{
@@ -2397,9 +2397,9 @@ const Lang = @import("praxis").Lang;
 
 const Chunker = @import("chunker.zig").Chunker;
 const Texture = @import("texture.zig");
-const Colour = @import("theme.zig").Colour;
-const Theme = @import("theme.zig").Theme;
-const ThemeColour = @import("theme.zig").ThemeColour;
+const Colour = @import("Colour.zig");
+const Theme = @import("Theme.zig");
+const BoxLayout = @import("BoxLayout.zig");
 
 const Button = @import("button.zig").Button;
 const Checkbox = @import("checkbox.zig").Checkbox;
@@ -2410,4 +2410,3 @@ const Sprite = @import("sprite.zig").Sprite;
 const Label = @import("label.zig").Label;
 const Rectangle = @import("rectangle.zig").Rectangle;
 const TextInput = @import("text_input.zig").TextInput;
-const BoxLayout = @import("box_layout.zig").BoxLayout;
