@@ -2507,7 +2507,7 @@ fn sdl_log_callback(
 
 /// Convert the SDL LogPriority into a zig enum. See:
 /// https://wiki.libsdl.org/SDL3/SDL_LogCategory
-pub const SdlLogPriority = enum(c_uint) {
+const SdlLogPriority = enum(c_uint) {
     invalid = sdl.SDL_LOG_PRIORITY_INVALID,
     trace = sdl.SDL_LOG_PRIORITY_TRACE,
     verbose = sdl.SDL_LOG_PRIORITY_VERBOSE,
@@ -2519,14 +2519,14 @@ pub const SdlLogPriority = enum(c_uint) {
     count = sdl.SDL_LOG_PRIORITY_COUNT,
     unknown = 9999,
 
-    pub fn fromInt(priority: c_uint) SdlLogPriority {
+    fn fromInt(priority: c_uint) SdlLogPriority {
         return std.enums.fromInt(SdlLogPriority, priority) orelse .unknown;
     }
 };
 
 /// Convert the SDL LogCategory into a zig enum. See:
 /// https://wiki.libsdl.org/SDL3/SDL_LogCategory
-pub const SdlLogCategory = enum(c_int) {
+const SdlLogCategory = enum(c_int) {
     application = sdl.SDL_LOG_CATEGORY_APPLICATION,
     @"error" = sdl.SDL_LOG_CATEGORY_ERROR,
     assert = sdl.SDL_LOG_CATEGORY_ASSERT,
@@ -2540,7 +2540,7 @@ pub const SdlLogCategory = enum(c_int) {
     custom = sdl.SDL_LOG_CATEGORY_CUSTOM,
     unknown = 9999,
 
-    pub fn fromInt(category: c_int) SdlLogCategory {
+    fn fromInt(category: c_int) SdlLogCategory {
         return std.enums.fromInt(SdlLogCategory, category) orelse .unknown;
     }
 };
@@ -2666,7 +2666,7 @@ pub fn formatted_log_output(
             .trace => "\x1B[90m[\x1B[1mtrace\x1B[22m] ",
             .debug => "\x1B[34m[\x1B[1mdebug\x1B[22m] ",
             .info => "\x1B[36m[\x1B[1minfo\x1B[22m]  ",
-            .notice => "\x1B[91m[\x1B[1minfo\x1B[22m] ",
+            .notice => "\x1B[91m[\x1B[1mnotice\x1B[22m] ",
             .warn => "\x1B[33m[\x1B[1mwarn\x1B[22m]  ",
             .err => "\x1B[31m[\x1B[1merror\x1B[22m] ",
             .alert => "\x1B[31m[\x1B[1malert\x1B[22m] ",
@@ -2684,7 +2684,7 @@ pub fn formatted_log_output(
             .trace => "[trace] ",
             .debug => "[debug] ",
             .info => "[info] ",
-            .notice => "[info] ",
+            .notice => "[notice] ",
             .warn => "[warn] ",
             .err => "[error] ",
             .alert => "[alert] ",
