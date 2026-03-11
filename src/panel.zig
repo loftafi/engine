@@ -1032,18 +1032,17 @@ const warn = engine.warn;
 const info = engine.info;
 const debug = engine.debug;
 const trace = engine.trace;
-const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
 
-const LayoutDirection = @import("entity.zig").LayoutDirection;
-const Scroller = @import("entity.zig").Scroller;
-const Vector = @import("entity.zig").Vector;
-
-const Size = engine.Size;
-const TextSize = engine.TextSize;
+const Clip = engine.ent.Clip;
+const LayoutDirection = engine.ent.LayoutDirection;
+const Scroller = engine.ent.Scroller;
+const Size = engine.ent.Size;
+const TextSize = engine.ent.TextSize;
+const Vector = engine.ent.Vector;
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;

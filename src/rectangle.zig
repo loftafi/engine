@@ -31,8 +31,9 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const sdl = @import("sdl");
 
 const engine = @import("engine.zig");
-const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Texture = engine.Texture;
-const Vector = engine.Vector;
+
+const Clip = engine.ent.Clip;
+const Vector = engine.ent.Vector;

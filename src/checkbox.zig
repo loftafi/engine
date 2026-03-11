@@ -112,15 +112,17 @@ const warn = engine.warn;
 const info = engine.info;
 const debug = engine.debug;
 const trace = engine.trace;
-const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
-const Rect = engine.Rect;
 const Texture = engine.Texture;
-const Size = @import("entity.zig").Size;
-const TextElement = @import("entity.zig").TextElement;
-const ToggleState = @import("entity.zig").ToggleState;
-const Vector = engine.Vector;
+
+const Clip = engine.ent.Clip;
+const Rect = engine.ent.Rect;
+const Size = engine.ent.Size;
+const TextElement = engine.ent.TextElement;
+const ToggleState = engine.ent.ToggleState;
+const Vector = engine.ent.Vector;
+
 const draw_text_elements = @import("label.zig").draw_text_elements;

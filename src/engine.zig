@@ -2389,83 +2389,6 @@ pub const SurfaceInfo = struct {
     }
 };
 
-/// Draw an outline of a rectangle. Used in debug mode to highlight where
-/// items appear on the screen.
-pub fn draw_rectangle(
-    renderer: *sdl.SDL_Renderer,
-    border_width: f32,
-    colour: Colour,
-    rect: Rect,
-    scroll_offset: Vector,
-) void {
-    if (border_width > 0 and colour.a > 0) {
-        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        var dest: Rect = .{
-            .x = rect.x,
-            .y = rect.y,
-            .width = rect.width,
-            .height = border_width,
-        };
-        dest.x += scroll_offset.x;
-        dest.y += scroll_offset.y;
-        _ = sdl.SDL_SetRenderDrawColor(
-            renderer,
-            colour.r,
-            colour.g,
-            colour.b,
-            colour.a,
-        );
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-        dest.y = rect.y + rect.height - border_width;
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-        var dest2: Rect = .{
-            .x = rect.x,
-            .y = rect.y,
-            .width = border_width,
-            .height = rect.height,
-        };
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
-        dest2.x = rect.x + rect.width - border_width;
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
-    }
-}
-
-/// Draw an outline of a rectangle. Used in debug mode to highlight where
-/// items appear on the screen.
-pub fn draw_line(
-    renderer: *sdl.SDL_Renderer,
-    border_width: f32,
-    colour: Colour,
-    start: Vector,
-    end: Vector,
-    scroll_offset: Vector,
-) void {
-    if (border_width > 0 and colour.a > 0) {
-        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        var dest: Rect = .{
-            .x = if (start.x < end.x) start.x else end.x,
-            .y = if (start.y < end.y) start.y else end.y,
-            .width = @abs(end.x - start.x),
-            .height = @abs(end.y - start.y),
-        };
-        if (dest.width == 0) dest.width = border_width;
-        if (dest.height == 0) dest.height = border_width;
-        // Try to centre the line
-        dest.x -= border_width / 2;
-        dest.y -= border_width / 2;
-        dest.x += scroll_offset.x;
-        dest.y += scroll_offset.y;
-        _ = sdl.SDL_SetRenderDrawColor(
-            renderer,
-            colour.r,
-            colour.g,
-            colour.b,
-            colour.a,
-        );
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-    }
-}
-
 /// When the display loads a resource, it may be retained for as long as
 /// there is a reference held to this resource. Alternatively, a resource
 /// may be marked as retained, effectively causing it to be cached until a
@@ -2644,7 +2567,8 @@ pub const std_options: std.Options = .{
     .logFn = formatted_log_output,
 };
 
-/// Write a log message to stderr in to SDL for Android
+/// Use with `std.Options.logFn` in your app to direct zig logging
+/// to the engine.
 pub fn log_capture(
     comptime level: std.log.Level,
     comptime scope: @EnumLiteral(),
@@ -2659,7 +2583,7 @@ pub fn log_capture(
     }, scope, format, args);
 }
 
-pub fn formatted_log_output(
+fn formatted_log_output(
     comptime level: LogLevel,
     comptime scope: @EnumLiteral(),
     comptime format: []const u8,
@@ -2711,6 +2635,7 @@ pub fn formatted_log_output(
     }
 }
 
+/// Engine and Display configuration options
 pub const Config = struct {
     app_name: ?[]const u8 = null,
     app_version: ?[]const u8 = null,
@@ -3166,21 +3091,20 @@ const FileType = @import("resources").FileType;
 const random = praxis.random;
 const seed = random.seed;
 
-pub const Entity = @import("entity.zig").Entity;
-const Background = @import("entity.zig").Background;
-const Clip = @import("entity.zig").Clip;
-const Fit = @import("entity.zig").Fit;
-const LayoutSize = @import("entity.zig").LayoutSize;
-const LayoutAlign = @import("entity.zig").LayoutAlign;
-const LayoutMode = @import("entity.zig").LayoutMode;
-const Rect = @import("entity.zig").Rect;
-const Scale = @import("entity.zig").Scale;
-const Size = @import("entity.zig").Size;
-const TextElement = @import("entity.zig").TextElement;
-const ToggleState = @import("entity.zig").ToggleState;
-const Vector = @import("entity.zig").Vector;
-
-//pub const entity = @import("entity.zig");
+pub const ent = @import("entity.zig");
+pub const Entity = ent.Entity;
+const Background = ent.Background;
+const Clip = ent.Clip;
+const Fit = ent.Fit;
+const LayoutSize = ent.LayoutSize;
+const LayoutAlign = ent.LayoutAlign;
+const LayoutMode = ent.LayoutMode;
+const Rect = ent.Rect;
+const Scale = ent.Scale;
+const Size = ent.Size;
+const TextElement = ent.TextElement;
+const ToggleState = ent.ToggleState;
+const Vector = ent.Vector;
 
 pub const Theme = @import("Theme.zig");
 pub const Colour = @import("Colour.zig");

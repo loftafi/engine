@@ -83,9 +83,10 @@ const sdl = @import("sdl");
 
 const engine = @import("engine.zig");
 const err = engine.err;
-const Clip = engine.Clip;
-const Rect = engine.Rect;
 const Display = engine.Display;
 const Entity = engine.Entity;
-const Vector = engine.Vector;
 const Texture = engine.Texture;
+
+const Clip = engine.ent.Clip;
+const Rect = engine.ent.Rect;
+const Vector = engine.ent.Vector;

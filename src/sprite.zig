@@ -127,17 +127,16 @@ const sdl = @import("sdl");
 
 const engine = @import("engine.zig");
 const err = engine.err;
-const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
-const Fit = @import("entity.zig").Fit;
 const Font = engine.Font;
-const Rect = engine.Rect;
-const Size = engine.Size;
 const Texture = engine.Texture;
-const Vector = engine.Vector;
-const Callback = engine.Callback;
-const UpdateCallback = engine.UpdateCallback;
 
-const tint_texture = @import("entity.zig").tint_texture;
+const Clip = engine.ent.Clip;
+const Fit = engine.ent.Fit;
+const Rect = engine.ent.Rect;
+const Size = engine.ent.Size;
+const Vector = engine.ent.Vector;
+
+const tint_texture = engine.ent.tint_texture;

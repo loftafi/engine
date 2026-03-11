@@ -526,18 +526,19 @@ const info = engine.info;
 const debug = engine.debug;
 const trace = engine.trace;
 const clamp = engine.clamp;
-const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
-const Size = engine.Size;
-const TextSize = engine.TextSize;
-const Texture = engine.Texture;
-const ToggleState = engine.ToggleState;
 
-const TextElement = @import("entity.zig").TextElement;
-const Vector = @import("entity.zig").Vector;
+const Clip = engine.ent.Clip;
+const Size = engine.ent.Size;
+const TextSize = engine.ent.TextSize;
+const Texture = engine.ent.Texture;
+const ToggleState = engine.ent.ToggleState;
+
+const TextElement = engine.ent.TextElement;
+const Vector = engine.ent.Vector;
 
 const select_font = @import("entity.zig").select_font;
 const test_config = @import("test.zig").test_config;

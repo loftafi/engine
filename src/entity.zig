@@ -1180,7 +1180,7 @@ pub fn Entity(comptime T: type) type {
                 if (entity.type == .panel) {
                     colour = display.theme.tinted_text_colour;
                 }
-                engine.draw_rectangle(
+                draw_rectangle(
                     display.renderer,
                     2,
                     colour,
@@ -1188,7 +1188,7 @@ pub fn Entity(comptime T: type) type {
                     .{},
                 );
                 if (entity.type == .panel and (entity.type.panel.scrollable.scroll.x or entity.type.panel.scrollable.scroll.y)) {
-                    engine.draw_rectangle(
+                    draw_rectangle(
                         display.renderer,
                         2,
                         display.theme.success_panel_colour,
@@ -1205,7 +1205,7 @@ pub fn Entity(comptime T: type) type {
                 } else if (entity.type == .button) {
                     // inner padding line
                     colour = display.theme.tinted_text_colour;
-                    engine.draw_rectangle(display.renderer, 2, colour, .{
+                    draw_rectangle(display.renderer, 2, colour, .{
                         .x = entity.rect.x + scroll_offset.x + entity.pad.left,
                         .y = entity.rect.y + scroll_offset.y + entity.pad.top,
                         .width = entity.rect.width - (entity.pad.left + entity.pad.right),
@@ -1214,7 +1214,7 @@ pub fn Entity(comptime T: type) type {
                     entity.draw_padding_markers(display, scroll_offset);
                 }
             } else if (entity.border_width > 0 and entity.border_colour.a > 0) {
-                engine.draw_rectangle(
+                draw_rectangle(
                     display.renderer,
                     entity.border_width,
                     entity.border_colour,
@@ -1239,7 +1239,7 @@ pub fn Entity(comptime T: type) type {
 
         fn draw_padding_markers(entity: *Entity(T), display: *Display(T), scroll_offset: Vector) void {
             const length = 20;
-            engine.draw_line(
+            draw_line(
                 display.renderer,
                 3,
                 Colour.RED,
@@ -1247,7 +1247,7 @@ pub fn Entity(comptime T: type) type {
                 entity.rect.location().move(entity.pad.left + length, entity.pad.top),
                 scroll_offset,
             );
-            engine.draw_line(
+            draw_line(
                 display.renderer,
                 3,
                 Colour.RED,
@@ -1255,7 +1255,7 @@ pub fn Entity(comptime T: type) type {
                 entity.rect.location().move(entity.pad.left, entity.pad.top + length),
                 scroll_offset,
             );
-            engine.draw_line(
+            draw_line(
                 display.renderer,
                 3,
                 Colour.RED,
@@ -1263,7 +1263,7 @@ pub fn Entity(comptime T: type) type {
                 entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom),
                 scroll_offset,
             );
-            engine.draw_line(
+            draw_line(
                 display.renderer,
                 3,
                 Colour.RED,
@@ -2058,6 +2058,82 @@ pub fn Entity(comptime T: type) type {
     };
 }
 
+/// Draw an outline of a rectangle. Used in debug mode to highlight where
+/// items appear on the screen.
+fn draw_rectangle(
+    renderer: *sdl.SDL_Renderer,
+    border_width: f32,
+    colour: Colour,
+    rect: Rect,
+    scroll_offset: Vector,
+) void {
+    if (border_width > 0 and colour.a > 0) {
+        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        var dest: Rect = .{
+            .x = rect.x,
+            .y = rect.y,
+            .width = rect.width,
+            .height = border_width,
+        };
+        dest.x += scroll_offset.x;
+        dest.y += scroll_offset.y;
+        _ = sdl.SDL_SetRenderDrawColor(
+            renderer,
+            colour.r,
+            colour.g,
+            colour.b,
+            colour.a,
+        );
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
+        dest.y = rect.y + rect.height - border_width;
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
+        var dest2: Rect = .{
+            .x = rect.x,
+            .y = rect.y,
+            .width = border_width,
+            .height = rect.height,
+        };
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
+        dest2.x = rect.x + rect.width - border_width;
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
+    }
+}
+
+/// Draw a simple line.
+fn draw_line(
+    renderer: *sdl.SDL_Renderer,
+    border_width: f32,
+    colour: Colour,
+    start: Vector,
+    end: Vector,
+    scroll_offset: Vector,
+) void {
+    if (border_width > 0 and colour.a > 0) {
+        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        var dest: Rect = .{
+            .x = if (start.x < end.x) start.x else end.x,
+            .y = if (start.y < end.y) start.y else end.y,
+            .width = @abs(end.x - start.x),
+            .height = @abs(end.y - start.y),
+        };
+        if (dest.width == 0) dest.width = border_width;
+        if (dest.height == 0) dest.height = border_width;
+        // Try to centre the line
+        dest.x -= border_width / 2;
+        dest.y -= border_width / 2;
+        dest.x += scroll_offset.x;
+        dest.y += scroll_offset.y;
+        _ = sdl.SDL_SetRenderDrawColor(
+            renderer,
+            colour.r,
+            colour.g,
+            colour.b,
+            colour.a,
+        );
+        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
+    }
+}
+
 pub inline fn tint_texture(texture: *sdl.SDL_Texture, colour: Colour) void {
     _ = sdl.SDL_SetTextureAlphaMod(texture, colour.a);
     _ = sdl.SDL_SetTextureColorMod(texture, colour.r, colour.g, colour.b);
@@ -2400,6 +2476,8 @@ const Texture = @import("texture.zig");
 const Colour = @import("Colour.zig");
 const Theme = @import("Theme.zig");
 const BoxLayout = @import("BoxLayout.zig");
+
+pub const TextSize = @import("text_size.zig").TextSize;
 
 pub const Button = @import("button.zig").Button;
 pub const Checkbox = @import("checkbox.zig").Checkbox;

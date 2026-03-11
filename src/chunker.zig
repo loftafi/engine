@@ -247,10 +247,14 @@ test "read_chunks" {
     try expectEqual(null, data.next(&display.font));
 }
 
-const eql = @import("std").mem.eql;
 const std = @import("std");
-const unicode = @import("std").unicode;
+const unicode = std.unicode;
 const Utf8View = std.unicode.Utf8View;
+const eql = std.mem.eql;
+const expect = std.testing.expect;
+const expectEqualDeep = std.testing.expectEqualDeep;
+const expectEqual = std.testing.expectEqual;
+const expectEqualStrings = std.testing.expectEqualStrings;
 
 const praxis = @import("praxis");
 const Lang = praxis.Lang;
@@ -266,8 +270,3 @@ const debug = engine.debug;
 const warn = engine.warn;
 
 const TextSize = @import("text_size.zig").TextSize;
-
-const expect = std.testing.expect;
-const expectEqualDeep = std.testing.expectEqualDeep;
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
