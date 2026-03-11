@@ -1314,7 +1314,12 @@ pub fn Display(comptime T: type) type {
             return null;
         }
 
-        pub const FindQuery = enum { any, clickable, scrollable };
+        pub const FindQuery = enum {
+            any,
+            clickable,
+            scrollable,
+            clickable_or_scrollable,
+        };
 
         // Find what entity appears directly under the cursor.
         //
@@ -1368,19 +1373,14 @@ pub fn Display(comptime T: type) type {
                     }
                 }
 
-                if (query == .clickable) {
+                if (query == .clickable or query == .clickable_or_scrollable) {
                     // Search only clickable entities
                     if (entity.focus == .never_focus) continue;
 
                     switch (entity.type) {
                         .text_input, .checkbox => return entity,
-                        .button => {
-                            if (entity.type.button.toggle == .no_toggle or entity.type.button.toggle == .on or entity.type.button.toggle == .off or entity.type.button.toggle == .disabled)
-                                return entity;
-                        },
-                        .label => if (entity.type.label.on_click.func != null) {
-                            return entity;
-                        },
+                        .button => if (entity.type.button.clickable()) return entity,
+                        .label => if (entity.type.label.clickable()) return entity,
                         .sprite => if (entity.type.sprite.on_click.func != null) {
                             return entity;
                         },
@@ -1389,12 +1389,15 @@ pub fn Display(comptime T: type) type {
                         },
                         .rectangle, .progress_bar, .expander => {},
                     }
-                } else if (query == .scrollable) {
+                    continue;
+                }
+                if (query == .scrollable or query == .clickable_or_scrollable) {
                     if (entity.type == .panel and is_under_cursor) {
                         if (entity.type.panel.scrollable.scroll.x or entity.type.panel.scrollable.scroll.y) {
                             return entity;
                         }
                     }
+                    continue;
                 }
             }
             return null;
@@ -1559,12 +1562,9 @@ pub fn Display(comptime T: type) type {
                             sdl.SDLK_RETURN2,
                             => {
                                 switch (selected.type) {
-                                    .text_input => {
-                                        try selected.keypress(gpa, display, 10, "");
-                                    },
-                                    .button => {
-                                        try selected.type.button.on_click.call(gpa, display, selected);
-                                    },
+                                    .text_input => try selected.keypress(gpa, display, 10, ""),
+                                    .button => |b| try b.on_selected.call(gpa, display, selected),
+                                    .label => |l| try l.on_selected.call(gpa, display, selected),
                                     else => {},
                                 }
                             },
@@ -1820,7 +1820,7 @@ pub fn Display(comptime T: type) type {
         /// or converts to a click on mouse up event later.
         inline fn handle_mouse_down_event(
             display: *Self,
-            _: Allocator,
+            gpa: Allocator,
             _: *sdl.SDL_Event,
         ) !void {
             var cursor: Vector = undefined;
@@ -1831,9 +1831,9 @@ pub fn Display(comptime T: type) type {
                 display.root.type.panel.children.items,
                 cursor,
                 .{},
-                .scrollable,
+                .clickable_or_scrollable,
             )) |found| {
-                if (found.type == .panel) {
+                if (found.type == .panel and (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y)) {
                     if (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y) {
                         display.scrolling = found;
                         // scroll_start is the cursor position when drag
@@ -1844,6 +1844,19 @@ pub fn Display(comptime T: type) type {
                         display.scroll_initial_offset = found.offset;
                         trace("begin scrolling {s} at {any}", .{ found.name, cursor });
                     }
+                }
+                switch (found.type) {
+                    .label => try found.type.label.on_mouse_down.call(
+                        gpa,
+                        display,
+                        found,
+                    ),
+                    .button => try found.type.button.on_mouse_down.call(
+                        gpa,
+                        display,
+                        found,
+                    ),
+                    else => {},
                 }
             }
         }
@@ -1938,6 +1951,19 @@ pub fn Display(comptime T: type) type {
                 // not still being hovered over.
                 if (found != display.hovered) {
                     trace("end hover: {s} {s}", .{ @tagName(old_item.type), old_item.name });
+                    switch (old_item.type) {
+                        .label => |l| try l.on_mouse_exit.call(
+                            display.allocator,
+                            display,
+                            old_item,
+                        ),
+                        .button => |b| try b.on_mouse_exit.call(
+                            display.allocator,
+                            display,
+                            old_item,
+                        ),
+                        else => {},
+                    }
                     old_item.hovered = false;
                     display.hovered = null;
                 }
@@ -1958,15 +1984,28 @@ pub fn Display(comptime T: type) type {
                         found.?.maximum.width,
                         found.?.maximum.height,
                     });
-                    if (dev_build and dev_mode and found.?.type == .panel) {
-                        trace("entered panel hover({s} {s}) panel content {d}x{d}.  usable area: {d}x{d}", .{
-                            @tagName(found.?.type),
-                            found.?.name,
-                            found.?.type.panel.scrollable.size.width,
-                            found.?.type.panel.scrollable.size.height,
-                            found.?.rect.width,
-                            found.?.rect.height,
-                        });
+                    switch (found.?.type) {
+                        .label => |l| try l.on_mouse_enter.call(
+                            display.allocator,
+                            display,
+                            found.?,
+                        ),
+                        .button => |b| try b.on_mouse_enter.call(
+                            display.allocator,
+                            display,
+                            found.?,
+                        ),
+                        .panel => |p| if (dev_build and dev_mode) {
+                            trace("on_mouse_enter({s} {s}) scrollable.size={d}x{d} rect={d}x{d}", .{
+                                @tagName(found.?.type),
+                                found.?.name,
+                                p.scrollable.size.width,
+                                p.scrollable.size.height,
+                                found.?.rect.width,
+                                found.?.rect.height,
+                            });
+                        },
+                        else => {},
                     }
                     display.hovered = found.?;
                     display.hovered.?.hovered = true;
@@ -2169,7 +2208,7 @@ pub fn Display(comptime T: type) type {
                         .icon_hover_name = "icon-back",
                         .text = "",
                         .translated = "",
-                        .on_click = close_fn,
+                        .on_selected = close_fn,
                         .icon_size = .{ .width = 70, .height = 70 },
                     } },
                     .on_resized = .{ .func = @ptrCast(&back_button_resize), .ptr = display },

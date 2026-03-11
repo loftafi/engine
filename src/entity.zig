@@ -462,9 +462,16 @@ pub fn Entity(comptime T: type) type {
                         _ = try out.write(font);
                     }
                 }
-                if (self.type.label.on_click.func != null) {
-                    _ = try out.write(" on_click");
-                }
+                if (self.type.label.on_selected.func != null)
+                    _ = try out.write(" on_selected");
+                if (self.type.label.on_mouse_up.func != null)
+                    _ = try out.write(" on_mouse_up");
+                if (self.type.label.on_mouse_down.func != null)
+                    _ = try out.write(" on_mouse_down");
+                if (self.type.label.on_mouse_enter.func != null)
+                    _ = try out.write(" on_mouse_enter");
+                if (self.type.label.on_mouse_exit.func != null)
+                    _ = try out.write(" on_mouse_exit");
             } else if (self.type == .button) {
                 if (self.type.button.text.len > 0) {
                     _ = try out.write(" text=");
@@ -486,9 +493,17 @@ pub fn Entity(comptime T: type) type {
                         _ = try out.write(font);
                     }
                 }
-                if (self.type.button.on_click.func != null) {
-                    _ = try out.write(" on_click");
-                }
+
+                if (self.type.button.on_selected.func != null)
+                    _ = try out.write(" on_selected");
+                if (self.type.button.on_mouse_up.func != null)
+                    _ = try out.write(" on_mouse_up");
+                if (self.type.button.on_mouse_down.func != null)
+                    _ = try out.write(" on_mouse_down");
+                if (self.type.button.on_mouse_enter.func != null)
+                    _ = try out.write(" on_mouse_enter");
+                if (self.type.button.on_mouse_exit.func != null)
+                    _ = try out.write(" on_mouse_exit");
             } else if (self.type == .checkbox) {
                 if (self.type.checkbox.text.len > 0) {
                     _ = try out.write(" text=");
@@ -1462,7 +1477,7 @@ pub fn Entity(comptime T: type) type {
             display: *Display(T),
             gpa: Allocator,
         ) Allocator.Error!void {
-            trace("chosen entity {s}", .{self.name});
+            debug("chosen entity {s}", .{self.name});
             switch (self.type) {
                 .button => {
                     switch (self.type.button.toggle) {
@@ -1476,10 +1491,14 @@ pub fn Entity(comptime T: type) type {
                         },
                         .no_toggle, .correct, .incorrect, .locked_off, .disabled => {},
                     }
-                    try self.type.button.on_click.call(gpa, display, self);
+                    try self.type.button.on_mouse_up.call(gpa, display, self);
+                    try self.type.button.on_selected.call(gpa, display, self);
                 },
                 .panel => try self.type.panel.on_click.call(gpa, display, self),
-                .label => try self.type.label.on_click.call(gpa, display, self),
+                .label => {
+                    try self.type.label.on_mouse_up.call(gpa, display, self);
+                    try self.type.label.on_selected.call(gpa, display, self);
+                },
                 .sprite => try self.type.sprite.on_click.call(gpa, display, self),
                 .checkbox => {
                     self.type.checkbox.checked = !self.type.checkbox.checked;
@@ -1499,7 +1518,7 @@ pub fn Entity(comptime T: type) type {
             display.selected = self;
 
             const content = self.describe_content();
-            trace("selected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
+            debug("selected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
 
             // Enter editing mode if we just selected a text entity
             if (self.type == .text_input)
@@ -1955,6 +1974,7 @@ pub fn Entity(comptime T: type) type {
                 .ptr = undefined,
             };
 
+            /// Trigger the callback if the `func` is specified (not null)
             pub fn call(
                 self: @This(),
                 allocator: Allocator,

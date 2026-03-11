@@ -23,8 +23,13 @@ pub fn Button(comptime T: type) type {
         background_pressed_name: ?[]const u8 = null,
         background_disabled: ?*Texture = null,
         background_disabled_name: ?[]const u8 = null,
-        on_click: Entity(T).Callback = .empty,
         toggle: ToggleState = .no_toggle,
+
+        on_selected: Entity(T).Callback = .empty,
+        on_mouse_down: Entity(T).Callback = .empty,
+        on_mouse_up: Entity(T).Callback = .empty,
+        on_mouse_enter: Entity(T).Callback = .empty,
+        on_mouse_exit: Entity(T).Callback = .empty,
 
         /// Draw a button with its text and/or icon. Mouse hover, mouse click
         /// and the disabled status may change the picture or icon
@@ -138,6 +143,16 @@ pub fn Button(comptime T: type) type {
                 _ = sdl.SDL_SetTextureColorMod(texture, text_colour.r, text_colour.g, text_colour.b);
                 _ = sdl.SDL_RenderTexture(display.renderer, texture, null, @ptrCast(&dest));
             }
+        }
+
+        /// Return true if this button can be interacted with.
+        pub inline fn clickable(
+            button: *const Self,
+        ) bool {
+            return button.toggle == .no_toggle or
+                button.toggle == .on or
+                button.toggle == .off or
+                button.toggle == .disabled;
         }
 
         /// An icon may have different background textures for hovered,

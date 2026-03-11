@@ -9,7 +9,12 @@ pub fn Label(comptime T: type) type {
         elements: ArrayListUnmanaged(TextElement) = .empty,
         line_height: f32 = 1,
         text_size: T = .normal,
-        on_click: Entity(T).Callback = .empty,
+
+        on_selected: Entity(T).Callback = .empty,
+        on_mouse_down: Entity(T).Callback = .empty,
+        on_mouse_up: Entity(T).Callback = .empty,
+        on_mouse_enter: Entity(T).Callback = .empty,
+        on_mouse_exit: Entity(T).Callback = .empty,
 
         pub fn setup(
             label: *Self,
@@ -24,7 +29,11 @@ pub fn Label(comptime T: type) type {
             label.font = try select_font(display.fonts.items, label.font_name);
 
             if (entity.focus == .unspecified) {
-                if (entity.type.label.on_click.func != null)
+                if (entity.type.label.on_mouse_down.func != null)
+                    entity.focus = .can_focus
+                else if (entity.type.label.on_mouse_up.func != null)
+                    entity.focus = .can_focus
+                else if (entity.type.label.on_selected.func != null)
                     entity.focus = .can_focus
                 else
                     entity.focus = .accessibility_focus;
@@ -36,6 +45,15 @@ pub fn Label(comptime T: type) type {
                 if (try display.load_texture(allocator, name)) |texture|
                     entity.background.image = texture;
             }
+        }
+
+        /// Return true if this button can be interacted with.
+        pub inline fn clickable(label: *Self) bool {
+            return label.on_mouse_up.func != null or
+                label.on_mouse_down.func != null or
+                label.on_mouse_enter.func != null or
+                label.on_mouse_exit.func != null or
+                label.on_selected.func != null;
         }
 
         /// Calculate the layout of all elements, and optionally render every entity.
