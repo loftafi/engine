@@ -2369,6 +2369,8 @@ pub const Error = error{
     RootAcceptsPanelsOnly,
 };
 
+/// Holdes references to the currently loaded fonts in use for each
+/// language. By default, every language uses the first loaded font.
 pub const LanguageFont = struct {
     default: *Font,
     english: *Font,
@@ -2377,7 +2379,8 @@ pub const LanguageFont = struct {
     chinese: *Font,
 };
 
-pub const SurfaceInfo = struct {
+/// Holds the raw image data after it is decoded from a resource bundle.
+const SurfaceInfo = struct {
     buffer: []const u8,
     img: zstbi.Image,
     surface: *sdl.SDL_Surface,
@@ -2551,7 +2554,7 @@ pub inline fn alert(comptime format: []const u8, args: anytype) void {
 /// that requires immediate action/intervention.
 /// Zig also does not distinguish between a general info log message and an
 /// info `notice` that might require immediate action.
-pub const LogLevel = enum {
+const LogLevel = enum {
     trace,
     debug,
     info,

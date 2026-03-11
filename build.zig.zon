@@ -2,7 +2,7 @@
     .name = .engine,
     .version = "0.16.1",
     .fingerprint = 0xe8a81a8d0aa558d5,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.16.1",
     .dependencies = .{
         .resources = .{
             .url = "git+https://github.com/loftafi/resources.git#fba5770e1c2c9d9ac0c665421ae3d8cc8eecaeb0",

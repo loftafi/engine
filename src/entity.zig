@@ -1,5 +1,5 @@
 /// Describe an entity that will be rendered on the screen during a draw
-/// loop. See `EntityType` for the types of entities that may be rendered.
+/// loop. See `Type` for the types of entities that may be rendered.
 pub fn Entity(comptime T: type) type {
     return struct {
         pub const Self = @This();
@@ -79,7 +79,7 @@ pub fn Entity(comptime T: type) type {
         on_resized: Self.BoolCallback = .empty,
         on_visibility: Self.Callback = .empty,
 
-        type: union(EntityType) {
+        type: union(Type) {
             button: Button(T),
             checkbox: Checkbox(T),
             expander: Expander(T),
@@ -2432,7 +2432,7 @@ pub const ToggleState = enum {
 };
 
 /// Describe the type of each entity in the elment tree.
-pub const EntityType = enum {
+pub const Type = enum {
     button,
     checkbox,
     expander,
