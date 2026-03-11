@@ -1340,6 +1340,12 @@ pub fn Display(comptime T: type) type {
             scroll_offset: Vector,
             comptime query: FindQuery,
         ) ?*Entity(T) {
+
+            // A tappable entity might be above a clickable entity. When
+            // looking for a scrollable entity, remember the top most clickable
+            // entity while searching underneath.
+            var top_entity: ?*Entity(T) = null;
+
             var i = entities.len;
             while (i > 0) : (i -= 1) {
                 const entity: *Entity(T) = entities[i - 1];
@@ -1376,13 +1382,21 @@ pub fn Display(comptime T: type) type {
                 if (query == .clickable or query == .clickable_or_scrollable) {
                     if (entity.focus != .never_focus) switch (entity.type) {
                         .text_input, .checkbox => return entity,
-                        .button => if (entity.type.button.clickable()) return entity,
-                        .label => if (entity.type.label.clickable()) return entity,
+                        .button => if (entity.type.button.clickable()) {
+                            if (query == .clickable) return entity;
+                            if (top_entity != null) top_entity = entity;
+                        },
+                        .label => if (entity.type.label.clickable()) {
+                            if (query == .clickable) return entity;
+                            if (top_entity != null) top_entity = entity;
+                        },
                         .sprite => if (entity.type.sprite.on_click.func != null) {
-                            return entity;
+                            if (query == .clickable) return entity;
+                            if (top_entity != null) top_entity = entity;
                         },
                         .panel => |p| if (is_under_cursor and p.on_click.func != null) {
-                            return entity;
+                            if (query == .clickable) return entity;
+                            if (top_entity != null) top_entity = entity;
                         },
                         .rectangle, .progress_bar, .expander => {},
                     };
@@ -1395,7 +1409,7 @@ pub fn Display(comptime T: type) type {
                     }
                 }
             }
-            return null;
+            return top_entity;
         }
 
         /// Switch from the current theme to the next theme. This is a keypress
