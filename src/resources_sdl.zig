@@ -6,11 +6,12 @@
 /// the `Resources` load bundle function with a custom function that attempts
 /// to use SDL to load resources.
 pub fn initResourcesSdl(
-    allocator: Allocator,
+    gpa: Allocator,
     io: std.Io,
+    bundle: *Resources,
     bundle_filename: ?[]const u8,
     dev_resource_folder: ?[]const u8,
-    filename_filter: ?*const fn (name: []const u8, extension: FileType) bool,
+    filename_filter: ?*const fn (name: []const u8, extension: Type) bool,
 ) (Allocator.Error || Resources.Error || engine.Error || std.Io.Dir.StatError ||
     std.Io.File.StatError || std.Io.File.OpenError || error{
     ResourceReadError,
@@ -19,19 +20,17 @@ pub fn initResourcesSdl(
     Utf8EncodesSurrogateHalf,
     Utf8CodepointTooLarge,
     Utf8InvalidStartByte,
-})!*Resources {
+})!void {
     const start = std.Io.Timestamp.now(io, .real).toMilliseconds();
-    var bundle = try Resources.create(allocator);
-    errdefer bundle.destroy();
 
     // Fallback to loading resources from the development resources
     // folder if it is available.
     if (dev_resource_folder != null and dev_resource_folder.?.len > 0) {
-        if (bundle.loadDirectory(io, dev_resource_folder.?, filename_filter)) |loaded| {
+        if (bundle.loadDirectory(gpa, io, dev_resource_folder.?, filename_filter)) |loaded| {
             if (loaded) {
                 const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
                 info("initResourcesSdl() Dev Resource folder loaded from '{s}' in {d}ms.", .{ dev_resource_folder.?, end - start });
-                return bundle;
+                return;
             }
         } else |e| {
             err("initResourcesSdl() error loading repo from '{s}'. {any}", .{ dev_resource_folder.?, e });
@@ -40,25 +39,25 @@ pub fn initResourcesSdl(
 
     if (bundle_filename != null and bundle_filename.?.len > 0) {
         // Try to load bundle from current/default path.
-        if (loadBundleSdl(bundle, bundle_filename.?)) |loaded| {
+        if (loadBundleSdl(bundle, gpa, bundle_filename.?)) |loaded| {
             if (loaded) {
                 const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
                 info("initResourcesSdl() Resource list loaded from bundle '{s}' in {d}ms.", .{ bundle_filename.?, end - start });
-                return bundle;
+                return;
             }
         } else |e| {
             warn("initResourcesSdl() did not load bundle filename '{s}'. {any}", .{ bundle_filename.?, e });
         }
 
-        if (try find_base_folder(allocator, bundle_filename.?)) |bf| {
-            defer allocator.free(bf);
+        if (try find_base_folder(gpa, bundle_filename.?)) |bf| {
+            defer gpa.free(bf);
             info("find_base_folder returned: {s}", .{bf});
 
-            if (loadBundleSdl(bundle, bf)) |loaded| {
+            if (loadBundleSdl(bundle, gpa, bf)) |loaded| {
                 if (loaded) {
                     const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
                     info("Resource list loaded from {s} in {d}ms.", .{ bf, end - start });
-                    return bundle;
+                    return;
                 }
             } else |e| {
                 if (e == error.OutOfMemory) {
@@ -75,7 +74,7 @@ pub fn initResourcesSdl(
         bundle_filename orelse "",
         dev_resource_folder orelse "",
     });
-    return bundle;
+    return;
 }
 
 /// Return the location of the read only applicaion base folder as long as
@@ -168,6 +167,7 @@ pub inline fn loadResourceSdl(
 /// Returns an error if bundle was not loaded for any reason.
 pub fn loadBundleSdl(
     self: *Resources,
+    gpa: Allocator,
     bundle_filename: []const u8,
 ) (Allocator.Error || Resources.Error || error{
     Utf8OverlongEncoding,
@@ -178,8 +178,8 @@ pub fn loadBundleSdl(
 })!bool {
     var buffer: [300:0]u8 = undefined;
 
-    const bundle_filename_z = try self.parent_allocator.dupeZ(u8, bundle_filename);
-    defer self.parent_allocator.free(bundle_filename_z);
+    const bundle_filename_z = try gpa.dupeZ(u8, bundle_filename);
+    defer gpa.free(bundle_filename_z);
 
     const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
     if (in == null) {
@@ -202,8 +202,8 @@ pub fn loadBundleSdl(
     }
     const entries = try read_u24(input);
     for (0..entries) |_| {
-        var r = try Resource.create(self.arena_allocator);
-        errdefer r.destroy(self.arena_allocator);
+        var r = try Resource.create(self.arena.allocator());
+        errdefer r.destroy(self.arena.allocator());
         const resource_type = try read_u8(input);
         r.resource = @enumFromInt(resource_type);
         r.uid = try read_u64(input);
@@ -212,20 +212,20 @@ pub fn loadBundleSdl(
         for (0..sentence_count) |_| {
             const name_len: u8 = try read_u8(input);
             try read_slice(input, buffer[0..name_len]);
-            const text = try self.arena_allocator.dupe(u8, buffer[0..name_len]);
-            try r.sentences.append(self.arena_allocator, text);
+            const text = try self.arena.allocator().dupe(u8, buffer[0..name_len]);
+            try r.sentences.append(self.arena.allocator(), text);
         }
         r.bundle_offset = try read_u64(input);
 
         try Resources.registerResource(self, r, null);
     }
 
-    self.bundle_file = try self.arena_allocator.dupe(u8, bundle_filename);
+    self.bundle_file = try self.arena.allocator().dupe(u8, bundle_filename);
     return true;
 }
 
 fn readResourceSdl(
-    allocator: Allocator,
+    gpa: Allocator,
     bundle: *Resources,
     resource: *Resource,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]const u8 {
@@ -235,21 +235,21 @@ fn readResourceSdl(
     }
     if (resource.bundle_offset) |bundle_offset| {
         if (bundle.used_resources) |*manifest| {
-            try manifest.put(bundle.arena_allocator, resource.uid, resource);
+            try manifest.put(bundle.arena.allocator(), resource.uid, resource);
         }
-        return try sdl_load_file_byte_slice(allocator, bundle.bundle_file, bundle_offset, resource.size);
+        return try sdl_load_file_byte_slice(gpa, bundle.bundle_file, bundle_offset, resource.size);
     }
     return error.ResourceNotFound;
 }
 
 fn sdl_load_file_byte_slice(
-    allocator: Allocator,
+    gpa: Allocator,
     bundle_filename: []const u8,
     offset: usize,
     size: usize,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]u8 {
-    const bundle_filename_z = try allocator.dupeZ(u8, bundle_filename);
-    defer allocator.free(bundle_filename_z);
+    const bundle_filename_z = try gpa.dupeZ(u8, bundle_filename);
+    defer gpa.free(bundle_filename_z);
 
     const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
     if (in == null) {
@@ -263,8 +263,8 @@ fn sdl_load_file_byte_slice(
         err("Seek file failed: {s} {d} {d}", .{ bundle_filename, offset, size });
         return error.ResourceReadError;
     }
-    const buffer = try allocator.alloc(u8, size);
-    errdefer allocator.free(buffer);
+    const buffer = try gpa.alloc(u8, size);
+    errdefer gpa.free(buffer);
     if (sdl.SDL_ReadIO(input, buffer.ptr, buffer.len) == size) {
         return buffer;
     }
@@ -531,10 +531,8 @@ const default_app_name = engine.default_app_name;
 const default_org_name = engine.default_org_name;
 
 const resources = @import("resources");
-const encode_uid = resources.encode_uid;
-const FileType = resources.FileType;
 const Resources = resources.Resources;
 const Resource = resources.Resource;
-const UniqueWords = resources.UniqueWords;
+const Type = resources.Type;
 
 const test_config = @import("test.zig").test_config;

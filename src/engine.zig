@@ -62,7 +62,7 @@ pub fn Display(comptime T: type) type {
         /// A list of read only resources is loaded from a resource
         /// bundle, or an on disk development directory. This may
         /// include images, fonts, audio, or text data files.
-        resources: *Resources,
+        resources: Resources,
 
         /// A list of all active fonts loaded from the resources bundle.
         fonts: ArrayListUnmanaged(*Font) = .empty,
@@ -308,15 +308,6 @@ pub fn Display(comptime T: type) type {
             const density = sdl.SDL_GetWindowPixelDensity(window);
             info("WindowPixelDensity: {d}", .{density});
 
-            debug("Initialising resource loader", .{});
-            const resources = try initResourcesSdl(
-                gpa,
-                io,
-                config.bundle_filename,
-                config.resource_folder,
-                config.resource_filter,
-            );
-
             const now = std.Io.Timestamp.now(io, .real).toMilliseconds();
 
             var themes = try gpa.alloc(*Theme, Theme.default_themes.len);
@@ -348,7 +339,7 @@ pub fn Display(comptime T: type) type {
                 .keybindings = .empty,
                 .event_hook = .empty,
                 .bucket = bucket,
-                .resources = resources,
+                .resources = try .init(gpa),
                 .bundle_filename = bundle_filename,
                 .config = config,
                 .mix = mix.?,
@@ -402,12 +393,22 @@ pub fn Display(comptime T: type) type {
                 },
             };
 
+            debug("Initialising resource loader", .{});
+            try initResourcesSdl(
+                gpa,
+                io,
+                &display.resources,
+                config.bundle_filename,
+                config.resource_folder,
+                config.resource_filter,
+            );
+
             zstbi.init(display.allocator, display.io);
 
             if (config.desktop_icon) |desktop_icon| {
-                if (try resources.lookupOne(desktop_icon, .image, gpa)) |resource| {
+                if (try display.resources.lookupOne(gpa, desktop_icon, .image)) |resource| {
                     var surface: SurfaceInfo = undefined;
-                    try display.loadImage(resources, resource, &surface);
+                    try display.loadImage(&display.resources, resource, &surface);
                     defer surface.deinit(gpa);
                     if (!sdl.SDL_SetWindowIcon(window, surface.surface))
                         err("Failed to set set desktop icon", .{})
@@ -421,8 +422,8 @@ pub fn Display(comptime T: type) type {
             }
 
             if (config.translation_filename) |translation_filename| {
-                if (try resources.lookupOne(translation_filename, .csv, gpa)) |resource| {
-                    const data = try loadResourceSdl(gpa, io, resources, resource);
+                if (try display.resources.lookupOne(gpa, translation_filename, .csv)) |resource| {
+                    const data = try loadResourceSdl(gpa, io, &display.resources, resource);
                     defer gpa.free(data);
                     try display.translation.load_translation_data(gpa, data);
                     debug("Translation file '{s}' loaded", .{translation_filename});
@@ -494,7 +495,7 @@ pub fn Display(comptime T: type) type {
             }
             self.audio.deinit(gpa);
 
-            self.resources.destroy();
+            self.resources.deinit(gpa);
             for (self.animators.items) |animator| {
                 gpa.destroy(animator);
             }
@@ -794,12 +795,12 @@ pub fn Display(comptime T: type) type {
         ) (Error || Allocator.Error || Resources.Error)!*Font {
             assert(self.pixel_scale > 0);
 
-            const resource = try self.resources.lookupOne(name, .font, allocator);
+            const resource = try self.resources.lookupOne(allocator, name, .font);
             if (resource == null) {
                 err("loadFont({s}) Font not in resource folder", .{name});
                 return error.ResourceNotFound;
             }
-            const font_buffer = try loadResourceSdl(allocator, io, self.resources, resource.?);
+            const font_buffer = try loadResourceSdl(allocator, io, &self.resources, resource.?);
 
             const fio = sdl.SDL_IOFromConstMem(font_buffer.ptr, font_buffer.len) orelse {
                 err("SDL_IOFromConstMem: {s}", .{sdl.SDL_GetError()});
@@ -1010,7 +1011,7 @@ pub fn Display(comptime T: type) type {
             gpa: Allocator,
             name: []const u8,
         ) (Error || Allocator.Error || Resources.Error)!?*Texture {
-            return self.load_bundle_texture(gpa, self.resources, name);
+            return self.load_bundle_texture(gpa, &self.resources, name);
         }
 
         /// Load an image from a specific resource bundle.
@@ -1023,7 +1024,7 @@ pub fn Display(comptime T: type) type {
             if (name.len == 0) return null;
 
             var start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
-            const resource = try bundle.lookupOne(name, .image, gpa);
+            const resource = try bundle.lookupOne(gpa, name, .image);
             if (resource == null) return null;
 
             if (self.textures.get(resource.?.uid)) |texture| {
@@ -1115,7 +1116,7 @@ pub fn Display(comptime T: type) type {
             } else {
                 // Load audio from resource bundle
                 var start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
-                const resource = try bundle.lookupOne(name, .audio, gpa);
+                const resource = try bundle.lookupOne(gpa, name, .audio);
                 if (resource == null) {
                     err("search audio named \"{s}\" not found.", .{name});
                     return null;
@@ -2145,7 +2146,7 @@ pub fn Display(comptime T: type) type {
             display: *Self,
             _: *Self,
             _: *Entity(T),
-            _: Allocator,
+            gpa: Allocator,
         ) error{OutOfMemory}!void {
             if (!dev_build) return;
 
@@ -2184,6 +2185,7 @@ pub fn Display(comptime T: type) type {
             info("making resource bundle: {s}", .{buffer.slice()});
 
             display.resources.saveBundle(
+                gpa,
                 display.io,
                 buffer.slice(),
                 manifest,
@@ -2367,6 +2369,7 @@ pub const Error = error{
     GraphicsRendererFailed,
     FontRequired,
     RootAcceptsPanelsOnly,
+    InvalidUtf8,
 };
 
 /// Holdes references to the currently loaded fonts in use for each
@@ -2648,7 +2651,7 @@ pub const Config = struct {
     app_icon_name: ?[]const u8 = null,
     bundle_filename: ?[]const u8 = null,
     resource_folder: ?[]const u8 = null,
-    resource_filter: ?*const fn (name: []const u8, extension: FileType) bool = null,
+    resource_filter: ?*const fn (name: []const u8, extension: Type) bool = null,
     translation_filename: ?[]const u8 = null,
     desktop_icon: ?[]const u8 = null,
     full_screen: bool = false,
@@ -3089,7 +3092,7 @@ pub const TextSize = @import("text_size.zig").TextSize;
 const base62 = @import("resources").base62;
 const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
-const FileType = @import("resources").FileType;
+const Type = @import("resources").Type;
 
 const random = praxis.random;
 const seed = random.seed;

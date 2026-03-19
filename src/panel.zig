@@ -155,7 +155,7 @@ pub fn Panel(comptime T: type) type {
         ) f32 {
             std.debug.assert(parent.type == .panel);
             if (parent.visible == .hidden) return 0;
-            if (parent.layout.position == .float) return 0;
+            //if (parent.layout.position == .float) return 0;
 
             const available_width = parent.inner_width();
 
