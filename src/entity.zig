@@ -4,6 +4,13 @@ pub fn Entity(comptime T: type) type {
     return struct {
         pub const Self = @This();
 
+        pub const default = Self{
+            .name = "",
+            .aria_label = null,
+            .visible = .hidden,
+            .type = .{ .panel = .{} },
+        };
+
         /// The `name` is not intended to be shown to the user. This name can
         /// be used by log and debug code to describe the entity.
         name: []const u8 = "",
@@ -232,7 +239,7 @@ pub fn Entity(comptime T: type) type {
 
         /// Find a direct child of this entity by the name attached to
         /// the entity.
-        pub fn get_child_by_name(self: *Self, name: []const u8) ?*Self {
+        pub fn getChildByName(self: *Self, name: []const u8) ?*Self {
             trace("searching for {s} in {s}", .{ name, self.name });
             for (self.type.panel.children.items) |entity| {
                 if (std.mem.eql(u8, name, entity.name)) {
@@ -245,7 +252,7 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// Return true if this entity appears under this point on the screen.
-        pub fn at_point(self: *Self, cursor: Vector, parent_scroll_offset: Vector) bool {
+        pub fn atPoint(self: *Self, cursor: Vector, parent_scroll_offset: Vector) bool {
             const point = Vector{ .x = self.rect.x, .y = self.rect.y };
             if (self.type == .panel and
                 (self.type.panel.scrollable.scroll.x or self.type.panel.scrollable.scroll.y))
@@ -265,7 +272,7 @@ pub fn Entity(comptime T: type) type {
             return true;
         }
 
-        pub inline fn apply_background_tint(
+        pub inline fn applyBackgroundTint(
             self: *Self,
             display: *Display(T),
             texture: *sdl.SDL_Texture,
@@ -340,14 +347,14 @@ pub fn Entity(comptime T: type) type {
         /// The text_input entity may display placeholder text when there
         /// is no text in the text_input. Placeholder text should be less
         /// visibily prominent.
-        pub inline fn set_placeholder_text(
+        pub inline fn setPlaceholderText(
             self: *Self,
             _: Allocator,
             display: *Display(T),
             text: []const u8,
         ) !void {
             debug(
-                "set_placeholder_text({s}.{s}) {s}",
+                "setPlaceholderText({s}.{s}) {s}",
                 .{ @tagName(self.type), self.name, text },
             );
             switch (self.type) {
@@ -363,7 +370,7 @@ pub fn Entity(comptime T: type) type {
                     }
                 },
                 else => {
-                    info("set_placeholder_text({s}.{s}) invalid", .{ @tagName(self.type), text });
+                    info("setPlaceholderText({s}.{s}) invalid", .{ @tagName(self.type), text });
                 },
             }
         }
@@ -552,16 +559,16 @@ pub fn Entity(comptime T: type) type {
         /// Replace the foreground texture with an image resource found
         /// in the default resource bundle.
         ///
-        /// `set_texture` is only valid on entities that permit a
+        /// `setTexture` is only valid on entities that permit a
         /// foreground texture.
-        pub inline fn set_texture(
+        pub inline fn setTexture(
             self: *Self,
             allocator: Allocator,
             display: *Display(T),
             name: []const u8,
         ) error{OutOfMemory}!void {
             const texture = display.load_texture(allocator, name) catch |f| {
-                err("set_texture({s}) error loading texture. {any}", .{ name, f });
+                err("setTexture({s}) error loading texture. {any}", .{ name, f });
                 return;
             };
             if (texture != null) {
@@ -570,23 +577,23 @@ pub fn Entity(comptime T: type) type {
                 }
                 self.texture = texture.?;
             } else {
-                err("set_texture({s}) resource not found", .{name});
+                err("setTexture({s}) resource not found", .{name});
             }
         }
 
         /// Replace the current background texture with an image resource
         /// found in the default resource bundle.
         ///
-        /// `set_background_texture` is only valid on entities that permit a
+        /// `setBackgroundTexture` is only valid on entities that permit a
         /// background texture.
-        pub inline fn set_background_texture(
+        pub inline fn setBackgroundTexture(
             self: *Self,
             allocator: Allocator,
             display: *Display(T),
             name: []const u8,
         ) error{OutOfMemory}!void {
             const texture = display.load_texture(allocator, name) catch |f| {
-                err("set_background_texture({s}) error loading texture. {any}", .{ name, f });
+                err("setBackgroundTexture({s}) error loading texture. {any}", .{ name, f });
                 return;
             };
             if (texture != null) {
@@ -594,13 +601,13 @@ pub fn Entity(comptime T: type) type {
                     display.release_texture_resource(allocator, self.background.image.?);
                 self.background.image = texture.?;
             } else {
-                err("set_background_texture({s}) resource not found", .{name});
+                err("setBackgroundTexture({s}) resource not found", .{name});
             }
         }
 
         /// Replace the current image texture with a a texture from a resource
         /// bundle. Returns null if the resource name does not exist.
-        pub inline fn set_image(
+        pub inline fn setImage(
             self: *Self,
             gpa: Allocator,
             display: *Display(T),
@@ -637,7 +644,7 @@ pub fn Entity(comptime T: type) type {
             }
         }
 
-        pub inline fn set_background_image(
+        pub inline fn setBackgroundImage(
             self: *Self,
             gpa: Allocator,
             display: *Display(T),
@@ -649,7 +656,7 @@ pub fn Entity(comptime T: type) type {
                 info("set_image failed to find image resource named \"{s}\"", .{name});
                 return null;
             }
-            debug("set_background_image loaded image named \"{s}\"", .{name});
+            debug("setBackgroundImage loaded image named \"{s}\"", .{name});
 
             if (self.background.image != null) {
                 display.release_texture_resource(gpa, self.background.image.?);
@@ -660,7 +667,7 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// Remove the background texture if a texture has been set.
-        pub inline fn clear_background_image(
+        pub inline fn clearBackgroundImage(
             self: *Self,
             gpa: Allocator,
             display: *Display(T),
@@ -672,7 +679,7 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// Change the default font belonging to this entity
-        pub inline fn set_font(
+        pub inline fn setFont(
             self: *Self,
             display: *Display(T),
             name: []const u8,
@@ -683,7 +690,7 @@ pub fn Entity(comptime T: type) type {
                 .checkbox => &self.type.checkbox.font,
                 .text_input => &self.type.text_input.font,
                 else => {
-                    warn("set_font invalid on entity {t} {s}", .{ self.type, self.name });
+                    warn("setFont invalid on entity {t} {s}", .{ self.type, self.name });
                     return;
                 },
             };
@@ -693,7 +700,7 @@ pub fn Entity(comptime T: type) type {
                 .checkbox => &self.type.checkbox.font_name,
                 .text_input => &self.type.text_input.font_name,
                 else => {
-                    warn("set_font invalid on entity {t} {s}", .{ self.type, self.name });
+                    warn("setFont invalid on entity {t} {s}", .{ self.type, self.name });
                     return;
                 },
             };
@@ -708,13 +715,12 @@ pub fn Entity(comptime T: type) type {
             warn("requested unknown font {s} on entity {t} {s}", .{ name, self.type, self.name });
         }
 
-        /// set_text updates the `text` and `translation` fields of labels,
-        /// checkboxes and buttons, and regenerates the grahpics/image
-        /// textures for each word if the text was changed.
-        ///
-        /// The memory behind the `new_text` must remain valid while the entity
-        /// exists and is displaying this string.
-        pub inline fn set_text(
+        /// Update the `text` and corresponding`translation` field of a label,
+        /// checkbox, text input, or button. The backing image texture for
+        /// each word is regenerated if the text was changed. The memory
+        /// behind the `new_text` must remain valid while the entity exists
+        /// and is displaying this string.
+        pub inline fn setText(
             self: *Self,
             allocator: Allocator,
             display: *Display(T),
@@ -726,7 +732,7 @@ pub fn Entity(comptime T: type) type {
                 .label => self.type.label.translated,
                 .button => self.type.button.translated,
                 else => {
-                    err("set_text({s}.{s}) invalid", .{ @tagName(self.type), new_text });
+                    err("setText({s}.{s}) invalid", .{ @tagName(self.type), new_text });
                     return;
                 },
             };
@@ -740,10 +746,10 @@ pub fn Entity(comptime T: type) type {
                         return;
                     },
                 };
-                debug("set_text {s} {s} \"{s}\" => \"{s}\"", .{ self.name, @tagName(self.type), old_text, new_text });
+                debug("setText {s} {s} \"{s}\" => \"{s}\"", .{ self.name, @tagName(self.type), old_text, new_text });
             }
             const new_translated = display.translation.translate(new_text);
-            trace("set_text({s}.{s}) translated \"{s}\" => \"{s}\"", .{
+            trace("setText({s}.{s}) translated \"{s}\" => \"{s}\"", .{
                 @tagName(self.type),
                 self.name,
                 old_translated,
@@ -874,7 +880,7 @@ pub fn Entity(comptime T: type) type {
                     }
                 },
                 else => {
-                    warn("set_text({s}) invalid for {s}", .{ @tagName(self.type), new_text });
+                    warn("setText({s}) invalid for {s}", .{ @tagName(self.type), new_text });
                 },
             }
 
@@ -920,9 +926,9 @@ pub fn Entity(comptime T: type) type {
             return child;
         }
 
-        /// Use `insert_entity` to insert a child entity in a specific location
+        /// Use `insertEntity` to insert a child entity in a specific location
         /// in this panel. Only permitted for the `panel` entity type.
-        pub inline fn insert_entity(
+        pub inline fn insertEntity(
             self: *Self,
             allocator: Allocator,
             display: *Display(T),
@@ -950,9 +956,9 @@ pub fn Entity(comptime T: type) type {
             self.type.panel.children.items[to] = s;
         }
 
-        /// Use `remove_entity_at` to attach a child entity in a specific location
+        /// Use `removeEntityAt` to attach a child entity in a specific location
         /// in this panel. Only permitted for the `panel` entity type.
-        pub inline fn remove_entity_at(self: *Self, display: *Display(T), location: usize) *Self {
+        pub inline fn removeEntityAt(self: *Self, display: *Display(T), location: usize) *Self {
             std.debug.assert(self.type == .panel);
             std.debug.assert(location < self.type.panel.children.items.len);
             const item = self.type.panel.children.orderedRemove(location);
@@ -960,15 +966,15 @@ pub fn Entity(comptime T: type) type {
             return item;
         }
 
-        /// Use `remove_entity` to remove a panel that is a
+        /// Use `removeEntity` to remove a panel that is a
         /// child of this entity.
-        pub inline fn remove_entity(
+        pub inline fn removeEntity(
             self: *Self,
             display: *Display(T),
             child: *Self,
         ) ?*Self {
             std.debug.assert(self.type == .panel);
-            child.clear_display_pointers(display);
+            child.clearDisplayPointers(display);
             for (0..self.type.panel.children.items.len) |i| {
                 if (self.type.panel.children.items[i] == child) {
                     const item = self.type.panel.children.orderedRemove(i);
@@ -981,8 +987,8 @@ pub fn Entity(comptime T: type) type {
             return null;
         }
 
-        /// Use `remove_entities` to remove all childr entities in a panel.
-        pub inline fn remove_entities(
+        /// Use `removeEntities` to remove all childr entities in a panel.
+        pub inline fn removeEntities(
             self: *Self,
             allocator: Allocator,
             display: *Display(T),
@@ -999,12 +1005,12 @@ pub fn Entity(comptime T: type) type {
 
         /// Make sure nothing is holding a reference to an entity that
         /// is being removed from the display.
-        fn clear_display_pointers(self: *Self, display: *Display(T)) void {
+        fn clearDisplayPointers(self: *Self, display: *Display(T)) void {
             if (display.selected == self) display.selected = null;
             if (display.hovered == self) display.hovered = null;
             if (self.type == .panel) {
                 for (self.type.panel.children.items) |entity| {
-                    entity.clear_display_pointers(display);
+                    entity.clearDisplayPointers(display);
                 }
             }
         }
@@ -1075,9 +1081,9 @@ pub fn Entity(comptime T: type) type {
         /// a chance to regenerate its translation and text texture.
         pub fn language_changed(self: *Self, allocator: Allocator, display: *Display(T), lang: Lang) !void {
             switch (self.type) {
-                .label => try self.set_text(allocator, display, self.type.label.text),
-                .checkbox => try self.set_text(allocator, display, self.type.checkbox.text),
-                .button => try self.set_text(allocator, display, self.type.button.text),
+                .label => try self.setText(allocator, display, self.type.label.text),
+                .checkbox => try self.setText(allocator, display, self.type.checkbox.text),
+                .button => try self.setText(allocator, display, self.type.button.text),
                 .panel => for (self.type.panel.children.items) |child| {
                     try child.language_changed(allocator, display, lang);
                 },
@@ -1130,7 +1136,7 @@ pub fn Entity(comptime T: type) type {
                         dest.y += dest.height;
                         dest.height = 0 - dest.height;
                     }
-                    entity.apply_background_tint(display, texture.texture);
+                    entity.applyBackgroundTint(display, texture.texture);
                     if (entity.background.image_corner_radius == 0) {
                         _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
                     } else {
@@ -1643,6 +1649,7 @@ pub fn Entity(comptime T: type) type {
             return wrap;
         }
 
+        /// Internal function to initialise rect entity.
         pub fn setup_rect(
             entity: *Self,
             _: Allocator,
@@ -1654,6 +1661,7 @@ pub fn Entity(comptime T: type) type {
             }
         }
 
+        /// Internal function to initialise panel entity.
         pub fn setup_panel(
             entity: *Self,
             allocator: Allocator,
@@ -1681,6 +1689,7 @@ pub fn Entity(comptime T: type) type {
             entity.type.panel.children = .empty;
         }
 
+        /// Internal function to initialise progress bar entity.
         pub fn setup_progress_bar(
             entity: *Self,
             allocator: Allocator,
@@ -1703,6 +1712,7 @@ pub fn Entity(comptime T: type) type {
             }
         }
 
+        /// Internal function to initialise checkbox entity.
         pub fn setup_checkbox(
             entity: *Self,
             allocator: Allocator,
@@ -1717,7 +1727,7 @@ pub fn Entity(comptime T: type) type {
             if (entity.focus == .unspecified)
                 entity.focus = .can_focus;
 
-            try entity.set_text(allocator, display, entity.type.checkbox.text);
+            try entity.setText(allocator, display, entity.type.checkbox.text);
 
             if (try display.load_texture(allocator, "ios-checkbox-on")) |texture| {
                 entity.type.checkbox.on_texture = texture;
@@ -1745,6 +1755,7 @@ pub fn Entity(comptime T: type) type {
                 entity.minimum.width = size.width;
         }
 
+        /// Internal function to initialise expander entity.
         pub fn setup_expander(
             entity: *Self,
             _: Allocator,
@@ -1755,6 +1766,7 @@ pub fn Entity(comptime T: type) type {
             entity.focus = .never_focus;
         }
 
+        /// Internal function to initialise text input entity.
         pub fn setup_text_input(
             entity: *Self,
             allocator: Allocator,
@@ -1796,17 +1808,18 @@ pub fn Entity(comptime T: type) type {
             entity.type.text_input.text = .empty;
             entity.type.text_input.runes = .empty;
             if (entity.type.text_input.initial_text) |text| {
-                try entity.set_text(allocator, display, text);
+                try entity.setText(allocator, display, text);
             } else {
-                try entity.set_text(allocator, display, "");
+                try entity.setText(allocator, display, "");
             }
             if (entity.type.text_input.placeholder_text) |text| {
-                try entity.set_placeholder_text(allocator, display, text);
+                try entity.setPlaceholderText(allocator, display, text);
             } else {
-                try entity.set_placeholder_text(allocator, display, "");
+                try entity.setPlaceholderText(allocator, display, "");
             }
         }
 
+        /// Internal function to initialise sprite entity.
         pub fn setup_sprite(
             entity: *Self,
             allocator: Allocator,
@@ -1847,6 +1860,7 @@ pub fn Entity(comptime T: type) type {
                 trace("sprite {s} bg {s}", .{ entity.name, entity.background.image_name.? });
         }
 
+        /// Internal function to initialise button entity.
         pub fn setup_button(
             entity: *Self,
             allocator: Allocator,
@@ -1879,7 +1893,7 @@ pub fn Entity(comptime T: type) type {
                     entity.background.image_name.?,
                 });
 
-            try entity.set_text(allocator, display, entity.type.button.text);
+            try entity.setText(allocator, display, entity.type.button.text);
 
             if (entity.type.button.icon_default_name) |icon_default| {
                 if (try display.load_texture(allocator, icon_default)) |texture| {

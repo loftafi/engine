@@ -121,7 +121,7 @@ pub fn Display(comptime T: type) type {
         // pixel density, internally the engine might be drawing your
         // content at 32 (double) or 48 (triple) the number of pixels.
         //
-        // The `text_height`may therefore be modified by the
+        // The `text_height` may therefore be modified by the
         // `pixel_scale` and/or `user_scale` value.
         text_height: T = .normal,
 
@@ -1067,7 +1067,7 @@ pub fn Display(comptime T: type) type {
             return self.playBundleResource(
                 gpa,
                 io,
-                self.resources,
+                &self.resources,
                 name,
                 autorelease,
                 volume,
@@ -1353,7 +1353,7 @@ pub fn Display(comptime T: type) type {
                 //debug("seek={s} visible={any} {s} {s}", .{ @tagName(query), entity.visible, @tagName(entity.type), entity.name });
                 if (item.visible != .visible) continue;
 
-                const is_under_cursor = item.at_point(cursor, scroll_offset);
+                const is_under_cursor = item.atPoint(cursor, scroll_offset);
                 if (!is_under_cursor and item.type != .panel) continue;
 
                 //debug("under cursor {s}.{s}", .{ @tagName(item.type), item.name });
@@ -2809,7 +2809,7 @@ test "button sizing" {
     try std.testing.expect(display.resources.by_uid.count() > 0);
     _ = try display.loadFont(allocator, io, "Roboto-Light");
 
-    try button.set_text(allocator, display, "Hello");
+    try button.setText(allocator, display, "Hello");
     display.need_relayout = true;
     display.relayout();
     try eq(42, @round(button.rect.width / display.pixel_density));
@@ -2821,7 +2821,7 @@ test "button sizing" {
 
     // Buttons cant wrap, hight will only change with padding.
     button.maximum.height = 500;
-    try button.set_text(allocator, display, "Hello Defragment");
+    try button.setText(allocator, display, "Hello Defragment");
     display.relayout();
     try eq(display.text_height.pixel_height(1), button.rect.height / display.pixel_density);
     button.pad.top = 4;
@@ -2871,7 +2871,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
         try eq(50, l.minimum_needed_height(display, 500));
-        panel.remove_entities(allocator, display);
+        panel.removeEntities(allocator, display);
     }
 
     {
@@ -2887,7 +2887,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
         try eq(60, l.minimum_needed_height(display, 500));
-        panel.remove_entities(allocator, display);
+        panel.removeEntities(allocator, display);
     }
 
     {
@@ -2903,7 +2903,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(300, l.minimum_needed_width(display, 500));
         try eq(display.text_height.pixel_height(display.scale), l.minimum_needed_height(display, 500));
-        panel.remove_entities(allocator, display);
+        panel.removeEntities(allocator, display);
     }
 
     {
@@ -2920,7 +2920,7 @@ test "text input sizing" {
         // Minimum is not the actual width, but the smallest it could do.
         try eq(187, @round(l.minimum_needed_width(display, 500)));
         try eq(display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
-        panel.remove_entities(allocator, display);
+        panel.removeEntities(allocator, display);
     }
 
     {
@@ -2961,7 +2961,7 @@ test "text input sizing" {
             2 * display.text_height.pixel_height(display.pixel_scale),
             l.minimum_needed_height(display, 40 * display.pixel_scale),
         );
-        panel.remove_entities(allocator, display);
+        panel.removeEntities(allocator, display);
     }
 
     panel = try display.add_panel(allocator, .{

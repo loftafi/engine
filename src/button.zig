@@ -53,7 +53,7 @@ pub fn Button(comptime T: type) type {
                     dest.y += dest.height;
                     dest.height = 0 - dest.height;
                 }
-                entity.apply_background_tint(display, background_image);
+                entity.applyBackgroundTint(display, background_image);
                 if (entity.background.image_corner_radius == 0) {
                     _ = sdl.SDL_RenderTexture(display.renderer, background_image, null, @ptrCast(&dest));
                 } else {

@@ -38,7 +38,7 @@ pub fn Label(comptime T: type) type {
                 else
                     entity.focus = .accessibility_focus;
             }
-            try entity.set_text(allocator, display, entity.type.label.text);
+            try entity.setText(allocator, display, entity.type.label.text);
 
             // Is there a background for this label?
             if (entity.background.image_name) |name| {
