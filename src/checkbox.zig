@@ -1,3 +1,5 @@
+/// A clickable label that also includes a checkbox to display the
+/// checkbox state.
 pub fn Checkbox(comptime T: type) type {
     return struct {
         pub const Self = @This();

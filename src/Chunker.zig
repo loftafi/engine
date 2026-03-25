@@ -1,65 +1,66 @@
-pub const Chunker = struct {
-    data: []const u8 = "",
+/// Chunker splits a string into word slices for rendering in a label.
+pub const Chunker = @This();
 
-    pub fn init(data: []const u8) Chunker {
-        return .{
-            .data = data,
-        };
+data: []const u8 = "",
+
+pub fn init(data: []const u8) Chunker {
+    return .{
+        .data = data,
+    };
+}
+
+pub fn next(self: *Chunker, font: *LanguageFont) ?TextElement {
+    if (self.data.len == 0) {
+        return null;
     }
 
-    pub fn next(self: *Chunker, font: *LanguageFont) ?TextElement {
-        if (self.data.len == 0) {
-            return null;
-        }
-
-        while (self.data.len > 0) {
-            if (is_eol(self.data[0])) {
-                if (self.data.len > 1) {
-                    const a = self.data[0];
-                    const b = self.data[1];
-                    if ((a == '\n' and b == '\r') or (a == '\r' and b == '\n')) {
-                        self.data.ptr += 1;
-                        self.data.len -= 1;
-                    }
+    while (self.data.len > 0) {
+        if (is_eol(self.data[0])) {
+            if (self.data.len > 1) {
+                const a = self.data[0];
+                const b = self.data[1];
+                if ((a == '\n' and b == '\r') or (a == '\r' and b == '\n')) {
+                    self.data.ptr += 1;
+                    self.data.len -= 1;
                 }
-                self.data.ptr += 1;
-                self.data.len -= 1;
-                return .{ .text = cr, .width = 0, .font = font.default, .texture = undefined };
-            }
-            if (!is_whitespace(self.data[0])) {
-                break;
             }
             self.data.ptr += 1;
             self.data.len -= 1;
+            return .{ .text = cr, .width = 0, .font = font.default, .texture = undefined };
         }
-
-        var end: usize = 0;
-        while (self.data.len > end) {
-            const c = self.data[end];
-            if (c == '\\' and self.data.len > end + 1 and self.data[end + 1] == 'n') {
-                if (end == 0) {
-                    self.data.ptr += 2;
-                    self.data.len -= 2;
-                    return .{ .text = cr, .width = 0, .font = font.default, .texture = undefined };
-                }
-                break;
-            }
-            if (is_whitespace_or_eol(c)) break;
-            end += 1;
+        if (!is_whitespace(self.data[0])) {
+            break;
         }
-
-        const token = self.data[0..end];
-        self.data.ptr += end;
-        self.data.len -= end;
-
-        return .{
-            .text = token,
-            .font = guess_language(token, font),
-            .width = 0,
-            .texture = undefined,
-        };
+        self.data.ptr += 1;
+        self.data.len -= 1;
     }
-};
+
+    var end: usize = 0;
+    while (self.data.len > end) {
+        const c = self.data[end];
+        if (c == '\\' and self.data.len > end + 1 and self.data[end + 1] == 'n') {
+            if (end == 0) {
+                self.data.ptr += 2;
+                self.data.len -= 2;
+                return .{ .text = cr, .width = 0, .font = font.default, .texture = undefined };
+            }
+            break;
+        }
+        if (is_whitespace_or_eol(c)) break;
+        end += 1;
+    }
+
+    const token = self.data[0..end];
+    self.data.ptr += end;
+    self.data.len -= end;
+
+    return .{
+        .text = token,
+        .font = guess_language(token, font),
+        .width = 0,
+        .texture = undefined,
+    };
+}
 
 const cr = "\n";
 

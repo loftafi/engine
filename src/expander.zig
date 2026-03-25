@@ -1,8 +1,15 @@
+/// A simple element that expands inside a panel to fill blank space. If
+/// multiple expanders exist in a panel, the `weight` parameter indicates
+/// the relative size of each expander.
 pub fn Expander(comptime T: type) type {
     return struct {
         pub const Self = @This();
+
+        /// The `Expander` with the higher `weight` grabs more whitespace
+        /// than the expander with a lower `weight`.
         weight: f32 = 0,
 
+        /// Expanders have no content to draw.
         pub inline fn draw(
             _: *const Self,
             _: *Entity(T),

@@ -1,3 +1,4 @@
+/// Hold basic RGB and Alpha colour information.
 pub const Colour = @This();
 
 r: u8 = 0,

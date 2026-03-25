@@ -1,3 +1,5 @@
+/// A button with text and or an icon. Attributes of the button may
+/// be different in the hover, pressed, and disables state.
 pub fn Button(comptime T: type) type {
     return struct {
         pub const Self = @This();

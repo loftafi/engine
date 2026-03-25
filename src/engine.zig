@@ -3075,7 +3075,7 @@ const zstbi = @import("zstbi");
 pub const engine = @import("engine.zig");
 pub const Animator = @import("animator.zig").Animator;
 pub const Font = @import("Font.zig");
-pub const Texture = @import("texture.zig");
+pub const Texture = @import("Texture.zig");
 pub const Audio = @import("Audio.zig");
 pub const seconds = @import("animator.zig").seconds;
 
@@ -3084,8 +3084,8 @@ const Lang = @import("praxis").Lang;
 const BoundedArray = praxis.BoundedArray;
 const mixer = @import("mixer");
 
-pub const Chunker = @import("chunker.zig").Chunker;
-pub const Translation = @import("translation.zig").Translation;
+pub const Chunker = @import("Chunker.zig");
+pub const Translation = @import("Translation.zig");
 pub const StringBucket = @import("string_bucket.zig").StringBucket;
 pub const TextSize = @import("text_size.zig").TextSize;
 

@@ -3,11 +3,11 @@
 /// If a texture is in use by more than one entity, then the `references`
 /// counter keeps track of how many entities are currently depending on
 /// this texture.
+const Texture = @This();
+
 uid: u64,
 texture: *sdl.SDL_Texture,
 references: i32,
-
-const Texture = @This();
 
 pub fn create(
     allocator: Allocator,

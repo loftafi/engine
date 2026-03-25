@@ -1,12 +1,13 @@
-/// Next will return a field, an end of line marker, or an end of file marker.
-/// When a field is returned, the `value`, `row`, and `column` contain data
-/// about the field just read.
+/// A basic CsvReader for loading the translation data file.
 pub const CsvReader = struct {
     data: []const u8 = "",
     value: []const u8 = "",
     row: usize = 0,
     column: usize = 0,
 
+    /// Next will return a field, an end of line marker, or an end of file marker.
+    /// When a field is returned, the `value`, `row`, and `column` contain data
+    /// about the field just read.
     pub fn next(self: *CsvReader) Token {
         var start: usize = 0;
         while (true) {
@@ -154,7 +155,7 @@ test "reader" {
     try expectEqual(Token.eol, i.next());
     try expectEqual(Token.eof, i.next());
 
-    i = CsvReader{ .data = 
+    i = CsvReader{ .data =
         \\  a1 ,"b
         \\1",c1,  "d,1"
         \\

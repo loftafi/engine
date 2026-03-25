@@ -1,113 +1,113 @@
+pub const StringBucket = @This();
+
 const max_fmt_buffer = 1000;
 
 /// Allocate memory for a string if needed, or return a pointer to a
 /// prior-allocated version.
-pub const StringBucket = struct {
-    bucket: StringHashMapUnmanaged(void),
-    allocator: Allocator,
+bucket: StringHashMapUnmanaged(void),
+allocator: Allocator,
 
-    pub fn init(allocator: Allocator) StringBucket {
-        return .{
-            .allocator = allocator,
-            .bucket = .empty,
-        };
+pub fn init(allocator: Allocator) StringBucket {
+    return .{
+        .allocator = allocator,
+        .bucket = .empty,
+    };
+}
+
+pub fn deinit(self: *StringBucket) void {
+    var it = self.bucket.iterator();
+    while (it.next()) |*iv|
+        self.allocator.free(iv.key_ptr.*);
+    self.bucket.deinit(self.allocator);
+}
+
+/// Create a copy of the input text (if needed), or return a copy we
+/// already created previously.
+pub fn add(self: *StringBucket, text: []const u8) error{OutOfMemory}![]const u8 {
+    if (text.len == 0) return "";
+
+    const entry = try self.bucket.getOrPut(self.allocator, text);
+    if (entry.found_existing) {
+        return entry.key_ptr.*;
+    } else {
+        entry.key_ptr.* = "";
+        entry.key_ptr.* = try self.allocator.dupe(u8, text);
+        return entry.key_ptr.*;
     }
+}
 
-    pub fn deinit(self: *StringBucket) void {
-        var it = self.bucket.iterator();
-        while (it.next()) |*iv|
-            self.allocator.free(iv.key_ptr.*);
-        self.bucket.deinit(self.allocator);
+pub fn addZ(self: *StringBucket, text: []const u8) error{OutOfMemory}![:0]const u8 {
+    if (text.len >= max_fmt_buffer - 1) return error.OutOfMemory;
+    if (text.len == 0) return "";
+
+    var buffer: [max_fmt_buffer]u8 = undefined;
+    @memcpy(buffer[0..text.len], text.ptr);
+    buffer[text.len] = 0;
+    const updated: []u8 = buffer[0 .. text.len + 1];
+
+    const entry = try self.bucket.getOrPut(self.allocator, updated);
+    if (entry.found_existing) {
+        return @ptrCast(entry.key_ptr.*);
+    } else {
+        entry.key_ptr.* = "";
+        entry.key_ptr.* = try self.allocator.dupe(u8, updated);
+        const value = entry.key_ptr.*;
+        return @ptrCast(value[0 .. value.len - 1]);
     }
+}
 
-    /// Create a copy of the input text (if needed), or return a copy we
-    /// already created previously.
-    pub fn add(self: *StringBucket, text: []const u8) error{OutOfMemory}![]const u8 {
-        if (text.len == 0) return "";
+/// Build and add a string to the bucket using a zig fmt string pattern.
+pub fn addFmt(
+    self: *StringBucket,
+    comptime fmt: []const u8,
+    args: anytype,
+) error{ OutOfMemory, NoSpaceLeft }![]const u8 {
+    var buff: [max_fmt_buffer]u8 = undefined;
+    const str = try std.fmt.bufPrint(&buff, fmt, args);
+    return self.add(str);
+}
 
-        const entry = try self.bucket.getOrPut(self.allocator, text);
-        if (entry.found_existing) {
-            return entry.key_ptr.*;
-        } else {
-            entry.key_ptr.* = "";
-            entry.key_ptr.* = try self.allocator.dupe(u8, text);
-            return entry.key_ptr.*;
-        }
-    }
+/// Build a string to put into the bucket by replacing fields in the
+/// `fmt` string with contents of the  `args` struct. i.e.
+/// `addFields("my name is {name}", .{.name = "Frank"});
+pub fn addFields(
+    self: *StringBucket,
+    fmt: []const u8,
+    args: anytype,
+) error{ OutOfMemory, NoSpaceLeft }![]const u8 {
+    var buff: [max_fmt_buffer]u8 = undefined;
+    const str = try tagFormat(fmt, args, &buff);
+    return self.add(str);
+}
 
-    pub fn addZ(self: *StringBucket, text: []const u8) error{OutOfMemory}![:0]const u8 {
-        if (text.len >= max_fmt_buffer - 1) return error.OutOfMemory;
-        if (text.len == 0) return "";
+/// Replace fields in the `fmt` string with contents of the  `args` struct. i.e.
+/// `tagFormat("my name is {name}", .{.name = "Frank"}, &buffer);
+pub fn addRemoveCRLF(self: *StringBucket, string: []const u8, buf: []u8) error{ NoSpaceLeft, OutOfMemory }![]const u8 {
+    var w: std.Io.Writer = .fixed(buf);
 
-        var buffer: [max_fmt_buffer]u8 = undefined;
-        @memcpy(buffer[0..text.len], text.ptr);
-        buffer[text.len] = 0;
-        const updated: []u8 = buffer[0 .. text.len + 1];
-
-        const entry = try self.bucket.getOrPut(self.allocator, updated);
-        if (entry.found_existing) {
-            return @ptrCast(entry.key_ptr.*);
-        } else {
-            entry.key_ptr.* = "";
-            entry.key_ptr.* = try self.allocator.dupe(u8, updated);
-            const value = entry.key_ptr.*;
-            return @ptrCast(value[0 .. value.len - 1]);
-        }
-    }
-
-    /// Build and add a string to the bucket using a zig fmt string pattern.
-    pub fn addFmt(
-        self: *StringBucket,
-        comptime fmt: []const u8,
-        args: anytype,
-    ) error{ OutOfMemory, NoSpaceLeft }![]const u8 {
-        var buff: [max_fmt_buffer]u8 = undefined;
-        const str = try std.fmt.bufPrint(&buff, fmt, args);
-        return self.add(str);
-    }
-
-    /// Build a string to put into the bucket by replacing fields in the
-    /// `fmt` string with contents of the  `args` struct. i.e.
-    /// `addFields("my name is {name}", .{.name = "Frank"});
-    pub fn addFields(
-        self: *StringBucket,
-        fmt: []const u8,
-        args: anytype,
-    ) error{ OutOfMemory, NoSpaceLeft }![]const u8 {
-        var buff: [max_fmt_buffer]u8 = undefined;
-        const str = try tagFormat(fmt, args, &buff);
-        return self.add(str);
-    }
-
-    /// Replace fields in the `fmt` string with contents of the  `args` struct. i.e.
-    /// `tagFormat("my name is {name}", .{.name = "Frank"}, &buffer);
-    pub fn addRemoveCRLF(self: *StringBucket, string: []const u8, buf: []u8) error{ NoSpaceLeft, OutOfMemory }![]const u8 {
-        var w: std.Io.Writer = .fixed(buf);
-
-        var data = string;
-        var previous: u8 = 0;
-        while (data.len > 0) {
-            const c = data[0];
-            if (c == CR or c == LF) {
-                if (previous != SPACE) w.writeByte(SPACE) catch return error.NoSpaceLeft;
-                previous = SPACE;
-                data = data[1..];
-                continue;
-            }
-            if (c == '\\' and data.len > 1 and (data[1] == 'n' or data[1] == 'r')) {
-                if (previous != SPACE) w.writeByte(SPACE) catch return error.NoSpaceLeft;
-                previous = SPACE;
-                data = data[2..];
-                continue;
-            }
-            w.writeByte(c) catch return error.NoSpaceLeft;
-            previous = c;
+    var data = string;
+    var previous: u8 = 0;
+    while (data.len > 0) {
+        const c = data[0];
+        if (c == CR or c == LF) {
+            if (previous != SPACE) w.writeByte(SPACE) catch return error.NoSpaceLeft;
+            previous = SPACE;
             data = data[1..];
+            continue;
         }
-
-        return try self.add(w.buffered());
+        if (c == '\\' and data.len > 1 and (data[1] == 'n' or data[1] == 'r')) {
+            if (previous != SPACE) w.writeByte(SPACE) catch return error.NoSpaceLeft;
+            previous = SPACE;
+            data = data[2..];
+            continue;
+        }
+        w.writeByte(c) catch return error.NoSpaceLeft;
+        previous = c;
+        data = data[1..];
     }
-};
+
+    return try self.add(w.buffered());
+}
 
 const CR = '\r';
 const LF = '\n';

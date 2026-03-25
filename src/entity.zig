@@ -871,7 +871,7 @@ pub fn Entity(comptime T: type) type {
                                 self.type.button.text_texture = texture;
                             }
                         } else {
-                            const font = @import("chunker.zig").guess_language(self.type.button.translated, &display.font);
+                            const font = @import("Chunker.zig").guess_language(self.type.button.translated, &display.font);
                             trace("use detected font '{s}' for {s}", .{ font.name, self.type.button.translated });
                             if (display.generate_text_texture(self.type.button.translated, font)) |texture| {
                                 self.type.button.text_texture = texture;
@@ -2485,8 +2485,8 @@ const Resource = resources.Resource;
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
 
-const Chunker = @import("chunker.zig").Chunker;
-const Texture = @import("texture.zig");
+const Chunker = @import("Chunker.zig");
+const Texture = @import("Texture.zig");
 const Colour = @import("Colour.zig");
 const Theme = @import("Theme.zig");
 const BoxLayout = @import("BoxLayout.zig");

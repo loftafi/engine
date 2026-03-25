@@ -1,7 +1,7 @@
-//! An animator is provided to the main run loop to move an engine
-//! `Entity` along a requested movement path for a specific `duration`.
-//!
-//! Visual examples of each movement path: https://easings.net
+/// An animator is provided to the main run loop to move an engine
+/// `Entity` along a requested movement path for a specific `duration`.
+///
+/// Visual examples of each movement path: https://easings.net
 pub fn Animator(comptime T: type) type {
     return struct {
         pub const Mode = enum {

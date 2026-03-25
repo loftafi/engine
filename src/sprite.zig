@@ -1,3 +1,4 @@
+/// An entity that displays a simple image texture.
 pub fn Sprite(comptime T: type) type {
     return struct {
         pub const Self = @This();

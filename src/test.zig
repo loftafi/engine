@@ -1,3 +1,5 @@
+/// Sample configuration settings that areonly intended
+/// for use by the test case code.
 pub const test_config = Config{
     .app_name = "test",
     .app_version = "test",
@@ -8,6 +10,9 @@ pub const test_config = Config{
     .full_screen = false,
 };
 
+/// Return a `Display` that has not been initialised with SDL. This is
+/// convenient for testing in an environment that doesnt support
+/// display rendering.
 pub fn headless_display(
     allocator: std.mem.Allocator,
     io: std.Io,
