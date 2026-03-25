@@ -3,12 +3,26 @@
 /// If an audio file is in use by more than one entity, then the `references`
 /// counter keeps track of how many entities are currently depending on
 /// this audio file.
-const Audio = @This();
+pub const Audio = @This();
 
+/// The name/filename of the audio resorces that was used to load the file
+/// from the bundle pack or resource folder.
 name: []const u8,
+
+/// The contents of the audio file that were loaded from the budle pack
+/// or resource folder.
 audio: []const u8,
+
+/// The number of dependences on this audio object. When there are no
+/// more dependencies on this audio object, the  object may `autorelease`.
 references: i32,
+
+/// Hold a reference to the Resource record metadata.
 resource: ?*Resource,
+
+/// Indicates that this object should `autorelease` when no more references
+/// to this audio exist, or if `retain` is chosen, the object must be
+/// manually released.
 autorelease: Retain,
 
 pub const empty = .{
@@ -44,12 +58,17 @@ pub fn destroy(self: *Audio, allocator: Allocator) void {
     allocator.destroy(self);
 }
 
+/// Return a _copy_ of this Audio data which must be released using
+/// releaseAudioResource.
+///
+/// This does not _copy_ but simply increases the reference count to
+/// indicate another dependency on this object exists.
 pub fn clone(self: *Audio) *Audio {
     self.references += 1;
     return self;
 }
 
-/// When an audio file is finished playing,  this `Progress` struct enables
+/// When an audio file is finished playing, this `Progress` struct enables
 /// cleanup and notification.
 pub const Progress = struct {
     gpa: Allocator,

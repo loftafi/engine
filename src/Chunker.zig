@@ -9,6 +9,7 @@ pub fn init(data: []const u8) Chunker {
     };
 }
 
+/// Return the next word or CR token TextElement found in the text data.
 pub fn next(self: *Chunker, font: *LanguageFont) ?TextElement {
     if (self.data.len == 0) {
         return null;

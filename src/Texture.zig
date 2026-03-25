@@ -6,7 +6,11 @@
 const Texture = @This();
 
 uid: u64,
+
 texture: *sdl.SDL_Texture,
+
+/// The number of dependences on this audio object. When there are no
+/// more dependencies on this audio object, the  object may `autorelease`.
 references: i32,
 
 pub fn create(
@@ -29,6 +33,11 @@ pub fn destroy(self: *Texture, allocator: Allocator) void {
     allocator.destroy(self);
 }
 
+/// Return a _copy_ of this Texture data which must be released using
+/// releaseTextureResource.
+///
+/// This does not _copy_ but simply increases the reference count to
+/// indicate another dependency on this object exists.
 pub fn clone(self: *Texture) *Texture {
     self.references += 1;
     return self;
