@@ -50,4 +50,5 @@ const Translation = engine.Translation;
 test {
     @import("std").testing.refAllDecls(@This());
     @import("std").testing.refAllDecls(engine);
+    @import("std").testing.refAllDecls(@import("button.zig"));
 }

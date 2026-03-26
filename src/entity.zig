@@ -1875,7 +1875,7 @@ pub fn Entity(comptime T: type) type {
             entity.type.button.background_pressed = null;
             entity.type.button.background_hover = null;
             entity.type.button.background_disabled = null;
-            entity.type.button.text_size = .normal;
+            //entity.type.button.text_size = .normal;
             entity.type.button.font = try select_font(display.fonts.items, entity.type.button.font_name);
 
             if (entity.focus == .unspecified)

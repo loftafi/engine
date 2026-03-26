@@ -95,7 +95,7 @@ pub fn Button(comptime T: type) type {
             };
             const icon_y_offset = switch (entity.child_align.y) {
                 .start => entity.pad.top,
-                .centre => (entity.rect.height / 2) - (self.icon_size.height / 2),
+                .centre => entity.pad.top + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2) - (self.icon_size.height / 2),
                 .end => entity.rect.height - entity.pad.bottom - self.icon_size.height,
             };
 
@@ -126,11 +126,11 @@ pub fn Button(comptime T: type) type {
             }
 
             // Place the text
-            if (entity.type.button.text_texture) |texture| {
-                const size = entity.type.button.text_size.pixel_size(display.scale, texture);
+            if (self.text_texture) |texture| {
+                const size = self.text_size.pixel_size(display.scale, texture);
                 var dest: Rect = .{
                     .x = entity.rect.x + entity.type.button.icon_size.width + entity.pad.left + content_x_offset,
-                    .y = entity.rect.y + (entity.rect.height / 2.0) - (size.height / 2),
+                    .y = entity.rect.y + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2.0) - (size.height / 2) + entity.pad.top,
                     .width = size.width,
                     .height = size.height,
                 };
@@ -233,7 +233,7 @@ pub fn Button(comptime T: type) type {
         ) f32 {
             var height: f32 = 0;
             if (button.text_texture) |_| {
-                height = display.text_height.pixel_height(display.scale);
+                height = button.text_size.pixel_height(display.scale);
             }
             height = @max(button.icon_size.height, height);
             height += (entity.pad.top + entity.pad.bottom);
@@ -242,8 +242,130 @@ pub fn Button(comptime T: type) type {
     };
 }
 
+test "normal_use" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, TextSize(22), 1024, 720, 2);
+    defer display.destroy(allocator);
+
+    const panel = try display.addPanel(allocator, .{
+        .minimum = .{ .width = 5, .height = 8 },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    });
+    try expectEqual(5, panel.minimum_needed_width(display, 500));
+    try expectEqual(8, panel.minimum_needed_height(display, 500));
+
+    const not_quite_one_line = display.text_height.pixel_height(display.scale) - 5;
+    const not_quite_two_lines = display.text_height.pixel_height(display.scale) * 2 - 5;
+
+    var button = try panel.add(allocator, display, .{
+        .visible = .visible,
+        .rect = .{ .width = 50, .height = 50 },
+        .minimum = .{ .width = 30, .height = not_quite_one_line },
+        .maximum = .{ .width = 82, .height = not_quite_two_lines },
+        .type = .{ .button = .{ .text = "" } },
+    });
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(50, button.minimum_needed_width(display, 500));
+    try expectEqual(50, button.minimum_needed_height(display, 500));
+    button.layout.x = .shrinks;
+    button.layout.y = .shrinks;
+    try expectEqual(30, button.minimum_needed_width(display, 500));
+    // The words will overflow the bottom of the box
+    try expectEqual(not_quite_one_line, button.minimum_needed_height(display, 500));
+
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(30, panel.minimum_needed_width(display, 500));
+    try expectEqual(30, button.rect.width);
+    // panel has min width 5, but button pushes it out to 30
+    try expectEqual(30, panel.rect.width);
+    try expectEqual(not_quite_one_line, button.rect.height);
+    try expectEqual(not_quite_one_line, panel.rect.height);
+
+    panel.pad.left = 2;
+    panel.pad.right = 3;
+    panel.pad.top = 4;
+    panel.pad.bottom = 5;
+    display.relayout();
+    try expectEqual(30, button.rect.width);
+    try expectEqual(30, panel.rect.width);
+    try expectEqual(not_quite_one_line, button.rect.height);
+    try expectEqual(not_quite_one_line, panel.rect.height);
+
+    panel.minimum.width = 100;
+    display.relayout();
+    try expectEqual(100, panel.minimum_needed_width(display, 500));
+    panel.minimum.width = 10;
+
+    // Add test font so we can test label layout
+    try std.testing.expect(display.resources.by_uid.count() > 0);
+    _ = try display.loadFont(allocator, io, "Roboto-Light");
+
+    try button.setText(allocator, display, "Hello");
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(42, @round(button.rect.width / display.pixel_density));
+    // Does the width grow more than 10 (minimum) because of the button size.
+    try expectEqual(88, @round(panel.rect.width));
+    // Minimum height was not_quite_one_line, expect it grew to font height.
+    try expectEqual(display.text_height.pixel_height(1), button.rect.height / display.pixel_density);
+    try expectEqual(display.text_height.pixel_height(2) + 4 + 5, panel.rect.height);
+
+    // Buttons cant wrap, hight will only change with padding.
+    button.maximum.height = 500;
+    try button.setText(allocator, display, "Hello Defragment");
+    display.relayout();
+    try expectEqual(display.text_height.pixel_height(1), button.rect.height / display.pixel_density);
+    button.pad.top = 4;
+    button.pad.bottom = 5;
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(display.text_height.pixel_height(1), (button.rect.height - 4 - 5) / display.pixel_density);
+
+    try expectEqual(1, 0);
+}
+
+test "button_sizing" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, TextSize(22), 1024, 720, 2);
+    defer display.destroy(allocator);
+
+    const panel = try display.addPanel(allocator, .{
+        .minimum = .{ .width = 500, .height = 500 },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    });
+
+    // Button with normal height.
+    var button = try panel.add(allocator, display, .{
+        .visible = .visible,
+        .minimum = .{ .width = 0, .height = 0 },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+        .type = .{ .button = .{
+            .text = "Simple Text",
+            .text_size = .normal,
+        } },
+    });
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(44, button.minimum_needed_height(display, 500));
+
+    // Button with small height.
+    button.type.button.text_size = .small;
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(44 * 0.75, button.minimum_needed_height(display, 500));
+}
+
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const expectEqual = std.testing.expectEqual;
 
 const sdl = @import("sdl");
 
@@ -256,9 +378,12 @@ const Font = engine.Font;
 const Entity = engine.Entity;
 const Texture = engine.Texture;
 const Theme = engine.Theme;
+const TextSize = engine.TextSize;
 
 const Clip = engine.ent.Clip;
 const Rect = engine.ent.Rect;
 const Size = engine.ent.Size;
 const ToggleState = engine.ent.ToggleState;
 const Vector = engine.ent.Vector;
+
+const headless_display = @import("test.zig").headless_display;
