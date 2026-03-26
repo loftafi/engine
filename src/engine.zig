@@ -36,10 +36,10 @@ pub fn Display(comptime T: type) type {
         /// Main game loop runs until quit is requested.
         quit: bool = false,
 
-        /// Some entities are placed, aligned or sized using a layout
-        /// algorithm If one of these entities changes, this flag is
-        /// set to indicate we must relayout all entities before the
-        /// next frame is drawn. See `relayout()` for details.
+        /// When an entity is added, moved, resized or removed, then
+        /// all entities on the screen will need to be refreshed.
+        /// Setting this to `true` causes the `relayout()` function
+        /// to be called before the next `draw()` is requested.
         need_relayout: bool = true,
 
         /// Deduplicate safe area change updates by remembering the
@@ -425,7 +425,7 @@ pub fn Display(comptime T: type) type {
                 if (try display.resources.lookupOne(gpa, translation_filename, .csv)) |resource| {
                     const data = try loadResourceSdl(gpa, io, &display.resources, resource);
                     defer gpa.free(data);
-                    try display.translation.load_translation_data(gpa, data);
+                    try display.translation.loadTranslationData(gpa, data);
                     debug("Translation file '{s}' loaded", .{translation_filename});
                 } else {
                     err("Translation file '{s}' not found.", .{translation_filename});
@@ -555,7 +555,7 @@ pub fn Display(comptime T: type) type {
 
         /// Change the theme. If the theme name is not valid, or empty
         /// use the system preference.
-        pub fn set_theme(self: *Self, name: []const u8) bool {
+        pub fn setTheme(self: *Self, name: []const u8) bool {
             for (self.themes) |theme| {
                 if (std.ascii.eqlIgnoreCase(theme.tag, name)) {
                     self.theme = theme;
@@ -583,7 +583,7 @@ pub fn Display(comptime T: type) type {
 
         /// Return pointer to a top level panel if it exists. Can be used
         /// to update the contents of a top level panel.
-        pub fn get_panel(self: *Self, name: []const u8) ?*Entity(T) {
+        pub fn getPanel(self: *Self, name: []const u8) ?*Entity(T) {
             for (self.root.type.panel.children.items) |item| {
                 if (item.type != .panel) {
                     continue;
@@ -598,12 +598,12 @@ pub fn Display(comptime T: type) type {
         /// Mark a top level panel as visible, and all other
         /// top level panels as not visible. The visibility of the
         /// _background_ and _menu_ panel is not altered.
-        pub fn choose_panel(
+        pub fn choosePanel(
             self: *Self,
             gpa: Allocator,
             name: []const u8,
         ) Allocator.Error!void {
-            const old_panel = self.current_panel();
+            const old_panel = self.currentPanel();
 
             var found = false;
             self.update_screen_metrics(false);
@@ -630,7 +630,7 @@ pub fn Display(comptime T: type) type {
                 } else {
                     // Other panels not matching `name` are hidden.
                     if (item.visible != .hidden) {
-                        debug("choose_panel({s}) hiding panel {s}.", .{ name, item.name });
+                        debug("choosePanel({s}) hiding panel {s}.", .{ name, item.name });
                         try item.set_visibility(self, .hidden);
                     }
                 }
@@ -641,13 +641,13 @@ pub fn Display(comptime T: type) type {
             }
             self.update_screen_metrics(true);
             if (!found and name.len > 0) {
-                warn("choose_panel() did not find panel. name={s}", .{name});
+                warn("choosePanel() did not find panel. name={s}", .{name});
             }
         }
 
         /// Get the name of the currently visible top panel that isn't
         /// the background or menu panel.
-        pub fn current_panel(self: *Self) ?*Entity(T) {
+        pub fn currentPanel(self: *Self) ?*Entity(T) {
             for (self.root.type.panel.children.items) |item| {
                 if (item.type != .panel) {
                     err("root panel contains {t} which is not a panel", .{item.type});
@@ -657,7 +657,7 @@ pub fn Display(comptime T: type) type {
                 if (std.mem.eql(u8, "menu", item.name)) continue;
                 if (item.visible == .visible) return item;
             }
-            trace("current_panel() did not find panel.", .{});
+            trace("currentPanel() did not find panel.", .{});
             return null;
         }
 
@@ -715,17 +715,17 @@ pub fn Display(comptime T: type) type {
             }
         }
 
-        pub fn set_language(display: *Self, allocator: Allocator, language: Lang) !void {
+        pub fn setLanguage(display: *Self, allocator: Allocator, language: Lang) !void {
             if (language == display.current_language) {
-                debug("set_language({s}) unchanged.", .{@tagName(display.current_language)});
+                debug("setLanguage({s}) unchanged.", .{@tagName(display.current_language)});
                 return;
             }
-            debug("set_language() {s} => {s}.", .{
+            debug("setLanguage() {s} => {s}.", .{
                 @tagName(display.current_language),
                 @tagName(language),
             });
             display.current_language = language;
-            display.translation.set_language(language);
+            display.translation.setLanguage(language);
             for (display.root.type.panel.children.items) |item| {
                 switch (item.type) {
                     .label => try item.language_changed(allocator, display, language),
@@ -886,7 +886,7 @@ pub fn Display(comptime T: type) type {
 
         /// Add an animator that points to a currently active/valid entity.
         /// The entity must not be destroyed for the lifetime of the animation.
-        pub inline fn add_animator(
+        pub inline fn addAnimator(
             self: *Self,
             allocator: Allocator,
             animator: Animator(T),
@@ -897,7 +897,7 @@ pub fn Display(comptime T: type) type {
 
         /// Attach a child entity to the main display panel (root) entity. The
         /// main display panel should only contain panels as children
-        pub inline fn add_panel(
+        pub inline fn addPanel(
             self: *Self,
             allocator: Allocator,
             item: Entity(T),
@@ -2753,7 +2753,7 @@ test "button sizing" {
     var display = try headless_display(allocator, io, TextSize(22), 1024, 720, 2);
     defer display.destroy(allocator);
 
-    const panel = try display.add_panel(allocator, .{
+    const panel = try display.addPanel(allocator, .{
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
@@ -2849,7 +2849,7 @@ test "text input sizing" {
     var display = try headless_display(allocator, io, TextSize(22), 1000, 1600, 2);
     defer display.destroy(allocator);
 
-    var panel = try display.add_panel(allocator, .{
+    var panel = try display.addPanel(allocator, .{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -2964,7 +2964,7 @@ test "text input sizing" {
         panel.removeEntities(allocator, display);
     }
 
-    panel = try display.add_panel(allocator, .{
+    panel = try display.addPanel(allocator, .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
@@ -3043,7 +3043,7 @@ test "test_init" {
     var display: *Display(TextSize(22)) = try .create(allocator, io, test_config);
     defer display.destroy(allocator);
 
-    var panel = try display.add_panel(allocator, .{
+    var panel = try display.addPanel(allocator, .{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },

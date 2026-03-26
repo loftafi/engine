@@ -1,8 +1,10 @@
-/// Chunker splits a string into word slices for rendering in a label.
+//! Chunker splits a string into word slices for rendering in a label.
 pub const Chunker = @This();
 
+/// The raw text data we are chunking.
 data: []const u8 = "",
 
+/// Create a `Chunker` with the data to be split.
 pub fn init(data: []const u8) Chunker {
     return .{
         .data = data,
@@ -65,18 +67,22 @@ pub fn next(self: *Chunker, font: *LanguageFont) ?TextElement {
 
 const cr = "\n";
 
+/// Returns true if an ascii character a whitespace character, not including eof/eol.
 pub inline fn is_whitespace(c: u8) bool {
     return c == ' ' or c == '\t';
 }
 
+/// Returns true if an ascii character is a whitespace, line ending, or file ending character.
 pub inline fn is_whitespace_or_eol(c: u8) bool {
     return c == ' ' or c == '\n' or c == '\r' or c == '\t' or c == 0;
 }
 
+/// Returns true if a character is a line ending or file ending character.
 pub inline fn is_eol(c: u8) bool {
     return c == '\n' or c == '\r' or c == 0;
 }
 
+/// Attempt to guess the language of a string based on unicode character ranges.
 pub fn guess_language(word: []const u8, font: *LanguageFont) *Font {
     var lang = Lang.unknown;
     var v = Utf8View.init(word) catch {

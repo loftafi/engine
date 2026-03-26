@@ -191,7 +191,7 @@ test "label_panel_placement" {
     display.root.maximum.width = 300;
     display.root.maximum.height = 200;
 
-    const panel = try display.add_panel(allocator, .{
+    const panel = try display.addPanel(allocator, .{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -249,7 +249,7 @@ test "label_single_word_alignment" {
     var display = try headless_display(allocator, io, TextSize(10), 300, 200, 2);
     defer display.destroy(allocator);
 
-    const panel = try display.add_panel(allocator, .{
+    const panel = try display.addPanel(allocator, .{
         .name = "parent",
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -364,7 +364,7 @@ test "label_multiword_align" {
     var display = try headless_display(allocator, io, TextSize(10), 200, 200, 2);
     defer display.destroy(allocator);
 
-    const panel = try display.add_panel(allocator, .{
+    const panel = try display.addPanel(allocator, .{
         .name = "parent",
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -457,7 +457,7 @@ test "shrunk_label_in_panel" {
     var display = try headless_display(allocator, io, TextSize(10), 200, 100, 2);
     defer display.destroy(allocator);
 
-    const panel = try display.add_panel(allocator, .{
+    const panel = try display.addPanel(allocator, .{
         .layout = .{ .x = .grows, .y = .grows },
         .type = .{ .panel = .{ .direction = .centre } },
         .pad = .{ .left = 4, .right = 6, .top = 2, .bottom = 8 },

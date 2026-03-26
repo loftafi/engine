@@ -767,7 +767,7 @@ test "root_panel_alignment" {
     display.root.rect.width = 300;
     display.root.rect.height = 200;
 
-    const panel = try display.add_panel(allocator, .{
+    const panel = try display.addPanel(allocator, .{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .minimum = .{ .width = 100, .height = 120 },
         .maximum = .{ .width = 200, .height = 160 },
@@ -818,7 +818,7 @@ test "panel_padding" {
     display.root.maximum.width = 300;
     display.root.maximum.height = 200;
 
-    const panel = try display.add_panel(allocator, .{
+    const panel = try display.addPanel(allocator, .{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -904,7 +904,7 @@ test "centre_text_bug" {
     var display = try headless_display(allocator, io, TextSize(10), 600, 800, 2);
     defer display.destroy(allocator);
 
-    const panel = try display.add_panel(allocator, .{
+    const panel = try display.addPanel(allocator, .{
         .type = .{ .panel = .{ .direction = .left_to_right, .spacing = 5 } },
         .layout = .{ .x = .grows, .y = .grows },
     });

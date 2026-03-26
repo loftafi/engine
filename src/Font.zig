@@ -1,9 +1,14 @@
-/// A font is held in memory for the entire duration it might be needed.
-/// Typically this is the lifetime of the app.
+//! A font is held in memory for the entire duration it might be needed.
+//! Typically this is the lifetime of the app.
 const Font = @This();
 
+/// The name of the font as it appeared in the bundle file or resource directory.
 name: []const u8,
+
+/// The SDL handle to access the font.
 font: *sdl.TTF_Font,
+
+/// A pointer to the raw font data. This must be kept in memory.
 font_buffer: []const u8,
 
 pub fn create(

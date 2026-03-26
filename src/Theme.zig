@@ -1,16 +1,17 @@
-/// Describe the colour and theme of every visual element. Attributes
-/// of all visual elements must never be hardcoded.
+//! Describes the colour and style of on screen entities.
 pub const Theme = @This();
 
-// zig enum formmatted tag. No spaces.
+/// A zig enum formmatted tag. i.e. midnight_glow
 tag: []const u8,
 
 // Default background and text colour for all elements.
 background_colour: Colour,
 text_colour: Colour,
 
-// Text edit box theming
+/// Colour of the placeholder text in the text input entity.
 placeholder_text_colour: Colour,
+
+/// Colour of the cursor in the text input entity
 cursor_colour: Colour,
 
 label_background_colour: Colour,
@@ -35,13 +36,22 @@ failed_panel_colour: Colour,
 failed_text_colour: Colour,
 failed_button_colour: Colour,
 
-// Backgorund colour for buttons that can be toggled
+/// Default background of a button when toggle is enabled.
 toggle_button: Colour,
+
+/// Background of a button when a toggle button is marked picked.
 toggle_button_picked: Colour,
+
+/// Background of a button in toggle mode that has been marked correct.
 toggle_button_correct: Colour,
+
+/// Background of a button in toggle mode that has been marked incorrect.
 toggle_button_incorrect: Colour,
 
+/// The colour of the progress bar itself. Not the colour of the entity background.
 progress_bar_background: Colour,
+
+/// The colour of the progress indicator that is overlaid onto the progress bar.
 progress_bar_foreground: Colour,
 
 pub const Style = enum {

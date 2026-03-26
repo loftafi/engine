@@ -1,11 +1,11 @@
-/// An audio file is held in memory for the entire duration it might be needed.
-///
-/// If an audio file is in use by more than one entity, then the `references`
-/// counter keeps track of how many entities are currently depending on
-/// this audio file.
+//! An audio file is held in memory for the entire duration it might be needed.
+//!
+//! If an audio file is in use by more than one entity, then the `references`
+//! counter keeps track of how many entities are currently depending on
+//! this audio file.
 pub const Audio = @This();
 
-/// The name/filename of the audio resorces that was used to load the file
+/// The name or filename of the audio resorce that was used to load the file
 /// from the bundle pack or resource folder.
 name: []const u8,
 
