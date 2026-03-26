@@ -43,9 +43,11 @@ const std = @import("std");
 const Display = @import("engine.zig").Display;
 const TextSize = @import("text_size.zig").TextSize;
 
-const Config = @import("engine.zig").Config;
 const engine = @import("engine.zig");
+const Config = engine.Config;
+const Translation = engine.Translation;
 
 test {
     @import("std").testing.refAllDecls(@This());
+    @import("std").testing.refAllDecls(engine);
 }

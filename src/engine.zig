@@ -2570,7 +2570,7 @@ const LogLevel = enum {
 /// Capture _all_ zig log messages for the engine log system.
 pub const std_options: std.Options = .{
     .log_level = .debug,
-    .logFn = formatted_log_output,
+    .logFn = log_capture,
 };
 
 /// Use with `std.Options.logFn` in your app to direct zig logging
@@ -3115,6 +3115,7 @@ const Vector = ent.Vector;
 pub const Theme = @import("Theme.zig");
 pub const Colour = @import("Colour.zig");
 pub const BoxLayout = @import("BoxLayout.zig");
+pub const CsvReader = @import("CsvReader.zig");
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
@@ -3125,4 +3126,3 @@ pub const loadResourceSdl = resources_sdl.loadResourceSdl;
 pub const loadPreferenceData = resources_sdl.loadPreferenceData;
 pub const deletePreferenceData = resources_sdl.deletePreferenceData;
 pub const savePreferenceData = resources_sdl.savePreferenceData;
-pub const remove_preference_data = resources_sdl.remove_preference_data;

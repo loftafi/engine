@@ -103,12 +103,6 @@ pub const Token = enum {
     eof,
 };
 
-const std = @import("std");
-const praxis = @import("praxis");
-const Lang = praxis.Lang;
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
-
 test "reader" {
     var i = CsvReader{ .data = "a,b\n" };
     try expectEqual(Token.field, i.next());
@@ -171,3 +165,17 @@ test "reader" {
     try expectEqual(Token.eol, i.next());
     try expectEqual(Token.eof, i.next());
 }
+
+test "reader_with_cr" {
+    var i = CsvReader{ .data = "\"a\\nb\",\"c\nd\"\n" };
+    try expectEqual(Token.field, i.next());
+    try expectEqualStrings("a\\nb", i.value);
+    try expectEqual(Token.field, i.next());
+    try expectEqualStrings("c\nd", i.value);
+    try expectEqual(Token.eol, i.next());
+    try expectEqual(Token.eof, i.next());
+}
+
+const std = @import("std");
+const expectEqual = std.testing.expectEqual;
+const expectEqualStrings = std.testing.expectEqualStrings;

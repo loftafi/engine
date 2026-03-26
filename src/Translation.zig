@@ -172,14 +172,54 @@ test "translator" {
     }
 }
 
+test "translator_with_cr" {
+    const allocator = std.testing.allocator;
+    {
+        var translator: Translation = .empty;
+        defer translator.deinit(allocator);
+        try translator.loadTranslationData(allocator, "keys,en,el\nBREAD,\"bread\nloaf\",ἄρτος\n");
+        try expect(translator.maps.contains(Lang.english));
+        try expect(translator.maps.contains(Lang.greek));
+        translator.setLanguage(.english);
+        try expectEqualStrings("bread\nloaf", translator.translate("BREAD"));
+        translator.setLanguage(.greek);
+        try expectEqualStrings("ἄρτος", translator.translate("BREAD"));
+    }
+
+    {
+        var translator: Translation = .empty;
+        defer translator.deinit(allocator);
+        try translator.loadTranslationData(allocator, "keys,en,el\nBREAD,bread\\nloaf,ἄρτος\n");
+        try expect(translator.maps.contains(Lang.english));
+        try expect(translator.maps.contains(Lang.greek));
+        translator.setLanguage(.english);
+        try expectEqualStrings("bread\\nloaf", translator.translate("BREAD"));
+        translator.setLanguage(.greek);
+        try expectEqualStrings("ἄρτος", translator.translate("BREAD"));
+    }
+
+    {
+        var translator: Translation = .empty;
+        defer translator.deinit(allocator);
+        try translator.loadTranslationData(allocator, "keys,en,el\nBREAD,\"bread\\nloaf\",ἄρτος\n");
+        try expect(translator.maps.contains(Lang.english));
+        try expect(translator.maps.contains(Lang.greek));
+        translator.setLanguage(.english);
+        try expectEqualStrings("bread\\nloaf", translator.translate("BREAD"));
+        translator.setLanguage(.greek);
+        try expectEqualStrings("ἄρτος", translator.translate("BREAD"));
+    }
+}
+
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+const expectEqualStrings = std.testing.expectEqualStrings;
+
 const praxis = @import("praxis");
 const engine = @import("engine.zig");
 const err = engine.err;
 const Lang = praxis.Lang;
 const CsvReader = @import("CsvReader.zig");
 const Token = CsvReader.Token;
-const expect = std.testing.expect;
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
