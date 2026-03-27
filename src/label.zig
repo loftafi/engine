@@ -26,7 +26,8 @@ pub fn Label(comptime T: type) type {
             entity.background.image = null;
             label.translated = "";
             label.elements = .empty;
-            label.font = try select_font(display.fonts.items, label.font_name);
+            if (label.font_name) |name|
+                label.font = try select_font(display.fonts.items, name);
 
             if (entity.focus == .unspecified) {
                 if (entity.type.label.on_mouse_down.func != null)
@@ -182,7 +183,7 @@ test "label_panel_placement" {
 
     var display = try Display(TextSize(10)).create(allocator, io, test_config);
     defer display.destroy(allocator);
-    _ = try display.loadFont(allocator, io, "Roboto-Light");
+    try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;

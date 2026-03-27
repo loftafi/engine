@@ -11,6 +11,8 @@ font: *sdl.TTF_Font,
 /// A pointer to the raw font data. This must be kept in memory.
 font_buffer: []const u8,
 
+references: usize = 0,
+
 pub fn create(
     allocator: Allocator,
     name: []const u8,
@@ -22,16 +24,32 @@ pub fn create(
         .name = try allocator.dupe(u8, name),
         .font = font,
         .font_buffer = raw_data,
+        .references = 0,
     };
     debug("loaded font: {s}", .{sdl.TTF_GetFontFamilyName(font_info.font)});
     return font_info;
 }
 
-pub fn destroy(self: *Font, allocator: Allocator) void {
+pub fn clone(self: *Font) *Font {
+    self.references += 1;
+    return self;
+}
+
+pub fn release(self: *Font, allocator: Allocator) bool {
+    if (self.references <= 1) {
+        self.cleanup(allocator);
+        return true;
+    }
+    self.references -= 1;
+    return false;
+}
+
+pub fn cleanup(self: *Font, allocator: Allocator) void {
     sdl.TTF_CloseFont(self.font);
     trace("unloaded font: {s}", .{self.name});
     allocator.free(self.font_buffer);
     allocator.free(self.name);
+    self.* = undefined;
     allocator.destroy(self);
 }
 

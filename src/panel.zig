@@ -762,7 +762,7 @@ test "root_panel_alignment" {
 
     var display = try Display(TextSize(10)).create(allocator, io, test_config);
     defer display.destroy(allocator);
-    _ = try display.loadFont(allocator, io, "Roboto-Light");
+    try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
@@ -809,7 +809,7 @@ test "panel_padding" {
 
     var display = try Display(TextSize(10)).create(allocator, io, test_config);
     defer display.destroy(allocator);
-    _ = try display.loadFont(allocator, io, "Roboto-Light");
+    try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;

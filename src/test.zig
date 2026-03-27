@@ -22,7 +22,7 @@ pub fn headless_display(
     pixel_scale: f32,
 ) !*Display(text_size) {
     var display = try Display(text_size).create(allocator, io, test_config);
-    _ = try display.loadFont(allocator, io, "Roboto-Light");
+    try display.setDefaultFont("Roboto-Light", .unknown);
     display.root.rect.width = width;
     display.root.rect.height = height;
     display.root.maximum.width = width;

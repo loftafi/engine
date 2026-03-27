@@ -303,7 +303,7 @@ test "normal_use" {
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    _ = try display.loadFont(allocator, io, "Roboto-Light");
+    try display.setDefaultFont("Roboto-Light", .unknown);
 
     try button.setText(allocator, display, "Hello");
     display.need_relayout = true;
@@ -325,8 +325,6 @@ test "normal_use" {
     display.need_relayout = true;
     display.relayout();
     try expectEqual(display.text_height.pixel_height(1), (button.rect.height - 4 - 5) / display.pixel_density);
-
-    try expectEqual(1, 0);
 }
 
 test "button_sizing" {

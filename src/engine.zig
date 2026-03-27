@@ -467,7 +467,7 @@ pub fn Display(comptime T: type) type {
             self.bucket.deinit();
 
             for (self.fonts.items) |item| {
-                item.destroy(gpa);
+                item.cleanup(gpa);
             }
             self.fonts.deinit(gpa);
 
@@ -787,20 +787,82 @@ pub fn Display(comptime T: type) type {
         }
 
         /// Load and associate a font file with a font name.
-        pub fn loadFont(
+        pub fn setDefaultFont(
             self: *Self,
-            allocator: Allocator,
-            io: std.Io,
+            name: []const u8,
+            lang: praxis.Lang,
+        ) (Error || Allocator.Error || Resources.Error)!void {
+            const font_info = try self.loadFontResource(name);
+            defer remove_from_list(self.allocator, &self.fonts, font_info);
+
+            // When the very first font is loaded, grab it
+            // for the font language map.
+            if (self.fonts.items.len <= 1) {
+                self.font.chinese = font_info.clone();
+                self.font.default = font_info.clone();
+                self.font.english = font_info.clone();
+                self.font.greek = font_info.clone();
+                self.font.korean = font_info.clone();
+            }
+
+            switch (lang) {
+                .chinese => {
+                    remove_from_list(self.allocator, &self.fonts, self.font.chinese);
+                    self.font.chinese = font_info.clone();
+                },
+                .english => {
+                    remove_from_list(self.allocator, &self.fonts, self.font.english);
+                    self.font.english = font_info.clone();
+                },
+                .unknown => {
+                    remove_from_list(self.allocator, &self.fonts, self.font.default);
+                    self.font.default = font_info.clone();
+                },
+                .greek => {
+                    remove_from_list(self.allocator, &self.fonts, self.font.greek);
+                    self.font.greek = font_info.clone();
+                },
+                .korean => {
+                    remove_from_list(self.allocator, &self.fonts, self.font.korean);
+                    self.font.korean = font_info.clone();
+                },
+                else => {
+                    std.log.err("Language {t} not supported", .{lang});
+                },
+            }
+        }
+
+        fn remove_from_list(allocator: Allocator, list: *ArrayListUnmanaged(*Font), item: *Font) void {
+            for (0..list.items.len) |i| {
+                if (list.items[i] == item) {
+                    if (list.items[i].release(allocator)) {
+                        _ = list.*.swapRemove(i);
+                        return;
+                    }
+                }
+            }
+        }
+
+        /// Load and associate a font file with a font name. Use `Font.release()`
+        /// when this record is no loger needed, or `Font.clone()` to indicate
+        /// multiple interests retaining this Font.
+        pub fn loadFontResource(
+            self: *Self,
             name: []const u8,
         ) (Error || Allocator.Error || Resources.Error)!*Font {
             assert(self.pixel_scale > 0);
 
-            const resource = try self.resources.lookupOne(allocator, name, .font);
+            for (self.fonts.items) |font| {
+                if (std.mem.eql(u8, name, font.name))
+                    return font.clone();
+            }
+
+            const resource = try self.resources.lookupOne(self.allocator, name, .font);
             if (resource == null) {
                 err("loadFont({s}) Font not in resource folder", .{name});
                 return error.ResourceNotFound;
             }
-            const font_buffer = try loadResourceSdl(allocator, io, &self.resources, resource.?);
+            const font_buffer = try loadResourceSdl(self.allocator, self.io, &self.resources, resource.?);
 
             const fio = sdl.SDL_IOFromConstMem(font_buffer.ptr, font_buffer.len) orelse {
                 err("SDL_IOFromConstMem: {s}", .{sdl.SDL_GetError()});
@@ -835,17 +897,9 @@ pub fn Display(comptime T: type) type {
             });
             //sdl.TTF_SetFontHinting(myfont, 0);
 
-            const font_info = try Font.create(allocator, name, myfont, font_buffer);
-            errdefer font_info.destroy(allocator);
-            try self.fonts.append(allocator, font_info);
-
-            if (self.fonts.items.len == 1) {
-                self.font.default = font_info;
-                self.font.english = font_info;
-                self.font.greek = font_info;
-                self.font.chinese = font_info;
-                self.font.korean = font_info;
-            }
+            const font_info = try Font.create(self.allocator, name, myfont, font_buffer);
+            errdefer _ = font_info.release(self.allocator);
+            try self.fonts.append(self.allocator, font_info.clone());
 
             if (self.fonts.items.len > 1) {
                 const i = self.fonts.items.len - 2;
@@ -2771,7 +2825,7 @@ test "text input sizing" {
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    _ = try display.loadFont(allocator, io, "Roboto-Light");
+    try display.setDefaultFont("Roboto-Light", .unknown);
 
     {
         // Create a fixed sized label with enough space
@@ -2978,9 +3032,44 @@ test "test_init" {
     try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
 }
 
+test "font_loading" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, TextSize(22), 1000, 1600, 2);
+    defer display.destroy(allocator);
+
+    // Initial headless display font
+    try expectEqual(1, display.fonts.items.len);
+    const first_font = display.fonts.items[0];
+    try expectEqual(first_font, display.font.default);
+    try expectEqual(first_font, display.font.greek);
+    try expectEqual(first_font, display.font.english);
+    try expectEqual(first_font, display.font.korean);
+    try expectEqual(first_font, display.font.chinese);
+
+    try display.setDefaultFont("Roboto-Bold", .unknown);
+    try expectEqual(2, display.fonts.items.len);
+    const second_font = display.fonts.items[1];
+
+    try expectEqual(second_font, display.font.default);
+    try expectEqual(first_font, display.font.greek);
+    try expectEqual(first_font, display.font.english);
+    try expectEqual(first_font, display.font.korean);
+    try expectEqual(first_font, display.font.chinese);
+
+    try display.setDefaultFont("Roboto-Bold", .greek);
+    try display.setDefaultFont("Roboto-Bold", .english);
+    try display.setDefaultFont("Roboto-Bold", .korean);
+    try expectEqual(2, display.fonts.items.len);
+    try display.setDefaultFont("Roboto-Bold", .chinese);
+    try expectEqual(1, display.fonts.items.len);
+}
+
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
+const expectEqual = std.testing.expectEqual;
 const sdl = @import("sdl");
 const builtin = @import("builtin");
 const assert = std.debug.assert;

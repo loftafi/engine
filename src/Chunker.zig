@@ -172,12 +172,13 @@ test "read_chunks" {
 
     var display = try Display(TextSize(22)).create(allocator, io, test_config);
     defer display.destroy(allocator);
-    _ = try display.loadFont(allocator, io, "Roboto-Light");
+    try display.setDefaultFont("Roboto-Light", .unknown);
     try expectEqual(1, display.fonts.items.len);
-    display.font.greek = try display.loadFont(allocator, io, "Roboto-Black");
-    display.font.chinese = try display.loadFont(allocator, io, "Roboto-Bold");
-    display.font.korean = try display.loadFont(allocator, io, "Roboto-Thin");
-    try expectEqual(4, display.fonts.items.len);
+    try display.setDefaultFont("Roboto-Black", .greek);
+    try display.setDefaultFont("Roboto-Black", .english);
+    try display.setDefaultFont("Roboto-Bold", .chinese);
+    try display.setDefaultFont("Roboto-Thin", .korean);
+    try expectEqual(5, display.fonts.items.len);
 
     var data = Chunker.init("the fish");
     try expectEqualStrings("the", data.next(&display.font).?.text);
@@ -253,6 +254,42 @@ test "read_chunks" {
     try expectEqual(display.font.korean, data.next(&display.font).?.font);
     try expectEqual(display.font.greek, data.next(&display.font).?.font);
     try expectEqual(null, data.next(&display.font));
+}
+
+test "guess_fail" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try Display(TextSize(22)).create(allocator, io, test_config);
+    defer display.destroy(allocator);
+    try display.setDefaultFont("Roboto-Black", .unknown);
+    try expectEqual(1, display.fonts.items.len);
+    try display.setDefaultFont("Roboto-Bold", .chinese);
+    try display.setDefaultFont("Roboto-Bold", .greek);
+    try display.setDefaultFont("Roboto-Bold", .english);
+    try display.setDefaultFont("Roboto-Thin", .korean);
+    try expectEqual(3, display.fonts.items.len);
+
+    //var display = try headless_display(allocator, io, TextSize(22), 1024, 720, 2);
+    //defer display.destroy(allocator);
+
+    const panel = try display.addPanel(allocator, .{
+        .minimum = .{ .width = 5, .height = 8 },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    });
+    try expectEqual(5, panel.minimum_needed_width(display, 500));
+    try expectEqual(8, panel.minimum_needed_height(display, 500));
+
+    {
+        var data = Chunker.init("fish");
+        try expectEqual(display.font.english, data.next(&display.font).?.font);
+    }
+
+    {
+        var data = Chunker.init("2");
+        try expectEqual(display.font.english, data.next(&display.font).?.font);
+    }
 }
 
 const std = @import("std");
