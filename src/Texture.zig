@@ -49,4 +49,4 @@ const Allocator = std.mem.Allocator;
 const sdl = @import("sdl");
 const builtin = @import("builtin");
 const engine = @import("engine.zig");
-const trace = engine.trace;
+const trace = engine.log.trace;

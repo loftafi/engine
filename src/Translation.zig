@@ -219,7 +219,7 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 
 const praxis = @import("praxis");
 const engine = @import("engine.zig");
-const err = engine.err;
+const err = engine.log.err;
 const Lang = praxis.Lang;
 const CsvReader = @import("CsvReader.zig");
 const Token = CsvReader.Token;

@@ -311,7 +311,7 @@ const engine = @import("engine.zig");
 const Display = engine.Display;
 const Font = engine.Font;
 const LanguageFont = engine.LanguageFont;
-const debug = engine.debug;
-const warn = engine.warn;
+const debug = engine.log.debug;
+const warn = engine.log.warn;
 
 const TextSize = @import("text_size.zig").TextSize;

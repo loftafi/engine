@@ -300,11 +300,11 @@ const Colour = @import("Colour.zig");
 const engine = @import("engine.zig");
 const Display = engine.Display;
 const TextSize = engine.TextSize;
-const err = engine.err;
-const warn = engine.warn;
-const info = engine.info;
-const trace = engine.trace;
-const debug = engine.debug;
+const err = engine.log.err;
+const warn = engine.log.warn;
+const info = engine.log.info;
+const trace = engine.log.trace;
+const debug = engine.log.debug;
 const eq = std.testing.expectEqual;
 const headless_display = @import("test.zig").headless_display;
 

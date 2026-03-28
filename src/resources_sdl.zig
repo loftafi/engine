@@ -522,11 +522,12 @@ const seed = praxis.random.seed;
 
 const engine = @import("engine.zig");
 const Display = engine.Display;
-const err = engine.err;
-const warn = engine.warn;
-const info = engine.info;
-const debug = engine.debug;
-const trace = engine.debug;
+const log = @import("log.zig");
+const err = log.err;
+const warn = log.warn;
+const info = log.info;
+const debug = log.debug;
+const trace = log.trace;
 const default_app_name = engine.default_app_name;
 const default_org_name = engine.default_org_name;
 

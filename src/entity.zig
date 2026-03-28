@@ -2465,11 +2465,11 @@ const Allocator = std.mem.Allocator;
 const sdl = @import("sdl");
 
 const engine = @import("engine.zig");
-const err = engine.err;
-const warn = engine.warn;
-const info = engine.info;
-const debug = engine.debug;
-const trace = engine.trace;
+const err = engine.log.err;
+const warn = engine.log.warn;
+const info = engine.log.info;
+const debug = engine.log.debug;
+const trace = engine.log.trace;
 const Display = engine.Display;
 const Callback = engine.Callback;
 const BoolCallback = engine.BoolCallback;
