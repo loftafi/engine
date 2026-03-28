@@ -67,7 +67,7 @@ pub fn Display(comptime T: type) type {
         /// A list of all active fonts loaded from the resources bundle.
         fonts: ArrayListUnmanaged(*Font) = .empty,
 
-        font: LanguageFont,
+        font: Font.Language,
 
         /// Translates the default provided text into a specific language
         /// using a csv translation file
@@ -2427,16 +2427,6 @@ pub const Error = error{
     FontRequired,
     RootAcceptsPanelsOnly,
     InvalidUtf8,
-};
-
-/// Holdes references to the currently loaded fonts in use for each
-/// language. By default, every language uses the first loaded font.
-pub const LanguageFont = struct {
-    default: *Font,
-    english: *Font,
-    greek: *Font,
-    korean: *Font,
-    chinese: *Font,
 };
 
 /// Holds the raw image data after it is decoded from a resource bundle.

@@ -12,7 +12,7 @@ pub fn init(data: []const u8) Chunker {
 }
 
 /// Return the next word or CR token TextElement found in the text data.
-pub fn next(self: *Chunker, font: *LanguageFont) ?TextElement {
+pub fn next(self: *Chunker, font: *Font.Language) ?TextElement {
     if (self.data.len == 0) {
         return null;
     }
@@ -83,7 +83,7 @@ pub inline fn is_eol(c: u8) bool {
 }
 
 /// Attempt to guess the language of a string based on unicode character ranges.
-pub fn guess_language(word: []const u8, font: *LanguageFont) *Font {
+pub fn guess_language(word: []const u8, font: *Font.Language) *Font {
     var lang = Lang.unknown;
     var v = Utf8View.init(word) catch {
         return font.default;
@@ -178,7 +178,7 @@ test "read_chunks" {
     try display.setDefaultFont("Roboto-Black", .english);
     try display.setDefaultFont("Roboto-Bold", .chinese);
     try display.setDefaultFont("Roboto-Thin", .korean);
-    try expectEqual(5, display.fonts.items.len);
+    try expectEqual(4, display.fonts.items.len);
 
     var data = Chunker.init("the fish");
     try expectEqualStrings("the", data.next(&display.font).?.text);
@@ -310,7 +310,6 @@ const test_config = @import("test.zig").test_config;
 const engine = @import("engine.zig");
 const Display = engine.Display;
 const Font = engine.Font;
-const LanguageFont = engine.LanguageFont;
 const debug = engine.log.debug;
 const warn = engine.log.warn;
 

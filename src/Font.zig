@@ -53,6 +53,16 @@ pub fn cleanup(self: *Font, allocator: Allocator) void {
     allocator.destroy(self);
 }
 
+/// Holdes references to the currently loaded fonts in use for each
+/// language. By default, every language uses the first loaded font.
+pub const Language = struct {
+    default: *Font,
+    english: *Font,
+    greek: *Font,
+    korean: *Font,
+    chinese: *Font,
+};
+
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
