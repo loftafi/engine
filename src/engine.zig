@@ -2097,8 +2097,8 @@ pub fn Display(comptime T: type) type {
                             try selected.keypress(
                                 allocator,
                                 display,
-                                c_unicode_to_u21(e.text.text),
-                                c_unicode_to_slice(e.text.text),
+                                nextUnicodeChar(e.text.text),
+                                nextUnicodeSlice(e.text.text),
                             );
                         } else {
                             err("sdl text input event on non text_input entity.", .{});
@@ -2451,16 +2451,15 @@ pub const Retain = enum {
     retain,
 };
 
-/// Read the first unicode character from a c string,
-/// in the form of a slice.
-inline fn c_unicode_to_slice(text: [*c]const u8) []const u8 {
+/// Read the first unicode character from a c string, in the form of a slice.
+inline fn nextUnicodeSlice(text: [*c]const u8) []const u8 {
     const l = std.unicode.utf8ByteSequenceLength(text[0]) catch return "";
     return text[0..l];
 }
 
 /// Read the first unicode character from a zero terminated
 /// c string, in the form of an integer.
-inline fn c_unicode_to_u21(text: [*c]const u8) u21 {
+inline fn nextUnicodeChar(text: [*c]const u8) u21 {
     const l = std.unicode.utf8ByteSequenceLength(text[0]) catch return text[0];
     return switch (l) {
         1 => text[0],
