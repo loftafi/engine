@@ -859,7 +859,6 @@ pub fn Display(comptime T: type) type {
 
             const resource = try self.resources.lookupOne(self.allocator, name, .font);
             if (resource == null) {
-                err("loadFont({s}) Font not in resource folder", .{name});
                 return error.ResourceNotFound;
             }
             const font_buffer = try loadResourceSdl(self.allocator, self.io, &self.resources, resource.?);
@@ -957,11 +956,15 @@ pub fn Display(comptime T: type) type {
             item: Entity(T),
         ) (Allocator.Error || Resources.Error || Error)!*Entity(T) {
             if (item.type != .panel) {
-                warn("parent display should contan panels. Not {s} {s}", .{
+                warn("addPanel requires a panel entity, not {s} {s}", .{
                     @tagName(item.type),
                     item.name,
                 });
                 return Error.RootAcceptsPanelsOnly;
+            }
+
+            if (self.fonts.items.len == 0) {
+                warn("addPanel called before setDefaultFont.", .{});
             }
 
             return self.root.add(allocator, self, item);
@@ -3064,6 +3067,8 @@ test "font_loading" {
     try expectEqual(2, display.fonts.items.len);
     try display.setDefaultFont("Roboto-Bold", .chinese);
     try expectEqual(1, display.fonts.items.len);
+
+    try std.testing.expectError(error.ResourceNotFound, display.setDefaultFont("UnknownFont", .greek));
 }
 
 const std = @import("std");
