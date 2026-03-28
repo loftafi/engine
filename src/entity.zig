@@ -1105,7 +1105,7 @@ pub fn Entity(comptime T: type) type {
                     entity.visible = .culled;
                     return;
                 }
-                if (entity.rect.y + scroll_offset.y + (entity.rect.height / 2) + 1 < clip.top) {
+                if (entity.rect.y + scroll_offset.y + entity.rect.height < clip.top) {
                     entity.visible = .culled;
                     return;
                 }

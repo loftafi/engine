@@ -1,20 +1,3 @@
-/// Comptime known value to allow creation of `if (dev_build)` statements
-/// to allow code to be excluded from production releases.
-pub const dev_build = (builtin.mode == .Debug);
-
-/// A global variable which can be used to turn on or off live debugging
-/// features such as drawing lines around on screen entities and output of
-/// `trace` log messages
-pub var dev_mode = false;
-
-/// When the `Config` does not contain an organisation name, default
-/// to this organisation name.
-pub const default_org_name = "Example";
-
-/// When the `Config` does not contain an application name, default
-/// to use this application name.
-pub const default_app_name = "Engine";
-
 /// Render the font characters with double the pixel density of the
 /// `text_height` to ensure screens with double or triple pixel
 /// density have clear font edges.
@@ -203,7 +186,7 @@ pub fn Display(comptime T: type) type {
                 if (config.app_id != null) try bucket.addZ(config.app_id.?) else "example",
             );
 
-            if (dev_build) {
+            if (engine.dev_build) {
                 _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_GPU, sdl.SDL_LOG_PRIORITY_DEBUG);
                 _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_VIDEO, sdl.SDL_LOG_PRIORITY_DEBUG);
                 _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_ERROR, sdl.SDL_LOG_PRIORITY_DEBUG);
@@ -1117,7 +1100,7 @@ pub fn Display(comptime T: type) type {
             gpa: Allocator,
             io: std.Io,
             name: []const u8,
-            autorelease: Retain,
+            autorelease: Audio.Retain,
             volume: f32,
             callback: ?Audio.Callback,
         ) (Error || Allocator.Error || Resources.Error)!?*Audio {
@@ -1147,7 +1130,7 @@ pub fn Display(comptime T: type) type {
             io: std.Io,
             bundle: *Resources,
             name: []const u8,
-            autorelease: Retain,
+            autorelease: Audio.Retain,
             volume: f32,
             callback: ?Audio.Callback,
         ) (Error || Allocator.Error || Resources.Error)!?*Audio {
@@ -1688,7 +1671,7 @@ pub fn Display(comptime T: type) type {
 
             if (!updated) return;
 
-            if (updated or dev_build or dev_mode) {
+            if (updated or engine.dev_build or engine.dev_mode) {
                 debug("current display size {d}x{d} -=> new display size {d}x{d}", .{
                     display.root.rect.width,
                     display.root.rect.height,
@@ -1794,7 +1777,7 @@ pub fn Display(comptime T: type) type {
                 self.safe_area.right = right_pad;
                 self.safe_area.top = top_pad;
                 self.safe_area.bottom = bottom_pad;
-            } else if (dev_build and dev_mode) {
+            } else if (engine.dev_build and engine.dev_mode) {
                 info("current safe area: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
                     self.safe_area.left,  self.safe_area.top,
                     self.safe_area.right, self.safe_area.bottom,
@@ -2062,7 +2045,7 @@ pub fn Display(comptime T: type) type {
                             display,
                             found.?,
                         ),
-                        .panel => |p| if (dev_build and dev_mode) {
+                        .panel => |p| if (engine.dev_build and engine.dev_mode) {
                             trace("on_mouse_enter({s} {s}) scrollable.size={d}x{d} rect={d}x{d}", .{
                                 @tagName(found.?.type),
                                 found.?.name,
@@ -2077,7 +2060,7 @@ pub fn Display(comptime T: type) type {
                     display.hovered = found.?;
                     display.hovered.?.hovered = true;
                 } else {
-                    if (dev_build and dev_mode) {
+                    if (engine.dev_build and engine.dev_mode) {
                         //debug("mouse over: {s} {s}", .{ @tagName(found.?.type), found.?.name });
                     }
                 }
@@ -2161,8 +2144,8 @@ pub fn Display(comptime T: type) type {
             else if (display.user_scale == 1.0)
                 1.25
             else if (display.user_scale == 1.25)
-                if (dev_build or dev_mode) 1.5 else 1.25
-            else if (dev_build or dev_mode) 1.5 else 1.25;
+                if (engine.dev_build or engine.dev_mode) 1.5 else 1.25
+            else if (engine.dev_build or engine.dev_mode) 1.5 else 1.25;
             display.scale = display.pixel_scale * display.user_scale;
             display.need_relayout = true;
             debug("Increase size. {d}*{d} = {d}", .{
@@ -2181,14 +2164,14 @@ pub fn Display(comptime T: type) type {
         ) void {
             debug("size = {d}", .{display.user_scale});
             display.user_scale = if (display.user_scale == 0.75)
-                if (dev_build or dev_mode) 0.5 else 0.75
+                if (engine.dev_build or engine.dev_mode) 0.5 else 0.75
             else if (display.user_scale == 1.0)
                 0.75
             else if (display.user_scale == 1.25)
                 1.0
             else if (display.user_scale == 1.5)
                 1.25
-            else if (dev_build or dev_mode) 0.5 else 0.75;
+            else if (engine.dev_build or engine.dev_mode) 0.5 else 0.75;
             display.scale = display.pixel_scale * display.user_scale;
             display.need_relayout = true;
             debug("Decrease size. {d}*{d} = {d}", .{
@@ -2205,7 +2188,7 @@ pub fn Display(comptime T: type) type {
             _: *Entity(T),
             gpa: Allocator,
         ) error{OutOfMemory}!void {
-            if (!dev_build) return;
+            if (!engine.dev_build) return;
 
             if (display.bundle_filename == null) {
                 info("no config.bundle_filename. Not making bundle.", .{});
@@ -2414,21 +2397,6 @@ pub const U32Callback = struct {
     }
 };
 
-/// Errors specific to engine module
-pub const Error = error{
-    ResourceReadError,
-    ResourceNotFound,
-    UnknownImageFormat,
-    AudioInitFailed,
-    FontInitFailed,
-    GraphicsInitFailed,
-    WindowCreationFailed,
-    GraphicsRendererFailed,
-    FontRequired,
-    RootAcceptsPanelsOnly,
-    InvalidUtf8,
-};
-
 /// Holds the raw image data after it is decoded from a resource bundle.
 const SurfaceInfo = struct {
     buffer: []const u8,
@@ -2440,15 +2408,6 @@ const SurfaceInfo = struct {
         si.img.deinit();
         sdl.SDL_DestroySurface(si.surface);
     }
-};
-
-/// When the display loads a resource, it may be retained for as long as
-/// there is a reference held to this resource. Alternatively, a resource
-/// may be marked as retained, effectively causing it to be cached until a
-/// manual release is requested.
-pub const Retain = enum {
-    autorelease,
-    retain,
 };
 
 /// Read the first unicode character from a c string, in the form of a slice.
@@ -2474,24 +2433,6 @@ inline fn nextUnicodeChar(text: [*c]const u8) u21 {
 pub const std_options: std.Options = .{
     .log_level = .debug,
     .logFn = @import("log.zig").log_capture,
-};
-
-/// Engine and Display configuration options
-pub const Config = struct {
-    app_name: ?[]const u8 = null,
-    app_version: ?[]const u8 = null,
-    app_id: ?[]const u8 = null,
-    app_org: ?[]const u8 = null,
-    app_build: ?[]const u8 = null,
-    app_icon_name: ?[]const u8 = null,
-    bundle_filename: ?[]const u8 = null,
-    resource_folder: ?[]const u8 = null,
-    resource_filter: ?*const fn (name: []const u8, extension: Type) bool = null,
-    translation_filename: ?[]const u8 = null,
-    desktop_icon: ?[]const u8 = null,
-    full_screen: bool = false,
-    width: usize = 0,
-    height: usize = 0,
 };
 
 pub inline fn clamp(min: f32, value: f32, max: f32) f32 {
@@ -2843,39 +2784,46 @@ const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const expectEqual = std.testing.expectEqual;
-const sdl = @import("sdl");
-const builtin = @import("builtin");
 const assert = std.debug.assert;
+const builtin = @import("builtin");
 
+const sdl = @import("sdl");
 const zstbi = @import("zstbi");
-
-pub const engine = @import("engine.zig");
-pub const Animator = @import("animator.zig").Animator;
-pub const Font = @import("Font.zig");
-pub const Texture = @import("Texture.zig");
-pub const Audio = @import("Audio.zig");
-pub const seconds = @import("animator.zig").seconds;
-
-const praxis = @import("praxis");
-const Lang = @import("praxis").Lang;
-const BoundedArray = praxis.BoundedArray;
-const mixer = @import("mixer");
-
-pub const Chunker = @import("Chunker.zig");
-pub const Translation = @import("Translation.zig");
-pub const StringBucket = @import("string_bucket.zig").StringBucket;
-pub const TextSize = @import("text_size.zig").TextSize;
 
 const base62 = @import("resources").base62;
 const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
 const Type = @import("resources").Type;
 
+const engine = @import("engine.zig");
+const Animator = engine.Animator;
+const Audio = engine.Audio;
+const Chunker = engine.Chunker;
+const Config = engine.Config;
+const Error = engine.Error;
+const Font = engine.Font;
+const Texture = engine.Texture;
+const seconds = @import("animator.zig").seconds;
+
+const Theme = engine.Theme;
+const Colour = engine.Colour;
+const BoxLayout = engine.BoxLayout;
+const CsvReader = engine.CsvReader;
+
+const praxis = @import("praxis");
+const Lang = @import("praxis").Lang;
+const BoundedArray = praxis.BoundedArray;
+const mixer = @import("mixer");
+
+const Translation = @import("Translation.zig");
+const StringBucket = @import("string_bucket.zig").StringBucket;
+const TextSize = @import("text_size.zig").TextSize;
+
 const random = praxis.random;
 const seed = random.seed;
 
-pub const ent = @import("entity.zig");
-pub const Entity = ent.Entity;
+const ent = @import("entity.zig");
+const Entity = ent.Entity;
 const Background = ent.Background;
 const Clip = ent.Clip;
 const Fit = ent.Fit;
@@ -2889,7 +2837,7 @@ const TextElement = ent.TextElement;
 const ToggleState = ent.ToggleState;
 const Vector = ent.Vector;
 
-pub const log = @import("log.zig");
+const log = @import("log.zig");
 const trace = log.trace;
 const debug = log.debug;
 const err = log.err;
@@ -2897,17 +2845,12 @@ const warn = log.warn;
 const info = log.info;
 const notice = log.notice;
 
-pub const Theme = @import("Theme.zig");
-pub const Colour = @import("Colour.zig");
-pub const BoxLayout = @import("BoxLayout.zig");
-pub const CsvReader = @import("CsvReader.zig");
-
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
-pub const resources_sdl = @import("resources_sdl.zig");
-pub const initResourcesSdl = resources_sdl.initResourcesSdl;
-pub const loadBundleSdl = resources_sdl.loadBundleSdl;
-pub const loadResourceSdl = resources_sdl.loadResourceSdl;
-pub const loadPreferenceData = resources_sdl.loadPreferenceData;
-pub const deletePreferenceData = resources_sdl.deletePreferenceData;
-pub const savePreferenceData = resources_sdl.savePreferenceData;
+const resources_sdl = @import("resources_sdl.zig");
+const initResourcesSdl = resources_sdl.initResourcesSdl;
+const loadBundleSdl = resources_sdl.loadBundleSdl;
+const loadResourceSdl = resources_sdl.loadResourceSdl;
+const loadPreferenceData = resources_sdl.loadPreferenceData;
+const deletePreferenceData = resources_sdl.deletePreferenceData;
+const savePreferenceData = resources_sdl.savePreferenceData;

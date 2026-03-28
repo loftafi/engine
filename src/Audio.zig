@@ -93,14 +93,22 @@ pub const Callback = struct {
     }
 };
 
+/// When the display loads a resource, it may be retained for as long as
+/// there is a reference held to this resource. Alternatively, a resource
+/// may be marked as retained, effectively causing it to be cached until a
+/// manual release is requested.
+pub const Retain = enum {
+    autorelease,
+    retain,
+};
+
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const sdl = @import("sdl");
 const builtin = @import("builtin");
-const engine = @import("engine.zig");
-const debug = engine.debug;
-const Retain = engine.Retain;
 
+const engine = @import("engine.zig");
+const debug = engine.log.debug;
 const Display = @import("engine.zig").Display;
 const Resource = @import("resources").Resource;

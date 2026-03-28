@@ -40,7 +40,7 @@ pub fn headless_display(
 }
 
 const std = @import("std");
-const Display = @import("engine.zig").Display;
+const Display = @import("Display.zig").Display;
 const TextSize = @import("text_size.zig").TextSize;
 
 const engine = @import("engine.zig");
