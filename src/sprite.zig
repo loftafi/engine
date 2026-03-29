@@ -14,17 +14,15 @@ pub fn Sprite(comptime T: type) type {
             entity: *Entity(T),
             display: *Display(T),
             _: Vector,
-            _: ?Clip,
+            parent_clip: ?Clip,
             scroll_offset: Vector,
         ) void {
             if (entity.texture) |texture| {
-                var dest: Rect = .{
-                    .x = entity.rect.x + entity.pad.left,
-                    .y = entity.rect.y + entity.pad.top,
-                    .width = entity.rect.width - entity.pad.left - entity.pad.right,
-                    .height = entity.rect.height - entity.pad.top - entity.pad.bottom,
-                };
+                var dest = entity.rect.removePadding(entity.pad);
                 dest = dest.move(scroll_offset);
+
+                if (parent_clip) |clip|
+                    clip.applyEdgeClipping(&dest);
 
                 if (dest.height <= 0 or dest.width <= 0) return;
 

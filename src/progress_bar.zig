@@ -14,12 +14,7 @@ pub fn ProgressBar(comptime T: type) type {
 
             // Draw the background matching the  current button state
             if (entity.texture) |texture| {
-                var dest = Rect{
-                    .x = entity.rect.x + entity.pad.left,
-                    .y = entity.rect.y + entity.pad.top,
-                    .width = entity.rect.width - entity.pad.left - entity.pad.right,
-                    .height = entity.rect.height - entity.pad.top - entity.pad.bottom,
-                };
+                var dest = entity.rect.removePadding(entity.pad);
                 dest = dest.move(scroll_offset);
                 var corner: f32 = entity.background.corner_radius;
                 if (corner * 2 > dest.height) corner = dest.height / 2;

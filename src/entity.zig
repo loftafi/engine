@@ -1101,19 +1101,8 @@ pub fn Entity(comptime T: type) type {
             // Mark visible entities as culled or not culled depending on
             // the parent_clip.
             if (parent_clip) |clip| {
-                if (entity.rect.x + scroll_offset.x + entity.rect.width < clip.left) {
-                    entity.visible = .culled;
-                    return;
-                }
-                if (entity.rect.y + scroll_offset.y + entity.rect.height < clip.top) {
-                    entity.visible = .culled;
-                    return;
-                }
-                if (entity.rect.x + scroll_offset.x > clip.right) {
-                    entity.visible = .culled;
-                    return;
-                }
-                if (entity.rect.y + scroll_offset.y > clip.bottom) {
+                const pos = entity.rect.move(scroll_offset);
+                if (clip.isClipped(pos)) {
                     entity.visible = .culled;
                     return;
                 }
@@ -1128,6 +1117,9 @@ pub fn Entity(comptime T: type) type {
                 // field, so don't draw background image for buttons.
                 if (entity.type != .button) {
                     var dest = entity.rect.move(scroll_offset);
+                    if (parent_clip) |clip|
+                        clip.applyEdgeClipping(&dest);
+
                     if (entity.flip.x) {
                         dest.x += dest.width;
                         dest.width = 0 - dest.width;
@@ -2251,6 +2243,17 @@ pub const Rect = extern struct {
     pub fn location(self: *Rect) Vector {
         return .{ .x = self.x, .y = self.y };
     }
+
+    /// Return a new rectangle by shrinking this rectangle by the requested
+    /// padding amount.
+    pub fn removePadding(self: Rect, pad: Clip) Rect {
+        return .{
+            .x = self.x + pad.left,
+            .y = self.y + pad.top,
+            .width = self.width - pad.left - pad.right,
+            .height = self.height - pad.top - pad.bottom,
+        };
+    }
 };
 
 /// Describe a bounding box or padding area.
@@ -2259,6 +2262,26 @@ pub const Clip = struct {
     bottom: f32 = 0,
     left: f32 = 0,
     right: f32 = 0,
+
+    pub fn isClipped(self: Clip, rect: Rect) bool {
+        if (rect.x + rect.width < self.left) return true;
+        if (rect.y + rect.height < self.top) return true;
+        if (rect.x > self.right) return true;
+        if (rect.y > self.bottom) return true;
+        return false;
+    }
+
+    /// Shrink the bounding box if its crossing the clip boundary.
+    pub fn applyEdgeClipping(clip: Clip, pos: *engine.Rect) void {
+        // Is text crossing over scroll box boundary?
+        if (pos.y + pos.height > clip.bottom) {
+            pos.height = @max(0, clip.bottom - pos.y);
+        } else if (pos.y < clip.top) {
+            const cut_amount = clip.top - pos.y;
+            pos.height = @max(0, pos.height - cut_amount);
+            pos.y += cut_amount;
+        }
+    }
 };
 
 /// Describe the size of an entity.

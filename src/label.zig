@@ -153,19 +153,9 @@ pub fn draw_text_elements(
     for (items) |*item| {
         var pos = item.location.move(loc);
         if (parent_clip) |clip| {
-            if (pos.x + pos.width < clip.left) continue;
-            if (pos.y + pos.height + 1 < clip.top) continue;
-            if (pos.x > clip.right) continue;
-            if (pos.y > clip.bottom) continue;
-            if (pos.y > clip.bottom) continue;
-            // Is text crossing over scroll box boundary?
-            if (pos.y + pos.height > clip.bottom) {
-                pos.height = clip.bottom - pos.y;
-            } else if (pos.y < clip.top) {
-                const cut_amount = clip.top - pos.y;
-                pos.height = pos.height - cut_amount;
-                pos.y += cut_amount;
-            }
+            // Individual inner elemements may still need clipping.
+            if (clip.isClipped(pos)) continue;
+            clip.applyEdgeClipping(&pos);
         }
 
         // Only render text if display parameter is provided
