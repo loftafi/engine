@@ -17,36 +17,43 @@ audio: []const u8,
 /// more dependencies on this audio object, the  object may `autorelease`.
 references: i32,
 
-/// Hold a reference to the Resource record metadata.
-resource: ?*Resource,
-
 /// Indicates that this object should `autorelease` when no more references
 /// to this audio exist, or if `retain` is chosen, the object must be
 /// manually released.
-autorelease: Retain,
+retained: Retain = .autorelease,
+
+/// Hold a reference to the Resource record metadata.
+resource: ?*Resource,
+
+next: ?*@This() = null,
+previous: ?*@This() = null,
 
 pub const empty = .{
     .name = "",
     .audio = "",
     .references = 0,
     .resource = null,
-    .autorelease = .autorelease,
+    .retained = false,
+    .next = null,
+    .previous = null,
 };
 
 pub fn create(
     allocator: Allocator,
     name: []const u8,
     audio: []const u8,
-    autorelease: Retain,
+    retained: Retain,
 ) Allocator.Error!*Audio {
     std.debug.assert(audio.len > 0);
     const audio_info = try allocator.create(Audio);
     audio_info.* = .{
         .name = if (name.len > 0) try allocator.dupe(u8, name) else "",
         .audio = audio,
-        .references = if (autorelease == .autorelease) 0 else 1,
+        .references = 0,
         .resource = null,
-        .autorelease = autorelease,
+        .retained = retained,
+        .next = null,
+        .previous = null,
     };
     debug("loaded audio: {s}", .{name});
     return audio_info;
@@ -55,6 +62,7 @@ pub fn create(
 pub fn destroy(self: *Audio, allocator: Allocator) void {
     if (self.audio.len > 0) allocator.free(self.audio);
     if (self.name.len > 0) allocator.free(self.name);
+    self.* = undefined;
     allocator.destroy(self);
 }
 
@@ -73,6 +81,7 @@ pub fn clone(self: *Audio) *Audio {
 pub const Progress = struct {
     gpa: Allocator,
     audio: *Audio,
+    audio_cache: *?*Audio,
     callback: ?Callback,
 };
 
@@ -103,12 +112,10 @@ pub const Retain = enum {
 };
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
-const sdl = @import("sdl");
-const builtin = @import("builtin");
 
-const engine = @import("engine.zig");
-const debug = engine.log.debug;
-const Display = @import("engine.zig").Display;
 const Resource = @import("resources").Resource;
+
+const log = @import("log.zig");
+const debug = log.debug;
+const trace = log.trace;

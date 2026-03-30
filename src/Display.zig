@@ -61,7 +61,7 @@ pub fn Display(comptime T: type) type {
         textures: std.AutoHashMapUnmanaged(u64, *Texture),
 
         /// Cache of currently loaded audio files.
-        audio: std.StringArrayHashMapUnmanaged(*Audio),
+        audio_cache: ?*Audio,
 
         /// Four possible theme options are available.
         themes: []*Theme,
@@ -333,7 +333,7 @@ pub fn Display(comptime T: type) type {
                 .textures = .empty,
                 .themes = themes,
                 .theme = default_theme,
-                .audio = .empty,
+                .audio_cache = null,
                 .last_draw = now,
                 .last_delta = now,
 
@@ -440,6 +440,8 @@ pub fn Display(comptime T: type) type {
         pub fn destroy(self: *Self, gpa: Allocator) void {
             trace("Engine cleanup", .{});
 
+            self.stopAllAudio(0) catch {};
+
             self.root.deinit(gpa, self);
 
             for (self.themes) |item| {
@@ -466,17 +468,20 @@ pub fn Display(comptime T: type) type {
             }
             self.textures.deinit(gpa);
 
-            var a = self.audio.iterator();
-            while (a.next()) |x| {
-                if (x.value_ptr.*.references > 0 and x.value_ptr.*.autorelease == .autorelease) {
+            var a = self.audio_cache;
+            while (a != null) {
+                if (a.?.references > 0) {
                     warn("audio file was not deallocated. {s} has {d} references", .{
-                        x.key_ptr.*,
-                        x.value_ptr.*.references,
+                        a.?.name,
+                        a.?.references,
                     });
                 }
-                x.value_ptr.*.destroy(gpa);
+                debug("free audio {s}", .{a.?.name});
+                const next = a.?.next;
+                a.?.destroy(gpa);
+                a = next;
             }
-            self.audio.deinit(gpa);
+            self.audio_cache = null;
 
             self.resources.deinit(gpa);
             for (self.animators.items) |animator| {
@@ -1020,29 +1025,40 @@ pub fn Display(comptime T: type) type {
         /// A texture resource may be referenced by multiple on screen
         /// entities. This releases a texture, only when all references to
         /// a texture no longer exist.
-        pub fn release_audio_resource(
+        pub fn releaseAudioResource(
             self: *Self,
             allocator: Allocator,
             ai: *Audio,
         ) void {
-            if (ai.references == 0) {
-                err("Attempt to release resource with no references", .{});
-                return;
+            if (ai.references == 0)
+                err("Attempt to release resource with no references", .{})
+            else {
+                debug("free audio \"{s}\" ref={d}->{d}", .{
+                    ai.name,
+                    ai.references,
+                    ai.references - 1,
+                });
+                ai.references -= 1;
             }
-            ai.references -= 1;
-            if (ai.references != 0) {
-                if (ai.references < 0) {
-                    err("free audio \"{s}\" (duplicate free)", .{ai.name});
-                } else {
-                    trace("free audio \"{s}\" (not yet {d})", .{ ai.name, ai.references });
-                }
-                return;
-            }
-            trace("free audio \"{s}\" (now)", .{ai.name});
-            _ = self.audio.swapRemove(ai.name);
-            ai.destroy(allocator);
 
-            self.clearUnusedAudio(allocator);
+            if (ai.references > 0) {
+                trace("free audio \"{s}\" (not yet {d})", .{ ai.name, ai.references });
+                return;
+            } else {
+                trace("free audio \"{s}\" (now)", .{ai.name});
+            }
+
+            if (ai.previous == null) {
+                self.audio_cache = ai.next;
+                self.audio_cache.?.previous = null;
+            } else {
+                ai.previous.?.next = ai.next;
+                if (ai.next != null) {
+                    ai.next.?.previous = ai.previous;
+                }
+            }
+
+            ai.destroy(allocator);
         }
 
         /// Load an image from the default resource bundle.
@@ -1100,7 +1116,7 @@ pub fn Display(comptime T: type) type {
             gpa: Allocator,
             io: std.Io,
             name: []const u8,
-            autorelease: Audio.Retain,
+            retain: Audio.Retain,
             volume: f32,
             callback: ?Audio.Callback,
         ) (Error || Allocator.Error || Resources.Error)!?*Audio {
@@ -1109,7 +1125,7 @@ pub fn Display(comptime T: type) type {
                 io,
                 &self.resources,
                 name,
-                autorelease,
+                retain,
                 volume,
                 callback,
             );
@@ -1123,6 +1139,16 @@ pub fn Display(comptime T: type) type {
             _ = mixer.MIX_StopAllTracks(self.mix, fade_out_ms);
         }
 
+        pub fn getAudioInCache(self: *Self, name: []const u8) ?*Audio {
+            var item = self.audio_cache;
+            while (item != null) : (item = item.?.next) {
+                if (std.mem.eql(u8, name, item.?.name)) {
+                    return item;
+                }
+            }
+            return null;
+        }
+
         /// Load an image from a specific resource bundle.
         pub fn playBundleResource(
             self: *Self,
@@ -1130,7 +1156,7 @@ pub fn Display(comptime T: type) type {
             io: std.Io,
             bundle: *Resources,
             name: []const u8,
-            autorelease: Audio.Retain,
+            retain: Audio.Retain,
             volume: f32,
             callback: ?Audio.Callback,
         ) (Error || Allocator.Error || Resources.Error)!?*Audio {
@@ -1139,18 +1165,10 @@ pub fn Display(comptime T: type) type {
                 return null;
             }
 
-            self.clearUnusedAudio(gpa);
-
             // Load audio from memory cache if possible
             var item: ?*Audio = null;
-            if (self.audio.get(name)) |i| {
+            if (self.getAudioInCache(name)) |i| {
                 // Audio already in memory cache
-                if (autorelease == .retain and i.autorelease == .autorelease) {
-                    // This audio item is converting to permanent memory
-                    debug("cache hit on audio named \"{s}\" convert to `retain`", .{name});
-                    i.autorelease = .retain;
-                    i.references += 1;
-                }
                 debug("cache hit on audio named \"{s}\" (pre ref count={d})", .{ name, i.references });
                 item = i;
             } else {
@@ -1175,10 +1193,12 @@ pub fn Display(comptime T: type) type {
                     end - start,
                 });
 
-                const ai = try Audio.create(gpa, name, audio, autorelease);
+                const ai = try Audio.create(gpa, name, audio, retain);
                 ai.resource = resource;
-                if (autorelease == .retain) ai.autorelease = .retain;
-                try self.audio.put(gpa, ai.name, ai);
+                ai.next = self.audio_cache;
+                if (ai.next != null) ai.next.?.previous = ai;
+                ai.previous = null;
+                self.audio_cache = ai;
                 item = ai;
             }
 
@@ -1195,12 +1215,20 @@ pub fn Display(comptime T: type) type {
                 return null;
             }
 
-            item.?.references += 1;
-
             _ = mixer.MIX_SetTrackAudio(track, buff.?);
             _ = mixer.MIX_SetTrackGain(track, volume);
+
+            // Connect the Audio object to a Progress callback function.
             const progress = try gpa.create(Audio.Progress);
-            progress.* = .{ .audio = item.?, .callback = callback, .gpa = gpa };
+            errdefer gpa.destroy(progress);
+            progress.* = .{
+                .gpa = gpa,
+                .audio = item.?,
+                .audio_cache = &self.audio_cache,
+                .callback = callback,
+            };
+            item.?.references += 1;
+
             _ = mixer.MIX_SetTrackStoppedCallback(
                 track,
                 audio_playback_complete,
@@ -1213,19 +1241,6 @@ pub fn Display(comptime T: type) type {
             //_ = mixer.MIX_PlayAudio(self.mix, buff.?);
 
             return item;
-        }
-
-        pub fn clearUnusedAudio(self: *Self, gpa: Allocator) void {
-            // Remove any no longer used audio
-            const old = self.audio.values();
-            for (0..old.len) |i| {
-                const a = old[i];
-                if (a.references == 0 and a.autorelease == .autorelease) {
-                    debug("cleanup/dealloc audio {s}", .{a.name});
-                    _ = self.audio.swapRemove(a.name);
-                    a.destroy(gpa);
-                }
-            }
         }
 
         pub fn select_first_entity(
@@ -2354,28 +2369,48 @@ pub fn Display(comptime T: type) type {
 fn audio_playback_complete(audio: ?*anyopaque, _: ?*mixer.MIX_Track) callconv(.c) void {
     const progress: ?*Audio.Progress = @ptrCast(@alignCast(audio));
     if (progress) |handler| {
-        const a = handler.audio;
-        trace("playback complete {s} refs {d} ({t})", .{
-            a.name,
-            a.references,
-            a.autorelease,
+        debug("playback complete {s} refs {d}->{d} ({t})", .{
+            handler.audio.name,
+            handler.audio.references,
+            handler.audio.references - 1,
+            handler.audio.retained,
         });
 
-        if (a.references > 0) a.references -= 1;
-        //std.log.info("   refs {d}", .{a.references});
-
-        if (a.references == 0)
-            if (a.autorelease == .retain)
-                err("playback complete {s}. autorelease unexpectedly hit 0 refs ({t})", .{
-                    a.name,
-                    a.autorelease,
-                });
+        if (handler.audio.references > 0)
+            handler.audio.references -= 1
+        else
+            err("audio_playback_complete on audio with no references?", .{});
 
         if (handler.callback) |callback| {
             callback.call(handler.gpa, handler.audio) catch |e| {
                 err("audio_playback_complete callback handler failed. {any}", .{e});
             };
         }
+
+        if (handler.audio.references == 0 and handler.audio.retained == .autorelease) {
+            if (handler.audio.previous == null) {
+                handler.audio_cache.* = handler.audio.next;
+                handler.audio_cache.*.?.previous = null;
+            } else {
+                handler.audio.previous.?.next = handler.audio.next;
+                if (handler.audio.next != null) {
+                    handler.audio.next.?.previous = handler.audio.previous;
+                }
+            }
+            debug("released {s} refs={d} ({t})", .{
+                handler.audio.name,
+                handler.audio.references,
+                handler.audio.retained,
+            });
+            handler.audio.destroy(handler.gpa);
+        } else {
+            debug("keeping {s} refs={d} ({t})", .{
+                handler.audio.name,
+                handler.audio.references,
+                handler.audio.retained,
+            });
+        }
+
         handler.gpa.destroy(handler);
         return;
     }
@@ -2797,7 +2832,7 @@ const Type = @import("resources").Type;
 
 const engine = @import("engine.zig");
 const Animator = engine.Animator;
-const Audio = engine.Audio;
+const Audio = @import("Audio.zig");
 const Chunker = engine.Chunker;
 const Config = engine.Config;
 const Error = engine.Error;
