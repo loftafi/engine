@@ -1,8 +1,8 @@
 .{
     .name = .engine,
-    .version = "0.18.0",
+    .version = "0.18.1",
     .fingerprint = 0xe8a81a8d0aa558d5,
-    .minimum_zig_version = "0.16.1",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .resources = .{
             .url = "git+https://github.com/loftafi/resources.git#593231e13bbb528e0cd35d17f70e48ae55751a04",
@@ -19,6 +19,10 @@
         .zstbi = .{
             .url = "git+https://github.com/zaddok/zstbi.git#456b7620bf8036d29454d98cb506e0428e6510ae",
             .hash = "zstbi-0.11.0-dev-L0Ea_06WBwCZoJBl6SD0bcHOLEEIrD5xbQ0TbXe-SQ5Y",
+        },
+        .translator = .{
+            .url = "git+https://github.com/loftafi/translator.git#c7dc2e6eb7484bdd357e896dd00b84167c81fa6c",
+            .hash = "translator-0.1.0-cfHZxhBFAAC6x0sw5TCYEmPo7IluVfO4wzggUI6EomWT",
         },
     },
     .paths = .{

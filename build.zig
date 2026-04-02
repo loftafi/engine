@@ -10,6 +10,9 @@ pub fn build(b: *std.Build) void {
     const praxis = resources.builder.dependency("praxis", .{ .target = target, .optimize = optimize });
     const praxis_module = praxis.module("praxis");
 
+    const translator = b.dependency("translator", .{ .target = target, .optimize = optimize });
+    const translator_module = translator.module("translator");
+
     const zstbi = resources.builder.dependency("zstbi", .{ .target = target, .optimize = optimize });
     const zstbi_module = zstbi.module("root");
 
@@ -26,6 +29,7 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("zstbi", zstbi_module);
     lib_mod.addImport("sdl", sdl_module);
     lib_mod.addImport("mixer", mixer_module);
+    lib_mod.addImport("translator", translator_module);
     lib_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
     link_sdl_framework(b, &target, lib_mod);
 
@@ -46,6 +50,7 @@ pub fn build(b: *std.Build) void {
     test_mod.addImport("zstbi", zstbi_module);
     test_mod.addImport("sdl", sdl_module);
     test_mod.addImport("mixer", mixer_module);
+    test_mod.addImport("translator", translator_module);
     test_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
     link_sdl_framework(b, &target, test_mod);
 

@@ -2850,7 +2850,7 @@ const Lang = @import("praxis").Lang;
 const BoundedArray = praxis.BoundedArray;
 const mixer = @import("mixer");
 
-const Translation = @import("Translation.zig");
+const Translation = @import("translator").Translation;
 const StringBucket = @import("string_bucket.zig").StringBucket;
 const TextSize = @import("text_size.zig").TextSize;
 
