@@ -272,7 +272,7 @@ fn sdl_load_file_byte_slice(
     return error.ResourceReadError;
 }
 
-inline fn read_u8(i: *sdl.SDL_IOStream) error{ReadRepoFileFailed}!u8 {
+inline fn read_u8(i: *sdl.SDL_IOStream) (Resources.Error)!u8 {
     var value: u8 = undefined;
     if (sdl.SDL_ReadU8(i, &value)) {
         return value;
@@ -281,14 +281,14 @@ inline fn read_u8(i: *sdl.SDL_IOStream) error{ReadRepoFileFailed}!u8 {
     return Resources.Error.ReadRepoFileFailed;
 }
 
-inline fn read_u24(i: *sdl.SDL_IOStream) error{ReadRepoFileFailed}!u24 {
+inline fn read_u24(i: *sdl.SDL_IOStream) (Resources.Error)!u24 {
     const b1 = try read_u8(i);
     const b2 = try read_u8(i);
     const b3 = try read_u8(i);
     return b1 + (@as(u24, b2) << 8) + (@as(u24, b3) << 16);
 }
 
-inline fn read_u32(i: *sdl.SDL_IOStream) error{ReadRepoFileFailed}!u32 {
+inline fn read_u32(i: *sdl.SDL_IOStream) (Resources.Error)!u32 {
     var value: u32 = undefined;
     if (sdl.SDL_ReadU32LE(i, &value)) {
         return value;
@@ -297,7 +297,7 @@ inline fn read_u32(i: *sdl.SDL_IOStream) error{ReadRepoFileFailed}!u32 {
     return Resources.Error.ReadRepoFileFailed;
 }
 
-inline fn read_u64(i: *sdl.SDL_IOStream) error{ReadRepoFileFailed}!u64 {
+inline fn read_u64(i: *sdl.SDL_IOStream) (Resources.Error)!u64 {
     var value: u64 = undefined;
     if (sdl.SDL_ReadU64LE(i, &value)) {
         return value;
@@ -309,7 +309,7 @@ inline fn read_u64(i: *sdl.SDL_IOStream) error{ReadRepoFileFailed}!u64 {
 inline fn read_slice(
     i: *sdl.SDL_IOStream,
     value: []u8,
-) error{ReadRepoFileFailed}!void {
+) (Resources.Error)!void {
     if (sdl.SDL_ReadIO(i, value.ptr, value.len) == value.len) {
         return;
     }

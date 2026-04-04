@@ -2164,7 +2164,7 @@ pub const Background = struct {
     corner_radius: f32 = 0,
 };
 
-pub fn select_font(fonts: []*Font, name: ?[]const u8) error{FontRequired}!*Font {
+pub fn select_font(fonts: []*Font, name: ?[]const u8) Error!*Font {
     if (name) |font_name| {
         for (fonts) |font| {
             if (std.mem.eql(u8, font.name, font_name)) {
@@ -2174,7 +2174,7 @@ pub fn select_font(fonts: []*Font, name: ?[]const u8) error{FontRequired}!*Font 
         err("select_font({s}) called, but no fonts have been loaded.", .{name.?});
     }
     if (fonts.len > 0) return fonts[0];
-    return Error.FontRequired;
+    return error.FontRequired;
 }
 
 pub const TextElement = struct {

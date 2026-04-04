@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#593231e13bbb528e0cd35d17f70e48ae55751a04",
-            .hash = "resources-1.1.0-J0GwIz2CAgAOXMRVVNzsdORb6cFsmVkZpk8hX0o3KmXk",
+            .url = "git+https://github.com/loftafi/resources.git#310988bbbb04ac2de1765ff56233dc031c629d44",
+            .hash = "resources-1.1.1-J0GwI0OCAgAdEYMZqa0pYdxY_LtFBZ4a3hXmiEBQLxBA",
         },
         .sdl = .{
             .url = "git+https://github.com/castholm/SDL.git#887fa805e40d5c7bb3955ae69b89ed566c6a0471",
