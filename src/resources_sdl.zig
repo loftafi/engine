@@ -1,4 +1,4 @@
-/// Returns a `Resources` manager with resources preloaded. Checks standard
+/// Loads a bundle file or folder into a `Resources` manager. Checks standard
 /// locations for the existence of the `bundle_filename` or falls back to
 /// loading resources from the `dev_repo` folder.
 ///
@@ -9,9 +9,8 @@ pub fn initResourcesSdl(
     gpa: Allocator,
     io: std.Io,
     bundle: *Resources,
-    bundle_filename: ?[]const u8,
-    dev_resource_folder: ?[]const u8,
-    filename_filter: ?*const fn (name: []const u8, extension: Type) bool,
+    config: *const engine.Config,
+    bundle_info: *const engine.BundleInfo,
 ) (Allocator.Error || Resources.Error || engine.Error || std.Io.Dir.StatError ||
     std.Io.File.StatError || std.Io.File.OpenError || error{
     ResourceReadError,
@@ -23,58 +22,58 @@ pub fn initResourcesSdl(
 })!void {
     const start = std.Io.Timestamp.now(io, .real).toMilliseconds();
 
-    // Fallback to loading resources from the development resources
-    // folder if it is available.
-    if (dev_resource_folder != null and dev_resource_folder.?.len > 0) {
-        if (bundle.loadDirectory(gpa, io, dev_resource_folder.?, filename_filter)) |loaded| {
-            if (loaded) {
-                const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
-                info("initResourcesSdl() Dev Resource folder loaded from '{s}' in {d}ms.", .{ dev_resource_folder.?, end - start });
-                return;
+    if (bundle_info.folder) |folder| {
+        if (folder.len > 0) {
+            if (bundle.loadDirectory(gpa, io, folder, config.resource_filter)) |loaded| {
+                if (loaded) {
+                    const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
+                    info("initResourcesSdl() Dev Resource folder loaded from '{s}' in {d}ms.", .{ folder, end - start });
+                    return;
+                } else {
+                    err("No resources loaded into bundle from {s}", .{folder});
+                }
+            } else |e| {
+                err("initResourcesSdl() error loading repo from '{s}'. {any}", .{ folder, e });
             }
-        } else |e| {
-            err("initResourcesSdl() error loading repo from '{s}'. {any}", .{ dev_resource_folder.?, e });
         }
     }
 
-    if (bundle_filename != null and bundle_filename.?.len > 0) {
-        // Try to load bundle from current/default path.
-        if (loadBundleSdl(bundle, gpa, bundle_filename.?)) |loaded| {
-            if (loaded) {
-                const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
-                info("initResourcesSdl() Resource list loaded from bundle '{s}' in {d}ms.", .{ bundle_filename.?, end - start });
-                return;
-            }
-        } else |e| {
-            warn("initResourcesSdl() did not load bundle filename '{s}'. {any}", .{ bundle_filename.?, e });
-        }
-
-        if (try find_base_folder(gpa, bundle_filename.?)) |bf| {
-            defer gpa.free(bf);
-            info("find_base_folder returned: {s}", .{bf});
-
-            if (loadBundleSdl(bundle, gpa, bf)) |loaded| {
+    if (bundle_info.filename) |filename| {
+        if (filename.len > 0) {
+            // Try to load bundle from current/default path.
+            if (loadBundleSdl(bundle, gpa, filename)) |loaded| {
                 if (loaded) {
                     const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
-                    info("Resource list loaded from {s} in {d}ms.", .{ bf, end - start });
+                    info("initResourcesSdl() Resource list loaded from bundle '{s}' in {d}ms.", .{ filename, end - start });
                     return;
                 }
             } else |e| {
-                if (e == error.OutOfMemory) {
-                    return error.OutOfMemory;
-                } else {
-                    warn("loadBundleSdl failed. {any}", .{e});
-                    return e;
+                warn("initResourcesSdl() did not load bundle filename '{s}'. {any}", .{ filename, e });
+            }
+
+            // Try and find bundle in alternate locations
+            if (try find_base_folder(gpa, filename)) |bf| {
+                defer gpa.free(bf);
+                info("find_base_folder returned: {s}", .{bf});
+
+                if (loadBundleSdl(bundle, gpa, bf)) |loaded| {
+                    if (loaded) {
+                        const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
+                        info("Resource list loaded from {s} in {d}ms.", .{ bf, end - start });
+                        return;
+                    }
+                } else |e| {
+                    if (e == error.OutOfMemory) {
+                        return error.OutOfMemory;
+                    } else {
+                        warn("loadBundleSdl failed. {any}", .{e});
+                        return e;
+                    }
                 }
             }
+            err("initResourcesSdl() could not find bundle '{s}'.", .{filename});
         }
     }
-
-    err("No resources loaded into bundle from {s} or {s}", .{
-        bundle_filename orelse "",
-        dev_resource_folder orelse "",
-    });
-    return;
 }
 
 /// Return the location of the read only applicaion base folder as long as

@@ -162,7 +162,6 @@ pub fn Display(comptime T: type) type {
         on_panel_change: Entity(T).PanelChangeCallback,
 
         bucket: StringBucket,
-        bundle_filename: ?[]const u8,
         config: Config,
 
         const Self = @This();
@@ -177,11 +176,6 @@ pub fn Display(comptime T: type) type {
             std.Io.File.OpenError)!*Self {
             var bucket = StringBucket.init(gpa);
             errdefer bucket.deinit();
-
-            const bundle_filename = if (config.bundle_filename != null)
-                try bucket.add(config.bundle_filename.?)
-            else
-                null;
 
             _ = sdl.SDL_SetAppMetadata(
                 if (config.app_name != null) try bucket.addZ(config.app_name.?) else "Engine",
@@ -327,7 +321,6 @@ pub fn Display(comptime T: type) type {
                 .bucket = bucket,
                 .resources = try .init(gpa),
                 .required_resource = .empty,
-                .bundle_filename = bundle_filename,
                 .config = config,
                 .mix = mix.?,
                 .renderer = renderer,
@@ -381,14 +374,9 @@ pub fn Display(comptime T: type) type {
             };
 
             debug("Initialising resource loader", .{});
-            try initResourcesSdl(
-                gpa,
-                io,
-                &display.resources,
-                config.bundle_filename,
-                config.resource_folder,
-                config.resource_filter,
-            );
+            for (config.bundles) |bundle| {
+                try initResourcesSdl(gpa, io, &display.resources, &config, &bundle);
+            }
 
             zstbi.init(display.allocator, display.io);
 
@@ -1075,23 +1063,33 @@ pub fn Display(comptime T: type) type {
             ai.destroy(allocator);
         }
 
-        /// During Panel/Entity initialisation, mark an audio file as required
-        /// so that it may be included in the app bundle.
-        pub inline fn requireAudio(
+        /// Add a named resource to the list of resources needed in the
+        /// app resource bundle.
+        pub inline fn requireResourceRecord(
             self: *Self,
             gpa: Allocator,
             name: []const u8,
+            category: Resources.SearchCategory,
         ) (Error || Allocator.Error || Resources.Error)!void {
-            const resource = try self.resources.lookupOne(gpa, name, .audio);
+            const resource = try self.resources.lookupOne(gpa, name, category);
             if (resource == null) {
-                err("missing audio file named \"{s}\" not found.", .{name});
-                return null;
+                err("missing {t} file named \"{s}\" not found.", .{
+                    category,
+                    name,
+                });
+                return;
             }
             try self.required_resource.put(
                 self.allocator,
                 resource.?.uid,
                 resource.?,
             );
+            debug("required {t} file named \"{s}\" uid={d}. count={d}", .{
+                category,
+                name,
+                resource.?.uid,
+                self.required_resource.count(),
+            });
         }
 
         /// Load an image from the default resource bundle.
@@ -2245,19 +2243,13 @@ pub fn Display(comptime T: type) type {
         ) error{OutOfMemory}!void {
             if (!engine.dev_build) return;
 
-            if (display.bundle_filename == null) {
-                info("no config.bundle_filename. Not making bundle.", .{});
+            if (display.config.app_bundle_output == null or display.config.app_bundle_output.?.len == 0) {
+                info("config.app_bundle_output not specified. Not making bundle.", .{});
                 return;
             }
 
-            if (display.resources.used_resources == null) {
+            if (display.required_resource.count() == 0) {
                 info("no resources in manifest, nothing to bundle.", .{});
-                return;
-            }
-
-            const manifest = display.resources.used_resources.?;
-            if (manifest.count() == 0) {
-                info("no used resources in manifest, nothing to bundle.", .{});
                 return;
             }
 
@@ -2269,25 +2261,17 @@ pub fn Display(comptime T: type) type {
             //    allocator.free(base_folder);
             //};
 
-            const base_folder = "/tmp/";
-            var buffer = BoundedArray(u8, 1000){};
-            buffer.appendSlice(base_folder) catch {
-                return Allocator.Error.OutOfMemory;
-            };
-            buffer.appendSlice(display.bundle_filename.?) catch {
-                return std.mem.Allocator.Error.OutOfMemory;
-            };
-            info("making resource bundle: {s}", .{buffer.slice()});
+            info("making resource bundle: {s}", .{display.config.app_bundle_output.?});
 
             display.resources.saveBundle(
                 gpa,
                 display.io,
-                buffer.slice(),
-                manifest,
+                display.config.app_bundle_output.?,
+                display.required_resource,
                 &.{},
                 "/tmp",
             ) catch |e| {
-                info("save resource bundle failed. {s} {any}", .{ buffer.slice(), e });
+                info("save resource bundle failed. {s} {any}", .{ display.config.app_bundle_output.?, e });
             };
         }
 
