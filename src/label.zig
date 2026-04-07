@@ -43,7 +43,7 @@ pub fn Label(comptime T: type) type {
 
             // Is there a background for this label?
             if (entity.background.image_name) |name| {
-                if (try display.load_texture(allocator, name)) |texture|
+                if (try display.requireImage(allocator, name)) |texture|
                     entity.background.image = texture;
             }
         }

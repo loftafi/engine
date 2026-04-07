@@ -60,6 +60,9 @@ pub fn Display(comptime T: type) type {
         /// Cache of currently loaded textures.
         textures: std.AutoHashMapUnmanaged(u64, *Texture),
 
+        /// A list of all active fonts loaded from the resources bundle.
+        required_resource: std.AutoHashMapUnmanaged(u64, *const Resource),
+
         /// Cache of currently loaded audio files.
         audio_cache: ?*Audio,
 
@@ -323,6 +326,7 @@ pub fn Display(comptime T: type) type {
                 .event_hook = .empty,
                 .bucket = bucket,
                 .resources = try .init(gpa),
+                .required_resource = .empty,
                 .bundle_filename = bundle_filename,
                 .config = config,
                 .mix = mix.?,
@@ -483,6 +487,7 @@ pub fn Display(comptime T: type) type {
             }
             self.audio_cache = null;
 
+            self.required_resource.deinit(gpa);
             self.resources.deinit(gpa);
             for (self.animators.items) |animator| {
                 gpa.destroy(animator);
@@ -781,6 +786,7 @@ pub fn Display(comptime T: type) type {
             lang: praxis.Lang,
         ) (Error || Allocator.Error || Resources.Error)!void {
             const font_info = try self.loadFontResource(name);
+            try self.required_resource.put(self.allocator, font_info.resource.uid, font_info.resource);
             defer remove_from_list(self.allocator, &self.fonts, font_info);
 
             // When the very first font is loaded, grab it
@@ -845,11 +851,9 @@ pub fn Display(comptime T: type) type {
                     return font.clone();
             }
 
-            const resource = try self.resources.lookupOne(self.allocator, name, .font);
-            if (resource == null) {
-                return error.ResourceNotFound;
-            }
-            const font_buffer = try loadResourceSdl(self.allocator, self.io, &self.resources, resource.?);
+            const resource = try self.resources.lookupOne(self.allocator, name, .font) orelse return error.ResourceNotFound;
+
+            const font_buffer = try loadResourceSdl(self.allocator, self.io, &self.resources, resource);
 
             const fio = sdl.SDL_IOFromConstMem(font_buffer.ptr, font_buffer.len) orelse {
                 err("SDL_IOFromConstMem: {s}", .{sdl.SDL_GetError()});
@@ -870,7 +874,11 @@ pub fn Display(comptime T: type) type {
             const font_descent = sdl.TTF_GetFontDescent(myfont);
             const font_size = sdl.TTF_GetFontSize(myfont);
 
-            info("font '{s}' ascent={d} descent={d} height={d}, font_pixel_height={d} font_size={d} pixel_scale={d} user_scale={d} scale={d} screen_size={d}", .{
+            info(
+                \\font '{s}' ascent={d} descent={d} height={d},
+                \\font_pixel_height={d} font_size={d} pixel_scale={d}
+                \\user_scale={d} scale={d} screen_size={d}
+            , .{
                 name,
                 font_ascent,
                 font_descent,
@@ -884,7 +892,13 @@ pub fn Display(comptime T: type) type {
             });
             //sdl.TTF_SetFontHinting(myfont, 0);
 
-            const font_info = try Font.create(self.allocator, name, myfont, font_buffer);
+            const font_info = try Font.create(
+                self.allocator,
+                name,
+                myfont,
+                font_buffer,
+                resource,
+            );
             errdefer _ = font_info.release(self.allocator);
             try self.fonts.append(self.allocator, font_info.clone());
 
@@ -1061,13 +1075,39 @@ pub fn Display(comptime T: type) type {
             ai.destroy(allocator);
         }
 
+        /// During Panel/Entity initialisation, mark an audio file as required
+        /// so that it may be included in the app bundle.
+        pub inline fn requireAudio(
+            self: *Self,
+            gpa: Allocator,
+            name: []const u8,
+        ) (Error || Allocator.Error || Resources.Error)!void {
+            const resource = try self.resources.lookupOne(gpa, name, .audio);
+            if (resource == null) {
+                err("missing audio file named \"{s}\" not found.", .{name});
+                return null;
+            }
+            try self.required_resource.put(
+                self.allocator,
+                resource.?.uid,
+                resource.?,
+            );
+        }
+
         /// Load an image from the default resource bundle.
-        pub inline fn load_texture(
+        pub inline fn requireImage(
             self: *Self,
             gpa: Allocator,
             name: []const u8,
         ) (Error || Allocator.Error || Resources.Error)!?*Texture {
-            return self.load_bundle_texture(gpa, &self.resources, name);
+            const texture = try self.load_bundle_texture(gpa, &self.resources, name);
+            if (texture != null)
+                try self.required_resource.put(
+                    self.allocator,
+                    texture.?.resource.uid,
+                    texture.?.resource,
+                );
+            return texture;
         }
 
         /// Load an image from a specific resource bundle.
@@ -1104,7 +1144,7 @@ pub fn Display(comptime T: type) type {
             end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
             trace("sdl create texture in {d}ms", .{end - start});
 
-            const ti = try Texture.create(gpa, resource.?.uid, texture);
+            const ti = try Texture.create(gpa, resource.?.uid, texture, resource.?);
             ti.references += 1;
             try self.textures.put(gpa, ti.uid, ti);
             return ti;

@@ -11,6 +11,8 @@ font: *sdl.TTF_Font,
 /// A pointer to the raw font data. This must be kept in memory.
 font_buffer: []const u8,
 
+resource: *Resource,
+
 references: usize = 0,
 
 pub fn create(
@@ -18,11 +20,13 @@ pub fn create(
     name: []const u8,
     font: *sdl.TTF_Font,
     raw_data: []const u8,
+    resource: *Resource,
 ) !*Font {
     const font_info = try allocator.create(Font);
     font_info.* = .{
         .name = try allocator.dupe(u8, name),
         .font = font,
+        .resource = resource,
         .font_buffer = raw_data,
         .references = 0,
     };
@@ -66,8 +70,12 @@ pub const Language = struct {
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
-const sdl = @import("sdl");
 const builtin = @import("builtin");
+
+const sdl = @import("sdl");
+
 const engine = @import("engine.zig");
 const debug = engine.log.debug;
 const trace = engine.log.trace;
+
+const Resource = @import("resources").Resource;

@@ -567,7 +567,7 @@ pub fn Entity(comptime T: type) type {
             display: *Display(T),
             name: []const u8,
         ) error{OutOfMemory}!void {
-            const texture = display.load_texture(allocator, name) catch |f| {
+            const texture = display.load_bundle_texture(allocator, display.resources, name) catch |f| {
                 err("setTexture({s}) error loading texture. {any}", .{ name, f });
                 return;
             };
@@ -592,7 +592,7 @@ pub fn Entity(comptime T: type) type {
             display: *Display(T),
             name: []const u8,
         ) error{OutOfMemory}!void {
-            const texture = display.load_texture(allocator, name) catch |f| {
+            const texture = display.load_bundle_texture(allocator, &display.resources, name) catch |f| {
                 err("setBackgroundTexture({s}) error loading texture. {any}", .{ name, f });
                 return;
             };
@@ -1671,7 +1671,7 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.background.image_name) |name| {
-                if (try display.load_texture(allocator, name)) |texture| {
+                if (try display.requireImage(allocator, name)) |texture| {
                     entity.background.image = texture;
                 } else {
                     err("Failed to load panel background image named \"{s}\"", .{name});
@@ -1697,7 +1697,7 @@ pub fn Entity(comptime T: type) type {
                 entity.type = .{ .progress_bar = .{} };
             }
 
-            if (try display.load_texture(allocator, "rounded progress bar")) |texture| {
+            if (try display.requireImage(allocator, "rounded progress bar")) |texture| {
                 entity.texture = texture;
             } else {
                 err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
@@ -1721,16 +1721,16 @@ pub fn Entity(comptime T: type) type {
 
             try entity.setText(allocator, display, entity.type.checkbox.text);
 
-            if (try display.load_texture(allocator, "ios-checkbox-on")) |texture| {
+            if (try display.requireImage(allocator, "ios-checkbox-on")) |texture| {
                 entity.type.checkbox.on_texture = texture;
             }
-            if (try display.load_texture(allocator, "ios-checkbox-off")) |texture| {
+            if (try display.requireImage(allocator, "ios-checkbox-off")) |texture| {
                 entity.type.checkbox.off_texture = texture;
             }
 
             // Is there a background for this checkbox
             if (entity.background.image_name) |name| {
-                if (try display.load_texture(allocator, name)) |texture|
+                if (try display.requireImage(allocator, name)) |texture|
                     entity.background.image = texture;
             }
 
@@ -1772,7 +1772,7 @@ pub fn Entity(comptime T: type) type {
             entity.type.text_input.font = try select_font(display.fonts.items, entity.type.text_input.font_name);
 
             if (entity.type.text_input.icon_texture_name) |icon| {
-                if (try display.load_texture(allocator, icon)) |texture| {
+                if (try display.requireImage(allocator, icon)) |texture| {
                     entity.texture = texture;
                 } else {
                     err("Failed to load text_input icon texture named \"{s}\"", .{icon});
@@ -1780,7 +1780,7 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.background.image_name) |background| {
-                if (try display.load_texture(allocator, background)) |texture| {
+                if (try display.requireImage(allocator, background)) |texture| {
                     entity.background.image = texture;
                 } else {
                     err("Failed to load text_input background image named \"{s}\"", .{background});
@@ -1823,7 +1823,7 @@ pub fn Entity(comptime T: type) type {
                 entity.focus = .accessibility_focus;
 
             if (entity.texture_name) |image| {
-                if (try display.load_texture(allocator, image)) |texture| {
+                if (try display.requireImage(allocator, image)) |texture| {
                     entity.texture = texture;
                     if (entity.rect.width == 0)
                         entity.rect.width = @floatFromInt(texture.texture.w);
@@ -1835,7 +1835,7 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.background.image_name) |image| {
-                if (try display.load_texture(allocator, image)) |texture| {
+                if (try display.requireImage(allocator, image)) |texture| {
                     entity.background.image = texture;
                     if (entity.rect.width == 0)
                         entity.rect.width = @floatFromInt(texture.texture.w);
@@ -1888,7 +1888,7 @@ pub fn Entity(comptime T: type) type {
             try entity.setText(allocator, display, entity.type.button.text);
 
             if (entity.type.button.icon_default_name) |icon_default| {
-                if (try display.load_texture(allocator, icon_default)) |texture| {
+                if (try display.requireImage(allocator, icon_default)) |texture| {
                     entity.texture = texture;
                     if (entity.type.button.icon_size.width == 0 or entity.type.button.icon_size.height == 0)
                         warn("button `{s}` has icon `{s}`, but no icon size.", .{
@@ -1899,7 +1899,7 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.type.button.icon_pressed_name) |icon_pressed| {
-                if (try display.load_texture(allocator, icon_pressed)) |ip|
+                if (try display.requireImage(allocator, icon_pressed)) |ip|
                     entity.type.button.icon_pressed = ip
                 else
                     err("setup_button failed to load icon_pressed resource {s}.", .{icon_pressed});
@@ -1909,7 +1909,7 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.type.button.icon_hover_name) |icon_hover| {
-                if (try display.load_texture(allocator, icon_hover)) |ih|
+                if (try display.requireImage(allocator, icon_hover)) |ih|
                     entity.type.button.icon_hover = ih
                 else
                     err("setup_button failed to load icon_hover resource {s}.", .{icon_hover});
@@ -1919,7 +1919,7 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.type.button.icon_disabled_name) |icon_disabled| {
-                if (try display.load_texture(allocator, icon_disabled)) |ih|
+                if (try display.requireImage(allocator, icon_disabled)) |ih|
                     entity.type.button.icon_disabled = ih
                 else
                     err("setup_button failed to load icon_disabled resource {s}.", .{icon_disabled});
@@ -1929,14 +1929,14 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.type.button.background_default_name) |background_default| {
-                if (try display.load_texture(allocator, background_default)) |texture|
+                if (try display.requireImage(allocator, background_default)) |texture|
                     entity.background.image = texture
                 else
                     err("setup_button failed to load background_default resource {s}.", .{background_default});
             }
 
             if (entity.type.button.background_pressed_name) |background_pressed| {
-                if (try display.load_texture(allocator, background_pressed)) |bp|
+                if (try display.requireImage(allocator, background_pressed)) |bp|
                     entity.type.button.background_pressed = bp
                 else
                     err("setup_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
@@ -1946,7 +1946,7 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.type.button.background_hover_name) |background_hover| {
-                if (try display.load_texture(allocator, background_hover)) |bh|
+                if (try display.requireImage(allocator, background_hover)) |bh|
                     entity.type.button.background_hover = bh
                 else
                     err("setup_button background_hover resource `{s}` not loaded.", .{background_hover});
@@ -1956,7 +1956,7 @@ pub fn Entity(comptime T: type) type {
             }
 
             if (entity.type.button.background_disabled_name) |background_disabled| {
-                if (try display.load_texture(allocator, background_disabled)) |bh|
+                if (try display.requireImage(allocator, background_disabled)) |bh|
                     entity.type.button.background_disabled = bh
                 else
                     err("setup_button background_disabled resource `{s}` not loaded.", .{background_disabled});
