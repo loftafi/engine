@@ -381,7 +381,7 @@ pub fn Display(comptime T: type) type {
             zstbi.init(display.allocator, display.io);
 
             if (config.desktop_icon) |desktop_icon| {
-                display.requireResourceRecord(gpa, desktop_icon, .csv);
+                try display.requireResourceRecord(gpa, desktop_icon, .image);
                 if (try display.resources.lookupOne(gpa, desktop_icon, .image)) |resource| {
                     var surface: SurfaceInfo = undefined;
                     try display.loadImage(&display.resources, resource, &surface);
@@ -398,7 +398,7 @@ pub fn Display(comptime T: type) type {
             }
 
             if (config.translation_filename) |translation_filename| {
-                display.requireResourceRecord(gpa, translation_filename, .csv);
+                try display.requireResourceRecord(gpa, translation_filename, .csv);
                 if (try display.resources.lookupOne(gpa, translation_filename, .csv)) |resource| {
                     const data = try loadResourceSdl(gpa, io, &display.resources, resource);
                     defer gpa.free(data);

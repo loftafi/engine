@@ -1,12 +1,12 @@
 .{
     .name = .engine,
-    .version = "0.18.4",
+    .version = "0.18.5",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#310988bbbb04ac2de1765ff56233dc031c629d44",
-            .hash = "resources-1.1.1-J0GwI0OCAgAdEYMZqa0pYdxY_LtFBZ4a3hXmiEBQLxBA",
+            .url = "git+https://github.com/loftafi/resources.git#3e30cf1af3a4b204e5d56fd7e947227cfc6398d0",
+            .hash = "resources-1.2.1-J0GwI7mDAgBANdG_f0jMKBnpUmOgPuCNIK7rXeGAHyVz",
         },
         .sdl = .{
             .url = "git+https://github.com/castholm/SDL.git#887fa805e40d5c7bb3955ae69b89ed566c6a0471",
