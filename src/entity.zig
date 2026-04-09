@@ -252,9 +252,12 @@ pub fn Entity(comptime T: type) type {
         }
 
         pub fn getChild(self: *Self, no: usize) ?*Self {
-            if (self.type != .panel) return null;
+            if (self.type != .panel) {
+                warn("getChild called on {t} name={s}", .{ self.type, self.name });
+                return null;
+            }
             trace("searching for child {d} in {s}", .{ no, self.name });
-            if (self.type.panel.children.items.len < no)
+            if (no < self.type.panel.children.items.len)
                 return self.type.panel.children.items[no];
             trace("searching for child {d} in {s}. no match", .{ no, self.name });
             return null;
