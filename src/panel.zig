@@ -799,6 +799,11 @@ test "root_panel_alignment" {
     try eq(130, child.rect.height);
     try eq(110, panel.rect.width);
     try eq(130, panel.rect.height);
+
+    try std.testing.expect(display.root.getChild(0) != null);
+    try std.testing.expect(display.root.getChild(100) == null);
+    try std.testing.expect(display.root.getChildByName("picture") != null);
+    try std.testing.expect(display.root.getChildByName("microprocessor") == null);
 }
 
 test "panel_padding" {
