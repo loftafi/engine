@@ -178,7 +178,6 @@ pub fn loadBundleSdl(
     var buffer: [300:0]u8 = undefined;
 
     const bundle_filename_z = try gpa.dupeZ(u8, bundle_filename);
-    defer gpa.free(bundle_filename_z);
 
     const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
     if (in == null) {
@@ -207,6 +206,7 @@ pub fn loadBundleSdl(
         r.resource = @enumFromInt(resource_type);
         r.uid = try read_u64(input);
         r.size = try read_u32(input);
+        r.filename = bundle_filename_z;
         const sentence_count = try read_u8(input);
         for (0..sentence_count) |_| {
             const name_len: u8 = try read_u8(input);
@@ -219,7 +219,7 @@ pub fn loadBundleSdl(
         try Resources.registerResource(self, r, null);
     }
 
-    self.bundle_file = try self.arena.allocator().dupe(u8, bundle_filename);
+    try self.bundle_files.append(self.arena.allocator(), bundle_filename_z);
     return true;
 }
 
@@ -228,15 +228,15 @@ fn readResourceSdl(
     bundle: *Resources,
     resource: *Resource,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]const u8 {
-    if (resource.filename) |filename| {
-        err("sdl_read_data called on resource that belongs on disk (not in bundle) {s}", .{filename});
+    if (resource.bundle_offset == null) {
+        err("sdl_read_data called on resource that belongs on disk (not in bundle) {s}", .{resource.filename.?});
         return error.ResourceNotFound;
     }
     if (resource.bundle_offset) |bundle_offset| {
         if (bundle.used_resources) |*manifest| {
             try manifest.put(bundle.arena.allocator(), resource.uid, resource);
         }
-        return try sdl_load_file_byte_slice(gpa, bundle.bundle_file, bundle_offset, resource.size);
+        return try sdl_load_file_byte_slice(gpa, resource.filename.?, bundle_offset, resource.size);
     }
     return error.ResourceNotFound;
 }

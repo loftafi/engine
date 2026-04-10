@@ -913,6 +913,10 @@ pub fn Display(comptime T: type) type {
 
             si.img = zstbi.Image.loadFromMemory(si.buffer, 4) catch |e| {
                 if (e == error.OutOfMemory) return error.OutOfMemory;
+                err("loadImage loadFromMemory failed to load resource {f} '{s}'", .{
+                    base62.writer(u64, resource.uid),
+                    if (resource.sentences.items.len > 0) resource.sentences.items[0] else "",
+                });
                 return error.UnknownImageFormat;
             };
             errdefer si.img.deinit(self.gpa);
