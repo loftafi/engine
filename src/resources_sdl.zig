@@ -41,7 +41,7 @@ pub fn initResourcesSdl(
     if (bundle_info.filename) |filename| {
         if (filename.len > 0) {
             // Try to load bundle from current/default path.
-            if (loadBundleSdl(bundle, gpa, filename)) |loaded| {
+            if (loadBundleSdl(bundle, filename)) |loaded| {
                 if (loaded) {
                     const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
                     info("initResourcesSdl() Resource list loaded from bundle '{s}' in {d}ms.", .{ filename, end - start });
@@ -56,7 +56,7 @@ pub fn initResourcesSdl(
                 defer gpa.free(bf);
                 info("find_base_folder returned: {s}", .{bf});
 
-                if (loadBundleSdl(bundle, gpa, bf)) |loaded| {
+                if (loadBundleSdl(bundle, bf)) |loaded| {
                     if (loaded) {
                         const end = std.Io.Timestamp.now(io, .real).toMilliseconds();
                         info("Resource list loaded from {s} in {d}ms.", .{ bf, end - start });
@@ -166,7 +166,6 @@ pub inline fn loadResourceSdl(
 /// Returns an error if bundle was not loaded for any reason.
 pub fn loadBundleSdl(
     self: *Resources,
-    gpa: Allocator,
     bundle_filename: []const u8,
 ) (Allocator.Error || Resources.Error || error{
     Utf8OverlongEncoding,
@@ -177,7 +176,8 @@ pub fn loadBundleSdl(
 })!bool {
     var buffer: [300:0]u8 = undefined;
 
-    const bundle_filename_z = try gpa.dupeZ(u8, bundle_filename);
+    const bundle_filename_z: [:0]u8 = try self.arena.allocator().dupeZ(u8, bundle_filename);
+    errdefer self.arena.allocator().free(bundle_filename_z);
 
     const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
     if (in == null) {

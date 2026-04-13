@@ -864,7 +864,7 @@ pub fn Display(comptime T: type) type {
             const font_descent = sdl.TTF_GetFontDescent(myfont);
             const font_size = sdl.TTF_GetFontSize(myfont);
 
-            info(
+            debug(
                 \\font '{s}' ascent={d} descent={d} height={d},
                 \\font_pixel_height={d} font_size={d} pixel_scale={d}
                 \\user_scale={d} scale={d} screen_size={d}
@@ -1090,7 +1090,7 @@ pub fn Display(comptime T: type) type {
                 resource.?.uid,
                 resource.?,
             );
-            debug("required {t} file named \"{s}\" uid={d}. count={d}", .{
+            trace("required {t} file named \"{s}\" uid={d}. count={d}", .{
                 category,
                 name,
                 resource.?.uid,
