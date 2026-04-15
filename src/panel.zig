@@ -802,8 +802,8 @@ test "root_panel_alignment" {
 
     try std.testing.expect(display.root.getChild(0) != null);
     try std.testing.expect(display.root.getChild(100) == null);
-    try std.testing.expect(display.root.getChildByName("picture") != null);
-    try std.testing.expect(display.root.getChildByName("microprocessor") == null);
+    try std.testing.expect(panel.getChildByName("picture") != null);
+    try std.testing.expect(panel.getChildByName("microprocessor") == null);
 }
 
 test "panel_padding" {
