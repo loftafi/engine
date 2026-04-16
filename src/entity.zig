@@ -417,6 +417,14 @@ pub fn Entity(comptime T: type) type {
                 _ = try out.write(" name=");
                 _ = try out.write(self.name);
             }
+            if (self.texture_name) |name| {
+                _ = try out.write(" texture=");
+                _ = try out.write(name);
+            }
+            if (self.background.image_name) |name| {
+                _ = try out.write(" background_image=");
+                _ = try out.write(name);
+            }
             _ = try out.print(" rect={d:1.0}x{d:1.0}/{d:1.0}x{d:1.0}", .{
                 self.rect.x,
                 self.rect.y,
