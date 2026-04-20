@@ -34,6 +34,7 @@ pub fn create(
 
 pub fn destroy(self: *Texture, allocator: Allocator) void {
     sdl.SDL_DestroyTexture(self.texture);
+    self.* = undefined;
     allocator.destroy(self);
 }
 

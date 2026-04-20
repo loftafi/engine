@@ -92,6 +92,7 @@ pub fn Animator(comptime T: type) type {
 
         /// Destroy a previously `create`d Animator.
         pub fn destroy(self: *Animator(T), allocator: Allocator) void {
+            self.* = undefined;
             allocator.destroy(self);
         }
 

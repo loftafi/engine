@@ -235,6 +235,7 @@ pub fn Entity(comptime T: type) type {
                     }
                 },
             }
+            self.* = undefined;
         }
 
         /// Find a direct child of this entity by the name attached to
@@ -1219,7 +1220,7 @@ pub fn Entity(comptime T: type) type {
                     pad_line.y += entity.pad.top;
                     pad_line.width -= (entity.pad.left + entity.pad.right);
                     pad_line.height -= (entity.pad.top + entity.pad.bottom);
-                    entity.draw_padding_markers(display, scroll_offset);
+                    entity.markCorners(display, scroll_offset);
                 } else if (entity.type == .button) {
                     // inner padding line
                     colour = display.theme.tinted_text_colour;
@@ -1229,7 +1230,7 @@ pub fn Entity(comptime T: type) type {
                         .width = entity.rect.width - (entity.pad.left + entity.pad.right),
                         .height = entity.rect.height - (entity.pad.top + entity.pad.bottom),
                     }, .{});
-                    entity.draw_padding_markers(display, scroll_offset);
+                    entity.markCorners(display, scroll_offset);
                 }
             } else if (entity.border_width > 0 and entity.border_colour.a > 0) {
                 draw_rectangle(
@@ -1243,19 +1244,26 @@ pub fn Entity(comptime T: type) type {
 
             // Any entity can have a selection underline
             if (display.selected != null and display.selected == entity) {
-                if (entity.type != .text_input) {
-                    if (display.keyboard_activity) {
-                        draw_selection_marker(
-                            display,
-                            display.theme.cursor_colour,
-                            entity.rect.move(scroll_offset),
-                        );
-                    }
-                }
+                if (!display.keyboard_activity) return;
+                if (display.draw_cursor) |f|
+                    f(
+                        display.renderer,
+                        entity.type,
+                        entity.rect.move(scroll_offset),
+                        display.user_scale,
+                    )
+                else
+                    drawCursor(
+                        display.renderer,
+                        entity.type,
+                        display.theme,
+                        entity.rect.move(scroll_offset),
+                        display.user_scale,
+                    );
             }
         }
 
-        fn draw_padding_markers(entity: *Entity(T), display: *Display(T), scroll_offset: Vector) void {
+        fn markCorners(entity: *Entity(T), display: *Display(T), scroll_offset: Vector) void {
             const length = 20;
             draw_line(
                 display.renderer,
@@ -1292,32 +1300,37 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// Draw a visual indication that an entity is currently selected.
-        pub fn draw_selection_marker(
-            self: *Display(T),
-            colour: Colour,
+        pub fn drawCursor(
+            renderer: *sdl.SDL_Renderer,
+            entity_type: Type,
+            theme: *Theme,
             rect: Rect,
+            user_scale: f32,
         ) void {
-            const border_width = 2 * self.user_scale;
+            if (entity_type == .text_input) return;
+            const colour = theme.cursor_colour;
+            const border_width = 4 * user_scale;
             if (border_width > 0 and colour.a > 0) {
-                _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 255, 255, 255);
                 var dest: Rect = .{
                     .x = rect.x,
                     .y = rect.y + rect.height + border_width,
                     .width = rect.width,
                     .height = border_width,
                 };
-                if (rect.width > border_width * 16) {
-                    dest.width -= border_width * 8;
-                    dest.x += border_width * 4;
-                }
+                dest = dest.move(.{ .x = border_width * 4, .y = 0 - border_width * 4 });
+                dest.width = @max(border_width * 8, rect.width - border_width * 8);
+                //if (rect.width > border_width * 16) {
+                //    dest.width -= border_width * 8;
+                //    dest.x += border_width * 4;
+                //}
                 _ = sdl.SDL_SetRenderDrawColor(
-                    self.renderer,
+                    renderer,
                     colour.r,
                     colour.g,
                     colour.b,
                     colour.a,
                 );
-                _ = sdl.SDL_RenderFillRect(self.renderer, @ptrCast(&dest));
+                _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
             }
         }
 
@@ -1535,8 +1548,8 @@ pub fn Entity(comptime T: type) type {
 
             display.selected = self;
 
-            const content = self.describe_content();
-            debug("selected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
+            debug("selected {s} {s}", .{ @tagName(self.type), self.name });
+            self.describeContent(&display.translation);
 
             // Enter editing mode if we just selected a text entity
             if (self.type == .text_input)
@@ -1574,27 +1587,44 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// Describe content for a screen reader
-        fn describe_content(self: *Self) []const u8 {
-            return switch (self.type) {
-                .label => self.type.label.translated,
-                .button => if (self.type.button.translated.len > 0)
-                    self.type.button.translated
-                else
-                    self.name,
-                //self.type.button.icon;
-                .checkbox => if (self.type.checkbox.translated.len > 0)
-                    self.type.checkbox.translated
-                else
-                    self.name,
-                //self.type.checkbox.icon,
-                else => self.name,
-            };
+        fn describeContent(self: *Self, translation: *Translation) void {
+            const type_name = translation.translate(@tagName(self.type));
+            switch (self.type) {
+                .label => {
+                    if (self.aria_label) |aria| {
+                        std.log.info("aria: {s}", .{translation.translate(aria)});
+                    } else {
+                        std.log.info("aria: {s}", .{self.type.label.translated});
+                    }
+                },
+                .button => {
+                    if (self.aria_label) |aria|
+                        std.log.info("aria: {s} {s}", .{ type_name, translation.translate(aria) })
+                    else if (self.type.button.translated.len > 0)
+                        std.log.info("aria: {s} {s}", .{ type_name, self.type.button.translated })
+                    else
+                        std.log.info("aria: {s} {s}", .{ type_name, self.name });
+                },
+                .checkbox => {
+                    if (self.aria_label) |aria|
+                        std.log.info("aria: {s} {s}", .{ type_name, translation.translate(aria) })
+                    else if (self.type.checkbox.translated.len > 0)
+                        std.log.info("aria: {s} {s}", .{ type_name, self.type.checkbox.translated })
+                    else
+                        std.log.info("aria: {s} {s}", .{ type_name, self.name });
+                },
+                else => {
+                    if (self.aria_label) |aria|
+                        std.log.info("aria: {s} {s}", .{ type_name, translation.translate(aria) })
+                    else
+                        std.log.info("aria: {s} {s}", .{ type_name, self.name });
+                },
+            }
         }
 
         /// Handle when a user clicks or tabs out of this entity.
         pub fn deselected(self: *Self, display: *Display(T)) void {
-            const content = self.describe_content();
-            trace("deselected {s} {s} = {s}", .{ @tagName(self.type), self.name, content });
+            trace("deselected {s} {s}", .{ @tagName(self.type), self.name });
 
             if (self.type == .text_input) {
                 _ = sdl.SDL_StopTextInput(display.window);
@@ -2563,6 +2593,8 @@ const Resource = resources.Resource;
 
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
+
+const Translation = @import("translator").Translation;
 
 const Chunker = @import("Chunker.zig");
 const Texture = @import("Texture.zig");

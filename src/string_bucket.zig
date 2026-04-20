@@ -19,6 +19,7 @@ pub fn deinit(self: *StringBucket) void {
     while (it.next()) |*iv|
         self.allocator.free(iv.key_ptr.*);
     self.bucket.deinit(self.allocator);
+    self.* = undefined;
 }
 
 /// Create a copy of the input text (if needed), or return a copy we

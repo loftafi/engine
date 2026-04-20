@@ -95,6 +95,12 @@ pub fn Display(comptime T: type) type {
         /// keyboard input
         selected: ?*Entity(T) = null,
         keyboard_activity: bool = false,
+        draw_cursor: ?*const fn (
+            renderer: *sdl.SDL_Renderer,
+            entity_type: ent.Type,
+            rect: Rect,
+            user_scale: f32,
+        ) void = null,
 
         /// One user interface entity may be rendered differently
         /// when the mouse/pointer is floating over that entity.
@@ -493,6 +499,7 @@ pub fn Display(comptime T: type) type {
 
             self.keybindings.deinit(gpa);
             self.translation.deinit(gpa);
+            self.* = undefined;
             gpa.destroy(self);
 
             zstbi.deinit();
