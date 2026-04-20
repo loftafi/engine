@@ -1543,6 +1543,36 @@ pub fn Entity(comptime T: type) type {
                 _ = sdl.SDL_StartTextInput(display.window);
         }
 
+        pub fn isSelectable(self: *const Self, display: *Display(T)) bool {
+            if (self.visible != .visible) return false;
+            if (self.focus == .never_focus or self.focus == .unspecified) return false;
+
+            switch (self.type) {
+                .panel => {
+                    if (self.type.panel.on_click.func != null) return true;
+                },
+                .label => {
+                    if (self.type.label.on_selected.func != null) return true;
+                    if (display.accessibility == false) return false;
+
+                    if (self.focus == .accessibility_focus) {
+                        if (self.type == .label and self.type.label.translated.len > 0) return true;
+                    }
+                },
+                .button => {
+                    if (self.type.button.on_selected.func != null) return true;
+                },
+                .sprite => {
+                    if (self.type.sprite.on_click.func != null) return true;
+                },
+                .text_input => return true,
+                .checkbox => return true,
+                .expander, .progress_bar, .rectangle => return false,
+            }
+
+            return false;
+        }
+
         /// Describe content for a screen reader
         fn describe_content(self: *Self) []const u8 {
             return switch (self.type) {
@@ -2240,6 +2270,10 @@ pub const Vector = struct {
             .y = self.y * value,
         };
     }
+
+    pub fn distance(self: Vector, other: Vector) f32 {
+        return sqrt(pow(f32, other.x - self.x, 2) + pow(f32, other.y - self.y, 2));
+    }
 };
 
 /// A rectangle desribes a point and an area.
@@ -2504,6 +2538,8 @@ pub const Type = enum {
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
+const sqrt = std.math.sqrt;
+const pow = std.math.pow;
 
 const sdl = @import("sdl");
 

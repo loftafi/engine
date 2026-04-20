@@ -1393,6 +1393,7 @@ pub fn Display(comptime T: type) type {
                         continue;
                     }
                 }
+
                 // We found a selectable entity
                 if (state.* == .no_selectable_items) {
                     state.* = .has_selectable_item;
@@ -1413,6 +1414,173 @@ pub fn Display(comptime T: type) type {
             }
             return null;
         }
+
+        /// Find the closest entity that is to the left of this entity.
+        pub fn select_left_entity(self: *Self, gpa: Allocator) void {
+            var walker = EntityWalker.default;
+            var chooser = EntityWalker.ClosestLeft.init(self);
+            walker.walk(&self.root, self, &chooser);
+            if (walker.chosen) |entity| entity.selected(self, gpa);
+        }
+
+        /// Find the closest entity that is to the right of this entity.
+        pub fn select_right_entity(self: *Self, gpa: Allocator) void {
+            var walker = EntityWalker.default;
+            var chooser = EntityWalker.ClosestRight.init(self);
+            walker.walk(&self.root, self, &chooser);
+            if (walker.chosen) |entity| entity.selected(self, gpa);
+        }
+
+        /// Find the closest entity that is above this entity.
+        pub fn select_above_entity(self: *Self, gpa: Allocator) void {
+            var walker = EntityWalker.default;
+            var chooser = EntityWalker.ClosestAbove.init(self);
+            walker.walk(&self.root, self, &chooser);
+            if (walker.chosen) |entity| entity.selected(self, gpa);
+        }
+
+        /// Find the closest entity that is below this entity.
+        pub fn select_below_entity(self: *Self, gpa: Allocator) void {
+            var walker = EntityWalker.default;
+            var chooser = EntityWalker.ClosestBelow.init(self);
+            walker.walk(&self.root, self, &chooser);
+            if (walker.chosen) |entity| entity.selected(self, gpa);
+        }
+
+        /// Calls `checker.check()` on every entity to find a preferred
+        /// entity in the tree.
+        pub const EntityWalker = struct {
+            chosen: ?*Entity(T) = null,
+            pub const default = EntityWalker{ .chosen = null };
+            pub fn walk(self: *EntityWalker, entity: *Entity(T), display: *Display(T), checker: anytype) void {
+                std.log.info("walk: {t} {s}", .{ entity.type, entity.name });
+                std.debug.assert(entity.type == .panel);
+                for (entity.type.panel.children.items) |child| {
+                    if (child.isSelectable(display)) {
+                        if (checker.choose(child))
+                            self.chosen = child;
+                    }
+                    if (child.type == .panel and child.visible == .visible)
+                        self.walk(child, display, checker);
+                }
+            }
+
+            pub const ClosestLeft = struct {
+                anchor: Vector,
+                distance: f32,
+                pub fn init(display: *Display(T)) ClosestLeft {
+                    const left_edge = if (display.selected) |s|
+                        s.rect.x
+                    else
+                        display.root.rect.width;
+                    const y = if (display.selected) |s|
+                        s.rect.y + s.rect.height / 2
+                    else
+                        display.root.rect.height / 2;
+                    return .{
+                        .anchor = .{ .x = left_edge, .y = y },
+                        .distance = std.math.floatMax(f32),
+                    };
+                }
+                pub fn choose(self: *ClosestLeft, option: *const Entity(T)) bool {
+                    if (option.rect.x + option.rect.width > self.anchor.x) return false;
+                    const d = self.anchor.distance(.{
+                        .x = option.rect.x + option.rect.width,
+                        .y = option.rect.y + option.rect.height / 2,
+                    });
+                    if (d > self.distance) return false;
+                    self.distance = d;
+                    return true;
+                }
+            };
+
+            pub const ClosestRight = struct {
+                anchor: Vector,
+                distance: f32,
+                pub fn init(display: *Display(T)) ClosestRight {
+                    const right_edge = if (display.selected) |s|
+                        s.rect.x + s.rect.width
+                    else
+                        0;
+                    const y = if (display.selected) |s|
+                        s.rect.y + s.rect.height / 2
+                    else
+                        display.root.rect.height / 2;
+                    return .{
+                        .anchor = .{ .x = right_edge, .y = y },
+                        .distance = std.math.floatMax(f32),
+                    };
+                }
+                pub fn choose(self: *ClosestRight, option: *Entity(T)) bool {
+                    if (option.rect.x < self.anchor.x) return false;
+                    const d = self.anchor.distance(.{
+                        .x = option.rect.x,
+                        .y = option.rect.y + option.rect.height / 2,
+                    });
+                    if (d > self.distance) return false;
+                    self.distance = d;
+                    return true;
+                }
+            };
+
+            pub const ClosestAbove = struct {
+                anchor: Vector,
+                distance: f32,
+                pub fn init(display: *Display(T)) ClosestAbove {
+                    const top_edge = if (display.selected) |s|
+                        s.rect.y
+                    else
+                        display.root.rect.height;
+                    const x = if (display.selected) |s|
+                        s.rect.x + s.rect.width / 2
+                    else
+                        display.root.rect.width / 2;
+                    return .{
+                        .anchor = .{ .x = x, .y = top_edge },
+                        .distance = std.math.floatMax(f32),
+                    };
+                }
+                pub fn choose(self: *ClosestAbove, option: *const Entity(T)) bool {
+                    if (option.rect.y + option.rect.height > self.anchor.y) return false;
+                    const d = self.anchor.distance(.{
+                        .x = option.rect.x + option.rect.width / 2,
+                        .y = option.rect.y + option.rect.height,
+                    });
+                    if (d > self.distance) return false;
+                    self.distance = d;
+                    return true;
+                }
+            };
+
+            pub const ClosestBelow = struct {
+                anchor: Vector,
+                distance: f32,
+                pub fn init(display: *Display(T)) ClosestBelow {
+                    const bottom_edge = if (display.selected) |s|
+                        s.rect.y + s.rect.height
+                    else
+                        0;
+                    const x = if (display.selected) |s|
+                        s.rect.x + s.rect.width / 2
+                    else
+                        display.root.rect.width / 2;
+                    return .{
+                        .anchor = .{ .x = x, .y = bottom_edge },
+                        .distance = std.math.floatMax(f32),
+                    };
+                }
+                pub fn choose(self: *ClosestBelow, option: *Entity(T)) bool {
+                    if (option.rect.y < self.anchor.y) return false;
+                    const d = self.anchor.distance(.{
+                        .x = option.rect.x + option.rect.width / 2,
+                        .y = option.rect.y,
+                    });
+                    if (d > self.distance) return false;
+                    self.distance = d;
+                    return true;
+                }
+            };
+        };
 
         pub const FindQuery = enum {
             any,
@@ -1583,22 +1751,22 @@ pub fn Display(comptime T: type) type {
                 return;
             }
             if (e.key.key == sdl.SDLK_UP) {
-                display.select_previous_entity(gpa);
+                display.select_above_entity(gpa);
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_LEFT) {
-                display.select_previous_entity(gpa);
+                display.select_left_entity(gpa);
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_DOWN) {
-                display.select_next_entity(gpa);
+                display.select_below_entity(gpa);
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_RIGHT) {
-                display.select_next_entity(gpa);
+                display.select_right_entity(gpa);
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
