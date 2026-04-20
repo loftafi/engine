@@ -776,7 +776,9 @@ pub fn Display(comptime T: type) type {
             _ = sdl.SDL_RenderPresent(display.renderer);
         }
 
-        /// Load and associate a font file with a font name.
+        /// Set a default font for all languages on startup with lang=`.unknown`
+        /// then set a default font for a specific individual language, i.e.
+        /// lang=`.english`.
         pub fn setDefaultFont(
             self: *Self,
             name: []const u8,
@@ -784,7 +786,7 @@ pub fn Display(comptime T: type) type {
         ) (Error || Allocator.Error || Resources.Error)!void {
             const font_info = try self.loadFontResource(name);
             try self.required_resource.put(self.allocator, font_info.resource.uid, font_info.resource);
-            defer remove_from_list(self.allocator, &self.fonts, font_info);
+            defer removeFontFromList(self.allocator, &self.fonts, font_info);
 
             // When the very first font is loaded, grab it
             // for the font language map.
@@ -798,32 +800,32 @@ pub fn Display(comptime T: type) type {
 
             switch (lang) {
                 .chinese => {
-                    remove_from_list(self.allocator, &self.fonts, self.font.chinese);
+                    removeFontFromList(self.allocator, &self.fonts, self.font.chinese);
                     self.font.chinese = font_info.clone();
                 },
                 .english => {
-                    remove_from_list(self.allocator, &self.fonts, self.font.english);
+                    removeFontFromList(self.allocator, &self.fonts, self.font.english);
                     self.font.english = font_info.clone();
                 },
                 .unknown => {
-                    remove_from_list(self.allocator, &self.fonts, self.font.default);
+                    removeFontFromList(self.allocator, &self.fonts, self.font.default);
                     self.font.default = font_info.clone();
                 },
                 .greek => {
-                    remove_from_list(self.allocator, &self.fonts, self.font.greek);
+                    removeFontFromList(self.allocator, &self.fonts, self.font.greek);
                     self.font.greek = font_info.clone();
                 },
                 .korean => {
-                    remove_from_list(self.allocator, &self.fonts, self.font.korean);
+                    removeFontFromList(self.allocator, &self.fonts, self.font.korean);
                     self.font.korean = font_info.clone();
                 },
                 else => {
-                    std.log.err("Language {t} not supported", .{lang});
+                    err("Language {t} not supported", .{lang});
                 },
             }
         }
 
-        fn remove_from_list(allocator: Allocator, list: *ArrayListUnmanaged(*Font), item: *Font) void {
+        fn removeFontFromList(allocator: Allocator, list: *ArrayListUnmanaged(*Font), item: *Font) void {
             for (0..list.items.len) |i| {
                 if (list.items[i] == item) {
                     if (list.items[i].release(allocator)) {
@@ -971,44 +973,6 @@ pub fn Display(comptime T: type) type {
             }
 
             return self.root.add(allocator, self, item);
-        }
-
-        /// Convert a text string into an image that is sent as a texture to
-        /// the graphics card.
-        pub fn generate_text_texture(
-            self: *Self,
-            text: []const u8,
-            myfont: *Font,
-        ) ?*sdl.SDL_Texture {
-
-            // Step 1: Create a surface (a bitmap) that holds the text.
-            //
-            // The text colour is set to white, so that it can be tinted to
-            // match the current theme.
-            const surface = sdl.TTF_RenderText_Blended(
-                myfont.font,
-                text.ptr,
-                text.len,
-                .{ .r = 255, .g = 255, .b = 255, .a = 255 },
-            ) orelse {
-                err("generate_text_texture failed. {any} Error: {s}", .{
-                    text,
-                    sdl.SDL_GetError(),
-                });
-                return null;
-            };
-            errdefer sdl.SDL_DestroySurface(surface);
-
-            // Step 2: Send the surface (a bitmap) to the grahpics card.
-            const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, surface) orelse {
-                err("text input texture failed. {s}", .{sdl.SDL_GetError()});
-                return null;
-            };
-            errdefer sdl.SDL_DestroyTexture(texture);
-
-            // Step 3: The surface bitmap is no longer needed.
-            sdl.SDL_DestroySurface(surface);
-            return texture;
         }
 
         /// A texture resource may be referenced by multiple on screen
@@ -1294,7 +1258,39 @@ pub fn Display(comptime T: type) type {
             return item;
         }
 
-        pub fn select_first_entity(
+        /// The `target` entity has an x/y position on screen, but the x/y
+        /// position may have been translated by one or more scroll panels.
+        /// If the `target` is visible, this will return the real physical
+        /// coordinates of `target`.
+        pub fn findParentOffset(
+            self: *Display(T),
+            target: *Entity(T),
+            parent_offset: Vector,
+        ) ?Vector {
+            return self.findEntityParentOffset(&self.root, target, parent_offset);
+        }
+
+        fn findEntityParentOffset(
+            self: *Display(T),
+            parent: *Entity(T),
+            target: *Entity(T),
+            parent_offset: Vector,
+        ) ?Vector {
+            std.debug.assert(parent.type == .panel);
+            for (parent.type.panel.children.items) |child| {
+                if (child == target)
+                    return parent_offset.add(parent.offset);
+                if (child.type == .panel and child.visible == .visible)
+                    if (self.findEntityParentOffset(child, target, parent_offset.add(parent.offset))) |offset|
+                        return offset;
+            }
+            return null;
+        }
+
+        /// Move the cursor to the first selectable entity in the Entity tree.
+        /// Note that the first selectable entity in the tree might not be the
+        /// top/left most enity visually drawn on the screen.
+        pub fn selectFirstEntity(
             self: *Self,
             entities: []*Entity(T),
             gpa: Allocator,
@@ -1303,7 +1299,7 @@ pub fn Display(comptime T: type) type {
                 if (item.visible != .visible) continue;
 
                 if (item.type == .panel) {
-                    if (self.select_first_entity(item.type.panel.children.items, gpa))
+                    if (self.selectFirstEntity(item.type.panel.children.items, gpa))
                         return true;
 
                     if (item.type.panel.on_click.func == null)
@@ -1328,11 +1324,15 @@ pub fn Display(comptime T: type) type {
             selected_item,
         };
 
-        pub fn select_next_entity(self: *Self, gpa: Allocator) void {
-            trace("select_next_entity() find next entity", .{});
+        /// Move the cursor from the currently selected entity in the entity
+        /// to the next selectable entity in the entity tree.
+        /// Note that next selectable entity in the entity tree might not be
+        /// not the entity visually located to the right of the current entity.
+        pub fn selectNextEntity(self: *Self, gpa: Allocator) void {
+            trace("selectNextEntity() find next entity", .{});
             var state = SelectState.no_selectable_items;
             var previous: ?*Entity(T) = null;
-            const item = self.do_select_next_entity(
+            const item = self.do_selectNextEntity(
                 self.root.type.panel.children.items,
                 &state,
                 &previous,
@@ -1342,29 +1342,33 @@ pub fn Display(comptime T: type) type {
                 return;
             }
             if (state == .has_selectable_item or state == .found_currently_selected_item) {
-                _ = self.select_first_entity(self.root.type.panel.children.items, gpa);
+                _ = self.selectFirstEntity(self.root.type.panel.children.items, gpa);
             } else {
-                debug("select_next_entity() no entity found. {s}", .{@tagName(state)});
+                debug("selectNextEntity() no entity found. {s}", .{@tagName(state)});
             }
         }
 
-        pub fn select_previous_entity(self: *Self, gpa: Allocator) void {
-            trace("select_previous_entity() find previous entity", .{});
+        /// Move the cursor to the previously selectable entity in the entity
+        /// tree. Note that the previously selectable entity might not
+        /// correspond to the entity visually located to the left of the
+        /// current entity.
+        pub fn selectPreviousEntity(self: *Self, gpa: Allocator) void {
+            trace("selectPreviousEntity() find previous entity", .{});
             var state = SelectState.no_selectable_items;
             var previous: ?*Entity(T) = null;
-            _ = self.do_select_next_entity(self.root.type.panel.children.items, &state, &previous);
+            _ = self.do_selectNextEntity(self.root.type.panel.children.items, &state, &previous);
             if (previous) |found| {
                 found.selected(self, gpa);
                 return;
             }
             if (state == .has_selectable_item or state == .found_currently_selected_item) {
-                _ = self.select_first_entity(self.root.type.panel.children.items, gpa);
+                _ = self.selectFirstEntity(self.root.type.panel.children.items, gpa);
             } else {
-                debug("select_next_entity() no entity found. {s}", .{@tagName(state)});
+                debug("selectNextEntity() no entity found. {s}", .{@tagName(state)});
             }
         }
 
-        fn do_select_next_entity(
+        fn do_selectNextEntity(
             self: *Self,
             entities: []*Entity(T),
             state: *SelectState,
@@ -1382,7 +1386,7 @@ pub fn Display(comptime T: type) type {
                     continue;
                 }
                 if (item.type == .panel) {
-                    if (self.do_select_next_entity(item.type.panel.children.items, state, previous)) |found| {
+                    if (self.do_selectNextEntity(item.type.panel.children.items, state, previous)) |found| {
                         return found;
                     }
                     if (item.type.panel.on_click.func == null)
@@ -1423,34 +1427,34 @@ pub fn Display(comptime T: type) type {
         }
 
         /// Find the closest entity that is to the left of this entity.
-        pub fn select_left_entity(self: *Self, gpa: Allocator) void {
+        pub fn selectLeftEntity(self: *Self, gpa: Allocator) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestLeft.init(self);
-            walker.walk(&self.root, self, &chooser);
+            walker.walk(&self.root, self, &chooser, .{});
             if (walker.chosen) |entity| entity.selected(self, gpa);
         }
 
         /// Find the closest entity that is to the right of this entity.
-        pub fn select_right_entity(self: *Self, gpa: Allocator) void {
+        pub fn selectRightEntity(self: *Self, gpa: Allocator) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestRight.init(self);
-            walker.walk(&self.root, self, &chooser);
+            walker.walk(&self.root, self, &chooser, .{});
             if (walker.chosen) |entity| entity.selected(self, gpa);
         }
 
         /// Find the closest entity that is above this entity.
-        pub fn select_above_entity(self: *Self, gpa: Allocator) void {
+        pub fn selectAboveEntity(self: *Self, gpa: Allocator) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestAbove.init(self);
-            walker.walk(&self.root, self, &chooser);
+            walker.walk(&self.root, self, &chooser, .{});
             if (walker.chosen) |entity| entity.selected(self, gpa);
         }
 
         /// Find the closest entity that is below this entity.
-        pub fn select_below_entity(self: *Self, gpa: Allocator) void {
+        pub fn selectBelowEntity(self: *Self, gpa: Allocator) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestBelow.init(self);
-            walker.walk(&self.root, self, &chooser);
+            walker.walk(&self.root, self, &chooser, .{});
             if (walker.chosen) |entity| entity.selected(self, gpa);
         }
 
@@ -1459,16 +1463,25 @@ pub fn Display(comptime T: type) type {
         pub const EntityWalker = struct {
             chosen: ?*Entity(T) = null,
             pub const default = EntityWalker{ .chosen = null };
-            pub fn walk(self: *EntityWalker, entity: *Entity(T), display: *Display(T), checker: anytype) void {
-                std.log.info("walk: {t} {s}", .{ entity.type, entity.name });
+
+            pub fn walk(
+                self: *EntityWalker,
+                entity: *Entity(T),
+                display: *Display(T),
+                checker: anytype,
+                parent_offset: Vector,
+            ) void {
                 std.debug.assert(entity.type == .panel);
+
+                // Search for potential closest items, along with their own
+                // offsets being passed in
                 for (entity.type.panel.children.items) |child| {
                     if (child.isSelectable(display)) {
-                        if (checker.choose(child))
+                        if (checker.choose(child, parent_offset))
                             self.chosen = child;
                     }
                     if (child.type == .panel and child.visible == .visible)
-                        self.walk(child, display, checker);
+                        self.walk(child, display, checker, parent_offset.add(child.offset));
                 }
             }
 
@@ -1476,24 +1489,27 @@ pub fn Display(comptime T: type) type {
                 anchor: Vector,
                 distance: f32,
                 pub fn init(display: *Display(T)) ClosestLeft {
-                    const left_edge = if (display.selected) |s|
-                        s.rect.x
+                    var anchor: Vector = if (display.selected) |s|
+                        .{ .x = s.rect.x, .y = s.rect.y + s.rect.height / 2 }
                     else
-                        display.root.rect.width;
-                    const y = if (display.selected) |s|
-                        s.rect.y + s.rect.height / 2
-                    else
-                        display.root.rect.height / 2;
+                        .{ .x = display.root.rect.width, .y = display.root.rect.height / 2 };
+
+                    if (display.selected) |selected| {
+                        if (display.findParentOffset(selected, .{})) |offset|
+                            anchor = anchor.add(offset);
+                    }
+
                     return .{
-                        .anchor = .{ .x = left_edge, .y = y },
+                        .anchor = anchor,
                         .distance = std.math.floatMax(f32),
                     };
                 }
-                pub fn choose(self: *ClosestLeft, option: *const Entity(T)) bool {
-                    if (option.rect.x + option.rect.width > self.anchor.x) return false;
+                pub fn choose(self: *ClosestLeft, option: *const Entity(T), parent_offset: Vector) bool {
+                    const position = option.rect.move(parent_offset);
+                    if (position.x + position.width > self.anchor.x) return false;
                     const d = self.anchor.distance(.{
-                        .x = option.rect.x + option.rect.width,
-                        .y = option.rect.y + option.rect.height / 2,
+                        .x = position.x + position.width,
+                        .y = position.y + position.height / 2,
                     });
                     if (d > self.distance) return false;
                     self.distance = d;
@@ -1505,24 +1521,27 @@ pub fn Display(comptime T: type) type {
                 anchor: Vector,
                 distance: f32,
                 pub fn init(display: *Display(T)) ClosestRight {
-                    const right_edge = if (display.selected) |s|
-                        s.rect.x + s.rect.width
+                    var anchor: Vector = if (display.selected) |s|
+                        .{ .x = s.rect.x + s.rect.width, .y = s.rect.y + s.rect.height / 2 }
                     else
-                        0;
-                    const y = if (display.selected) |s|
-                        s.rect.y + s.rect.height / 2
-                    else
-                        display.root.rect.height / 2;
+                        .{ .x = 0, .y = display.root.rect.height / 2 };
+
+                    if (display.selected) |selected| {
+                        if (display.findParentOffset(selected, .{})) |offset|
+                            anchor = anchor.add(offset);
+                    }
+
                     return .{
-                        .anchor = .{ .x = right_edge, .y = y },
+                        .anchor = anchor,
                         .distance = std.math.floatMax(f32),
                     };
                 }
-                pub fn choose(self: *ClosestRight, option: *Entity(T)) bool {
-                    if (option.rect.x < self.anchor.x) return false;
+                pub fn choose(self: *ClosestRight, option: *Entity(T), parent_offset: Vector) bool {
+                    const position = option.rect.move(parent_offset);
+                    if (position.x < self.anchor.x) return false;
                     const d = self.anchor.distance(.{
-                        .x = option.rect.x,
-                        .y = option.rect.y + option.rect.height / 2,
+                        .x = position.x,
+                        .y = position.y + position.height / 2,
                     });
                     if (d > self.distance) return false;
                     self.distance = d;
@@ -1534,24 +1553,27 @@ pub fn Display(comptime T: type) type {
                 anchor: Vector,
                 distance: f32,
                 pub fn init(display: *Display(T)) ClosestAbove {
-                    const top_edge = if (display.selected) |s|
-                        s.rect.y
+                    var anchor: Vector = if (display.selected) |s|
+                        .{ .x = s.rect.x + s.rect.width / 2, .y = s.rect.y }
                     else
-                        display.root.rect.height;
-                    const x = if (display.selected) |s|
-                        s.rect.x + s.rect.width / 2
-                    else
-                        display.root.rect.width / 2;
+                        .{ .x = display.root.rect.width / 2, .y = display.root.rect.height };
+
+                    if (display.selected) |selected| {
+                        if (display.findParentOffset(selected, .{})) |offset|
+                            anchor = anchor.add(offset);
+                    }
+
                     return .{
-                        .anchor = .{ .x = x, .y = top_edge },
+                        .anchor = anchor,
                         .distance = std.math.floatMax(f32),
                     };
                 }
-                pub fn choose(self: *ClosestAbove, option: *const Entity(T)) bool {
-                    if (option.rect.y + option.rect.height > self.anchor.y) return false;
+                pub fn choose(self: *ClosestAbove, option: *const Entity(T), parent_offset: Vector) bool {
+                    const position = option.rect.move(parent_offset);
+                    if (position.y + position.height > self.anchor.y) return false;
                     const d = self.anchor.distance(.{
-                        .x = option.rect.x + option.rect.width / 2,
-                        .y = option.rect.y + option.rect.height,
+                        .x = position.x + position.width / 2,
+                        .y = position.y + position.height,
                     });
                     if (d > self.distance) return false;
                     self.distance = d;
@@ -1563,24 +1585,27 @@ pub fn Display(comptime T: type) type {
                 anchor: Vector,
                 distance: f32,
                 pub fn init(display: *Display(T)) ClosestBelow {
-                    const bottom_edge = if (display.selected) |s|
-                        s.rect.y + s.rect.height
+                    var anchor: Vector = if (display.selected) |s|
+                        .{ .x = s.rect.x + s.rect.width / 2, .y = s.rect.y + s.rect.height }
                     else
-                        0;
-                    const x = if (display.selected) |s|
-                        s.rect.x + s.rect.width / 2
-                    else
-                        display.root.rect.width / 2;
+                        .{ .x = display.root.rect.width / 2, .y = 0 };
+
+                    if (display.selected) |selected| {
+                        if (display.findParentOffset(selected, .{})) |offset|
+                            anchor = anchor.add(offset);
+                    }
+
                     return .{
-                        .anchor = .{ .x = x, .y = bottom_edge },
+                        .anchor = anchor,
                         .distance = std.math.floatMax(f32),
                     };
                 }
-                pub fn choose(self: *ClosestBelow, option: *Entity(T)) bool {
-                    if (option.rect.y < self.anchor.y) return false;
+                pub fn choose(self: *ClosestBelow, option: *Entity(T), parent_offset: Vector) bool {
+                    const position = option.rect.move(parent_offset);
+                    if (position.y < self.anchor.y) return false;
                     const d = self.anchor.distance(.{
-                        .x = option.rect.x + option.rect.width / 2,
-                        .y = option.rect.y,
+                        .x = position.x + position.width / 2,
+                        .y = position.y,
                     });
                     if (d > self.distance) return false;
                     self.distance = d;
@@ -1750,30 +1775,30 @@ pub fn Display(comptime T: type) type {
             trace("handle_key_up_event({any})", .{e.key.key});
             if (e.key.key == sdl.SDLK_TAB) {
                 if (e.key.mod == sdl.SDL_KMOD_SHIFT or e.key.mod == sdl.SDL_KMOD_LSHIFT or e.key.mod == sdl.SDL_KMOD_RSHIFT) {
-                    display.select_previous_entity(gpa);
+                    display.selectPreviousEntity(gpa);
                 } else {
-                    display.select_next_entity(gpa);
+                    display.selectNextEntity(gpa);
                 }
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_UP) {
-                display.select_above_entity(gpa);
+                display.selectAboveEntity(gpa);
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_LEFT) {
-                display.select_left_entity(gpa);
+                display.selectLeftEntity(gpa);
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_DOWN) {
-                display.select_below_entity(gpa);
+                display.selectBelowEntity(gpa);
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_RIGHT) {
-                display.select_right_entity(gpa);
+                display.selectRightEntity(gpa);
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }

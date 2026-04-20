@@ -378,7 +378,11 @@ pub fn Entity(comptime T: type) type {
                     }
                     if (text.len == 0) return;
                     self.type.text_input.placeholder_text = text;
-                    if (display.generate_text_texture(self.type.text_input.placeholder_text.?, self.type.text_input.font)) |texture| {
+                    if (generateTextTexture(
+                        display.renderer,
+                        self.type.text_input.placeholder_text.?,
+                        self.type.text_input.font,
+                    )) |texture| {
                         self.type.text_input.placeholder_texture = texture;
                     }
                 },
@@ -793,7 +797,11 @@ pub fn Entity(comptime T: type) type {
                     if (new_text.len > 0) {
                         try self.type.text_input.text.appendSlice(allocator, new_text);
                         self.text_data_to_runes(allocator);
-                        if (display.generate_text_texture(self.type.text_input.text.items, self.type.text_input.font)) |texture| {
+                        if (generateTextTexture(
+                            display.renderer,
+                            self.type.text_input.text.items,
+                            self.type.text_input.font,
+                        )) |texture| {
                             self.type.text_input.cursor_pixels = T.normal.pixel_size(display.scale, texture).width;
                             self.type.text_input.texture = texture;
                             self.type.text_input.cursor_character = self.type.text_input.runes.items.len;
@@ -818,7 +826,11 @@ pub fn Entity(comptime T: type) type {
                         var data = Chunker.init(self.type.label.translated);
                         if (self.type.label.font_name) |_| {
                             while (data.next(&display.font)) |word| {
-                                if (display.generate_text_texture(word.text, self.type.label.font)) |texture| {
+                                if (generateTextTexture(
+                                    display.renderer,
+                                    word.text,
+                                    self.type.label.font,
+                                )) |texture| {
                                     try self.type.label.elements.append(allocator, .{
                                         .text = word.text,
                                         .width = @floatFromInt(texture.*.w),
@@ -829,7 +841,7 @@ pub fn Entity(comptime T: type) type {
                             }
                         } else {
                             while (data.next(&display.font)) |word| {
-                                if (display.generate_text_texture(word.text, word.font)) |texture| {
+                                if (generateTextTexture(display.renderer, word.text, word.font)) |texture| {
                                     try self.type.label.elements.append(allocator, .{
                                         .text = word.text,
                                         .width = @floatFromInt(texture.*.w),
@@ -854,7 +866,11 @@ pub fn Entity(comptime T: type) type {
                         var data = Chunker.init(self.type.checkbox.translated);
                         if (self.type.checkbox.font_name) |_| {
                             while (data.next(&display.font)) |text| {
-                                if (display.generate_text_texture(text.text, self.type.checkbox.font)) |texture| {
+                                if (generateTextTexture(
+                                    display.renderer,
+                                    text.text,
+                                    self.type.checkbox.font,
+                                )) |texture| {
                                     try self.type.checkbox.elements.append(allocator, .{
                                         .text = text.text,
                                         .width = @floatFromInt(texture.*.w),
@@ -865,7 +881,11 @@ pub fn Entity(comptime T: type) type {
                             }
                         } else {
                             while (data.next(&display.font)) |text| {
-                                if (display.generate_text_texture(text.text, text.font)) |texture| {
+                                if (generateTextTexture(
+                                    display.renderer,
+                                    text.text,
+                                    text.font,
+                                )) |texture| {
                                     try self.type.checkbox.elements.append(allocator, .{
                                         .text = text.text,
                                         .width = @floatFromInt(texture.*.w),
@@ -888,13 +908,21 @@ pub fn Entity(comptime T: type) type {
                     if (new_translated.len > 0) {
                         if (self.type.button.font_name != null) {
                             trace("use requested font '{s}' for {s}", .{ self.type.button.font_name.?, self.type.button.translated });
-                            if (display.generate_text_texture(self.type.button.translated, self.type.button.font)) |texture| {
+                            if (generateTextTexture(
+                                display.renderer,
+                                self.type.button.translated,
+                                self.type.button.font,
+                            )) |texture| {
                                 self.type.button.text_texture = texture;
                             }
                         } else {
                             const font = Chunker.guess_language(self.type.button.translated, &display.font);
                             trace("use detected font '{s}' for {s}", .{ font.name, self.type.button.translated });
-                            if (display.generate_text_texture(self.type.button.translated, font)) |texture| {
+                            if (generateTextTexture(
+                                display.renderer,
+                                self.type.button.translated,
+                                font,
+                            )) |texture| {
                                 self.type.button.text_texture = texture;
                             }
                         }
@@ -1483,7 +1511,11 @@ pub fn Entity(comptime T: type) type {
                     self.type.text_input.texture = null;
                 }
                 if (self.type.text_input.text.items.len > 0) {
-                    if (display.generate_text_texture(self.type.text_input.text.items, self.type.text_input.font)) |texture| {
+                    if (generateTextTexture(
+                        display.renderer,
+                        self.type.text_input.text.items,
+                        self.type.text_input.font,
+                    )) |texture| {
                         self.type.text_input.texture = texture;
                         // For now, the cursor position is simply the end of the text.
                         self.type.text_input.cursor_pixels = T.normal.pixel_size(display.scale, texture).width;
@@ -2223,6 +2255,44 @@ fn draw_line(
 pub inline fn tint_texture(texture: *sdl.SDL_Texture, colour: Colour) void {
     _ = sdl.SDL_SetTextureAlphaMod(texture, colour.a);
     _ = sdl.SDL_SetTextureColorMod(texture, colour.r, colour.g, colour.b);
+}
+
+/// Convert a text string into an image that is sent as a texture to
+/// the graphics card.
+pub fn generateTextTexture(
+    renderer: *sdl.SDL_Renderer,
+    text: []const u8,
+    myfont: *Font,
+) ?*sdl.SDL_Texture {
+
+    // Step 1: Create a surface (a bitmap) that holds the text.
+    //
+    // The text colour is set to white, so that it can be tinted to
+    // match the current theme.
+    const surface = sdl.TTF_RenderText_Blended(
+        myfont.font,
+        text.ptr,
+        text.len,
+        .{ .r = 255, .g = 255, .b = 255, .a = 255 },
+    ) orelse {
+        err("generate_text_texture failed. {any} Error: {s}", .{
+            text,
+            sdl.SDL_GetError(),
+        });
+        return null;
+    };
+    errdefer sdl.SDL_DestroySurface(surface);
+
+    // Step 2: Send the surface (a bitmap) to the grahpics card.
+    const texture = sdl.SDL_CreateTextureFromSurface(renderer, surface) orelse {
+        err("text input texture failed. {s}", .{sdl.SDL_GetError()});
+        return null;
+    };
+    errdefer sdl.SDL_DestroyTexture(texture);
+
+    // Step 3: The surface bitmap is no longer needed.
+    sdl.SDL_DestroySurface(surface);
+    return texture;
 }
 
 pub const Background = struct {
