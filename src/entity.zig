@@ -566,6 +566,8 @@ pub fn Entity(comptime T: type) type {
             if (self.visible == visible) return;
             self.visible = visible;
             display.need_relayout = true;
+            if (display.selected != null and display.selected == self)
+                self.deselected(display, &.{});
             try self.on_visibility.call(display.allocator, display, self);
         }
 

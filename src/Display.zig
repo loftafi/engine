@@ -1536,7 +1536,13 @@ pub fn Display(comptime T: type) type {
                         if (display.findParentOffset(selected, .{})) |offset|
                             anchor = anchor.add(offset);
                     }
-
+                    debug("ClosestLeft. window={d}x{d} anchor={d}x{d} entity={s}", .{
+                        display.root.rect.width,
+                        display.root.rect.height,
+                        anchor.x,
+                        anchor.y,
+                        if (display.selected) |s| s.name else "root",
+                    });
                     return .{
                         .anchor = anchor,
                         .distance = std.math.floatMax(f32),
@@ -1568,7 +1574,13 @@ pub fn Display(comptime T: type) type {
                         if (display.findParentOffset(selected, .{})) |offset|
                             anchor = anchor.add(offset);
                     }
-
+                    debug("ClosestRight. window={d}x{d} anchor={d}x{d} entity={s}", .{
+                        display.root.rect.width,
+                        display.root.rect.height,
+                        anchor.x,
+                        anchor.y,
+                        if (display.selected) |s| s.name else "root",
+                    });
                     return .{
                         .anchor = anchor,
                         .distance = std.math.floatMax(f32),
@@ -1600,7 +1612,13 @@ pub fn Display(comptime T: type) type {
                         if (display.findParentOffset(selected, .{})) |offset|
                             anchor = anchor.add(offset);
                     }
-
+                    debug("ClosestAbove. window={d}x{d} anchor={d}x{d} entity={s}", .{
+                        display.root.rect.width,
+                        display.root.rect.height,
+                        anchor.x,
+                        anchor.y,
+                        if (display.selected) |s| s.name else "root",
+                    });
                     return .{
                         .anchor = anchor,
                         .distance = std.math.floatMax(f32),
@@ -1632,7 +1650,13 @@ pub fn Display(comptime T: type) type {
                         if (display.findParentOffset(selected, .{})) |offset|
                             anchor = anchor.add(offset);
                     }
-
+                    debug("ClosestBelow. window={d}x{d} anchor={d}x{d} entity={s}", .{
+                        display.root.rect.width,
+                        display.root.rect.height,
+                        anchor.x,
+                        anchor.y,
+                        if (display.selected) |s| s.name else "root",
+                    });
                     return .{
                         .anchor = anchor,
                         .distance = std.math.floatMax(f32),
