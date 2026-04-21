@@ -10,11 +10,9 @@ pub fn Label(comptime T: type) type {
         line_height: f32 = 1,
         text_size: T = .normal,
 
-        on_selected: Entity(T).Callback = .empty,
-        on_mouse_down: Entity(T).Callback = .empty,
-        on_mouse_up: Entity(T).Callback = .empty,
-        on_mouse_enter: Entity(T).Callback = .empty,
-        on_mouse_exit: Entity(T).Callback = .empty,
+        // Handle User triggered events. Keyboard, Mouse, Game controller
+        on_ui_event: Entity(T).Callback = .empty,
+        on_pressed: Entity(T).Callback = .empty,
 
         pub fn setup(
             label: *Self,
@@ -30,11 +28,9 @@ pub fn Label(comptime T: type) type {
                 label.font = try select_font(display.fonts.items, name);
 
             if (entity.focus == .unspecified) {
-                if (entity.type.label.on_mouse_down.func != null)
+                if (entity.type.label.on_ui_event.func != null)
                     entity.focus = .can_focus
-                else if (entity.type.label.on_mouse_up.func != null)
-                    entity.focus = .can_focus
-                else if (entity.type.label.on_selected.func != null)
+                else if (entity.type.label.on_pressed.func != null)
                     entity.focus = .can_focus
                 else
                     entity.focus = .accessibility_focus;
@@ -48,13 +44,11 @@ pub fn Label(comptime T: type) type {
             }
         }
 
-        /// Return true if this button can be interacted with.
-        pub inline fn clickable(label: *Self) bool {
-            return label.on_mouse_up.func != null or
-                label.on_mouse_down.func != null or
-                label.on_mouse_enter.func != null or
-                label.on_mouse_exit.func != null or
-                label.on_selected.func != null;
+        /// A label is considered clickable if it has a user driven event
+        /// handler, or if it has text and  we are in blind accessibility mode.
+        pub inline fn clickable(label: *const Self) bool {
+            // TODO: should accessibility check be pulled in here
+            return label.on_ui_event.func != null or label.on_pressed.func != null;
         }
 
         /// Calculate the layout of all elements, and optionally render every entity.

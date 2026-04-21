@@ -2,9 +2,17 @@
 pub fn Sprite(comptime T: type) type {
     return struct {
         pub const Self = @This();
-        on_click: Entity(T).Callback = .empty,
         update: Entity(T).UpdateCallback = .empty,
         scale: Fit = .stretch,
+
+        // Handle User triggered events. Keyboard, Mouse, Game controller
+        on_ui_event: Entity(T).Callback = .empty,
+        on_pressed: Entity(T).Callback = .empty,
+
+        /// A sprite is clickable if it has a user driven event handler.
+        pub inline fn clickable(self: *const Self) bool {
+            return self.on_ui_event.func != null or self.on_pressed.func != null;
+        }
 
         /// Draw the foreground image `texture` of the sprite loaded from the
         /// `texture_name` string. Does not draw the `background.image` texture.

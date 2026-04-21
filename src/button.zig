@@ -27,11 +27,9 @@ pub fn Button(comptime T: type) type {
         background_disabled_name: ?[]const u8 = null,
         toggle: ToggleState = .no_toggle,
 
-        on_selected: Entity(T).Callback = .empty,
-        on_mouse_down: Entity(T).Callback = .empty,
-        on_mouse_up: Entity(T).Callback = .empty,
-        on_mouse_enter: Entity(T).Callback = .empty,
-        on_mouse_exit: Entity(T).Callback = .empty,
+        // Handle User triggered events. Keyboard, Mouse, Game controller
+        on_ui_event: Entity(T).Callback = .empty,
+        on_pressed: Entity(T).Callback = .empty,
 
         /// Draw a button with its text and/or icon. Mouse hover, mouse click
         /// and the disabled status may change the picture or icon
@@ -151,6 +149,8 @@ pub fn Button(comptime T: type) type {
         pub inline fn clickable(
             button: *const Self,
         ) bool {
+            // Consider a button clickable even if there is no event
+            // handler for the button.
             return button.toggle == .no_toggle or
                 button.toggle == .on or
                 button.toggle == .off or

@@ -64,7 +64,7 @@ pub fn Animator(comptime T: type) type {
 
         target: *Entity(T),
 
-        on_end: Entity(T).Callback = .{ .func = null },
+        on_end: Entity(T).StateCallback = .{ .func = null },
 
         internal: struct {
             /// An animator is not initially setup. It becomes setup when the

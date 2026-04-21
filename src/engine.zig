@@ -432,6 +432,7 @@ pub const Font = @import("Font.zig");
 pub const Display = @import("Display.zig").Display;
 pub const Texture = @import("Texture.zig");
 pub const Audio = @import("Audio.zig");
+pub const Event = @import("Event.zig");
 pub const seconds = @import("animator.zig").seconds;
 
 const praxis = @import("praxis");

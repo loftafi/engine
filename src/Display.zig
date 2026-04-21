@@ -592,6 +592,7 @@ pub fn Display(comptime T: type) type {
             self: *Self,
             gpa: Allocator,
             name: []const u8,
+            event: *const Event,
         ) Allocator.Error!void {
             const old_panel = self.currentPanel();
 
@@ -627,7 +628,7 @@ pub fn Display(comptime T: type) type {
                 found = true;
             }
             if (self.selected) |selected| {
-                selected.deselected(self);
+                selected.deselected(self, event);
             }
             self.update_screen_metrics(true);
             if (!found and name.len > 0) {
@@ -1292,17 +1293,23 @@ pub fn Display(comptime T: type) type {
         /// top/left most enity visually drawn on the screen.
         pub fn selectFirstEntity(
             self: *Self,
-            entities: []*Entity(T),
             gpa: Allocator,
+            entities: []*Entity(T),
+            event: *const Event,
         ) bool {
             for (entities) |item| {
                 if (item.visible != .visible) continue;
 
                 if (item.type == .panel) {
-                    if (self.selectFirstEntity(item.type.panel.children.items, gpa))
+                    if (self.selectFirstEntity(
+                        gpa,
+                        item.type.panel.children.items,
+                        event,
+                    ))
                         return true;
 
-                    if (item.type.panel.on_click.func == null)
+                    if (item.type.panel.on_ui_event.func == null and
+                        item.type.panel.on_pressed.func == null)
                         continue;
                 }
                 if (item.focus == .never_focus or item.focus == .unspecified)
@@ -1311,7 +1318,7 @@ pub fn Display(comptime T: type) type {
                 if (item.focus == .accessibility_focus and self.accessibility == false)
                     continue;
 
-                item.selected(self, gpa);
+                item.selected(gpa, self, event);
                 return true;
             }
             return false;
@@ -1328,7 +1335,11 @@ pub fn Display(comptime T: type) type {
         /// to the next selectable entity in the entity tree.
         /// Note that next selectable entity in the entity tree might not be
         /// not the entity visually located to the right of the current entity.
-        pub fn selectNextEntity(self: *Self, gpa: Allocator) void {
+        pub fn selectNextEntity(
+            self: *Self,
+            gpa: Allocator,
+            event: *const Event,
+        ) void {
             trace("selectNextEntity() find next entity", .{});
             var state = SelectState.no_selectable_items;
             var previous: ?*Entity(T) = null;
@@ -1338,11 +1349,15 @@ pub fn Display(comptime T: type) type {
                 &previous,
             );
             if (item) |found| {
-                found.selected(self, gpa);
+                found.selected(gpa, self, event);
                 return;
             }
             if (state == .has_selectable_item or state == .found_currently_selected_item) {
-                _ = self.selectFirstEntity(self.root.type.panel.children.items, gpa);
+                _ = self.selectFirstEntity(
+                    gpa,
+                    self.root.type.panel.children.items,
+                    event,
+                );
             } else {
                 debug("selectNextEntity() no entity found. {s}", .{@tagName(state)});
             }
@@ -1352,17 +1367,25 @@ pub fn Display(comptime T: type) type {
         /// tree. Note that the previously selectable entity might not
         /// correspond to the entity visually located to the left of the
         /// current entity.
-        pub fn selectPreviousEntity(self: *Self, gpa: Allocator) void {
+        pub fn selectPreviousEntity(
+            self: *Self,
+            gpa: Allocator,
+            event: *const Event,
+        ) void {
             trace("selectPreviousEntity() find previous entity", .{});
             var state = SelectState.no_selectable_items;
             var previous: ?*Entity(T) = null;
             _ = self.do_selectNextEntity(self.root.type.panel.children.items, &state, &previous);
             if (previous) |found| {
-                found.selected(self, gpa);
+                found.selected(gpa, self, event);
                 return;
             }
             if (state == .has_selectable_item or state == .found_currently_selected_item) {
-                _ = self.selectFirstEntity(self.root.type.panel.children.items, gpa);
+                _ = self.selectFirstEntity(
+                    gpa,
+                    self.root.type.panel.children.items,
+                    event,
+                );
             } else {
                 debug("selectNextEntity() no entity found. {s}", .{@tagName(state)});
             }
@@ -1389,8 +1412,7 @@ pub fn Display(comptime T: type) type {
                     if (self.do_selectNextEntity(item.type.panel.children.items, state, previous)) |found| {
                         return found;
                     }
-                    if (item.type.panel.on_click.func == null)
-                        continue;
+                    if (!item.type.panel.clickable()) continue;
                 }
                 if (item.focus == .never_focus or item.focus == .unspecified)
                     continue;
@@ -1427,35 +1449,51 @@ pub fn Display(comptime T: type) type {
         }
 
         /// Find the closest entity that is to the left of this entity.
-        pub fn selectLeftEntity(self: *Self, gpa: Allocator) void {
+        pub fn selectLeftEntity(
+            self: *Self,
+            gpa: Allocator,
+            event: *const Event,
+        ) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestLeft.init(self);
             walker.walk(&self.root, self, &chooser, .{});
-            if (walker.chosen) |entity| entity.selected(self, gpa);
+            if (walker.chosen) |entity| entity.selected(gpa, self, event);
         }
 
         /// Find the closest entity that is to the right of this entity.
-        pub fn selectRightEntity(self: *Self, gpa: Allocator) void {
+        pub fn selectRightEntity(
+            self: *Self,
+            gpa: Allocator,
+            event: *const Event,
+        ) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestRight.init(self);
             walker.walk(&self.root, self, &chooser, .{});
-            if (walker.chosen) |entity| entity.selected(self, gpa);
+            if (walker.chosen) |entity| entity.selected(gpa, self, event);
         }
 
         /// Find the closest entity that is above this entity.
-        pub fn selectAboveEntity(self: *Self, gpa: Allocator) void {
+        pub fn selectAboveEntity(
+            self: *Self,
+            gpa: Allocator,
+            event: *const Event,
+        ) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestAbove.init(self);
             walker.walk(&self.root, self, &chooser, .{});
-            if (walker.chosen) |entity| entity.selected(self, gpa);
+            if (walker.chosen) |entity| entity.selected(gpa, self, event);
         }
 
         /// Find the closest entity that is below this entity.
-        pub fn selectBelowEntity(self: *Self, gpa: Allocator) void {
+        pub fn selectBelowEntity(
+            self: *Self,
+            gpa: Allocator,
+            event: *const Event,
+        ) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestBelow.init(self);
             walker.walk(&self.root, self, &chooser, .{});
-            if (walker.chosen) |entity| entity.selected(self, gpa);
+            if (walker.chosen) |entity| entity.selected(gpa, self, event);
         }
 
         /// Calls `checker.check()` on every entity to find a preferred
@@ -1671,7 +1709,7 @@ pub fn Display(comptime T: type) type {
                     if (item.type != .panel) return item;
 
                     if (is_under_cursor) {
-                        if (item.type.panel.on_click.func != null)
+                        if (item.type.panel.clickable())
                             return item;
 
                         if (item.type.panel.scrollable.scroll.x == true or item.type.panel.scrollable.scroll.y == true)
@@ -1682,19 +1720,19 @@ pub fn Display(comptime T: type) type {
                 if (query == .clickable or query == .clickable_or_scrollable) {
                     if (item.focus != .never_focus) switch (item.type) {
                         .text_input, .checkbox => return item,
-                        .button => if (item.type.button.clickable()) {
+                        .button => |b| if (b.clickable()) {
                             if (query == .clickable) return item;
                             if (top_entity != null) top_entity = item;
                         },
-                        .label => if (item.type.label.clickable()) {
+                        .label => |l| if (l.clickable()) {
                             if (query == .clickable) return item;
                             if (top_entity != null) top_entity = item;
                         },
-                        .sprite => if (item.type.sprite.on_click.func != null) {
+                        .sprite => |s| if (s.clickable()) {
                             if (query == .clickable) return item;
                             if (top_entity != null) top_entity = item;
                         },
-                        .panel => |p| if (is_under_cursor and p.on_click.func != null) {
+                        .panel => |p| if (is_under_cursor and p.clickable()) {
                             if (query == .clickable) return item;
                             if (top_entity != null) top_entity = item;
                         },
@@ -1775,30 +1813,30 @@ pub fn Display(comptime T: type) type {
             trace("handle_key_up_event({any})", .{e.key.key});
             if (e.key.key == sdl.SDLK_TAB) {
                 if (e.key.mod == sdl.SDL_KMOD_SHIFT or e.key.mod == sdl.SDL_KMOD_LSHIFT or e.key.mod == sdl.SDL_KMOD_RSHIFT) {
-                    display.selectPreviousEntity(gpa);
+                    display.selectPreviousEntity(gpa, &.{ .type = .key_up });
                 } else {
-                    display.selectNextEntity(gpa);
+                    display.selectNextEntity(gpa, &.{ .type = .key_up });
                 }
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_UP) {
-                display.selectAboveEntity(gpa);
+                display.selectAboveEntity(gpa, &.{ .type = .key_up });
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_LEFT) {
-                display.selectLeftEntity(gpa);
+                display.selectLeftEntity(gpa, &.{ .type = .key_up });
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_DOWN) {
-                display.selectBelowEntity(gpa);
+                display.selectBelowEntity(gpa, &.{ .type = .key_up });
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_RIGHT) {
-                display.selectRightEntity(gpa);
+                display.selectRightEntity(gpa, &.{ .type = .key_up });
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
@@ -1812,7 +1850,7 @@ pub fn Display(comptime T: type) type {
                             e.key.key == sdl.SDLK_KP_SPACE or
                             e.key.key == sdl.SDLK_SPACE)
                         {
-                            try selected.chosen(display, gpa);
+                            try selected.chosen(gpa, display, &.{ .type = .key_up });
                             return; // keypress handled
                         }
                     },
@@ -1823,7 +1861,7 @@ pub fn Display(comptime T: type) type {
                             e.key.key == sdl.SDLK_KP_SPACE or
                             e.key.key == sdl.SDLK_SPACE)
                         {
-                            try selected.chosen(display, gpa);
+                            try selected.chosen(gpa, display, &.{ .type = .key_up });
                             return; // keypress handled
                         }
                     },
@@ -1834,7 +1872,7 @@ pub fn Display(comptime T: type) type {
                             e.key.key == sdl.SDLK_KP_SPACE or
                             e.key.key == sdl.SDLK_SPACE)
                         {
-                            try selected.chosen(display, gpa);
+                            try selected.chosen(gpa, display, &.{ .type = .key_up });
                             return; // keypress handled
                         }
                     },
@@ -1845,7 +1883,7 @@ pub fn Display(comptime T: type) type {
                             e.key.key == sdl.SDLK_KP_SPACE or
                             e.key.key == sdl.SDLK_SPACE)
                         {
-                            try selected.chosen(display, gpa);
+                            try selected.chosen(gpa, display, &.{ .type = .key_up });
                             return; // keypress handled
                         }
                     },
@@ -1856,7 +1894,7 @@ pub fn Display(comptime T: type) type {
                             e.key.key == sdl.SDLK_KP_SPACE or
                             e.key.key == sdl.SDLK_SPACE)
                         {
-                            try selected.chosen(display, gpa);
+                            try selected.chosen(gpa, display, &.{ .type = .key_up });
                             return; // keypress handled
                         }
                     },
@@ -1865,21 +1903,20 @@ pub fn Display(comptime T: type) type {
                             sdl.SDLK_BACKSPACE,
                             sdl.SDLK_DELETE,
                             sdl.SDLK_KP_BACKSPACE,
-                            => try selected.keypress(gpa, display, sdl.SDLK_BACKSPACE, ""),
+                            => try selected.keypress(gpa, display, sdl.SDLK_BACKSPACE, "", &.{ .type = .key_up }),
                             sdl.SDLK_RETURN,
                             sdl.SDLK_KP_ENTER,
                             sdl.SDLK_RETURN2,
                             => {
                                 switch (selected.type) {
-                                    .text_input => try selected.keypress(gpa, display, 10, ""),
-                                    .button => |b| try b.on_selected.call(gpa, display, selected),
-                                    .label => |l| try l.on_selected.call(gpa, display, selected),
+                                    .text_input => try selected.keypress(gpa, display, 10, "", &.{ .type = .key_up }),
+                                    .button => |b| try b.on_pressed.call(gpa, display, selected, &.{ .type = .key_up }),
+                                    .label => |l| try l.on_pressed.call(gpa, display, selected, &.{ .type = .key_up }),
                                     else => {},
                                 }
                             },
                             sdl.SDLK_ESCAPE => if (display.keybindings.get(sdl.SDLK_ESCAPE)) |f| {
-                                try f.call(gpa, display, &display.root);
-                                // s.deselected(display);
+                                try f.call(gpa, display, &display.root, &.{ .type = .key_up });
                             },
                             else => {},
                         }
@@ -1897,7 +1934,7 @@ pub fn Display(comptime T: type) type {
             while (i.next()) |k| {
                 if (k.key_ptr.* == e.key.key) {
                     trace("keypress has special handler: {d}", .{e.key.key});
-                    k.value_ptr.*.call(gpa, display, &display.root) catch |f| {
+                    k.value_ptr.*.call(gpa, display, &display.root, &.{ .type = .key_up }) catch |f| {
                         trace("keypress handler error: {d} {any}", .{ e.key.key, f });
                     };
                     trace("keypress special handler complete: {d}", .{e.key.key});
@@ -2096,23 +2133,23 @@ pub fn Display(comptime T: type) type {
                 .{},
                 .clickable,
             )) |found| {
-                found.selected(display, gpa);
+                found.selected(gpa, display, &.{ .type = .mouse_up });
                 display.hovered = found;
                 switch (found.type) {
                     .panel => {
-                        if (found.type.panel.on_click.func != null) {
-                            try found.type.panel.on_click.call(gpa, display, found);
+                        if (found.type.panel.on_pressed.func != null) {
+                            try found.type.panel.on_pressed.call(gpa, display, found, &.{ .type = .mouse_up });
                         } else if (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y) {
                             display.scrolling = found;
                             display.scroll_start = cursor;
                             trace("begin scrolling {s} at {any}", .{ found.name, cursor });
                         }
                     },
-                    .button => try found.chosen(display, gpa),
-                    .label => try found.chosen(display, gpa),
-                    .sprite => try found.chosen(display, gpa),
-                    .checkbox => try found.chosen(display, gpa),
-                    .text_input => found.selected(display, gpa),
+                    .button => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
+                    .label => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
+                    .sprite => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
+                    .checkbox => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
+                    .text_input => found.selected(gpa, display, &.{ .type = .mouse_up }),
                     .rectangle, .progress_bar, .expander => {
                         // Not clickable
                     },
@@ -2155,15 +2192,17 @@ pub fn Display(comptime T: type) type {
                             trace("begin scrolling {s} at {any}", .{ found.name, cursor });
                         }
                     },
-                    .label => try found.type.label.on_mouse_down.call(
+                    .label => try found.type.label.on_ui_event.call(
                         gpa,
                         display,
                         found,
+                        &.{ .type = .mouse_down },
                     ),
-                    .button => try found.type.button.on_mouse_down.call(
+                    .button => try found.type.button.on_ui_event.call(
                         gpa,
                         display,
                         found,
+                        &.{ .type = .mouse_down },
                     ),
                     else => {},
                 }
@@ -2261,15 +2300,17 @@ pub fn Display(comptime T: type) type {
                 if (found != display.hovered) {
                     trace("end hover: {s} {s}", .{ @tagName(old_item.type), old_item.name });
                     switch (old_item.type) {
-                        .label => |l| try l.on_mouse_exit.call(
+                        .label => |l| try l.on_ui_event.call(
                             display.allocator,
                             display,
                             old_item,
+                            &.{ .type = .mouse_exit },
                         ),
-                        .button => |b| try b.on_mouse_exit.call(
+                        .button => |b| try b.on_ui_event.call(
                             display.allocator,
                             display,
                             old_item,
+                            &.{ .type = .mouse_exit },
                         ),
                         else => {},
                     }
@@ -2294,15 +2335,17 @@ pub fn Display(comptime T: type) type {
                         found.?.maximum.height,
                     });
                     switch (found.?.type) {
-                        .label => |l| try l.on_mouse_enter.call(
+                        .label => |l| try l.on_ui_event.call(
                             display.allocator,
                             display,
                             found.?,
+                            &.{ .type = .mouse_enter },
                         ),
-                        .button => |b| try b.on_mouse_enter.call(
+                        .button => |b| try b.on_ui_event.call(
                             display.allocator,
                             display,
                             found.?,
+                            &.{ .type = .mouse_enter },
                         ),
                         .panel => |p| if (engine.dev_build and engine.dev_mode) {
                             trace("on_mouse_enter({s} {s}) scrollable.size={d}x{d} rect={d}x{d}", .{
@@ -2341,6 +2384,7 @@ pub fn Display(comptime T: type) type {
                                 display,
                                 nextUnicodeChar(e.text.text),
                                 nextUnicodeSlice(e.text.text),
+                                &.{ .type = .key_up },
                             );
                         } else {
                             err("sdl text input event on non text_input entity.", .{});
@@ -2504,7 +2548,7 @@ pub fn Display(comptime T: type) type {
                         .icon_hover_name = "icon-back",
                         .text = "",
                         .translated = "",
-                        .on_selected = close_fn,
+                        .on_pressed = close_fn,
                         .icon_size = .{ .width = 70, .height = 70 },
                     } },
                     .on_resized = .{ .func = @ptrCast(&back_button_resize), .ptr = display },
@@ -3086,6 +3130,8 @@ const TextSize = @import("text_size.zig").TextSize;
 
 const random = praxis.random;
 const seed = random.seed;
+
+const Event = @import("Event.zig");
 
 const ent = @import("entity.zig");
 const Entity = ent.Entity;

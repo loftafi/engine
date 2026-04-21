@@ -4,13 +4,22 @@ pub fn Panel(comptime T: type) type {
         children: ArrayListUnmanaged(*Entity(T)) = .empty,
         direction: LayoutDirection = .centre,
         spacing: f32 = 0,
-        on_click: Entity(T).Callback = .empty,
         update: Entity(T).UpdateCallback = .empty,
         scrollable: Scroller = .{
             .scroll = .{ .x = false, .y = false },
             .size = .{ .width = 0, .height = 0 },
         },
         overflow: Vector = .{ .x = 0, .y = 0 },
+
+        // Handle User triggered events. Keyboard, Mouse, Game controller
+        on_ui_event: Entity(T).Callback = .empty,
+        on_pressed: Entity(T).Callback = .empty,
+
+        /// Return true if this panel can be interacted with through user
+        /// driven event handlers..
+        pub inline fn clickable(self: *const Self) bool {
+            return self.on_ui_event.func != null or self.on_pressed.func != null;
+        }
 
         /// Draw the contents of a panel.
         pub inline fn draw(

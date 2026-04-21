@@ -84,7 +84,7 @@ pub fn Entity(comptime T: type) type {
         border_width: f32 = 0,
 
         on_resized: Self.BoolCallback = .empty,
-        on_visibility: Self.Callback = .empty,
+        on_visibility: Self.StateCallback = .empty,
 
         type: union(Type) {
             button: Button(T),
@@ -494,16 +494,10 @@ pub fn Entity(comptime T: type) type {
                         _ = try out.write(font);
                     }
                 }
-                if (self.type.label.on_selected.func != null)
-                    _ = try out.write(" on_selected");
-                if (self.type.label.on_mouse_up.func != null)
-                    _ = try out.write(" on_mouse_up");
-                if (self.type.label.on_mouse_down.func != null)
-                    _ = try out.write(" on_mouse_down");
-                if (self.type.label.on_mouse_enter.func != null)
-                    _ = try out.write(" on_mouse_enter");
-                if (self.type.label.on_mouse_exit.func != null)
-                    _ = try out.write(" on_mouse_exit");
+                if (self.type.label.on_ui_event.func != null)
+                    _ = try out.write(" on_ui_event");
+                if (self.type.label.on_pressed.func != null)
+                    _ = try out.write(" on_pressed");
             } else if (self.type == .button) {
                 if (self.type.button.text.len > 0) {
                     _ = try out.write(" text=");
@@ -526,16 +520,10 @@ pub fn Entity(comptime T: type) type {
                     }
                 }
 
-                if (self.type.button.on_selected.func != null)
-                    _ = try out.write(" on_selected");
-                if (self.type.button.on_mouse_up.func != null)
-                    _ = try out.write(" on_mouse_up");
-                if (self.type.button.on_mouse_down.func != null)
-                    _ = try out.write(" on_mouse_down");
-                if (self.type.button.on_mouse_enter.func != null)
-                    _ = try out.write(" on_mouse_enter");
-                if (self.type.button.on_mouse_exit.func != null)
-                    _ = try out.write(" on_mouse_exit");
+                if (self.type.button.on_ui_event.func != null)
+                    _ = try out.write(" on_ui_event");
+                if (self.type.button.on_pressed.func != null)
+                    _ = try out.write(" on_pressed");
             } else if (self.type == .checkbox) {
                 if (self.type.checkbox.text.len > 0) {
                     _ = try out.write(" text=");
@@ -1470,15 +1458,16 @@ pub fn Entity(comptime T: type) type {
             display: *Display(T),
             key: u21,
             slice: []const u8,
+            event: *const Event,
         ) Allocator.Error!void {
             if (self.type == .text_input) {
                 // Update the text line
-                trace("pressed {d} {s}", .{ key, slice });
+                trace("pressed {d} {s} {t}", .{ key, slice, event.type });
                 switch (key) {
                     13, 10 => {
                         _ = sdl.SDL_StopTextInput(display.window);
                         if (self.type.text_input.on_submit.func != null) {
-                            try self.type.text_input.on_submit.call(allocator, display, self);
+                            try self.type.text_input.on_submit.call(allocator, display, self, event);
                         }
                         return;
                     },
@@ -1527,7 +1516,7 @@ pub fn Entity(comptime T: type) type {
                 // Optionally, a text_input may have an `on_change` callback function.
                 if (self.type.text_input.on_change.func != null) {
                     trace("text_input calling on_change", .{});
-                    try self.type.text_input.on_change.call(allocator, display, self);
+                    try self.type.text_input.on_change.call(allocator, display, self, event);
                     trace("text_input called on_change", .{});
                 }
             }
@@ -1537,8 +1526,9 @@ pub fn Entity(comptime T: type) type {
         /// the mouse or the keyboard.
         pub fn chosen(
             self: *Self,
-            display: *Display(T),
             gpa: Allocator,
+            display: *Display(T),
+            event: *const Event,
         ) Allocator.Error!void {
             debug("chosen entity {s}", .{self.name});
             switch (self.type) {
@@ -1554,29 +1544,30 @@ pub fn Entity(comptime T: type) type {
                         },
                         .no_toggle, .correct, .incorrect, .locked_off, .disabled => {},
                     }
-                    try self.type.button.on_mouse_up.call(gpa, display, self);
-                    try self.type.button.on_selected.call(gpa, display, self);
+                    try self.type.button.on_pressed.call(gpa, display, self, event);
                 },
-                .panel => try self.type.panel.on_click.call(gpa, display, self),
-                .label => {
-                    try self.type.label.on_mouse_up.call(gpa, display, self);
-                    try self.type.label.on_selected.call(gpa, display, self);
-                },
-                .sprite => try self.type.sprite.on_click.call(gpa, display, self),
+                .panel => try self.type.panel.on_pressed.call(gpa, display, self, event),
+                .label => try self.type.label.on_pressed.call(gpa, display, self, event),
+                .sprite => try self.type.sprite.on_pressed.call(gpa, display, self, event),
                 .checkbox => {
                     self.type.checkbox.checked = !self.type.checkbox.checked;
-                    try self.type.checkbox.on_change.call(gpa, display, self);
+                    try self.type.checkbox.on_change.call(gpa, display, self, event);
                 },
                 .progress_bar, .text_input, .rectangle, .expander => {},
             }
         }
 
         /// Handle when a user clicks into or tabs into this entity.
-        pub fn selected(self: *Self, display: *Display(T), _: Allocator) void {
+        pub fn selected(
+            self: *Self,
+            _: Allocator,
+            display: *Display(T),
+            event: *const Event,
+        ) void {
             if (self.focus == .never_focus or self.focus == .unspecified) return;
 
             if (display.selected != null and self != display.selected)
-                display.selected.?.deselected(display);
+                display.selected.?.deselected(display, event);
 
             display.selected = self;
 
@@ -1593,22 +1584,15 @@ pub fn Entity(comptime T: type) type {
             if (self.focus == .never_focus or self.focus == .unspecified) return false;
 
             switch (self.type) {
-                .panel => {
-                    if (self.type.panel.on_click.func != null) return true;
-                },
-                .label => {
-                    if (self.type.label.on_selected.func != null) return true;
+                .panel => |p| if (p.clickable()) return true,
+                .button => |b| if (b.clickable()) return true,
+                .sprite => |s| if (s.clickable()) return true,
+                .label => |l| {
+                    if (l.clickable()) return true;
                     if (display.accessibility == false) return false;
-
                     if (self.focus == .accessibility_focus) {
                         if (self.type == .label and self.type.label.translated.len > 0) return true;
                     }
-                },
-                .button => {
-                    if (self.type.button.on_selected.func != null) return true;
-                },
-                .sprite => {
-                    if (self.type.sprite.on_click.func != null) return true;
                 },
                 .text_input => return true,
                 .checkbox => return true,
@@ -1655,13 +1639,13 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// Handle when a user clicks or tabs out of this entity.
-        pub fn deselected(self: *Self, display: *Display(T)) void {
+        pub fn deselected(self: *Self, display: *Display(T), event: *const Event) void {
             trace("deselected {s} {s}", .{ @tagName(self.type), self.name });
 
             if (self.type == .text_input) {
                 _ = sdl.SDL_StopTextInput(display.window);
             }
-            display.keyboard_activity = false;
+            display.keyboard_activity = event.isKeyboardEvent();
             display.selected = null;
         }
 
@@ -1775,7 +1759,7 @@ pub fn Entity(comptime T: type) type {
             entity.background.image = null;
 
             if (entity.focus == .unspecified) {
-                if (entity.type.panel.on_click.func != null) {
+                if (entity.type.panel.clickable()) {
                     entity.focus = .can_focus;
                 } else {
                     entity.focus = .never_focus;
@@ -2079,6 +2063,33 @@ pub fn Entity(comptime T: type) type {
         }
 
         pub const Callback = struct {
+            func: ?*const fn (
+                ptr: *anyopaque,
+                allocator: Allocator,
+                display: *Display(T),
+                entity: *Self,
+                event: *const Event,
+            ) Allocator.Error!void = null,
+            ptr: *anyopaque = undefined,
+
+            pub const empty: @This() = .{
+                .func = null,
+                .ptr = undefined,
+            };
+
+            /// Trigger the callback if the `func` is specified (not null)
+            pub fn call(
+                self: @This(),
+                allocator: Allocator,
+                display: *Display(T),
+                entity: *Self,
+                event: *const Event,
+            ) Allocator.Error!void {
+                if (self.func) |f| return f(self.ptr, allocator, display, entity, event);
+            }
+        };
+
+        pub const StateCallback = struct {
             func: ?*const fn (
                 ptr: *anyopaque,
                 allocator: Allocator,
@@ -2671,6 +2682,7 @@ const Texture = @import("Texture.zig");
 const Colour = @import("Colour.zig");
 const Theme = @import("Theme.zig");
 const BoxLayout = @import("BoxLayout.zig");
+const Event = @import("Event.zig");
 
 pub const TextSize = @import("text_size.zig").TextSize;
 
