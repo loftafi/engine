@@ -458,7 +458,11 @@ pub fn savePreferenceData(
         }
         return error.ResourceWriteError;
     };
-    info("Saved preferences data. Moved contents from={s} to={s}", .{ temp_filename, filename });
+    info("Saved preferences data. Moved contents from={s} to={s} {s}", .{
+        temp_filename,
+        zpath,
+        filename,
+    });
 }
 
 // Fill an array with random alphanumeric characters, A-Z, a-z, 0-9.

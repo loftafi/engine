@@ -1297,7 +1297,7 @@ pub fn Display(comptime T: type) type {
             parent: *Entity(T),
             target: *Entity(T),
         ) ?bool {
-            debug("checking if {s} is visible in {s}", .{ target.name, parent.name });
+            trace("checking if {s} is visible in {s}", .{ target.name, parent.name });
             for (parent.type.panel.children.items) |child| {
                 if (child == target) return child.visible == .visible;
                 if (child.visible != .visible) continue;
