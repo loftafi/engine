@@ -566,8 +566,26 @@ pub fn Entity(comptime T: type) type {
             if (self.visible == visible) return;
             self.visible = visible;
             display.need_relayout = true;
-            if (display.selected != null and display.selected == self)
-                self.deselected(display, &.{});
+
+            if (visible != .visible) {
+                if (display.selected) |s| {
+                    if (s == self)
+                        s.deselected(display, &.{})
+                    else if (Display(T).isVisibleInTree(&display.root, s)) |is_visible| {
+                        if (is_visible) {
+                            // Is visible, so stay selected
+                        } else {
+                            // Currently selected item was found, but
+                            // it is not visible.
+                            self.deselected(display, &.{});
+                        }
+                    } else {
+                        // Currently selected item was not found while
+                        // crawling visible tree.
+                        self.deselected(display, &.{});
+                    }
+                }
+            }
             try self.on_visibility.call(display.allocator, display, self);
         }
 
@@ -1574,6 +1592,7 @@ pub fn Entity(comptime T: type) type {
             display.selected = self;
 
             debug("selected {s} {s}", .{ @tagName(self.type), self.name });
+            display.keyboard_activity = event.isKeyboardEvent();
             self.describeContent(&display.translation);
 
             // Enter editing mode if we just selected a text entity

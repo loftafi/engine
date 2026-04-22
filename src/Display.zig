@@ -1288,6 +1288,23 @@ pub fn Display(comptime T: type) type {
             return null;
         }
 
+        /// Return true if visible, return false if not visible, or null
+        /// if entity not found inside _visible_ tree.
+        pub fn isVisibleInTree(
+            parent: *Entity(T),
+            target: *Entity(T),
+        ) ?bool {
+            debug("checking if {s} is visible in {s}", .{ target.name, parent.name });
+            for (parent.type.panel.children.items) |child| {
+                if (child == target) return child.visible == .visible;
+                if (child.visible != .visible) continue;
+                if (child.type == .panel)
+                    if (isVisibleInTree(child, target)) |value|
+                        return value;
+            }
+            return null;
+        }
+
         /// Move the cursor to the first selectable entity in the Entity tree.
         /// Note that the first selectable entity in the tree might not be the
         /// top/left most enity visually drawn on the screen.
