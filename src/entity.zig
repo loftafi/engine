@@ -422,9 +422,11 @@ pub fn Entity(comptime T: type) type {
                 _ = try out.write(" name=");
                 _ = try out.write(self.name);
             }
-            if (self.aria_label != null and self.aria_label.len > 0) {
-                _ = try out.write(" aria=");
-                _ = try out.write(self.aria_label.?);
+            if (self.aria_label) |aria_label| {
+                if (aria_label.len > 0) {
+                    _ = try out.write(" aria=");
+                    _ = try out.write(aria_label);
+                }
             }
             if (self.texture_name) |name| {
                 _ = try out.write(" texture=");
