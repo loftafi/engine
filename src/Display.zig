@@ -94,6 +94,9 @@ pub fn Display(comptime T: type) type {
         /// One user interface entity may be marked as selected to recieve
         /// keyboard input
         selected: ?*Entity(T) = null,
+
+        /// If the user at some point navigates using a keyboard or
+        /// controller, `keyboard_activity` is set to `true`
         keyboard_activity: bool = false,
         draw_cursor: ?*const fn (
             renderer: *sdl.SDL_Renderer,

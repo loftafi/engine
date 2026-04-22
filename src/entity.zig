@@ -422,6 +422,10 @@ pub fn Entity(comptime T: type) type {
                 _ = try out.write(" name=");
                 _ = try out.write(self.name);
             }
+            if (self.aria_label != null and self.aria_label.len > 0) {
+                _ = try out.write(" aria=");
+                _ = try out.write(self.aria_label.?);
+            }
             if (self.texture_name) |name| {
                 _ = try out.write(" texture=");
                 _ = try out.write(name);
@@ -1278,8 +1282,11 @@ pub fn Entity(comptime T: type) type {
                 );
             }
 
-            // Any entity can have a selection underline
+            // If an item has been selected by a keyboard or controller,
+            // draw a cursor over the selected item.
             if (display.selected != null and display.selected == entity) {
+                // Don't draw cursor line/mark if no keyboard activity
+                // has been detected.
                 if (!display.keyboard_activity) return;
                 if (display.draw_cursor) |f|
                     f(
@@ -1592,8 +1599,13 @@ pub fn Entity(comptime T: type) type {
             display.selected = self;
 
             debug("selected {s} {s}", .{ @tagName(self.type), self.name });
+            // When an item is selected, refresh the kebyoard_activity to
+            // indicate if the user is currently navigating with a keyboard
+            // or button based controller. Stop drawing the cursor when the
+            // use switches back to mouse.
             display.keyboard_activity = event.isKeyboardEvent();
-            self.describeContent(&display.translation);
+
+            self.describeCurrentEntity(&display.translation);
 
             // Enter editing mode if we just selected a text entity
             if (self.type == .text_input)
@@ -1624,7 +1636,7 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// Describe content for a screen reader
-        fn describeContent(self: *Self, translation: *Translation) void {
+        fn describeCurrentEntity(self: *Self, translation: *Translation) void {
             const type_name = translation.translate(@tagName(self.type));
             switch (self.type) {
                 .label => {
