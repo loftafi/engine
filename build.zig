@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
 
     const resources = b.dependency("resources", .{ .target = target, .optimize = optimize });
     const resources_module = resources.module("resources");
-    add_libs(b, &target, resources_module);
+    addSystemPathsToModule(b, &target, resources_module);
 
     const praxis = resources.builder.dependency("praxis", .{ .target = target, .optimize = optimize });
     const praxis_module = praxis.module("praxis");
@@ -87,8 +87,8 @@ fn define_mixer_module(
     });
     headers2.addIncludePath(sdl_dep.path("include"));
     const sdl_mix_mod = headers2.addModule("mixer");
-    add_libs(b, target, sdl_mix_mod);
-    add_translatec_headers(b, target, headers2);
+    addSystemPathsToModule(b, target, sdl_mix_mod);
+    addSystemPathsToTranslateC(b, target, headers2);
 
     return sdl_mix_mod;
 }
@@ -118,13 +118,13 @@ fn define_sdl_module(
     headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
     const module = headers.addModule("sdl");
     module.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
-    add_libs(b, target, module);
-    add_translatec_headers(b, target, headers);
+    addSystemPathsToModule(b, target, module);
+    addSystemPathsToTranslateC(b, target, headers);
 
     return module;
 }
 
-pub fn add_translatec_headers(
+pub fn addSystemPathsToTranslateC(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
     lib: *std.Build.Step.TranslateC,
@@ -134,14 +134,14 @@ pub fn add_translatec_headers(
         .macos => {
             const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.io, &target.result) orelse
                 @panic("macOS SDK is missing");
-            std.log.info("engine using macos c headers: {s}", .{sdk});
+            //std.log.info("engine using macos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
             lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
         .ios => {
             const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.io, &target.result) orelse
                 @panic("iOS SDK is missing");
-            std.log.info("engine using iphoneos c headers: {s}", .{sdk});
+            //std.log.info("engine using iphoneos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
             lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
@@ -149,7 +149,7 @@ pub fn add_translatec_headers(
             if (target.result.abi.isAndroid()) {
                 // When building for android, we need to use the android linux headers
                 if (FindNDK.find(b.graph.io, b.graph.environ_map) catch null) |android_ndk| {
-                    std.log.info("Using android c headers: {any}", .{android_ndk});
+                    //std.log.info("Using android c headers: {any}", .{android_ndk});
 
                     lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                         android_ndk,
@@ -166,15 +166,15 @@ pub fn add_translatec_headers(
         },
         else => {
             debug(
-                "add_translatec_headers not supported on {s}",
+                "addSystemPathsToTranslateC not supported on {s}",
                 .{@tagName(target.result.os.tag)},
             );
-            @panic("add_translatec_headers only supports macos and ios");
+            @panic("addSystemPathsToTranslateC only supports macos and ios");
         },
     }
 }
 
-pub fn add_libs(
+pub fn addSystemPathsToModule(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
     lib: *std.Build.Module,
@@ -184,14 +184,14 @@ pub fn add_libs(
         .macos => {
             const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.io, &target.result) orelse
                 @panic("macOS SDK is missing");
-            std.log.info("engine using macos c headers: {s}", .{sdk});
+            //std.log.info("engine using macos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
             lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
         .ios => {
             const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.io, &target.result) orelse
                 @panic("iOS SDK is missing");
-            std.log.info("engine using iphoneos c headers: {s}", .{sdk});
+            //std.log.info("engine using iphoneos c headers: {s}", .{sdk});
             lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
             lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
         },
@@ -199,7 +199,7 @@ pub fn add_libs(
             // When building for android, we need to use the android linux headers
             if (target.result.abi.isAndroid()) {
                 if (FindNDK.find(b.graph.io, b.graph.environ_map) catch null) |android_ndk| {
-                    std.log.info("Using android c headers: {s}", .{android_ndk});
+                    //std.log.info("Using android c headers: {s}", .{android_ndk});
                     lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
                         android_ndk,
                         "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
@@ -215,10 +215,10 @@ pub fn add_libs(
         },
         else => {
             debug(
-                "add_libs not supported on {s}",
+                "addSystemPathsToModule not supported on {s}",
                 .{@tagName(target.result.os.tag)},
             );
-            @panic("add_libs only supports macos and ios");
+            @panic("addSystemPathsToModule only supports macos and ios");
         },
     }
 }
