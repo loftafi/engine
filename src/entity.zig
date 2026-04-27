@@ -1589,7 +1589,6 @@ pub fn Entity(comptime T: type) type {
         /// Handle when a user clicks into or tabs into this entity.
         pub fn selected(
             self: *Self,
-            _: Allocator,
             display: *Display(T),
             event: *const Event,
         ) void {
@@ -1599,6 +1598,9 @@ pub fn Entity(comptime T: type) type {
                 display.selected.?.deselected(display, event);
 
             display.selected = self;
+
+            // If the item is off screen, perhaps it can scoll into visibility
+            self.scrollSelectedEntity(display);
 
             debug("selected {s} {s}", .{ @tagName(self.type), self.name });
             // When an item is selected, refresh the kebyoard_activity to
@@ -1614,8 +1616,60 @@ pub fn Entity(comptime T: type) type {
                 _ = sdl.SDL_StartTextInput(display.window);
         }
 
+        /// If a user was allowed to navigate to an item that is off screen,
+        /// and that item can be scrolled into full view, bring that item
+        /// into full view.
+        pub fn scrollSelectedEntity(
+            self: *Self,
+            display: *Display(T),
+        ) void {
+            var scrollers: [5]?*Entity(T) = .{ null, null, null, null, null };
+            const found = self.do_scrollSelectedEntity(&scrollers, 0, &display.root, .{});
+            var len: usize = 0;
+            for (scrollers) |panel| {
+                if (panel != null) len += 1;
+            }
+            if (found) |location|
+                std.log.info("selected entity at {d}x{d} (has {d} scrollers)", .{ location.x, location.y, len })
+            else
+                std.log.err("selected entity not locatable", .{});
+        }
+
+        /// Recursively descend the entity tree to find the position and
+        /// scroll offset of the currently selected entity. Returns the
+        /// scrollers that might be used to adjust the scroll offset.
+        pub fn do_scrollSelectedEntity(
+            self: *Self,
+            scrollers: *[5]?*Entity(T),
+            len: usize,
+            parent: *Entity(T),
+            parent_offset: Vector,
+        ) ?Vector {
+            for (parent.type.panel.children.items) |child| {
+                if (child == self) return child.rect.location().add(parent_offset);
+                if (child.visible != .visible and child.visible != .culled) continue;
+                if (child.type == .panel) {
+                    if (Display(T).isVisibleInTree(parent, child)) |value| {
+                        if (value) {
+                            var nlen: usize = len;
+                            if (child.type.panel.scrollable.scroll.x or child.type.panel.scrollable.scroll.y) {
+                                scrollers.*[len] = child;
+                                nlen += 1;
+                            }
+                            if (self.do_scrollSelectedEntity(scrollers, nlen, child, parent_offset.add(parent.offset))) |v|
+                                return v;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        /// Returns true if this entity can be interacted with. If an
+        /// accessibilty mode has been enabled, text labels and other
+        /// accessiblity related elements become selectable.
         pub fn isSelectable(self: *const Self, display: *Display(T)) bool {
-            if (self.visible != .visible) return false;
+            if (self.visible != .visible and self.visible != .culled) return false;
             if (self.focus == .never_focus or self.focus == .unspecified) return false;
 
             switch (self.type) {
@@ -1637,7 +1691,7 @@ pub fn Entity(comptime T: type) type {
             return false;
         }
 
-        /// Describe content for a screen reader
+        /// Describe content for a screen reader.
         fn describeCurrentEntity(self: *Self, translation: *Translation) void {
             const type_name = translation.translate(@tagName(self.type));
             switch (self.type) {

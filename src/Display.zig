@@ -1284,7 +1284,7 @@ pub fn Display(comptime T: type) type {
             for (parent.type.panel.children.items) |child| {
                 if (child == target)
                     return parent_offset.add(parent.offset);
-                if (child.type == .panel and child.visible == .visible)
+                if (child.type == .panel and (child.visible == .visible or child.visible == .culled))
                     if (self.findEntityParentOffset(child, target, parent_offset.add(parent.offset))) |offset|
                         return offset;
             }
@@ -1300,7 +1300,7 @@ pub fn Display(comptime T: type) type {
             trace("checking if {s} is visible in {s}", .{ target.name, parent.name });
             for (parent.type.panel.children.items) |child| {
                 if (child == target) return child.visible == .visible;
-                if (child.visible != .visible) continue;
+                if (child.visible != .visible and child.visible != .culled) continue;
                 if (child.type == .panel)
                     if (isVisibleInTree(child, target)) |value|
                         return value;
@@ -1338,7 +1338,7 @@ pub fn Display(comptime T: type) type {
                 if (item.focus == .accessibility_focus and self.accessibility == false)
                     continue;
 
-                item.selected(gpa, self, event);
+                item.selected(self, event);
                 return true;
             }
             return false;
@@ -1369,7 +1369,7 @@ pub fn Display(comptime T: type) type {
                 &previous,
             );
             if (item) |found| {
-                found.selected(gpa, self, event);
+                found.selected(self, event);
                 return;
             }
             if (state == .has_selectable_item or state == .found_currently_selected_item) {
@@ -1397,7 +1397,7 @@ pub fn Display(comptime T: type) type {
             var previous: ?*Entity(T) = null;
             _ = self.do_selectNextEntity(self.root.type.panel.children.items, &state, &previous);
             if (previous) |found| {
-                found.selected(gpa, self, event);
+                found.selected(self, event);
                 return;
             }
             if (state == .has_selectable_item or state == .found_currently_selected_item) {
@@ -1471,49 +1471,45 @@ pub fn Display(comptime T: type) type {
         /// Find the closest entity that is to the left of this entity.
         pub fn selectLeftEntity(
             self: *Self,
-            gpa: Allocator,
             event: *const Event,
         ) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestLeft.init(self);
             walker.walk(&self.root, self, &chooser, .{});
-            if (walker.chosen) |entity| entity.selected(gpa, self, event);
+            if (walker.chosen) |entity| entity.selected(self, event);
         }
 
         /// Find the closest entity that is to the right of this entity.
         pub fn selectRightEntity(
             self: *Self,
-            gpa: Allocator,
             event: *const Event,
         ) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestRight.init(self);
             walker.walk(&self.root, self, &chooser, .{});
-            if (walker.chosen) |entity| entity.selected(gpa, self, event);
+            if (walker.chosen) |entity| entity.selected(self, event);
         }
 
         /// Find the closest entity that is above this entity.
         pub fn selectAboveEntity(
             self: *Self,
-            gpa: Allocator,
             event: *const Event,
         ) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestAbove.init(self);
             walker.walk(&self.root, self, &chooser, .{});
-            if (walker.chosen) |entity| entity.selected(gpa, self, event);
+            if (walker.chosen) |entity| entity.selected(self, event);
         }
 
         /// Find the closest entity that is below this entity.
         pub fn selectBelowEntity(
             self: *Self,
-            gpa: Allocator,
             event: *const Event,
         ) void {
             var walker = EntityWalker.default;
             var chooser = EntityWalker.ClosestBelow.init(self);
             walker.walk(&self.root, self, &chooser, .{});
-            if (walker.chosen) |entity| entity.selected(gpa, self, event);
+            if (walker.chosen) |entity| entity.selected(self, event);
         }
 
         /// Calls `checker.check()` on every entity to find a preferred
@@ -1538,7 +1534,7 @@ pub fn Display(comptime T: type) type {
                         if (checker.choose(child, parent_offset))
                             self.chosen = child;
                     }
-                    if (child.type == .panel and child.visible == .visible)
+                    if (child.type == .panel and (child.visible == .visible or child.visible == .culled))
                         self.walk(child, display, checker, parent_offset.add(child.offset));
                 }
             }
@@ -1865,22 +1861,22 @@ pub fn Display(comptime T: type) type {
                 return;
             }
             if (e.key.key == sdl.SDLK_UP) {
-                display.selectAboveEntity(gpa, &.{ .type = .key_up });
+                display.selectAboveEntity(&.{ .type = .key_up });
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_LEFT) {
-                display.selectLeftEntity(gpa, &.{ .type = .key_up });
+                display.selectLeftEntity(&.{ .type = .key_up });
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_DOWN) {
-                display.selectBelowEntity(gpa, &.{ .type = .key_up });
+                display.selectBelowEntity(&.{ .type = .key_up });
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
             if (e.key.key == sdl.SDLK_RIGHT) {
-                display.selectRightEntity(gpa, &.{ .type = .key_up });
+                display.selectRightEntity(&.{ .type = .key_up });
                 if (display.selected != null) display.keyboard_activity = true;
                 return;
             }
@@ -2177,7 +2173,7 @@ pub fn Display(comptime T: type) type {
                 .{},
                 .clickable,
             )) |found| {
-                found.selected(gpa, display, &.{ .type = .mouse_up });
+                found.selected(display, &.{ .type = .mouse_up });
                 display.hovered = found;
                 switch (found.type) {
                     .panel => {
@@ -2193,7 +2189,7 @@ pub fn Display(comptime T: type) type {
                     .label => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
                     .sprite => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
                     .checkbox => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
-                    .text_input => found.selected(gpa, display, &.{ .type = .mouse_up }),
+                    .text_input => found.selected(display, &.{ .type = .mouse_up }),
                     .rectangle, .progress_bar, .expander => {
                         // Not clickable
                     },

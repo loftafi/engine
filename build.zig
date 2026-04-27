@@ -124,105 +124,6 @@ fn define_sdl_module(
     return module;
 }
 
-pub fn addSystemPathsToTranslateC(
-    b: *std.Build,
-    target: *const std.Build.ResolvedTarget,
-    lib: *std.Build.Step.TranslateC,
-) void {
-    // For TranslateC to work, we need the system library headers
-    switch (target.result.os.tag) {
-        .macos => {
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.io, &target.result) orelse
-                @panic("macOS SDK is missing");
-            //std.log.info("engine using macos c headers: {s}", .{sdk});
-            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
-            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
-        },
-        .ios => {
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.io, &target.result) orelse
-                @panic("iOS SDK is missing");
-            //std.log.info("engine using iphoneos c headers: {s}", .{sdk});
-            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
-            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
-        },
-        .linux => {
-            if (target.result.abi.isAndroid()) {
-                // When building for android, we need to use the android linux headers
-                if (FindNDK.find(b.graph.io, b.graph.environ_map) catch null) |android_ndk| {
-                    //std.log.info("Using android c headers: {any}", .{android_ndk});
-
-                    lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                        android_ndk,
-                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
-                    }) });
-                    lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                        android_ndk,
-                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
-                    }) });
-                } else {
-                    @panic("android/linux build requires ndk. Set ANDROID_NDK_HOME");
-                }
-            }
-        },
-        else => {
-            debug(
-                "addSystemPathsToTranslateC not supported on {s}",
-                .{@tagName(target.result.os.tag)},
-            );
-            @panic("addSystemPathsToTranslateC only supports macos and ios");
-        },
-    }
-}
-
-pub fn addSystemPathsToModule(
-    b: *std.Build,
-    target: *const std.Build.ResolvedTarget,
-    lib: *std.Build.Module,
-) void {
-    // For TranslateC to work, we need the system library headers
-    switch (target.result.os.tag) {
-        .macos => {
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.io, &target.result) orelse
-                @panic("macOS SDK is missing");
-            //std.log.info("engine using macos c headers: {s}", .{sdk});
-            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
-            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
-        },
-        .ios => {
-            const sdk = std.zig.system.darwin.getSdk(b.allocator, b.graph.io, &target.result) orelse
-                @panic("iOS SDK is missing");
-            //std.log.info("engine using iphoneos c headers: {s}", .{sdk});
-            lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) });
-            lib.addSystemFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "/System/Library/Frameworks" }) });
-        },
-        .linux => {
-            // When building for android, we need to use the android linux headers
-            if (target.result.abi.isAndroid()) {
-                if (FindNDK.find(b.graph.io, b.graph.environ_map) catch null) |android_ndk| {
-                    //std.log.info("Using android c headers: {s}", .{android_ndk});
-                    lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                        android_ndk,
-                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
-                    }) });
-                    lib.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{
-                        android_ndk,
-                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
-                    }) });
-                } else {
-                    @panic("android/linux build requires ndk. Set ANDROID_NDK_HOME");
-                }
-            }
-        },
-        else => {
-            debug(
-                "addSystemPathsToModule not supported on {s}",
-                .{@tagName(target.result.os.tag)},
-            );
-            @panic("addSystemPathsToModule only supports macos and ios");
-        },
-    }
-}
-
 /// Tell a library/exe how to link to the SDL and SDL_ttf libraries
 pub fn link_sdl_framework(
     b: *std.Build,
@@ -291,3 +192,5 @@ const std = @import("std");
 const debug = std.log.debug;
 
 const FindNDK = @import("build/find_ndk.zig").FindNDK;
+const addSystemPathsToModule = @import("build/addSystemPathsToModule.zig").addSystemPathsToModule;
+const addSystemPathsToTranslateC = @import("build/addSystemPathsToModule.zig").addSystemPathsToTranslateC;
