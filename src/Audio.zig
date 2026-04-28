@@ -30,7 +30,7 @@ previous: ?*@This() = null,
 
 pub const empty = .{
     .name = "",
-    .audio = "",
+    .audio = &.{},
     .references = 0,
     .resource = null,
     .retained = false,
