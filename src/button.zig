@@ -149,12 +149,11 @@ pub fn Button(comptime T: type) type {
         pub inline fn clickable(
             button: *const Self,
         ) bool {
-            // Consider a button clickable even if there is no event
-            // handler for the button.
-            return button.toggle == .no_toggle or
-                button.toggle == .on or
-                button.toggle == .off or
-                button.toggle == .disabled;
+            // A button is interactable if it has an event handler
+            // or if it can be toggled.
+            if (button.on_pressed.func != null) return true;
+            if (button.on_ui_event.func != null) return true;
+            return button.toggle == .on or button.toggle == .off;
         }
 
         /// An icon may have different background textures for hovered,
