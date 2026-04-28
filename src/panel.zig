@@ -9,11 +9,34 @@ pub fn Panel(comptime T: type) type {
             .scroll = .{ .x = false, .y = false },
             .size = .{ .width = 0, .height = 0 },
         },
-        overflow: Vector = .{ .x = 0, .y = 0 },
 
         // Handle User triggered events. Keyboard, Mouse, Game controller
         on_ui_event: Entity(T).Callback = .empty,
         on_pressed: Entity(T).Callback = .empty,
+
+        pub inline fn topScrollSpace(self: *const Self) f32 {
+            if (!self.scrollable.scroll.y) return 0;
+            // TODO: Calculate the actual value.
+            return 9999;
+        }
+
+        pub inline fn bottomScrollSpace(self: *const Self) f32 {
+            if (!self.scrollable.scroll.y) return 0;
+            // TODO: Calculate the actual value.
+            return 9999;
+        }
+
+        pub inline fn leftScrollSpace(self: *const Self) f32 {
+            if (!self.scrollable.scroll.x) return 0;
+            // TODO: Calculate the actual value.
+            return 9999;
+        }
+
+        pub inline fn rightScrollSpace(self: *const Self) f32 {
+            if (!self.scrollable.scroll.x) return 0;
+            // TODO: Calculate the actual value.
+            return 9999;
+        }
 
         /// Return true if this panel can be interacted with through user
         /// driven event handlers..

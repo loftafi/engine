@@ -1616,23 +1616,82 @@ pub fn Entity(comptime T: type) type {
                 _ = sdl.SDL_StartTextInput(display.window);
         }
 
-        /// If a user was allowed to navigate to an item that is off screen,
-        /// and that item can be scrolled into full view, bring that item
-        /// into full view.
+        /// Starting from the bottom of the entity tree, ensure the entity
+        /// is visible in its base panel, then walk back up and ensure each
+        /// parent scroller is scrolled to a point where the child is visible.
         pub fn scrollSelectedEntity(
             self: *Self,
             display: *Display(T),
         ) void {
+            // This is a work in progress. It only functions for one
+            // level of full screen scroller right now.
             var scrollers: [5]?*Entity(T) = .{ null, null, null, null, null };
             const found = self.do_scrollSelectedEntity(&scrollers, 0, &display.root, .{});
             var len: usize = 0;
             for (scrollers) |panel| {
                 if (panel != null) len += 1;
             }
-            if (found) |location|
-                std.log.info("selected entity at {d}x{d} (has {d} scrollers)", .{ location.x, location.y, len })
-            else
-                std.log.err("selected entity not locatable", .{});
+            if (found) |location| {
+                info("selected entity at {d}x{d} (has {d} scrollers)", .{ location.x, location.y, len });
+                if (location.x < 0) {
+                    // Entity is clipped on left.
+                    var move = 0 - location.x;
+                    for (scrollers) |scroller| {
+                        if (move <= 0) break;
+                        if (scroller) |s| {
+                            const left_space = s.type.panel.leftScrollSpace();
+                            if (left_space > 0) {
+                                const offset = @min(move, left_space);
+                                move -= offset;
+                                s.offset.x += offset;
+                            }
+                        }
+                    }
+                } else if (location.x + self.rect.width > display.root.rect.width) {
+                    // Entity is clipped on right.
+                    var move = (location.x + self.rect.width) - display.root.rect.width;
+                    for (scrollers) |scroller| {
+                        if (move <= 0) break;
+                        if (scroller) |s| {
+                            const right_space = s.type.panel.rightScrollSpace();
+                            if (right_space > 0) {
+                                const offset = @min(move, right_space);
+                                move -= offset;
+                                s.offset.x -= offset;
+                            }
+                        }
+                    }
+                }
+                if (location.y < 0) {
+                    // Entity is clipped on top.
+                    var move = 0 - location.y;
+                    for (scrollers) |scroller| {
+                        if (move <= 0) break;
+                        if (scroller) |s| {
+                            const top_space = s.type.panel.topScrollSpace();
+                            if (top_space > 0) {
+                                const offset = @min(move, top_space);
+                                move -= offset;
+                                s.offset.y += offset;
+                            }
+                        }
+                    }
+                } else if (location.y + self.rect.height > display.root.rect.height) {
+                    // Entity is clipped on bottom.
+                    var move = (location.y + self.rect.height) - display.root.rect.height;
+                    for (scrollers) |scroller| {
+                        if (move <= 0) break;
+                        if (scroller) |s| {
+                            const bottom_space = s.type.panel.bottomScrollSpace();
+                            if (bottom_space > 0) {
+                                const offset = @min(move, bottom_space);
+                                move -= offset;
+                                s.offset.y -= offset;
+                            }
+                        }
+                    }
+                }
+            } else err("selected entity not locatable", .{});
         }
 
         /// Recursively descend the entity tree to find the position and
@@ -1649,17 +1708,13 @@ pub fn Entity(comptime T: type) type {
                 if (child == self) return child.rect.location().add(parent_offset);
                 if (child.visible != .visible and child.visible != .culled) continue;
                 if (child.type == .panel) {
-                    if (Display(T).isVisibleInTree(parent, child)) |value| {
-                        if (value) {
-                            var nlen: usize = len;
-                            if (child.type.panel.scrollable.scroll.x or child.type.panel.scrollable.scroll.y) {
-                                scrollers.*[len] = child;
-                                nlen += 1;
-                            }
-                            if (self.do_scrollSelectedEntity(scrollers, nlen, child, parent_offset.add(parent.offset))) |v|
-                                return v;
-                        }
+                    var nlen: usize = len;
+                    if (child.type.panel.scrollable.scroll.x or child.type.panel.scrollable.scroll.y) {
+                        scrollers.*[len] = child;
+                        nlen += 1;
                     }
+                    if (self.do_scrollSelectedEntity(scrollers, nlen, child, parent_offset.add(parent.offset))) |v|
+                        return v;
                 }
             }
             return null;

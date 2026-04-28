@@ -1531,6 +1531,7 @@ pub fn Display(comptime T: type) type {
                 // offsets being passed in
                 for (entity.type.panel.children.items) |child| {
                     if (child.isSelectable(display)) {
+                        trace("walk {s} {t} {t}", .{ child.name, child.type, child.visible });
                         if (checker.choose(child, parent_offset))
                             self.chosen = child;
                     }
@@ -1571,6 +1572,7 @@ pub fn Display(comptime T: type) type {
                         .x = position.x + position.width,
                         .y = position.y + position.height / 2,
                     });
+                    trace("    {s} {t} {d}x{d} {d}x{d}  distance:{d}-{d}", .{ option.name, option.type, position.x, position.y, position.width, position.height, d, self.distance });
                     if (d > self.distance) return false;
                     self.distance = d;
                     return true;
@@ -1609,6 +1611,7 @@ pub fn Display(comptime T: type) type {
                         .x = position.x,
                         .y = position.y + position.height / 2,
                     });
+                    trace("    {s} {t} {d}x{d} {d}x{d}  distance:{d}-{d}", .{ option.name, option.type, position.x, position.y, position.width, position.height, d, self.distance });
                     if (d > self.distance) return false;
                     self.distance = d;
                     return true;
@@ -1647,6 +1650,7 @@ pub fn Display(comptime T: type) type {
                         .x = position.x + position.width / 2,
                         .y = position.y + position.height,
                     });
+                    trace("    {s} {t} {d}x{d} {d}x{d}  distance:{d}-{d}", .{ option.name, option.type, position.x, position.y, position.width, position.height, d, self.distance });
                     if (d > self.distance) return false;
                     self.distance = d;
                     return true;
@@ -1685,6 +1689,7 @@ pub fn Display(comptime T: type) type {
                         .x = position.x + position.width / 2,
                         .y = position.y,
                     });
+                    trace("    {s} {t} {d}x{d} {d}x{d}  distance:{d}-{d}", .{ option.name, option.type, position.x, position.y, position.width, position.height, d, self.distance });
                     if (d > self.distance) return false;
                     self.distance = d;
                     return true;
