@@ -53,9 +53,8 @@ const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 
-const sdl = @import("sdl");
-
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const trace = engine.log.trace;
 
 const Resource = @import("resources").Resource;

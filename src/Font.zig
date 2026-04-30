@@ -72,9 +72,8 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 
-const sdl = @import("sdl");
-
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const debug = engine.log.debug;
 const trace = engine.log.trace;
 

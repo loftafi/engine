@@ -509,14 +509,13 @@ test "load_save_preferences" {
     try deletePreferenceData(gpa, &test_config, filename);
 }
 
+const builtin = @import("builtin");
+
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const expectEqualStrings = std.testing.expectEqualStrings;
 const expectEqual = std.testing.expectEqual;
 const expect = std.testing.expect;
-
-const builtin = @import("builtin");
-const sdl = @import("sdl");
-const Allocator = std.mem.Allocator;
 
 const praxis = @import("praxis");
 const BoundedArray = praxis.BoundedArray;
@@ -524,6 +523,7 @@ const random = praxis.random.random;
 const seed = praxis.random.seed;
 
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const Display = engine.Display;
 const log = @import("log.zig");
 const err = log.err;

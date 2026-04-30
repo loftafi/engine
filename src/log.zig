@@ -232,7 +232,6 @@ test "sdl_log_category" {
 const std = @import("std");
 const builtin = @import("builtin");
 
-const sdl = @import("sdl");
-
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const dev_build = engine.dev_build;

@@ -2801,9 +2801,8 @@ const Allocator = std.mem.Allocator;
 const sqrt = std.math.sqrt;
 const pow = std.math.pow;
 
-const sdl = @import("sdl");
-
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const err = engine.log.err;
 const warn = engine.log.warn;
 const info = engine.log.info;

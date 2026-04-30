@@ -30,8 +30,10 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("sdl", sdl_module);
     lib_mod.addImport("mixer", mixer_module);
     lib_mod.addImport("translator", translator_module);
-    lib_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
+    lib_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
+    lib_mod.addIncludePath(b.path("libs/SDL3_ttf.xcframework/macos-arm64_x86_64/SDL3_ttf.framework/Versions/A/Headers/"));
     link_sdl_framework(b, &target, lib_mod);
+    addSystemPathsToModule(b, &target, lib_mod);
 
     const lib = b.addLibrary(.{
         .linkage = .static,
@@ -51,8 +53,10 @@ pub fn build(b: *std.Build) void {
     test_mod.addImport("sdl", sdl_module);
     test_mod.addImport("mixer", mixer_module);
     test_mod.addImport("translator", translator_module);
-    test_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
+    test_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
+    test_mod.addIncludePath(b.path("libs/SDL3_ttf.xcframework/macos-arm64_x86_64/SDL3_ttf.framework/Versions/A/Headers/"));
     link_sdl_framework(b, &target, test_mod);
+    addSystemPathsToModule(b, &target, test_mod);
 
     const real_tests = b.addTest(.{
         .root_module = test_mod,

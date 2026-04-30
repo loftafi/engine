@@ -364,9 +364,8 @@ const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const expectEqual = std.testing.expectEqual;
 
-const sdl = @import("sdl");
-
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const err = engine.err;
 const Display = engine.Display;
 const Colour = engine.Colour;

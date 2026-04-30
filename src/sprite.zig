@@ -130,9 +130,8 @@ pub fn Sprite(comptime T: type) type {
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
-const sdl = @import("sdl");
-
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const err = engine.err;
 const Display = engine.Display;
 const Entity = engine.Entity;

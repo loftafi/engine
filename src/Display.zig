@@ -3147,7 +3147,6 @@ const expectEqual = std.testing.expectEqual;
 const assert = std.debug.assert;
 const builtin = @import("builtin");
 
-const sdl = @import("sdl");
 const zstbi = @import("zstbi");
 
 const base62 = @import("resources").base62;
@@ -3156,6 +3155,7 @@ const Resource = @import("resources").Resource;
 const Type = @import("resources").Type;
 
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const Animator = engine.Animator;
 const Audio = @import("Audio.zig");
 const Chunker = engine.Chunker;

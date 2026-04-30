@@ -508,12 +508,11 @@ const Allocator = std.mem.Allocator;
 const eq = std.testing.expectEqual;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
-const sdl = @import("sdl");
-
 const resources = @import("resources");
 const Resources = resources.Resources;
 
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const err = engine.err;
 const warn = engine.warn;
 const info = engine.info;

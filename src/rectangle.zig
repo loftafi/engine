@@ -28,9 +28,8 @@ pub fn Rectangle(comptime T: type) type {
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
-const sdl = @import("sdl");
-
 const engine = @import("engine.zig");
+const sdl = engine.sdl;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Texture = engine.Texture;

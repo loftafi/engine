@@ -420,9 +420,25 @@ const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const expectEqual = std.testing.expectEqual;
-const sdl = @import("sdl");
 const builtin = @import("builtin");
 const assert = std.debug.assert;
+
+pub const sdl = @cImport({
+    if (builtin.target.os.tag == .windows and builtin.target.abi == .msvc) { // 0.16-dev regression workaround
+        @cDefine("SIZE_MAX", "((size_t)-1)");
+    }
+    if (builtin.target.os.tag == .emscripten) { // 0.16-dev regression workaround
+        @cDefine("wint_t", "int");
+        @cDefine("__DEFINED_wint_t", {});
+    }
+    @cDefine("SDL_DISABLE_OLD_NAMES", {});
+    @cInclude("SDL3/SDL.h");
+    @cInclude("SDL3/SDL_revision.h");
+    @cDefine("SDL_MAIN_HANDLED", {}); // We are providing our own entry point
+    @cInclude("SDL3/SDL_main.h");
+    @cInclude("SDL_mixer.h");
+    @cInclude("SDL_ttf.h");
+});
 
 const zstbi = @import("zstbi");
 
