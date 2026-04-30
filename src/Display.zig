@@ -17,7 +17,7 @@ pub fn Display(comptime T: type) type {
         mix: *mixer.MIX_Mixer,
 
         /// Main game loop runs until quit is requested.
-        quit: bool = false,
+        state: enum { running, paused, ending } = .running,
 
         /// When an entity is added, moved, resized or removed, then
         /// all entities on the screen will need to be refreshed.
@@ -321,7 +321,7 @@ pub fn Display(comptime T: type) type {
                 .on_panel_change = .empty,
                 .current_language = .unknown,
                 .need_relayout = true,
-                .quit = false,
+                .state = .running,
                 .translation = .empty,
                 .accessibility = false,
                 .animators = .empty,
@@ -510,14 +510,11 @@ pub fn Display(comptime T: type) type {
 
         pub fn haptic_feedback_available(_: *Self) bool {
             var count: c_int = undefined;
-            if (sdl.SDL_GetHaptics(&count) == null) {
-                return false;
-            }
+            if (sdl.SDL_GetHaptics(&count) == null) return false;
             return count > 0;
         }
 
         pub fn haptic_feedback(_: *Self, _: u32) void {
-            //
             if (sdl.SDL_OpenHaptic(0)) |haptic| {
                 var effect: sdl.SDL_HapticEffect = .{
                     .type = sdl.SDL_HAPTIC_RUMBLE,
@@ -528,9 +525,8 @@ pub fn Display(comptime T: type) type {
                     .ramp = .{},
                 };
                 sdl.SDL_CreateHapticEffect(haptic, &effect);
-                if (!sdl.SDL_RunHapticEffect(haptic, 0, 1)) {
+                if (!sdl.SDL_RunHapticEffect(haptic, 0, 1))
                     warn("haptic vibration failed", .{});
-                }
                 sdl.SDL_CloseHaptic(haptic);
             }
         }
@@ -1821,21 +1817,21 @@ pub fn Display(comptime T: type) type {
         /// it should exit after processing the current event.
         pub fn end_main_loop(display: *Self) void {
             info("Ending main loop.", .{});
-            display.quit = true;
+            display.state = .ending;
         }
 
         /// Draw all entities. Used in conjunction with SDL_AppIterate
         pub fn iterate(display: *Self) !void {
-            try display.draw();
+            if (display.state == .running)
+                try display.draw();
         }
 
         /// Enters the main run loop and only returns when quit has been
-        /// requested. Use in conjunction with SDL_Main
+        /// requested. Only used in conjunction with SDL_Main
         pub fn main(display: *Self, allocator: Allocator) !void {
             info("Main loop starting", .{});
-            display.quit = false;
 
-            while (!display.quit) {
+            while (display.state == .running) {
                 // Update and draw all entities
                 try display.draw();
 
@@ -1843,7 +1839,7 @@ pub fn Display(comptime T: type) type {
                 var e: sdl.SDL_Event = undefined;
                 while (sdl.SDL_PollEvent(&e)) {
                     try display.handle_event(allocator, &e);
-                    if (display.quit) break;
+                    if (display.state == .ending) break;
                 }
             }
 
@@ -2456,9 +2452,19 @@ pub fn Display(comptime T: type) type {
                 sdl.SDL_EVENT_TERMINATING => {},
                 sdl.SDL_EVENT_LOW_MEMORY => {},
                 sdl.SDL_EVENT_WILL_ENTER_BACKGROUND => {},
-                sdl.SDL_EVENT_DID_ENTER_BACKGROUND => {},
+                sdl.SDL_EVENT_DID_ENTER_BACKGROUND => {
+                    if (display.state == .running) {
+                        info("Entered background mode. Paused", .{});
+                        display.state = .paused;
+                    }
+                },
                 sdl.SDL_EVENT_WILL_ENTER_FOREGROUND => {},
-                sdl.SDL_EVENT_DID_ENTER_FOREGROUND => {},
+                sdl.SDL_EVENT_DID_ENTER_FOREGROUND => {
+                    if (display.state == .paused) {
+                        info("Exited background mode. Running", .{});
+                        display.state = .running;
+                    }
+                },
 
                 else => {
                     _ = try display.event_hook.call(allocator, e.type);
