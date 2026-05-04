@@ -1,12 +1,12 @@
 .{
     .name = .engine,
-    .version = "0.20.5",
+    .version = "0.20.6",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#05b4b89d5d41644e6043070d161f4d1e57f43ad8",
-            .hash = "resources-1.3.8-J0GwIxCIAgAq9NH088o0-jp6sOV1q0jkCQC40t9kuLJw",
+            .url = "git+https://github.com/loftafi/resources.git#45a65b8c8c45592bcc732609b08c3d53dac57391",
+            .hash = "resources-2.0.3-J0GwI8l_AgDF55BHgZKeI34oU_EBwmNhWBPYf3UtztMa",
         },
         .sdl = .{
             .url = "git+https://github.com/castholm/SDL.git#c5ba24c694b5d520cdc1d029d8def398690d6894",
@@ -21,8 +21,8 @@
             .hash = "zstbi-0.11.0-dev-L0Ea_06WBwCZoJBl6SD0bcHOLEEIrD5xbQ0TbXe-SQ5Y",
         },
         .translator = .{
-            .url = "git+https://github.com/loftafi/translator.git#117f65d4c95dbae43ce039ff99132f62c8978b8b",
-            .hash = "translator-0.1.5-cfHZxjlNAACxYNpsGTA8FunsWueI62RiBEOUi_b1pwj_",
+            .url = "git+https://github.com/loftafi/translator.git#ac07a6006040f195f8cc4a4de07af3f4bb1d3436",
+            .hash = "translator-0.1.8-cfHZxjhNAAAgL8zOVPESfQGNaAGYbz4X0m50as2_6aGs",
         },
     },
     .paths = .{

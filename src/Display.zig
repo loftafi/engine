@@ -282,20 +282,24 @@ pub fn Display(comptime T: type) type {
             info("Renderer:{s}", .{renderer_info.items});
 
             const pixel_scale = sdl.SDL_GetWindowDisplayScale(window);
-            info("WindowDisplayScale: {d}", .{pixel_scale});
 
             var pixel_width: c_int = 0;
             var pixel_height: c_int = 0;
             _ = sdl.SDL_GetWindowSizeInPixels(window, &pixel_width, &pixel_height);
-            info("WindowSizeInPixels: {d}x{d}", .{ pixel_width, pixel_height });
 
             var window_width: c_int = 0;
             var window_height: c_int = 0;
             _ = sdl.SDL_GetWindowSize(window, &window_width, &window_height);
-            info("GetWindowSize: {d}x{d}", .{ window_width, window_height });
 
             const density = sdl.SDL_GetWindowPixelDensity(window);
-            info("WindowPixelDensity: {d}", .{density});
+            info("display_scale={d} window_size_pixels={d}x{d} pixel_density={d} window_size={d}x{d}", .{
+                pixel_scale,
+                pixel_width,
+                pixel_height,
+                density,
+                window_width,
+                window_height,
+            });
 
             const now = std.Io.Timestamp.now(io, .real).toMilliseconds();
 
@@ -391,7 +395,7 @@ pub fn Display(comptime T: type) type {
 
             if (config.desktop_icon) |desktop_icon| {
                 try display.requireResourceRecord(gpa, desktop_icon, .image);
-                if (try display.resources.lookupOne(gpa, desktop_icon, .image)) |resource| {
+                if (try display.resources.lookupRandom(desktop_icon, .image)) |resource| {
                     var surface: SurfaceInfo = undefined;
                     try display.loadImage(&display.resources, resource, &surface);
                     defer surface.deinit(gpa);
@@ -408,7 +412,7 @@ pub fn Display(comptime T: type) type {
 
             if (config.translation_filename) |translation_filename| {
                 try display.requireResourceRecord(gpa, translation_filename, .csv);
-                if (try display.resources.lookupOne(gpa, translation_filename, .csv)) |resource| {
+                if (try display.resources.lookupRandom(translation_filename, .csv)) |resource| {
                     const data = try loadResourceSdl(gpa, io, &display.resources, resource);
                     defer gpa.free(data);
                     try display.translation.loadTranslationData(gpa, data);
@@ -850,7 +854,7 @@ pub fn Display(comptime T: type) type {
                     return font.clone();
             }
 
-            const resource = try self.resources.lookupOne(self.allocator, name, .font) orelse return error.ResourceNotFound;
+            const resource = try self.resources.lookupRandom(name, .font) orelse return error.ResourceNotFound;
 
             const font_buffer = try loadResourceSdl(self.allocator, self.io, &self.resources, resource);
 
@@ -1048,7 +1052,7 @@ pub fn Display(comptime T: type) type {
             name: []const u8,
             category: Resources.SearchCategory,
         ) (Error || Allocator.Error || Resources.Error)!void {
-            const resource = try self.resources.lookupOne(gpa, name, category);
+            const resource = try self.resources.lookupRandom(name, category);
             if (resource == null) {
                 err("missing {t} file named \"{s}\" not found.", .{
                     category,
@@ -1057,7 +1061,7 @@ pub fn Display(comptime T: type) type {
                 return;
             }
             try self.required_resource.put(
-                self.allocator,
+                gpa,
                 resource.?.uid,
                 resource.?,
             );
@@ -1095,8 +1099,19 @@ pub fn Display(comptime T: type) type {
             if (name.len == 0) return null;
 
             var start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
-            const resource = try bundle.lookupOne(gpa, name, .image);
-            if (resource == null) return null;
+            const resource = try bundle.lookupRandom(name, .image);
+            if (resource == null) {
+                var buffer: [20]*Resource = undefined;
+                const list = try bundle.lookup(name, .image, .exact, &buffer);
+                for (list) |item| {
+                    info("found none, but found {f} {t} {s}", .{
+                        base62.writer(u64, item.uid),
+                        item.resource,
+                        item.sentences.items[0],
+                    });
+                }
+                return null;
+            }
 
             if (self.textures.get(resource.?.uid)) |texture| {
                 trace("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
@@ -1189,7 +1204,7 @@ pub fn Display(comptime T: type) type {
             } else {
                 // Load audio from resource bundle
                 var start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
-                const resource = try bundle.lookupOne(gpa, name, .audio);
+                const resource = try bundle.lookupRandom(name, .audio);
                 if (resource == null) {
                     err("search audio named \"{s}\" not found.", .{name});
                     return null;
