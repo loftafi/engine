@@ -396,9 +396,9 @@ pub fn Panel(comptime T: type) type {
                     //trace("do grow {s}. parent width={d}", .{ entity.name, parent.rect.width });
                     // Grow to the parent width, not including padding.
                     var new_width = parent.inner_width();
-                    if (entity.maximum.width > 0 and new_width > entity.maximum.width) {
-                        new_width = entity.maximum.width;
-                    }
+                    if (entity.maximum.width > 0)
+                        new_width = @min(new_width, entity.maximum.width);
+
                     if (entity.rect.width != new_width) {
                         entity.rect.width = new_width;
                         child_resized = true;
@@ -420,9 +420,13 @@ pub fn Panel(comptime T: type) type {
             switch (entity.layout.y) {
                 .grows => {
                     // Grow to the parent height, not including padding.
-                    entity.rect.height = parent.inner_height();
-                    if (entity.maximum.height > 0 and entity.rect.height > entity.maximum.height) {
-                        entity.rect.height = entity.maximum.height;
+                    var new_height = parent.inner_height();
+                    if (entity.maximum.height > 0)
+                        new_height = @min(new_height, entity.maximum.height);
+
+                    if (entity.rect.height != new_height) {
+                        entity.rect.height = new_height;
+                        child_resized = true;
                     }
                 },
                 .shrinks => {

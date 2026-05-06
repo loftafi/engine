@@ -1081,13 +1081,18 @@ pub fn Entity(comptime T: type) type {
         /// Animations, and used provided code may be updated inside the
         /// update function. This is called prior to the `draw` function.
         pub fn update(self: *Self, display: *Display(T)) void {
-            if (self.type == .sprite) self.type.sprite.update.call(display, self);
+            if (self.type == .sprite) {
+                self.type.sprite.update.call(display, self);
 
-            if (display.need_relayout) display.relayout();
+                if (self.velocity.x > 0)
+                    self.rect.x += self.velocity.x;
 
-            if (self.velocity.x > 0) self.rect.x += self.velocity.x;
+                if (self.velocity.y > 0)
+                    self.rect.y += self.velocity.y;
+            }
 
-            if (self.velocity.y > 0) self.rect.y += self.velocity.y;
+            if (display.need_relayout)
+                display.relayout();
 
             if (self.type == .panel) {
                 self.type.panel.update.call(display, self);
