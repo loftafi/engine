@@ -972,7 +972,7 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// `add` a child entity to this panel and return the entity. Only
-        /// permitted for the `panel` entity type. See also `insertEntity`.
+        /// permitted for the `panel` entity type. See also `insert`.
         pub inline fn add(
             self: *Self,
             allocator: Allocator,
@@ -989,10 +989,10 @@ pub fn Entity(comptime T: type) type {
             return child;
         }
 
-        /// Use `insertEntity` to insert a child entity in a specific location
+        /// Use `insert` to insert a child entity in a specific location
         /// in this panel. Only permitted for the `panel` entity type. See
         /// also `add`.
-        pub inline fn insertEntity(
+        pub inline fn insert(
             self: *Self,
             allocator: Allocator,
             display: *Display(T),
