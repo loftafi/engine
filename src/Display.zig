@@ -2708,53 +2708,55 @@ pub fn Display(comptime T: type) type {
 /// any playback completion notification that might be needed.
 fn audio_playback_complete(audio: ?*anyopaque, _: ?*mixer.MIX_Track) callconv(.c) void {
     const progress: ?*Audio.Progress = @ptrCast(@alignCast(audio));
-    if (progress) |handler| {
-        debug("playback complete {s} refs {d}->{d} ({t})", .{
-            handler.audio.name,
-            handler.audio.references,
-            handler.audio.references - 1,
-            handler.audio.retained,
-        });
-
-        if (handler.audio.references > 0)
-            handler.audio.references -= 1
-        else
-            err("audio_playback_complete on audio with no references?", .{});
-
-        if (handler.callback) |callback| {
-            callback.call(handler.gpa, handler.audio) catch |e| {
-                err("audio_playback_complete callback handler failed. {any}", .{e});
-            };
-        }
-
-        if (handler.audio.references == 0 and handler.audio.retained == .autorelease) {
-            if (handler.audio.previous == null) {
-                handler.audio_cache.* = handler.audio.next;
-                handler.audio_cache.*.?.previous = null;
-            } else {
-                handler.audio.previous.?.next = handler.audio.next;
-                if (handler.audio.next != null) {
-                    handler.audio.next.?.previous = handler.audio.previous;
-                }
-            }
-            debug("released {s} refs={d} ({t})", .{
-                handler.audio.name,
-                handler.audio.references,
-                handler.audio.retained,
-            });
-            handler.audio.destroy(handler.gpa);
-        } else {
-            debug("keeping {s} refs={d} ({t})", .{
-                handler.audio.name,
-                handler.audio.references,
-                handler.audio.retained,
-            });
-        }
-
-        handler.gpa.destroy(handler);
+    if (progress == null) {
+        err("playback complete handler called with null callback handler.", .{});
         return;
     }
-    err("playback complete handler called with null callback handler.", .{});
+    const handler = progress orelse return;
+
+    debug("playback complete {s} refs {d} (will become refs={d}) retained={t}", .{
+        handler.audio.name,
+        handler.audio.references,
+        handler.audio.references - 1,
+        handler.audio.retained,
+    });
+
+    if (handler.audio.references > 0)
+        handler.audio.references -= 1
+    else
+        err("audio_playback_complete on audio with no references?", .{});
+
+    if (handler.callback) |callback| {
+        callback.call(handler.gpa, handler.audio) catch |e| {
+            err("audio_playback_complete callback handler failed. {any}", .{e});
+        };
+    }
+
+    if (handler.audio.references == 0 and handler.audio.retained == .autorelease) {
+        if (handler.audio.previous == null) {
+            handler.audio_cache.* = handler.audio.next;
+            handler.audio_cache.*.?.previous = null;
+        } else {
+            handler.audio.previous.?.next = handler.audio.next;
+            if (handler.audio.next != null) {
+                handler.audio.next.?.previous = handler.audio.previous;
+            }
+        }
+        debug("releasing {s} refs={d} ({t})", .{
+            handler.audio.name,
+            handler.audio.references,
+            handler.audio.retained,
+        });
+        handler.audio.destroy(handler.gpa);
+    } else {
+        debug("keeping {s} refs={d} ({t})", .{
+            handler.audio.name,
+            handler.audio.references,
+            handler.audio.retained,
+        });
+    }
+
+    handler.gpa.destroy(handler);
 }
 
 pub const U32Callback = struct {

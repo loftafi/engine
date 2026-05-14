@@ -972,7 +972,7 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// `add` a child entity to this panel and return the entity. Only
-        /// permitted for the `panel` entity type.
+        /// permitted for the `panel` entity type. See also `insertEntity`.
         pub inline fn add(
             self: *Self,
             allocator: Allocator,
@@ -990,7 +990,8 @@ pub fn Entity(comptime T: type) type {
         }
 
         /// Use `insertEntity` to insert a child entity in a specific location
-        /// in this panel. Only permitted for the `panel` entity type.
+        /// in this panel. Only permitted for the `panel` entity type. See
+        /// also `add`.
         pub inline fn insertEntity(
             self: *Self,
             allocator: Allocator,
@@ -1060,8 +1061,8 @@ pub fn Entity(comptime T: type) type {
             for (0..self.type.panel.children.items.len) |i| {
                 const item = self.type.panel.children.items[i];
                 if (item.visible != .hidden) display.need_relayout = true;
-                item.destroy(allocator, display);
                 debug("removed child panel {s}", .{item.name});
+                item.destroy(allocator, display);
             }
             self.type.panel.children.clearRetainingCapacity();
         }
@@ -1637,7 +1638,7 @@ pub fn Entity(comptime T: type) type {
                 if (panel != null) len += 1;
             }
             if (found) |location| {
-                info("selected entity at {d}x{d} (has {d} scrollers)", .{ location.x, location.y, len });
+                trace("selected entity at {d}x{d} (has {d} scrollers)", .{ location.x, location.y, len });
                 if (location.x < 0) {
                     // Entity is clipped on left.
                     var move = 0 - location.x;

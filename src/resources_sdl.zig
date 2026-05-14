@@ -337,12 +337,13 @@ pub fn loadPreferenceData(
     config: *const engine.Config,
     filename: []const u8,
 ) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
-    const preference_file = try make_preference_file_path(gpa, config, filename);
-    defer gpa.free(preference_file);
+    const name = try make_preference_file_path(gpa, config, filename);
+    defer gpa.free(name);
 
-    const data = load_folder_file_bytes(gpa, preference_file) catch |e| {
-        if (!sdl.SDL_GetPathInfo(preference_file.ptr, null)) return null;
-        warn("Read preferences file failed. {s} {any}", .{ preference_file, e });
+    debug("Loading file: {s}", .{name});
+    const data = load_folder_file_bytes(gpa, name) catch |e| {
+        if (!sdl.SDL_GetPathInfo(name.ptr, null)) return null;
+        warn("Read file failed. {s} {any}", .{ name, e });
         return error.ResourceReadError;
     };
     return data;
@@ -360,7 +361,7 @@ fn make_preference_file_path(
 
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
     const zpath = std.mem.sliceTo(path, 0);
-    info("Preferences path: {s} for {s}", .{ zpath, filename });
+    //debug("Preferences path: {s} for {s}", .{ zpath, filename });
 
     var file: std.ArrayListUnmanaged(u8) = .empty;
     defer file.deinit(gpa);
@@ -434,7 +435,7 @@ pub fn savePreferenceData(
     const zpath = std.mem.sliceTo(path, 0);
 
     var folder = std.Io.Dir.openDirAbsolute(io, zpath, .{}) catch |e| {
-        err("Open preferences path failed. {s} {any}", .{ path, e });
+        err("Open preferences folder failed. {t} {s}", .{ e, path });
         return error.ResourceWriteError;
     };
 
@@ -442,23 +443,23 @@ pub fn savePreferenceData(
     random_string(&temp_filename);
 
     var file = folder.createFile(io, &temp_filename, .{}) catch |e| {
-        err("Create temporary preferences file failed. {s} {any}", .{ path, e });
+        err("Create temporary file failed. {t} {s}", .{ e, path });
         return error.ResourceWriteError;
     };
     defer file.close(io);
     file.writeStreamingAll(io, data) catch |e| {
-        err("Write preferences data failed. {s} {any}", .{ path, e });
+        err("Write temporary failed. {t} {s}", .{ e, path });
         return error.ResourceWriteError;
     };
-    debug("Created temporary preferences file: {s}", .{temp_filename});
+    trace("Created temporary file: {s}", .{temp_filename});
 
     folder.rename(&temp_filename, folder, filename, io) catch |f| {
         if (f == error.RenameError) {
-            err("Update preferences file '{s}' failed. {any} ({s} -> {s})", .{ filename, f, temp_filename, filename });
+            err("Update file failed. {t} (Failed: {s} -> {s})", .{ f, temp_filename, filename });
         }
         return error.ResourceWriteError;
     };
-    info("Saved preferences data. Moved contents from={s} to={s} {s}", .{
+    info("Saved preferences data. (Moved {s} -> {s}{s}", .{
         temp_filename,
         zpath,
         filename,
