@@ -8,6 +8,8 @@ pub fn TextSize(text_height: comptime_float) type {
         heading,
         footnote,
 
+        pub const pixels: f32 = text_height;
+
         /// Return the height of the text relative to the `normal`
         /// text height for this display.
         pub fn height(self: @This()) f32 {
@@ -47,6 +49,6 @@ pub fn TextSize(text_height: comptime_float) type {
     };
 }
 
-const Size = @import("entity.zig").Size;
+const Size = @import("Entity.zig").Size;
 const engine = @import("engine.zig");
 const sdl = engine.sdl;

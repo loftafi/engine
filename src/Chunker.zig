@@ -170,7 +170,7 @@ test "read_chunks" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var display = try Display(TextSize(22)).create(allocator, io, test_config);
+    var display = try Display.create(allocator, io, test_config);
     defer display.destroy(allocator);
     try display.setDefaultFont("Roboto-Light", .unknown);
     try expectEqual(1, display.fonts.items.len);
@@ -260,7 +260,7 @@ test "guess_fail" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var display = try Display(TextSize(22)).create(allocator, io, test_config);
+    var display = try Display.create(allocator, io, test_config);
     defer display.destroy(allocator);
     try display.setDefaultFont("Roboto-Black", .unknown);
     try expectEqual(1, display.fonts.items.len);
@@ -270,7 +270,7 @@ test "guess_fail" {
     try display.setDefaultFont("Roboto-Thin", .korean);
     try expectEqual(3, display.fonts.items.len);
 
-    //var display = try headless_display(allocator, io, TextSize(22), 1024, 720, 2);
+    //var display = try headless_display(allocator, io, 1024, 720, 2);
     //defer display.destroy(allocator);
 
     const panel = try display.addPanel(allocator, .{
@@ -304,13 +304,13 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 const praxis = @import("praxis");
 const Lang = praxis.Lang;
 
-const TextElement = @import("entity.zig").TextElement;
+const TextElement = @import("Entity.zig").TextElement;
 const test_config = @import("test.zig").test_config;
 
 const engine = @import("engine.zig");
 const Display = engine.Display;
 const Font = engine.Font;
+
+const TextSize = engine.TextSize;
 const debug = engine.log.debug;
 const warn = engine.log.warn;
-
-const TextSize = @import("text_size.zig").TextSize;

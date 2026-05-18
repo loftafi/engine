@@ -1,0 +1,83 @@
+pub const ProgressBar = @This();
+
+progress: f32 = 0,
+
+pub inline fn draw(
+    self: *const ProgressBar,
+    entity: *Entity,
+    display: *Display,
+    _: Vector,
+    _: ?Clip,
+    scroll_offset: Vector,
+) void {
+
+    // Draw the background matching the  current button state
+    if (entity.texture) |texture| {
+        var dest = entity.rect.removePadding(entity.pad);
+        dest = dest.move(scroll_offset);
+        var corner: f32 = entity.background.corner_radius;
+        if (corner * 2 > dest.height) corner = dest.height / 2;
+
+        // Progress bar background
+        var tint = display.theme.progress_bar_background;
+        if (entity.style == .custom) tint = entity.background.colour;
+        _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
+        _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
+        if (entity.background.image_corner_radius == 0) {
+            _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+        } else {
+            _ = sdl.SDL_RenderTexture9Grid(
+                display.renderer,
+                texture.texture,
+                null,
+                entity.background.image_corner_radius,
+                entity.background.image_corner_radius,
+                entity.background.image_corner_radius,
+                entity.background.image_corner_radius,
+                corner / entity.background.image_corner_radius,
+                @ptrCast(&dest),
+            );
+        }
+
+        // Progress bar foreground
+        if (self.progress > 0.01) {
+            tint = display.theme.progress_bar_foreground;
+            if (entity.style == .custom)
+                tint = entity.colour;
+            dest.width *= @min(entity.type.progress_bar.progress, 1);
+            _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
+            _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
+            if (entity.background.image_corner_radius == 0) {
+                _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+            } else {
+                _ = sdl.SDL_RenderTexture9Grid(
+                    display.renderer,
+                    texture.texture,
+                    null,
+                    entity.background.image_corner_radius,
+                    entity.background.image_corner_radius,
+                    entity.background.image_corner_radius,
+                    entity.background.image_corner_radius,
+                    corner / entity.background.image_corner_radius,
+                    @ptrCast(&dest),
+                );
+            }
+        }
+    } else {
+        err("progress bar image missing.", .{});
+    }
+}
+
+const std = @import("std");
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
+
+const engine = @import("engine.zig");
+const sdl = engine.sdl;
+const err = engine.log.err;
+const Display = engine.Display;
+const Entity = engine.Entity;
+const Texture = engine.Texture;
+
+const Clip = Entity.Clip;
+const Rect = Entity.Rect;
+const Vector = Entity.Vector;

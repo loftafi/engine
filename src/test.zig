@@ -18,12 +18,11 @@ pub const test_config = Config{
 pub fn headless_display(
     allocator: std.mem.Allocator,
     io: std.Io,
-    text_size: type,
     width: f32,
     height: f32,
     pixel_scale: f32,
-) !*Display(text_size) {
-    var display = try Display(text_size).create(allocator, io, test_config);
+) !*Display {
+    var display = try Display.create(allocator, io, test_config);
     try display.setDefaultFont("Roboto-Light", .unknown);
     display.root.rect.width = width;
     display.root.rect.height = height;
@@ -42,15 +41,13 @@ pub fn headless_display(
 }
 
 const std = @import("std");
-const Display = @import("Display.zig").Display;
-const TextSize = @import("text_size.zig").TextSize;
 
 const engine = @import("engine.zig");
 const Config = engine.Config;
-const Translation = engine.Translation;
+const Display = engine.Display;
+const TextSize = engine.TextSize;
 
 test {
     @import("std").testing.refAllDecls(@This());
     @import("std").testing.refAllDecls(engine);
-    @import("std").testing.refAllDecls(@import("button.zig"));
 }

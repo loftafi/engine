@@ -126,5 +126,5 @@ test "box_word_overflow" {
 const std = @import("std");
 const eq = std.testing.expectEqual;
 
-const Vector = @import("entity.zig").Vector;
-const Size = @import("entity.zig").Size;
+const Vector = @import("Entity.zig").Vector;
+const Size = @import("Entity.zig").Size;

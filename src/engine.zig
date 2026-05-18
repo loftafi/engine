@@ -144,16 +144,16 @@ test "init catch" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
     // The display takes ownership of the resources object
-    var display = try Display(TextSize(22)).create(allocator, io, test_config);
+    var display = try Display.create(allocator, io, test_config);
     defer display.destroy(allocator);
 }
 
 fn create_label(
     allocator: Allocator,
-    display: *Display(TextSize(22)),
-    settings: Entity(TextSize(22)),
-) (Error || Allocator.Error || Resources.Error)!*Entity(TextSize(22)) {
-    const entity = try display.allocator.create(Entity(TextSize(22)));
+    display: *Display,
+    settings: Entity,
+) (Error || Allocator.Error || Resources.Error)!*Entity {
+    const entity = try display.allocator.create(Entity);
     entity.* = settings;
     try display.setup_entity(allocator, entity);
     return entity;
@@ -163,7 +163,7 @@ test "text input sizing" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var display = try headless_display(allocator, io, TextSize(22), 1000, 1600, 2);
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
     defer display.destroy(allocator);
 
     var panel = try display.addPanel(allocator, .{
@@ -219,7 +219,7 @@ test "text input sizing" {
         });
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(300, l.minimum_needed_width(display, 500));
-        try eq(display.text_height.pixel_height(display.scale), l.minimum_needed_height(display, 500));
+        try eq(TextSize.normal.pixel_height(display.scale), l.minimum_needed_height(display, 500));
         panel.removeEntities(allocator, display);
     }
 
@@ -236,7 +236,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         // Minimum is not the actual width, but the smallest it could do.
         try eq(187, @round(l.minimum_needed_width(display, 500)));
-        try eq(display.text_height.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
+        try eq(TextSize.normal.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
         panel.removeEntities(allocator, display);
     }
 
@@ -270,12 +270,12 @@ test "text input sizing" {
         try eq(91, @round(l.minimum_needed_width(display, 500)));
         // TODO: Is this correct? Why is it * 2 ?
         try eq(
-            2 * display.text_height.pixel_height(display.pixel_scale),
+            2 * TextSize.normal.pixel_height(display.pixel_scale),
             l.minimum_needed_height(display, 500),
         );
         // Display width on physical display with word wrap
         try eq(
-            2 * display.text_height.pixel_height(display.pixel_scale),
+            2 * TextSize.normal.pixel_height(display.pixel_scale),
             l.minimum_needed_height(display, 40 * display.pixel_scale),
         );
         panel.removeEntities(allocator, display);
@@ -318,13 +318,13 @@ test "text input sizing" {
     try eq(300, label.minimum_needed_width(display, 500));
     try eq(100, label.minimum_needed_height(display, 500));
 
-    label.minimum.width = display.text_height.pixel_height(1);
-    label.minimum.height = display.text_height.pixel_height(1);
+    label.minimum.width = TextSize.normal.pixel_height(1);
+    label.minimum.height = TextSize.normal.pixel_height(1);
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
     // TODo: 94 or 46?
     try eq(46, @round(label.minimum_needed_width(display, 500) / display.pixel_scale));
-    try eq(display.text_height.pixel_height(2), @round(label.minimum_needed_height(display, 500) / display.pixel_scale));
+    try eq(TextSize.normal.pixel_height(2), @round(label.minimum_needed_height(display, 500) / display.pixel_scale));
     label.layout.x = .grows;
     try eq(187, @round(label.minimum_needed_width(display, 500)));
 
@@ -349,7 +349,7 @@ test "text input sizing" {
     try eq(401, @round(label.rect.width)); // Label has 401 as maximum
     try eq(500, @trunc(panel.rect.width));
     // The height is two lines (44*2)
-    try eq(display.text_height.pixel_height(1), @round(label.rect.height / display.pixel_scale));
+    try eq(TextSize.normal.pixel_height(1), @round(label.rect.height / display.pixel_scale));
     try eq(200, @trunc(panel.rect.height));
 }
 
@@ -357,7 +357,7 @@ test "test_init" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var display: *Display(TextSize(22)) = try .create(allocator, io, test_config);
+    var display: *Display = try .create(allocator, io, test_config);
     defer display.destroy(allocator);
 
     var panel = try display.addPanel(allocator, .{
@@ -384,7 +384,7 @@ test "font_loading" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var display = try headless_display(allocator, io, TextSize(22), 1000, 1600, 2);
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
     defer display.destroy(allocator);
 
     // Initial headless display font
@@ -443,13 +443,13 @@ pub const sdl = @cImport({
 const zstbi = @import("zstbi");
 
 pub const engine = @import("engine.zig");
-pub const Animator = @import("animator.zig").Animator;
+pub const Animator = @import("Animator.zig");
 pub const Font = @import("Font.zig");
-pub const Display = @import("Display.zig").Display;
+pub const Display = @import("Display.zig");
 pub const Texture = @import("Texture.zig");
 pub const Audio = @import("Audio.zig");
 pub const Event = @import("Event.zig");
-pub const seconds = @import("animator.zig").seconds;
+pub const seconds = Animator.seconds;
 
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
@@ -458,7 +458,7 @@ const mixer = @import("mixer");
 
 pub const Chunker = @import("Chunker.zig");
 pub const StringBucket = @import("string_bucket.zig").StringBucket;
-pub const TextSize = @import("text_size.zig").TextSize;
+pub const TextSize = @import("TextSize.zig").TextSize(22);
 
 const base62 = @import("resources").base62;
 const Resources = @import("resources").Resources;
@@ -468,20 +468,19 @@ const Type = @import("resources").Type;
 const random = praxis.random;
 const seed = random.seed;
 
-pub const ent = @import("entity.zig");
-pub const Entity = ent.Entity;
-const Background = ent.Background;
-const Clip = ent.Clip;
-const Fit = ent.Fit;
-const LayoutSize = ent.LayoutSize;
-const LayoutAlign = ent.LayoutAlign;
-const LayoutMode = ent.LayoutMode;
-pub const Rect = ent.Rect;
-const Scale = ent.Scale;
-const Size = ent.Size;
-const TextElement = ent.TextElement;
-const ToggleState = ent.ToggleState;
-pub const Vector = ent.Vector;
+pub const Entity = @import("Entity.zig");
+const Background = Entity.Background;
+const Clip = Entity.Clip;
+const Fit = Entity.Fit;
+const LayoutSize = Entity.LayoutSize;
+const LayoutAlign = Entity.LayoutAlign;
+const LayoutMode = Entity.LayoutMode;
+pub const Rect = Entity.Rect;
+const Scale = Entity.Scale;
+const Size = Entity.Size;
+const TextElement = Entity.TextElement;
+const ToggleState = Entity.ToggleState;
+pub const Vector = Entity.Vector;
 
 pub const log = @import("log.zig");
 const trace = log.trace;

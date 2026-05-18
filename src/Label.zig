@@ -1,139 +1,135 @@
-pub fn Label(comptime T: type) type {
-    return struct {
-        pub const Self = @This();
+pub const Label = @This();
 
-        font: *Font = undefined,
-        font_name: ?[]const u8 = null,
-        text: []const u8 = "",
-        translated: []const u8 = "",
-        elements: ArrayListUnmanaged(TextElement) = .empty,
-        line_height: f32 = 1,
-        text_size: T = .normal,
+font: *Font = undefined,
+font_name: ?[]const u8 = null,
+text: []const u8 = "",
+translated: []const u8 = "",
+elements: ArrayListUnmanaged(TextElement) = .empty,
+line_height: f32 = 1,
+text_size: TextSize = .normal,
 
-        // Handle User triggered events. Keyboard, Mouse, Game controller
-        on_ui_event: Entity(T).Callback = .empty,
-        on_pressed: Entity(T).Callback = .empty,
+// Handle User triggered events. Keyboard, Mouse, Game controller
+on_ui_event: Entity.Callback = .empty,
+on_pressed: Entity.Callback = .empty,
 
-        pub fn setup(
-            label: *Self,
-            allocator: Allocator,
-            display: *Display(T),
-            entity: *Entity(T),
-        ) (Error || Allocator.Error || Resources.Error)!void {
-            entity.texture = null;
-            entity.background.image = null;
-            label.translated = "";
-            label.elements = .empty;
-            if (label.font_name) |name|
-                label.font = try select_font(display.fonts.items, name);
+pub fn setup(
+    label: *Label,
+    allocator: Allocator,
+    display: *Display,
+    entity: *Entity,
+) (Error || Allocator.Error || Resources.Error)!void {
+    entity.texture = null;
+    entity.background.image = null;
+    label.translated = "";
+    label.elements = .empty;
+    if (label.font_name) |name|
+        label.font = try select_font(display.fonts.items, name);
 
-            if (entity.focus == .unspecified) {
-                if (entity.type.label.on_ui_event.func != null)
-                    entity.focus = .can_focus
-                else if (entity.type.label.on_pressed.func != null)
-                    entity.focus = .can_focus
-                else
-                    entity.focus = .accessibility_focus;
-            }
-            try entity.setText(allocator, display, entity.type.label.text);
+    if (entity.focus == .unspecified) {
+        if (entity.type.label.on_ui_event.func != null)
+            entity.focus = .can_focus
+        else if (entity.type.label.on_pressed.func != null)
+            entity.focus = .can_focus
+        else
+            entity.focus = .accessibility_focus;
+    }
+    try entity.setText(allocator, display, entity.type.label.text);
 
-            // Is there a background for this label?
-            if (entity.background.image_name) |name| {
-                if (try display.requireImage(allocator, name)) |texture|
-                    entity.background.image = texture;
-            }
-        }
+    // Is there a background for this label?
+    if (entity.background.image_name) |name| {
+        if (try display.requireImage(allocator, name)) |texture|
+            entity.background.image = texture;
+    }
+}
 
-        /// A label is considered clickable if it has a user driven event
-        /// handler, or if it has text and  we are in blind accessibility mode.
-        pub inline fn clickable(label: *const Self) bool {
-            // TODO: should accessibility check be pulled in here
-            return label.on_ui_event.func != null or label.on_pressed.func != null;
-        }
+/// A label is considered clickable if it has a user driven event
+/// handler, or if it has text and  we are in blind accessibility mode.
+pub inline fn clickable(label: *const Label) bool {
+    // TODO: should accessibility check be pulled in here
+    return label.on_ui_event.func != null or label.on_pressed.func != null;
+}
 
-        /// Calculate the layout of all elements, and optionally render every entity.
-        ///
-        /// Normally text is converted to an image and rendered left to right, starting
-        /// at the top left corner of the entity (including padding).
-        ///
-        /// If the text is centred or right aligned, then each line must be pushed along
-        /// by a certain offset amount.
-        pub inline fn draw(
-            self: *const Self,
-            entity: *Entity(T),
-            display: *Display(T),
-            _: Vector, //parent_scroll_offset: Vector,
-            parent_clip: ?Clip,
-            scroll_offset: Vector,
-        ) void {
-            const loc = Vector{
-                .x = entity.rect.x + entity.pad.left + scroll_offset.x,
-                .y = entity.rect.y + entity.pad.top + scroll_offset.y,
-            };
-            const text_colour = entity.style.text(display.theme, entity.colour);
-            draw_text_elements(self.elements.items, loc, text_colour, display.renderer, parent_clip);
-        }
+/// Calculate the layout of all elements, and optionally render every entity.
+///
+/// Normally text is converted to an image and rendered left to right, starting
+/// at the top left corner of the entity (including padding).
+///
+/// If the text is centred or right aligned, then each line must be pushed along
+/// by a certain offset amount.
+pub inline fn draw(
+    self: *const Label,
+    entity: *Entity,
+    display: *Display,
+    _: Vector, //parent_scroll_offset: Vector,
+    parent_clip: ?Clip,
+    scroll_offset: Vector,
+) void {
+    const loc = Vector{
+        .x = entity.rect.x + entity.pad.left + scroll_offset.x,
+        .y = entity.rect.y + entity.pad.top + scroll_offset.y,
+    };
+    const text_colour = entity.style.text(display.theme, entity.colour);
+    draw_text_elements(self.elements.items, loc, text_colour, display.renderer, parent_clip);
+}
 
-        // Return the absolute minimum width needed, even if more space
-        // could be used. `.grows`  is ignored for the purpose of finding
-        // the minimum width.
-        //
-        // `parent_inner_width` is the maximum space this entity could
-        // theoretically grow to. Text might wrap if wider than this.
-        pub inline fn minimum_needed_width(
-            _: *const Self,
-            display: *const Display(T),
-            entity: *const Entity(T),
-            max_width: f32,
-        ) f32 {
-            const padding = entity.pad.left + entity.pad.right;
+// Return the absolute minimum width needed, even if more space
+// could be used. `.grows`  is ignored for the purpose of finding
+// the minimum width.
+//
+// `parent_inner_width` is the maximum space this entity could
+// theoretically grow to. Text might wrap if wider than this.
+pub inline fn minimum_needed_width(
+    _: *const Label,
+    display: *const Display,
+    entity: *const Entity,
+    max_width: f32,
+) f32 {
+    const padding = entity.pad.left + entity.pad.right;
 
-            const allowed_width = engine.directional_clamp(
-                entity.layout.x,
-                @max(0, entity.minimum.width - padding),
-                @max(0, max_width - padding),
-                @max(0, @min(
-                    entity.maximum.width - padding,
-                    max_width - padding,
-                )),
-            );
+    const allowed_width = engine.directional_clamp(
+        entity.layout.x,
+        @max(0, entity.minimum.width - padding),
+        @max(0, max_width - padding),
+        @max(0, @min(
+            entity.maximum.width - padding,
+            max_width - padding,
+        )),
+    );
 
-            // How wide does the label text get when laying it out.
-            return switch (entity.layout.x) {
-                .shrinks, .grows => return @max(
-                    entity.layout_label(display.scale, allowed_width).width + padding,
-                    entity.minimum.width,
-                ),
-                .fixed,
-                => entity.rect.width,
-            };
-        }
+    // How wide does the label text get when laying it out.
+    return switch (entity.layout.x) {
+        .shrinks, .grows => return @max(
+            entity.layout_label(display.scale, allowed_width).width + padding,
+            entity.minimum.width,
+        ),
+        .fixed,
+        => entity.rect.width,
+    };
+}
 
-        // `parent_inner_width` is the maximum space this entity could
-        // theoretically grow to. Text might wrap if wider than this.
-        pub inline fn minimum_needed_height(
-            _: *const Self,
-            display: *const Display(T),
-            entity: *const Entity(T),
-            parent_inner_width: f32,
-        ) f32 {
-            const padding = entity.pad.left + entity.pad.right;
-            const allowed_width = engine.directional_clamp(
-                entity.layout.x,
-                @max(0, entity.minimum.width - padding),
-                @max(0, parent_inner_width - padding),
-                @max(0, entity.maximum.width - padding),
-            );
+// `parent_inner_width` is the maximum space this entity could
+// theoretically grow to. Text might wrap if wider than this.
+pub inline fn minimum_needed_height(
+    _: *const Label,
+    display: *const Display,
+    entity: *const Entity,
+    parent_inner_width: f32,
+) f32 {
+    const padding = entity.pad.left + entity.pad.right;
+    const allowed_width = engine.directional_clamp(
+        entity.layout.x,
+        @max(0, entity.minimum.width - padding),
+        @max(0, parent_inner_width - padding),
+        @max(0, entity.maximum.width - padding),
+    );
 
-            // How high does the label text get when laying it out.
-            return switch (entity.layout.y) {
-                .shrinks, .grows => @max(
-                    entity.layout_label(display.scale, allowed_width).height + entity.pad.top + entity.pad.bottom,
-                    entity.minimum.height,
-                ),
-                .fixed => entity.rect.height,
-            };
-        }
+    // How high does the label text get when laying it out.
+    return switch (entity.layout.y) {
+        .shrinks, .grows => @max(
+            entity.layout_label(display.scale, allowed_width).height + entity.pad.top + entity.pad.bottom,
+            entity.minimum.height,
+        ),
+        .fixed => entity.rect.height,
     };
 }
 
@@ -174,7 +170,8 @@ test "label_panel_placement" {
     const io = std.testing.io;
     // The display takes ownership of the resources object
 
-    var display = try Display(TextSize(10)).create(allocator, io, test_config);
+    // TODO: 10->22
+    var display = try Display.create(allocator, io, test_config);
     defer display.destroy(allocator);
     try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);
@@ -205,32 +202,32 @@ test "label_panel_placement" {
     panel.type.panel.direction = .top_to_bottom;
     display.need_relayout = true;
     display.relayout();
-    try eq(51, child.rect.width);
-    try eq(20, child.rect.height);
+    try eq(112, child.rect.width);
+    try eq(44, child.rect.height);
     try eq(0, child.rect.x);
     try eq(0, child.rect.y);
 
     panel.type.panel.direction = .top_left;
     display.need_relayout = true;
     display.relayout();
-    try eq(51, child.rect.width);
-    try eq(20, child.rect.height);
+    try eq(112, child.rect.width);
+    try eq(44, child.rect.height);
     try eq(0, child.rect.x);
     try eq(0, child.rect.y);
 
     panel.type.panel.direction = .top_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(51, child.rect.width);
-    try eq(20, child.rect.height);
+    try eq(112, child.rect.width);
+    try eq(44, child.rect.height);
     try eq(panel.rect.width - child.rect.width, child.rect.x);
     try eq(0, child.rect.y);
 
     panel.type.panel.direction = .centre;
     display.need_relayout = true;
     display.relayout();
-    try eq(51, child.rect.width);
-    try eq(20, child.rect.height);
+    try eq(112, child.rect.width);
+    try eq(44, child.rect.height);
     try eq(@round(panel.rect.width / 2 - child.rect.width / 2), child.rect.x);
     try eq(@round(panel.rect.height / 2 - child.rect.height / 2), child.rect.y);
 }
@@ -240,7 +237,8 @@ test "label_single_word_alignment" {
     const io = std.testing.io;
     // The display takes ownership of the resources object
 
-    var display = try headless_display(allocator, io, TextSize(10), 300, 200, 2);
+    // TODO: 10->22
+    var display = try headless_display(allocator, io, 300, 200, 2);
     defer display.destroy(allocator);
 
     const panel = try display.addPanel(allocator, .{
@@ -265,7 +263,7 @@ test "label_single_word_alignment" {
     display.need_relayout = true;
     display.relayout();
     try eq(300, child.rect.width);
-    try eq(20, child.rect.height);
+    try eq(44, child.rect.height);
     //try eq(52, child.rect.width);
     //try eq(20, child.rect.height);
     try eq(0, child.rect.x);
@@ -277,8 +275,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(51, element.location.width);
-        try eq(20, element.location.height);
+        try eq(112, element.location.width);
+        try eq(44, element.location.height);
         try eq(0, element.location.x);
         try eq(0, element.location.y);
     }
@@ -288,8 +286,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(51, element.location.width);
-        try eq(20, element.location.height);
+        try eq(112, element.location.width);
+        try eq(44, element.location.height);
         try eq(panel.rect.width - element.location.width, element.location.x);
         try eq(0, element.location.y);
     }
@@ -299,8 +297,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(51, element.location.width);
-        try eq(20, element.location.height);
+        try eq(112, element.location.width);
+        try eq(44, element.location.height);
         try eq(@round(panel.rect.width / 2 - element.location.width / 2), element.location.x);
         try eq(0, element.location.y);
     }
@@ -313,8 +311,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(51, element.location.width);
-        try eq(20, element.location.height);
+        try eq(112, element.location.width);
+        try eq(44, element.location.height);
         try eq(0, element.location.x);
         try eq(0, element.location.y);
     }
@@ -328,8 +326,8 @@ test "label_single_word_alignment" {
         try eq(panel.rect.width - child.pad.left - child.pad.right, child.inner_width());
         try eq(300 - 8 - 4, child.inner_width());
         const element = child.type.label.elements.items[0];
-        try eq(51, element.location.width);
-        try eq(20, element.location.height);
+        try eq(112, element.location.width);
+        try eq(44, element.location.height);
         // `element.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
         // 300 - 51 - 8 - 4
@@ -342,8 +340,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(51, element.location.width);
-        try eq(20, element.location.height);
+        try eq(112, element.location.width);
+        try eq(44, element.location.height);
         // `entity.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
         try eq(@round((panel.rect.width - child.pad.left - child.pad.right) / 2 - (element.location.width / 2)), element.location.x);
@@ -355,7 +353,8 @@ test "label_multiword_align" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var display = try headless_display(allocator, io, TextSize(10), 200, 200, 2);
+    // TODO: 10->22
+    var display = try headless_display(allocator, io, 300, 200, 2);
     defer display.destroy(allocator);
 
     const panel = try display.addPanel(allocator, .{
@@ -366,12 +365,16 @@ test "label_multiword_align" {
     display.need_relayout = true;
     display.relayout();
 
-    try eq(200, panel.rect.width);
+    try eq(300, panel.rect.width);
     try eq(200, panel.rect.height);
 
+    const text_size = TextSize.normal;
     const child = try panel.add(allocator, display, .{
         .name = "child",
-        .type = .{ .label = .{ .text = "Officially Simple Readingology" } },
+        .type = .{ .label = .{
+            .text = "Officially Simple Readingology",
+            .text_size = text_size,
+        } },
         .layout = .{ .x = .grows, .y = .shrinks },
     });
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
@@ -379,8 +382,8 @@ test "label_multiword_align" {
     // Test alignment without padding
     display.need_relayout = true;
     display.relayout();
-    try eq(200, child.rect.width);
-    try eq(40, child.rect.height);
+    try eq(300, child.rect.width);
+    try eq(88, child.rect.height);
     //try eq(52, child.rect.width);
     //try eq(20, child.rect.height);
     try eq(0, child.rect.x);
@@ -394,21 +397,21 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(63, element1.location.width);
-        try eq(20, element1.location.height);
+        try eq(138, element1.location.width);
+        try eq(44, element1.location.height);
         try eq(0, element1.location.x);
         try eq(0, element1.location.y);
 
-        try eq(51, element2.location.width);
-        try eq(20, element2.location.height);
-        try eq(63 + display.text_height.word_spacing(display.scale), element2.location.x);
+        try eq(112, element2.location.width);
+        try eq(44, element2.location.height);
+        try eq(138 + text_size.word_spacing(display.scale), element2.location.x);
         try eq(0, element2.location.y);
 
         // Wrap to next line
-        try eq(100, element3.location.width);
-        try eq(20, element3.location.height);
+        try eq(222, element3.location.width);
+        try eq(44, element3.location.height);
         try eq(0, element3.location.x);
-        try eq(20, element3.location.y);
+        try eq(44, element3.location.y);
     }
 
     {
@@ -419,12 +422,12 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(63, element1.location.width);
-        try eq(20, element1.location.height);
+        try eq(138, element1.location.width);
+        try eq(44, element1.location.height);
         try eq(panel.rect.width - element2.location.width, element2.location.x);
         try eq(0, element1.location.y);
         try eq(panel.rect.width - element3.location.width, element3.location.x);
-        try eq(20, element3.location.y);
+        try eq(44, element3.location.y);
     }
 
     {
@@ -434,13 +437,13 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(63, element1.location.width);
-        try eq(20, element1.location.height);
-        const space = display.text_height.word_spacing(display.scale);
-        try eq((panel.rect.width - element2.location.width - element1.location.width - space) / 2, element1.location.x);
+        try eq(138, element1.location.width);
+        try eq(44, element1.location.height);
+        const space = text_size.word_spacing(display.scale);
+        try eq(@round((panel.rect.width - element2.location.width - element1.location.width - space) / 2), element1.location.x);
         try eq(0, element1.location.y);
         try eq((panel.rect.width - element3.location.width) / 2, element3.location.x);
-        try eq(20, element3.location.y);
+        try eq(44, element3.location.y);
     }
 }
 
@@ -448,7 +451,8 @@ test "shrunk_label_in_panel" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var display = try headless_display(allocator, io, TextSize(10), 200, 100, 2);
+    // TODO: 10->22
+    var display = try headless_display(allocator, io, 200, 100, 2);
     defer display.destroy(allocator);
 
     const panel = try display.addPanel(allocator, .{
@@ -472,8 +476,8 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(51, child.rect.width);
-    try eq(20, child.rect.height);
+    try eq(112, child.rect.width);
+    try eq(44, child.rect.height);
     try eq(4, child.rect.x);
     try eq(2, child.rect.y);
 
@@ -481,8 +485,8 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(51, child.rect.width);
-    try eq(20, child.rect.height);
+    try eq(112, child.rect.width);
+    try eq(44, child.rect.height);
     try eq(panel.rect.width - panel.pad.right - child.rect.width, child.rect.x);
     try eq(2, child.rect.y);
 
@@ -490,16 +494,16 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(51, child.rect.width);
-    try eq(20, child.rect.height);
+    try eq(112, child.rect.width);
+    try eq(44, child.rect.height);
+    // Check child is centred. Accommodate all padding.
     try eq(@round((panel.rect.width - panel.pad.left - panel.pad.right) / 2 - (child.rect.width / 2)) + panel.pad.left, child.rect.x);
-    try eq(74, child.rect.x);
     try eq(2, child.rect.y);
 
     // Where would the draw function theoretically put this element
     const loc = Vector{ .x = child.rect.x, .y = child.rect.y };
     const would_draw_at = child.type.label.elements.items[0].location.move(loc);
-    try eq(74, would_draw_at.x);
+    try eq(@round((panel.rect.width - panel.pad.left - panel.pad.right) / 2 - (child.rect.width / 2)) + panel.pad.left, would_draw_at.x);
     try eq(2, would_draw_at.y);
 }
 
@@ -524,15 +528,14 @@ const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
 
-const Clip = engine.ent.Clip;
-const Size = engine.ent.Size;
-const TextSize = engine.ent.TextSize;
-const Texture = engine.ent.Texture;
-const ToggleState = engine.ent.ToggleState;
+const Clip = Entity.Clip;
+const Size = Entity.Size;
+const TextSize = Entity.TextSize;
+const Texture = Entity.Texture;
+const ToggleState = Entity.ToggleState;
+const TextElement = Entity.TextElement;
+const Vector = Entity.Vector;
 
-const TextElement = engine.ent.TextElement;
-const Vector = engine.ent.Vector;
-
-const select_font = @import("entity.zig").select_font;
+const select_font = Entity.select_font;
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
