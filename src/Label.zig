@@ -82,29 +82,146 @@ pub inline fn minimum_needed_width(
     _: *const Label,
     display: *const Display,
     entity: *const Entity,
-    max_width: f32,
+    parent_inner_width: f32,
 ) f32 {
-    const padding = entity.pad.left + entity.pad.right;
+    return layout(entity, display.scale, parent_inner_width).minimum_width;
+}
 
-    const allowed_width = engine.directional_clamp(
-        entity.layout.x,
-        @max(0, entity.minimum.width - padding),
-        @max(0, max_width - padding),
-        @max(0, @min(
-            entity.maximum.width - padding,
-            max_width - padding,
-        )),
-    );
+/// Calculate the layout of each text element. Returns the `minimum_width`
+/// the element _could_ be squished into, and the actual `width` chosen based
+/// on what the `entity.layout` preference to `grows` or `shrinks`.
+///
+/// If `entity.child_align` requests `centred` or `right` aligned text, then the
+/// text element are aligned to the `width` (not the `minimum_width`).
+///
+/// `parent_inner_width` is maximum number of pixels that the parent can
+/// give to this element. Usually this is the parent width, minus any parent
+/// padding.
+pub inline fn layout(
+    entity: *const Entity,
+    display_scale: f32,
+    parent_inner_width: f32,
+) SizeInfo {
+    std.debug.assert(entity.type == .label or entity.type == .checkbox);
 
-    // How wide does the label text get when laying it out.
-    return switch (entity.layout.x) {
-        .shrinks, .grows => return @max(
-            entity.layout_label(display.scale, allowed_width).width + padding,
-            entity.minimum.width,
-        ),
-        .fixed,
-        => entity.rect.width,
+    const empty: SizeInfo = .{ .width = 0, .minimum_width = 0, .height = 0 };
+    switch (entity.type) {
+        .label => if (entity.type.label.text.len == 0) return empty,
+        .checkbox => if (entity.type.checkbox.text.len == 0) return empty,
+        else => unreachable,
+    }
+
+    const children = switch (entity.type) {
+        .label => entity.type.label.elements.items,
+        .checkbox => entity.type.checkbox.elements.items,
+        else => unreachable,
     };
+    if (children.len == 0) return empty;
+
+    const text_height = switch (entity.type) {
+        .label => entity.type.label.text_size,
+        .checkbox => entity.type.checkbox.text_size,
+        else => unreachable,
+    };
+
+    const word_spacing = text_height.word_spacing(display_scale);
+    const maximum_total_width = clamp(entity.minimum.width, parent_inner_width, entity.maximum.width);
+    const maximum_text_width = @max(0, maximum_total_width - (entity.pad.left + entity.pad.right));
+
+    var box: BoxLayout = .init(maximum_text_width, word_spacing, 0);
+
+    // Lay down each word one by one and wrap before we hit the
+    // `wrap_at` boundary.
+    for (children) |*item| {
+        if (item.text.len == 1 and item.text[0] == '\n') {
+            item.location = .{ .x = 0, .y = 0, .width = 0, .height = 0 };
+            box.finalise();
+            continue;
+        }
+
+        const size = text_height.pixel_size(display_scale, item.texture);
+
+        const location = box.place(size.width, size.height);
+
+        item.location = .{
+            .x = @round(location.x),
+            .y = @round(location.y),
+            .width = @round(size.width),
+            .height = size.height,
+        };
+    }
+    box.finalise();
+
+    const used_text_width = switch (entity.layout.x) {
+        .shrinks => @round(box.final.width),
+        .grows => maximum_text_width,
+        .fixed => @max(0, entity.rect.width - (entity.pad.left - entity.pad.right)),
+    };
+
+    // Align words to centre or right if requested.
+    // centre and end alignment might need the `grows`
+    // full width, or the `shrinks` minimum width.
+    if (entity.child_align.x == .centre or entity.child_align.x == .end) {
+        var start: usize = 0;
+        var end: usize = 0;
+        while (true) : (end += 1) {
+            if (end + 1 == children.len) {
+                applyLineJustification(
+                    entity,
+                    children[end].location.x + children[end].location.width,
+                    used_text_width,
+                    children[start .. end + 1],
+                );
+                break;
+            }
+            if (children[end].location.x >= children[end + 1].location.x) {
+                applyLineJustification(
+                    entity,
+                    children[end].location.x + children[end].location.width,
+                    used_text_width,
+                    children[start .. end + 1],
+                );
+                start = end + 1;
+                continue;
+            }
+        }
+    }
+
+    return .{
+        .width = used_text_width + entity.pad.left + entity.pad.right,
+        .minimum_width = used_text_width + entity.pad.left + entity.pad.right,
+        .height = @round(box.final.height) + entity.pad.top + entity.pad.bottom,
+    };
+}
+
+/// Align a single line of TextElement's belonging to a label or a checkbox.
+inline fn applyLineJustification(
+    entity: *const Entity,
+    line_width: f32,
+    usable_width: f32,
+    children: []TextElement,
+) void {
+    // How much whitespace was left over at the end of this line.
+    const trailing_whitespace = usable_width - line_width;
+
+    if (trailing_whitespace <= 0) return;
+
+    switch (entity.child_align.x) {
+        .start => {
+            // No adjustment needed
+            return;
+        },
+        .centre => {
+            // Shuffle words into centre
+            const adjust_by = @round(trailing_whitespace / 2);
+            for (children) |*child| child.location.x += adjust_by;
+        },
+        .end => {
+            // Shuffle words to the end
+            const adjust_by = trailing_whitespace;
+            for (children) |*child| child.location.x += adjust_by;
+        },
+    }
 }
 
 // `parent_inner_width` is the maximum space this entity could
@@ -126,7 +243,7 @@ pub inline fn minimum_needed_height(
     // How high does the label text get when laying it out.
     return switch (entity.layout.y) {
         .shrinks, .grows => @max(
-            entity.layout_label(display.scale, allowed_width).height + entity.pad.top + entity.pad.bottom,
+            layout(entity, display.scale, allowed_width).height + entity.pad.top + entity.pad.bottom,
             entity.minimum.height,
         ),
         .fixed => entity.rect.height,
@@ -529,12 +646,14 @@ const Error = engine.Error;
 const Font = engine.Font;
 
 const Clip = Entity.Clip;
-const Size = Entity.Size;
+const SizeInfo = Entity.SizeInfo;
 const TextSize = Entity.TextSize;
 const Texture = Entity.Texture;
 const ToggleState = Entity.ToggleState;
 const TextElement = Entity.TextElement;
 const Vector = Entity.Vector;
+
+const BoxLayout = @import("BoxLayout.zig");
 
 const select_font = Entity.select_font;
 const test_config = @import("test.zig").test_config;

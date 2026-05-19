@@ -293,13 +293,10 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     // - `.shrinks` entities shrink to the `minimum` space they need.
     //
     const available_width = parent.inner_width();
-    const available_height = parent.inner_height();
+    // TODO: Support growing by height to allow vertical alignment
+    //const available_height = parent.inner_height();
 
     for (self.children.items) |entity| {
-        if (engine.dev_build)
-            if (std.mem.eql(u8, parent.name, display.root.name))
-                trace("layout {s} panel {s} {t}", .{ parent.name, entity.name, entity.visible });
-
         if (entity.visible == .hidden) continue;
 
         const child_resized = self.calculate_child_size(display, entity, parent, available_width);
@@ -326,26 +323,11 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     // layout of label text.
     for (self.children.items) |entity| {
         if (entity.visible == .hidden) continue;
-        const max_allowed = @max(0, available_width - entity.pad.left - entity.pad.right);
-        if (entity.type == .label) {
-            const content_size = entity.layout_label(display.scale, max_allowed);
-            entity.rect.width = switch (entity.layout.x) {
-                .grows => available_width,
-                .shrinks => @max(
-                    content_size.width + entity.pad.left + entity.pad.right,
-                    entity.minimum.width,
-                ),
-                .fixed => entity.rect.width,
-            };
-            entity.rect.height = switch (entity.layout.y) {
-                .grows => available_height,
-                .shrinks => @max(
-                    content_size.height + entity.pad.top + entity.pad.bottom,
-                    entity.minimum.height,
-                ),
-                .fixed => entity.rect.height,
-            };
-        }
+        if (entity.type != .label) continue;
+
+        const size = Label.layout(entity, display.scale, available_width);
+        if (entity.layout.x != .fixed) entity.rect.width = size.width;
+        if (entity.layout.y != .fixed) entity.rect.height = size.height;
     }
 
     // Step 2 - Entity placement
@@ -1077,6 +1059,7 @@ const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
+const Label = @import("Label.zig");
 
 const Clip = Entity.Clip;
 const LayoutDirection = Entity.LayoutDirection;

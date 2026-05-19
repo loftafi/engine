@@ -779,9 +779,7 @@ pub inline fn setText(
             .checkbox => self.type.checkbox.text,
             .label => self.type.label.text,
             .button => self.type.button.text,
-            else => {
-                return;
-            },
+            else => return,
         };
         debug("setText {s} {s} \"{s}\" => \"{s}\"", .{ self.name, @tagName(self.type), old_text, new_text });
     }
@@ -946,24 +944,17 @@ pub inline fn setText(
     }
 
     // Set an initial label width and height as placeholders until
-    // the label is laied out in the entity tree.
+    // the label is positioned in the entity tree.
     if (self.type == .label or self.type == .checkbox) {
         const width = if (self.layout.x == .fixed) self.rect.width else display.root.rect.width;
-        const content_size = self.layout_label(display.scale, width);
-        self.rect.width = switch (self.layout.x) {
-            .grows, .shrinks => @max(
-                content_size.width + self.pad.left + self.pad.right,
-                self.minimum.width,
-            ),
-            .fixed => self.rect.width,
-        };
-        self.rect.height = switch (self.layout.y) {
-            .grows, .shrinks => @max(
-                content_size.height + self.pad.top + self.pad.bottom,
-                self.minimum.height,
-            ),
-            .fixed => self.rect.height,
-        };
+        const allowed_width = if (self.maximum.width == 0)
+            width
+        else
+            @min(self.maximum.width, width);
+
+        const size = Label.layout(self, display.scale, allowed_width);
+        if (self.layout.x != .fixed) self.rect.width = size.width;
+        if (self.layout.y != .fixed) self.rect.height = size.height;
     }
 
     if (self.visible != .hidden) display.need_relayout = true;
@@ -1383,108 +1374,6 @@ pub fn drawCursor(
     }
 }
 
-/// Calculate the layout of all entities, and optionally render every entity.
-///
-/// Normally text is converted to an image and rendered left to right, starting
-/// at the top left corner of the entity (including padding).
-///
-/// If the text is centred or right aligned, then each line must be pushed along
-/// by a certain offset amount.
-///
-/// `maximum_width` is maximum number of pixels this label is able
-/// to grow into. left and right padding of this label is _not_ part
-/// of the maximum width. When calling this function, subtract padding
-/// first, and apply limit placed by `entity.maximum`width`
-///
-/// Returns the width and height of the text content, _not_ including any
-/// padding
-pub inline fn layout_label(
-    entity: *const Entity,
-    display_scale: f32,
-    maximum_width: f32,
-) Size {
-    std.debug.assert(entity.type == .label or entity.type == .checkbox);
-
-    const empty: Size = .{ .width = 0, .height = 0 };
-    if (entity.type == .label and entity.type.label.text.len == 0) return empty;
-    if (entity.type == .checkbox and entity.type.checkbox.text.len == 0) return empty;
-
-    const children = switch (entity.type) {
-        .label => entity.type.label.elements.items,
-        .checkbox => entity.type.checkbox.elements.items,
-        else => unreachable,
-    };
-    if (children.len == 0) return empty;
-
-    const text_height = switch (entity.type) {
-        .label => entity.type.label.text_size,
-        .checkbox => entity.type.checkbox.text_size,
-        else => unreachable,
-    };
-
-    const word_spacing = text_height.word_spacing(display_scale);
-
-    var box: BoxLayout = .init(maximum_width, word_spacing, 0);
-
-    // Lay down each word one by one and wrap before we hit the
-    // `wrap_at` boundary.
-    for (children) |*item| {
-        if (item.text.len == 1 and item.text[0] == '\n') {
-            item.location = .{ .x = 0, .y = 0, .width = 0, .height = 0 };
-            box.finalise();
-            continue;
-        }
-
-        const size = text_height.pixel_size(display_scale, item.texture);
-
-        const location = box.place(size.width, size.height);
-
-        item.location = .{
-            .x = @round(location.x),
-            .y = @round(location.y),
-            .width = @round(size.width),
-            .height = size.height,
-        };
-    }
-    box.finalise();
-
-    // Align words to centre or right if requested.
-    // centre and end alignment might need the `grows`
-    // full width, or the `shrinks` minimum width.
-    if (entity.child_align.x == .centre or entity.child_align.x == .end) {
-        const usable_width = switch (entity.layout.x) {
-            .shrinks => @round(box.final.width),
-            .grows, .fixed => maximum_width,
-        };
-        var start: usize = 0;
-        var end: usize = 0;
-        while (true) : (end += 1) {
-            if (end + 1 == children.len) {
-                entity.do_line_justification(
-                    children[end].location.x + children[end].location.width,
-                    usable_width,
-                    children[start .. end + 1],
-                );
-                break;
-            }
-            if (children[end].location.x >= children[end + 1].location.x) {
-                entity.do_line_justification(
-                    children[end].location.x + children[end].location.width,
-                    usable_width,
-                    children[start .. end + 1],
-                );
-                start = end + 1;
-                continue;
-            }
-        }
-    }
-
-    return .{
-        .width = @round(box.final.width),
-        .height = @round(box.final.height),
-    };
-}
-
 pub fn keypress(
     self: *Entity,
     allocator: Allocator,
@@ -1840,37 +1729,6 @@ fn text_data_to_runes(self: *Entity, allocator: Allocator) void {
     if (self.type.text_input.cursor_character > self.type.text_input.runes.items.len) {
         self.type.text_input.cursor_character = self.type.text_input.runes.items.len;
         cursor_slice = self.type.text_input.text.items.len;
-    }
-}
-
-/// Align a single line of TextElement's belonging to a label
-/// or a checkbox.
-inline fn do_line_justification(
-    entity: *const Entity,
-    line_width: f32,
-    usable_width: f32,
-    children: []TextElement,
-) void {
-    // How much whitespace was left over at the end of this line.
-    const trailing_whitespace = usable_width - line_width;
-
-    if (trailing_whitespace <= 0) return;
-
-    switch (entity.child_align.x) {
-        .start => {
-            // No adjustment needed
-            return;
-        },
-        .centre => {
-            // Shuffle words into centre
-            const adjust_by = @round(trailing_whitespace / 2);
-            for (children) |*child| child.location.x += adjust_by;
-        },
-        .end => {
-            // Shuffle words to the end
-            const adjust_by = trailing_whitespace;
-            for (children) |*child| child.location.x += adjust_by;
-        },
     }
 }
 
@@ -2606,6 +2464,17 @@ pub const Size = struct {
     height: f32 = 0,
 };
 
+/// The width and height an entity will used based on parent entity information.
+pub const SizeInfo = struct {
+    /// The width an entity has based on its parent entity width and shrink/grows setting.
+    width: f32 = 0,
+    /// The physical height needed for this entity. shrink/grows height ignored.
+    /// TODO: Growing should be supported to allow horizontal centring.
+    height: f32 = 0,
+    /// The width an entity could be shrunk to
+    minimum_width: f32 = 0,
+};
+
 /// Indicate if an entity should be flipped when it is drawn.
 pub const Flip = struct {
     x: bool = false,
@@ -2829,7 +2698,6 @@ const Chunker = @import("Chunker.zig");
 const Texture = @import("Texture.zig");
 const Colour = @import("Colour.zig");
 const Theme = @import("Theme.zig");
-const BoxLayout = @import("BoxLayout.zig");
 const Event = @import("Event.zig");
 
 pub const TextSize = engine.TextSize;

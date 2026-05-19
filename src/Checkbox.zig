@@ -70,7 +70,7 @@ pub inline fn minimum_needed_width(
 
     switch (entity.layout.x) {
         .shrinks, .grows => return @max(
-            entity.layout_label(display.scale, allowed_width).width +
+            Label.layout(entity, display.scale, allowed_width).width +
                 margins +
                 entity.type.checkbox.checkbox_size.width,
             entity.minimum.width,
@@ -91,7 +91,7 @@ pub inline fn minimum_needed_height(
     // needs to be done here as the width of the label may have changed.
     switch (entity.layout.y) {
         .shrinks, .grows => {
-            _ = entity.layout_label(display.scale, parent_inner_width);
+            _ = Label.layout(entity, display.scale, parent_inner_width);
             return entity.rect.height;
         },
         .fixed => {
@@ -116,6 +116,8 @@ const Error = engine.Error;
 const Font = engine.Font;
 const Texture = engine.Texture;
 const TextSize = engine.TextSize;
+
+const Label = @import("Label.zig");
 
 const Clip = Entity.Clip;
 const Rect = Entity.Rect;
