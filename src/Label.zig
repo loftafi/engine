@@ -14,7 +14,6 @@ on_pressed: Entity.Callback = .empty,
 
 pub fn setup(
     label: *Label,
-    allocator: Allocator,
     display: *Display,
     entity: *Entity,
 ) (Error || Allocator.Error || Resources.Error)!void {
@@ -33,11 +32,11 @@ pub fn setup(
         else
             entity.focus = .accessibility_focus;
     }
-    try entity.setText(allocator, display, entity.type.label.text);
+    try entity.setText(display, entity.type.label.text);
 
     // Is there a background for this label?
     if (entity.background.image_name) |name| {
-        if (try display.requireImage(allocator, name)) |texture|
+        if (try display.requireImage(name)) |texture|
             entity.background.image = texture;
     }
 }
@@ -289,7 +288,8 @@ test "label_panel_placement" {
 
     // TODO: 10->22
     var display = try Display.create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
+
     try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
@@ -299,7 +299,7 @@ test "label_panel_placement" {
     display.root.maximum.width = 300;
     display.root.maximum.height = 200;
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -309,10 +309,10 @@ test "label_panel_placement" {
     try eq(300, panel.rect.width);
     try eq(200, panel.rect.height);
 
-    const child = try panel.add(allocator, display, .{
+    const child = try panel.add(.{
         .type = .{ .label = .{ .text = "Simple" } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
-    });
+    }, display);
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
 
     // Test alignment without padding
@@ -356,9 +356,9 @@ test "label_single_word_alignment" {
 
     // TODO: 10->22
     var display = try headless_display(allocator, io, 300, 200, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .name = "parent",
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -369,11 +369,11 @@ test "label_single_word_alignment" {
     try eq(300, panel.rect.width);
     try eq(200, panel.rect.height);
 
-    const child = try panel.add(allocator, display, .{
+    const child = try panel.add(.{
         .name = "child",
         .type = .{ .label = .{ .text = "Simple" } },
         .layout = .{ .x = .grows, .y = .shrinks },
-    });
+    }, display);
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
 
     // Test alignment without padding
@@ -472,9 +472,9 @@ test "label_multiword_align" {
 
     // TODO: 10->22
     var display = try headless_display(allocator, io, 300, 200, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .name = "parent",
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -486,14 +486,14 @@ test "label_multiword_align" {
     try eq(200, panel.rect.height);
 
     const text_size = TextSize.normal;
-    const child = try panel.add(allocator, display, .{
+    const child = try panel.add(.{
         .name = "child",
         .type = .{ .label = .{
             .text = "Officially Simple Readingology",
             .text_size = text_size,
         } },
         .layout = .{ .x = .grows, .y = .shrinks },
-    });
+    }, display);
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
 
     // Test alignment without padding
@@ -570,9 +570,9 @@ test "shrunk_label_in_panel" {
 
     // TODO: 10->22
     var display = try headless_display(allocator, io, 200, 100, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .layout = .{ .x = .grows, .y = .grows },
         .type = .{ .panel = .{ .direction = .centre } },
         .pad = .{ .left = 4, .right = 6, .top = 2, .bottom = 8 },
@@ -583,10 +583,10 @@ test "shrunk_label_in_panel" {
     try eq(200, panel.rect.width);
     try eq(100, panel.rect.height);
 
-    const child = try panel.add(allocator, display, .{
+    const child = try panel.add(.{
         .type = .{ .label = .{ .text = "Simple" } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
-    });
+    }, display);
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
 
     panel.child_align.x = .start;

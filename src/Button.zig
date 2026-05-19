@@ -243,9 +243,9 @@ test "normal_use" {
     const io = std.testing.io;
 
     var display = try headless_display(allocator, io, 1024, 720, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
@@ -256,13 +256,13 @@ test "normal_use" {
     const not_quite_one_line = TextSize.normal.pixel_height(display.scale) - 5;
     const not_quite_two_lines = TextSize.normal.pixel_height(display.scale) * 2 - 5;
 
-    var button = try panel.add(allocator, display, .{
+    var button = try panel.add(.{
         .visible = .visible,
         .rect = .{ .width = 50, .height = 50 },
         .minimum = .{ .width = 30, .height = not_quite_one_line },
         .maximum = .{ .width = 82, .height = not_quite_two_lines },
         .type = .{ .button = .{ .text = "" } },
-    });
+    }, display);
     display.need_relayout = true;
     display.relayout();
     try expectEqual(50, button.minimum_needed_width(display, 500));
@@ -301,7 +301,7 @@ test "normal_use" {
     try std.testing.expect(display.resources.by_uid.count() > 0);
     try display.setDefaultFont("Roboto-Light", .unknown);
 
-    try button.setText(allocator, display, "Hello");
+    try button.setText(display, "Hello");
     display.need_relayout = true;
     display.relayout();
     try expectEqual(42, @round(button.rect.width / display.pixel_density));
@@ -313,7 +313,7 @@ test "normal_use" {
 
     // Buttons cant wrap, hight will only change with padding.
     button.maximum.height = 500;
-    try button.setText(allocator, display, "Hello Defragment");
+    try button.setText(display, "Hello Defragment");
     display.relayout();
     try expectEqual(TextSize.normal.pixel_height(1), button.rect.height / display.pixel_density);
     button.pad.top = 4;
@@ -328,24 +328,23 @@ test "button_sizing" {
     const io = std.testing.io;
 
     var display = try headless_display(allocator, io, 1024, 720, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .minimum = .{ .width = 500, .height = 500 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
 
     // Button with normal height.
-    var button = try panel.add(allocator, display, .{
-        .visible = .visible,
+    var button = try panel.add(.{
         .minimum = .{ .width = 0, .height = 0 },
         .layout = .{ .x = .shrinks, .y = .shrinks },
         .type = .{ .button = .{
             .text = "Simple Text",
             .text_size = .normal,
         } },
-    });
+    }, display);
     display.need_relayout = true;
     display.relayout();
     try expectEqual(44, button.minimum_needed_height(display, 500));

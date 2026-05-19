@@ -145,7 +145,7 @@ test "init catch" {
     const io = std.testing.io;
     // The display takes ownership of the resources object
     var display = try Display.create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
 }
 
 fn create_label(
@@ -164,9 +164,9 @@ test "text input sizing" {
     const io = std.testing.io;
 
     var display = try headless_display(allocator, io, 1000, 1600, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    var panel = try display.addPanel(allocator, .{
+    var panel = try display.addPanel(.{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -177,72 +177,72 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with enough space
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 50 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .fixed, .y = .grows },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
         try eq(50, l.minimum_needed_height(display, 500));
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
     {
         // Create a fixed sized label with minimum
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 55 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .fixed, .y = .fixed },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
         try eq(60, l.minimum_needed_height(display, 500));
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
     {
         // Create a fixed sized label with minimum
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 200, .height = 100 },
             .minimum = .{ .width = 300, .height = 20 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(300, l.minimum_needed_width(display, 500));
         try eq(TextSize.normal.pixel_height(display.scale), l.minimum_needed_height(display, 500));
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
     {
         // Create a fixed sized label with x growth
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         // Minimum is not the actual width, but the smallest it could do.
         try eq(187, @round(l.minimum_needed_width(display, 500)));
         try eq(TextSize.normal.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
     {
         // Create a label with full shrinking
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
@@ -250,7 +250,7 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .shrinks, .y = .shrinks },
             .pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
@@ -278,10 +278,10 @@ test "text input sizing" {
             2 * TextSize.normal.pixel_height(display.pixel_scale),
             l.minimum_needed_height(display, 40 * display.pixel_scale),
         );
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
-    panel = try display.addPanel(allocator, .{
+    panel = try display.addPanel(.{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
@@ -292,28 +292,28 @@ test "text input sizing" {
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
-    var label = try panel.add(allocator, display, .{
+    var label = try panel.add(.{
         .name = "hello",
         .rect = .{ .width = 500, .height = 60 },
         .minimum = .{ .width = 300, .height = 10 },
         .maximum = .{ .width = 600, .height = 200 },
         .type = .{ .label = .{ .text = "Hello world" } },
         .layout = .{ .x = .fixed, .y = .fixed },
-    });
+    }, display);
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
     try eq(500, label.minimum_needed_width(display, 500));
     try eq(60, label.minimum_needed_height(display, 500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
-    label = try panel.add(allocator, display, .{
+    label = try panel.add(.{
         .name = "hello",
         .rect = .{ .width = 295, .height = 60 },
         .minimum = .{ .width = 300, .height = 100 },
         .maximum = .{ .width = 401, .height = 201 },
         .type = .{ .label = .{ .text = "Hello world" } },
         .layout = .{ .x = .fixed, .y = .fixed },
-    });
+    }, display);
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
     try eq(300, label.minimum_needed_width(display, 500));
     try eq(100, label.minimum_needed_height(display, 500));
@@ -358,9 +358,9 @@ test "test_init" {
     const io = std.testing.io;
 
     var display: *Display = try .create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    var panel = try display.addPanel(allocator, .{
+    var panel = try display.addPanel(.{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
@@ -368,7 +368,7 @@ test "test_init" {
     });
 
     try eq(1, display.root.type.panel.children.items.len);
-    _ = try panel.add(allocator, display, .{
+    _ = try panel.add(.{
         .name = "menu_bg",
         .rect = .{ .x = 0, .y = 0, .width = 550, .height = 100 },
         .minimum = .{ .width = 300, .height = 130 },
@@ -376,7 +376,7 @@ test "test_init" {
         .background = .{ .colour = .{ .r = 99, .g = 150, .b = 50, .a = 255 } },
         .style = .background,
         .type = .{ .rectangle = .{} },
-    });
+    }, display);
     try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
 }
 
@@ -385,7 +385,7 @@ test "font_loading" {
     const io = std.testing.io;
 
     var display = try headless_display(allocator, io, 1000, 1600, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
     // Initial headless display font
     try expectEqual(1, display.fonts.items.len);

@@ -777,13 +777,14 @@ test "root_panel_alignment" {
 
     // TODO: 10->22
     var display = try Display.create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
+
     try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .minimum = .{ .width = 100, .height = 120 },
         .maximum = .{ .width = 200, .height = 160 },
@@ -803,12 +804,12 @@ test "root_panel_alignment" {
     try eq(120, panel.rect.height);
 
     // Will adding a child stretch it correctly
-    const child = try panel.add(allocator, display, .{
+    const child = try panel.add(.{
         .name = "picture",
         .rect = .{ .width = 110, .height = 130 },
         .layout = .{ .x = .fixed, .y = .fixed },
         .type = .{ .sprite = .{} },
-    });
+    }, display);
     display.need_relayout = true;
     display.relayout();
     try eq(110, child.rect.width);
@@ -830,7 +831,7 @@ test "panel_padding" {
 
     // TODO: 10->22
     var display = try Display.create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
     try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
@@ -840,7 +841,7 @@ test "panel_padding" {
     display.root.maximum.width = 300;
     display.root.maximum.height = 200;
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -850,11 +851,11 @@ test "panel_padding" {
     try eq(300, panel.rect.width);
     try eq(200, panel.rect.height);
 
-    const child = try panel.add(allocator, display, .{
+    const child = try panel.add(.{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .rect = .{ .width = 120, .height = 80 },
         .layout = .{ .x = .fixed, .y = .fixed },
-    });
+    }, display);
 
     // Test alignment without padding
     panel.type.panel.direction = .top_to_bottom;
@@ -925,9 +926,9 @@ test "centre_text_bug" {
 
     // TODO: 10->22
     var display = try headless_display(allocator, io, 600, 800, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .type = .{ .panel = .{ .direction = .left_to_right, .spacing = 5 } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -937,7 +938,7 @@ test "centre_text_bug" {
     try eq(600, panel.rect.width);
     try eq(800, panel.rect.height);
 
-    var footer = try panel.add(allocator, display, .{
+    var footer = try panel.add(.{
         .name = "panel_left_to_right",
         .focus = .never_focus,
         .minimum = .{ .width = 180 },
@@ -949,13 +950,13 @@ test "centre_text_bug" {
             .direction = .left_to_right,
             .spacing = 12,
         } },
-    });
+    }, display);
     display.need_relayout = true;
     display.relayout();
     try eq(180, footer.rect.width);
     try eq(15 + 11, footer.rect.height);
 
-    const icon = try footer.add(allocator, display, .{
+    const icon = try footer.add(.{
         .name = "test.icon",
         .focus = .never_focus,
         .child_align = .{ .x = .centre },
@@ -965,7 +966,7 @@ test "centre_text_bug" {
         .layout = .{ .x = .shrinks, .y = .shrinks },
         .type = .{ .sprite = .{} },
         .pad = .{ .left = 15, .right = 15, .top = 25, .bottom = 0 },
-    });
+    }, display);
     display.need_relayout = true;
     display.relayout();
     try eq(50, icon.rect.width);
@@ -973,7 +974,7 @@ test "centre_text_bug" {
 
     // The text is just a little smaller than the minmum width, so we can
     // test child start, centre, end align in child panels.
-    const label = try footer.add(allocator, display, .{
+    const label = try footer.add(.{
         .name = "test.label",
         .focus = .accessibility_focus,
         .style = .tinted,
@@ -985,7 +986,7 @@ test "centre_text_bug" {
             .text_size = .normal,
         } },
         .pad = .{ .left = 0, .right = 1, .top = 0, .bottom = 0 },
-    });
+    }, display);
 
     {
         const full_width = 15 + 50 + 12 + 250 + 15;

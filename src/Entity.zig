@@ -98,19 +98,18 @@ type: union(Type) {
 
 pub fn setup(
     entity: *Entity,
-    allocator: Allocator,
     display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     switch (entity.type) {
-        .panel => try entity.setup_panel(allocator, display),
-        .button => try entity.setup_button(allocator, display),
-        .label => try entity.type.label.setup(allocator, display, entity),
-        .rectangle => try entity.setup_rect(allocator),
-        .checkbox => try entity.setup_checkbox(allocator, display),
-        .sprite => try entity.setup_sprite(allocator, display),
-        .progress_bar => try entity.setup_progress_bar(allocator, display),
-        .expander => try entity.setup_expander(allocator, display),
-        .text_input => try entity.setup_text_input(allocator, display),
+        .panel => try entity.setup_panel(display),
+        .button => try entity.setup_button(display),
+        .label => try entity.type.label.setup(display, entity),
+        .rectangle => try entity.setup_rect(display),
+        .checkbox => try entity.setup_checkbox(display),
+        .sprite => try entity.setup_sprite(display),
+        .progress_bar => try entity.setup_progress_bar(display),
+        .expander => try entity.setup_expander(display),
+        .text_input => try entity.setup_text_input(display),
     }
 
     // Catch invalid layout states
@@ -149,9 +148,9 @@ pub fn setup(
 ///
 /// Never call `destroy()` unless you know the entity is not inside the
 /// display tree.
-pub fn destroy(self: *Entity, allocator: Allocator, display: *Display) void {
-    self.deinit(allocator, display);
-    allocator.destroy(self);
+pub fn destroy(self: *Entity, display: *Display) void {
+    self.deinit(display.allocator, display);
+    display.allocator.destroy(self);
 }
 
 /// Cleanup memory associated with this entity. This is automatically
@@ -163,12 +162,12 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
     // Cleanup shared attributes
 
     if (self.texture) |texture| {
-        display.release_texture_resource(allocator, texture);
+        display.releaseTextureResource(texture);
         self.texture = null;
     }
 
     if (self.background.image) |texture| {
-        display.release_texture_resource(allocator, texture);
+        display.releaseTextureResource(texture);
         self.background.image = null;
     }
 
@@ -176,7 +175,7 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
     switch (self.type) {
         .panel => |*i| {
             for (i.*.children.items) |child| {
-                child.destroy(allocator, display);
+                child.destroy(display);
             }
             i.*.children.deinit(allocator);
         },
@@ -204,11 +203,11 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
                 sdl.SDL_DestroyTexture(item.texture);
             }
             if (i.*.on_texture) |texture| {
-                display.release_texture_resource(allocator, texture);
+                display.releaseTextureResource(texture);
                 i.*.on_texture = null;
             }
             if (i.*.off_texture) |texture| {
-                display.release_texture_resource(allocator, texture);
+                display.releaseTextureResource(texture);
                 i.*.off_texture = null;
             }
             i.*.elements.deinit(allocator);
@@ -220,16 +219,16 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
                 sdl.SDL_DestroyTexture(texture);
             }
             if (i.*.icon_hover) |texture| {
-                display.release_texture_resource(allocator, texture);
+                display.releaseTextureResource(texture);
             }
             if (i.*.icon_pressed) |texture| {
-                display.release_texture_resource(allocator, texture);
+                display.releaseTextureResource(texture);
             }
             if (i.*.background_hover) |texture| {
-                display.release_texture_resource(allocator, texture);
+                display.releaseTextureResource(texture);
             }
             if (i.*.background_pressed) |texture| {
-                display.release_texture_resource(allocator, texture);
+                display.releaseTextureResource(texture);
             }
         },
     }
@@ -360,7 +359,6 @@ pub inline fn applyBackgroundTint(
 /// visibily prominent.
 pub inline fn setPlaceholderText(
     self: *Entity,
-    _: Allocator,
     display: *Display,
     text: []const u8,
 ) !void {
@@ -590,7 +588,7 @@ pub inline fn set_visibility(self: *Entity, display: *Display, visible: Visibili
             }
         }
     }
-    try self.on_visibility.call(display.allocator, display, self);
+    try self.on_visibility.call(display, self);
 }
 
 /// Replace the foreground texture with an image resource found
@@ -600,17 +598,16 @@ pub inline fn set_visibility(self: *Entity, display: *Display, visible: Visibili
 /// foreground texture.
 pub inline fn setTexture(
     self: *Entity,
-    allocator: Allocator,
     display: *Display,
     name: []const u8,
 ) error{OutOfMemory}!void {
-    const texture = display.load_bundle_texture(allocator, display.resources, name) catch |f| {
+    const texture = display.load_bundle_texture(display.allocator, display.resources, name) catch |f| {
         err("setTexture({s}) error loading texture. {any}", .{ name, f });
         return;
     };
     if (texture != null) {
         if (self.texture != null) {
-            display.release_texture_resource(allocator, self.texture.?);
+            display.releaseTextureResource(self.texture.?);
         }
         self.texture = texture.?;
     } else {
@@ -625,17 +622,16 @@ pub inline fn setTexture(
 /// background texture.
 pub inline fn setBackgroundTexture(
     self: *Entity,
-    allocator: Allocator,
     display: *Display,
     name: []const u8,
 ) error{OutOfMemory}!void {
-    const texture = display.load_bundle_texture(allocator, &display.resources, name) catch |f| {
+    const texture = display.loadBundleTexture(&display.resources, name) catch |f| {
         err("setBackgroundTexture({s}) error loading texture. {any}", .{ name, f });
         return;
     };
     if (texture != null) {
         if (self.background.image != null)
-            display.release_texture_resource(allocator, self.background.image.?);
+            display.releaseTextureResource(self.background.image.?);
         self.background.image = texture.?;
     } else {
         err("setBackgroundTexture({s}) resource not found", .{name});
@@ -646,13 +642,12 @@ pub inline fn setBackgroundTexture(
 /// bundle. Returns null if the resource name does not exist.
 pub inline fn setImage(
     self: *Entity,
-    gpa: Allocator,
     display: *Display,
     repository: *Resources,
     name: []const u8,
 ) (Allocator.Error || Resources.Error || engine.Error)!?*Texture {
     const start = std.Io.Timestamp.now(display.io, .real).toMilliseconds();
-    const texture = try display.load_bundle_texture(gpa, repository, name);
+    const texture = try display.loadBundleTexture(repository, name);
     if (texture == null) {
         info("setImage failed to find image resource named \"{s}\"", .{name});
         return null;
@@ -662,7 +657,7 @@ pub inline fn setImage(
     self.texture_name = name;
 
     if (self.texture != null) {
-        display.release_texture_resource(gpa, self.texture.?);
+        display.releaseTextureResource(self.texture.?);
         self.texture = null;
     }
     self.texture = texture.?;
@@ -672,23 +667,21 @@ pub inline fn setImage(
 /// Remove the foreground texture if a texture has been set.
 pub inline fn clearImage(
     self: *Entity,
-    gpa: Allocator,
     display: *Display,
 ) void {
     if (self.texture != null) {
-        display.release_texture_resource(gpa, self.texture.?);
+        display.releaseTextureResource(self.texture.?);
         self.texture = null;
     }
 }
 
 pub inline fn setBackgroundImage(
     self: *Entity,
-    gpa: Allocator,
     display: *Display,
     repository: *Resources,
     name: []const u8,
 ) (Allocator.Error || Resources.Error || engine.Error)!?*Texture {
-    const texture = try display.load_bundle_texture(gpa, repository, name);
+    const texture = try display.loadBundleTexture(repository, name);
     if (texture == null) {
         info("setImage failed to find image resource named \"{s}\"", .{name});
         return null;
@@ -696,7 +689,7 @@ pub inline fn setBackgroundImage(
     debug("setBackgroundImage loaded image named \"{s}\"", .{name});
 
     if (self.background.image != null) {
-        display.release_texture_resource(gpa, self.background.image.?);
+        display.releaseTextureResource(self.background.image.?);
         self.background.image = null;
     }
     self.background.image = texture.?;
@@ -706,11 +699,10 @@ pub inline fn setBackgroundImage(
 /// Remove the background texture if a texture has been set.
 pub inline fn clearBackgroundImage(
     self: *Entity,
-    gpa: Allocator,
     display: *Display,
 ) void {
     if (self.background.image != null) {
-        display.release_texture_resource(gpa, self.background.image.?);
+        display.releaseTextureResource(self.background.image.?);
         self.background.image = null;
     }
 }
@@ -759,7 +751,6 @@ pub inline fn setFont(
 /// and is displaying this string.
 pub inline fn setText(
     self: *Entity,
-    allocator: Allocator,
     display: *Display,
     new_text: []const u8,
 ) error{OutOfMemory}!void {
@@ -805,8 +796,8 @@ pub inline fn setText(
             self.type.text_input.text.clearRetainingCapacity();
             self.type.text_input.runes.clearRetainingCapacity();
             if (new_text.len > 0) {
-                try self.type.text_input.text.appendSlice(allocator, new_text);
-                self.text_data_to_runes(allocator);
+                try self.type.text_input.text.appendSlice(display.allocator, new_text);
+                self.text_data_to_runes(display.allocator);
                 if (generateTextTexture(
                     display.renderer,
                     self.type.text_input.text.items,
@@ -841,7 +832,7 @@ pub inline fn setText(
                             word.text,
                             self.type.label.font,
                         )) |texture| {
-                            try self.type.label.elements.append(allocator, .{
+                            try self.type.label.elements.append(display.allocator, .{
                                 .text = word.text,
                                 .width = @floatFromInt(texture.*.w),
                                 .texture = texture,
@@ -852,7 +843,7 @@ pub inline fn setText(
                 } else {
                     while (data.next(&display.font)) |word| {
                         if (generateTextTexture(display.renderer, word.text, word.font)) |texture| {
-                            try self.type.label.elements.append(allocator, .{
+                            try self.type.label.elements.append(display.allocator, .{
                                 .text = word.text,
                                 .width = @floatFromInt(texture.*.w),
                                 .texture = texture,
@@ -881,7 +872,7 @@ pub inline fn setText(
                             text.text,
                             self.type.checkbox.font,
                         )) |texture| {
-                            try self.type.checkbox.elements.append(allocator, .{
+                            try self.type.checkbox.elements.append(display.allocator, .{
                                 .text = text.text,
                                 .width = @floatFromInt(texture.*.w),
                                 .texture = texture,
@@ -896,7 +887,7 @@ pub inline fn setText(
                             text.text,
                             text.font,
                         )) |texture| {
-                            try self.type.checkbox.elements.append(allocator, .{
+                            try self.type.checkbox.elements.append(display.allocator, .{
                                 .text = text.text,
                                 .width = @floatFromInt(texture.*.w),
                                 .texture = texture,
@@ -964,15 +955,14 @@ pub inline fn setText(
 /// permitted for the `panel` entity type. See also `insert`.
 pub inline fn add(
     self: *Entity,
-    allocator: Allocator,
-    display: *Display,
     conf: Entity,
+    display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!*Entity {
     std.debug.assert(self.type == .panel);
-    const child = try allocator.create(Entity);
+    const child = try display.allocator.create(Entity);
     child.* = conf;
-    try child.setup(allocator, display);
-    try self.type.panel.children.append(allocator, child);
+    try child.setup(display);
+    try self.type.panel.children.append(display.allocator, child);
     if (child.visible != .hidden and self.visible != .hidden)
         display.need_relayout = true;
     return child;
@@ -983,17 +973,16 @@ pub inline fn add(
 /// also `add`.
 pub inline fn insert(
     self: *Entity,
-    allocator: Allocator,
-    display: *Display,
-    conf: Entity,
     location: usize,
+    conf: Entity,
+    display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!*Entity {
     std.debug.assert(self.type == .panel);
     std.debug.assert(location <= self.type.panel.children.items.len);
-    const child = try allocator.create(Entity);
+    const child = try display.allocator.create(Entity);
     child.* = conf;
-    try child.setup(allocator, display);
-    try self.type.panel.children.insert(allocator, location, child);
+    try child.setup(display);
+    try self.type.panel.children.insert(display.allocator, location, child);
     if (child.visible != .hidden and self.visible != .hidden)
         display.need_relayout = true;
     return child;
@@ -1041,9 +1030,9 @@ pub inline fn removeEntity(
 }
 
 /// Use `removeEntities` to remove all childr entities in a panel.
+/// TODO: rename to `clear` to match zig terminology
 pub inline fn removeEntities(
     self: *Entity,
-    allocator: Allocator,
     display: *Display,
 ) void {
     std.debug.assert(self.type == .panel);
@@ -1051,7 +1040,7 @@ pub inline fn removeEntities(
         const item = self.type.panel.children.items[i];
         if (item.visible != .hidden) display.need_relayout = true;
         debug("removed child panel {s}", .{item.name});
-        item.destroy(allocator, display);
+        item.destroy(display);
     }
     self.type.panel.children.clearRetainingCapacity();
 }
@@ -1137,13 +1126,13 @@ pub fn minimum_needed_width(self: *Entity, display: *Display, parent_inner_width
 /// Handle the langauge change event and propogate the event
 /// downwards to each child entity, so that each child has
 /// a chance to regenerate its translation and text texture.
-pub fn language_changed(self: *Entity, allocator: Allocator, display: *Display, lang: Lang) !void {
+pub fn language_changed(self: *Entity, display: *Display, lang: Lang) !void {
     switch (self.type) {
-        .label => try self.setText(allocator, display, self.type.label.text),
-        .checkbox => try self.setText(allocator, display, self.type.checkbox.text),
-        .button => try self.setText(allocator, display, self.type.button.text),
+        .label => try self.setText(display, self.type.label.text),
+        .checkbox => try self.setText(display, self.type.checkbox.text),
+        .button => try self.setText(display, self.type.button.text),
         .panel => for (self.type.panel.children.items) |child| {
-            try child.language_changed(allocator, display, lang);
+            try child.language_changed(display, lang);
         },
         else => {},
     }
@@ -1376,7 +1365,6 @@ pub fn drawCursor(
 
 pub fn keypress(
     self: *Entity,
-    allocator: Allocator,
     display: *Display,
     key: u21,
     slice: []const u8,
@@ -1389,7 +1377,7 @@ pub fn keypress(
             13, 10 => {
                 _ = sdl.SDL_StopTextInput(display.window);
                 if (self.type.text_input.on_submit.func != null) {
-                    try self.type.text_input.on_submit.call(allocator, display, self, event);
+                    try self.type.text_input.on_submit.call(display, self, event);
                 }
                 return;
             },
@@ -1398,7 +1386,7 @@ pub fn keypress(
                     return;
                 }
                 _ = self.type.text_input.runes.pop();
-                self.text_runes_to_data(allocator);
+                self.text_runes_to_data(display.allocator);
                 self.type.text_input.cursor_character -= 1;
             },
             else => {
@@ -1409,12 +1397,12 @@ pub fn keypress(
                     });
                     return;
                 }
-                self.type.text_input.text.appendSlice(allocator, slice) catch {};
-                self.type.text_input.runes.append(allocator, key) catch {};
+                self.type.text_input.text.appendSlice(display.allocator, slice) catch {};
+                self.type.text_input.runes.append(display.allocator, key) catch {};
                 self.type.text_input.cursor_character += 1;
             },
         }
-        self.text_data_to_runes(allocator);
+        self.text_data_to_runes(display.allocator);
 
         // Update the text texture image.
         if (self.type.text_input.texture) |texture| {
@@ -1438,7 +1426,7 @@ pub fn keypress(
         // Optionally, a text_input may have an `on_change` callback function.
         if (self.type.text_input.on_change.func != null) {
             trace("text_input calling on_change", .{});
-            try self.type.text_input.on_change.call(allocator, display, self, event);
+            try self.type.text_input.on_change.call(display, self, event);
             trace("text_input called on_change", .{});
         }
     }
@@ -1448,7 +1436,6 @@ pub fn keypress(
 /// the mouse or the keyboard.
 pub fn chosen(
     self: *Entity,
-    gpa: Allocator,
     display: *Display,
     event: *const Event,
 ) Allocator.Error!void {
@@ -1466,14 +1453,14 @@ pub fn chosen(
                 },
                 .no_toggle, .correct, .incorrect, .locked_off, .disabled => {},
             }
-            try self.type.button.on_pressed.call(gpa, display, self, event);
+            try self.type.button.on_pressed.call(display, self, event);
         },
-        .panel => try self.type.panel.on_pressed.call(gpa, display, self, event),
-        .label => try self.type.label.on_pressed.call(gpa, display, self, event),
-        .sprite => try self.type.sprite.on_pressed.call(gpa, display, self, event),
+        .panel => try self.type.panel.on_pressed.call(display, self, event),
+        .label => try self.type.label.on_pressed.call(display, self, event),
+        .sprite => try self.type.sprite.on_pressed.call(display, self, event),
         .checkbox => {
             self.type.checkbox.checked = !self.type.checkbox.checked;
-            try self.type.checkbox.on_change.call(gpa, display, self, event);
+            try self.type.checkbox.on_change.call(display, self, event);
         },
         .progress_bar, .text_input, .rectangle, .expander => {},
     }
@@ -1751,7 +1738,7 @@ fn word_wrap_line(entity: *const Entity, max_parent_width: f32) f32 {
 /// Internal function to initialise rect entity.
 pub fn setup_rect(
     entity: *Entity,
-    _: Allocator,
+    _: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
     entity.background.image = null;
@@ -1763,7 +1750,6 @@ pub fn setup_rect(
 /// Internal function to initialise panel entity.
 pub fn setup_panel(
     entity: *Entity,
-    allocator: Allocator,
     display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
@@ -1778,7 +1764,7 @@ pub fn setup_panel(
     }
 
     if (entity.background.image_name) |name| {
-        if (try display.requireImage(allocator, name)) |texture| {
+        if (try display.requireImage(name)) |texture| {
             entity.background.image = texture;
         } else {
             err("Failed to load panel background image named \"{s}\"", .{name});
@@ -1791,7 +1777,6 @@ pub fn setup_panel(
 /// Internal function to initialise progress bar entity.
 pub fn setup_progress_bar(
     entity: *Entity,
-    allocator: Allocator,
     display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
@@ -1804,7 +1789,7 @@ pub fn setup_progress_bar(
         entity.type = .{ .progress_bar = .{} };
     }
 
-    if (try display.requireImage(allocator, "rounded progress bar")) |texture| {
+    if (try display.requireImage("rounded progress bar")) |texture| {
         entity.texture = texture;
     } else {
         err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
@@ -1814,7 +1799,6 @@ pub fn setup_progress_bar(
 /// Internal function to initialise checkbox entity.
 pub fn setup_checkbox(
     entity: *Entity,
-    allocator: Allocator,
     display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
@@ -1826,18 +1810,18 @@ pub fn setup_checkbox(
     if (entity.focus == .unspecified)
         entity.focus = .can_focus;
 
-    try entity.setText(allocator, display, entity.type.checkbox.text);
+    try entity.setText(display, entity.type.checkbox.text);
 
-    if (try display.requireImage(allocator, "ios-checkbox-on")) |texture| {
+    if (try display.requireImage("ios-checkbox-on")) |texture| {
         entity.type.checkbox.on_texture = texture;
     }
-    if (try display.requireImage(allocator, "ios-checkbox-off")) |texture| {
+    if (try display.requireImage("ios-checkbox-off")) |texture| {
         entity.type.checkbox.off_texture = texture;
     }
 
     // Is there a background for this checkbox
     if (entity.background.image_name) |name| {
-        if (try display.requireImage(allocator, name)) |texture|
+        if (try display.requireImage(name)) |texture|
             entity.background.image = texture;
     }
 
@@ -1857,7 +1841,6 @@ pub fn setup_checkbox(
 /// Internal function to initialise expander entity.
 pub fn setup_expander(
     entity: *Entity,
-    _: Allocator,
     _: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
@@ -1868,7 +1851,6 @@ pub fn setup_expander(
 /// Internal function to initialise text input entity.
 pub fn setup_text_input(
     entity: *Entity,
-    allocator: Allocator,
     display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
@@ -1879,7 +1861,7 @@ pub fn setup_text_input(
     entity.type.text_input.font = try select_font(display.fonts.items, entity.type.text_input.font_name);
 
     if (entity.type.text_input.icon_texture_name) |icon| {
-        if (try display.requireImage(allocator, icon)) |texture| {
+        if (try display.requireImage(icon)) |texture| {
             entity.texture = texture;
         } else {
             err("Failed to load text_input icon texture named \"{s}\"", .{icon});
@@ -1887,7 +1869,7 @@ pub fn setup_text_input(
     }
 
     if (entity.background.image_name) |background| {
-        if (try display.requireImage(allocator, background)) |texture| {
+        if (try display.requireImage(background)) |texture| {
             entity.background.image = texture;
         } else {
             err("Failed to load text_input background image named \"{s}\"", .{background});
@@ -1907,21 +1889,20 @@ pub fn setup_text_input(
     entity.type.text_input.text = .empty;
     entity.type.text_input.runes = .empty;
     if (entity.type.text_input.initial_text) |text| {
-        try entity.setText(allocator, display, text);
+        try entity.setText(display, text);
     } else {
-        try entity.setText(allocator, display, "");
+        try entity.setText(display, "");
     }
     if (entity.type.text_input.placeholder_text) |text| {
-        try entity.setPlaceholderText(allocator, display, text);
+        try entity.setPlaceholderText(display, text);
     } else {
-        try entity.setPlaceholderText(allocator, display, "");
+        try entity.setPlaceholderText(display, "");
     }
 }
 
 /// Internal function to initialise sprite entity.
 pub fn setup_sprite(
     entity: *Entity,
-    allocator: Allocator,
     display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
@@ -1930,7 +1911,7 @@ pub fn setup_sprite(
         entity.focus = .accessibility_focus;
 
     if (entity.texture_name) |image| {
-        if (try display.requireImage(allocator, image)) |texture| {
+        if (try display.requireImage(image)) |texture| {
             entity.texture = texture;
             if (entity.rect.width == 0)
                 entity.rect.width = @floatFromInt(texture.texture.w);
@@ -1942,7 +1923,7 @@ pub fn setup_sprite(
     }
 
     if (entity.background.image_name) |image| {
-        if (try display.requireImage(allocator, image)) |texture| {
+        if (try display.requireImage(image)) |texture| {
             entity.background.image = texture;
             if (entity.rect.width == 0)
                 entity.rect.width = @floatFromInt(texture.texture.w);
@@ -1962,7 +1943,6 @@ pub fn setup_sprite(
 /// Internal function to initialise button entity.
 pub fn setup_button(
     entity: *Entity,
-    allocator: Allocator,
     display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.type.button.translated = "";
@@ -1992,10 +1972,10 @@ pub fn setup_button(
             entity.background.image_name.?,
         });
 
-    try entity.setText(allocator, display, entity.type.button.text);
+    try entity.setText(display, entity.type.button.text);
 
     if (entity.type.button.icon_default_name) |icon_default| {
-        if (try display.requireImage(allocator, icon_default)) |texture| {
+        if (try display.requireImage(icon_default)) |texture| {
             entity.texture = texture;
             if (entity.type.button.icon_size.width == 0 or entity.type.button.icon_size.height == 0)
                 warn("button `{s}` has icon `{s}`, but no icon size.", .{
@@ -2006,7 +1986,7 @@ pub fn setup_button(
     }
 
     if (entity.type.button.icon_pressed_name) |icon_pressed| {
-        if (try display.requireImage(allocator, icon_pressed)) |ip|
+        if (try display.requireImage(icon_pressed)) |ip|
             entity.type.button.icon_pressed = ip
         else
             err("setup_button failed to load icon_pressed resource {s}.", .{icon_pressed});
@@ -2016,7 +1996,7 @@ pub fn setup_button(
     }
 
     if (entity.type.button.icon_hover_name) |icon_hover| {
-        if (try display.requireImage(allocator, icon_hover)) |ih|
+        if (try display.requireImage(icon_hover)) |ih|
             entity.type.button.icon_hover = ih
         else
             err("setup_button failed to load icon_hover resource {s}.", .{icon_hover});
@@ -2026,7 +2006,7 @@ pub fn setup_button(
     }
 
     if (entity.type.button.icon_disabled_name) |icon_disabled| {
-        if (try display.requireImage(allocator, icon_disabled)) |ih|
+        if (try display.requireImage(icon_disabled)) |ih|
             entity.type.button.icon_disabled = ih
         else
             err("setup_button failed to load icon_disabled resource {s}.", .{icon_disabled});
@@ -2036,14 +2016,14 @@ pub fn setup_button(
     }
 
     if (entity.type.button.background_default_name) |background_default| {
-        if (try display.requireImage(allocator, background_default)) |texture|
+        if (try display.requireImage(background_default)) |texture|
             entity.background.image = texture
         else
             err("setup_button failed to load background_default resource {s}.", .{background_default});
     }
 
     if (entity.type.button.background_pressed_name) |background_pressed| {
-        if (try display.requireImage(allocator, background_pressed)) |bp|
+        if (try display.requireImage(background_pressed)) |bp|
             entity.type.button.background_pressed = bp
         else
             err("setup_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
@@ -2053,7 +2033,7 @@ pub fn setup_button(
     }
 
     if (entity.type.button.background_hover_name) |background_hover| {
-        if (try display.requireImage(allocator, background_hover)) |bh|
+        if (try display.requireImage(background_hover)) |bh|
             entity.type.button.background_hover = bh
         else
             err("setup_button background_hover resource `{s}` not loaded.", .{background_hover});
@@ -2063,7 +2043,7 @@ pub fn setup_button(
     }
 
     if (entity.type.button.background_disabled_name) |background_disabled| {
-        if (try display.requireImage(allocator, background_disabled)) |bh|
+        if (try display.requireImage(background_disabled)) |bh|
             entity.type.button.background_disabled = bh
         else
             err("setup_button background_disabled resource `{s}` not loaded.", .{background_disabled});
@@ -2076,7 +2056,6 @@ pub fn setup_button(
 pub const Callback = struct {
     func: ?*const fn (
         ptr: *anyopaque,
-        allocator: Allocator,
         display: *Display,
         entity: *Entity,
         event: *const Event,
@@ -2091,19 +2070,17 @@ pub const Callback = struct {
     /// Trigger the callback if the `func` is specified (not null)
     pub fn call(
         self: @This(),
-        allocator: Allocator,
         display: *Display,
         entity: *Entity,
         event: *const Event,
     ) Allocator.Error!void {
-        if (self.func) |f| return f(self.ptr, allocator, display, entity, event);
+        if (self.func) |f| return f(self.ptr, display, entity, event);
     }
 };
 
 pub const StateCallback = struct {
     func: ?*const fn (
         ptr: *anyopaque,
-        allocator: Allocator,
         display: *Display,
         entity: *Entity,
     ) Allocator.Error!void = null,
@@ -2117,11 +2094,10 @@ pub const StateCallback = struct {
     /// Trigger the callback if the `func` is specified (not null)
     pub fn call(
         self: @This(),
-        allocator: Allocator,
         display: *Display,
         entity: *Entity,
     ) Allocator.Error!void {
-        if (self.func) |f| return f(self.ptr, allocator, display, entity);
+        if (self.func) |f| return f(self.ptr, display, entity);
     }
 };
 
@@ -2150,7 +2126,6 @@ pub const UpdateCallback = struct {
 pub const PanelChangeCallback = struct {
     func: ?*const fn (
         ptr: *anyopaque,
-        allocator: Allocator,
         display: *Display,
         from: ?*Entity,
         to: *Entity,
@@ -2164,12 +2139,11 @@ pub const PanelChangeCallback = struct {
 
     pub fn call(
         self: @This(),
-        allocator: Allocator,
         display: *Display,
         from: ?*Entity,
         to: *Entity,
     ) Allocator.Error!void {
-        if (self.func) |f| return f(self.ptr, allocator, display, from, to);
+        if (self.func) |f| return f(self.ptr, display, from, to);
     }
 };
 

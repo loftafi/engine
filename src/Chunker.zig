@@ -171,7 +171,7 @@ test "read_chunks" {
     const io = std.testing.io;
 
     var display = try Display.create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
     try display.setDefaultFont("Roboto-Light", .unknown);
     try expectEqual(1, display.fonts.items.len);
     try display.setDefaultFont("Roboto-Black", .greek);
@@ -261,7 +261,7 @@ test "guess_fail" {
     const io = std.testing.io;
 
     var display = try Display.create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
     try display.setDefaultFont("Roboto-Black", .unknown);
     try expectEqual(1, display.fonts.items.len);
     try display.setDefaultFont("Roboto-Bold", .chinese);
@@ -271,9 +271,9 @@ test "guess_fail" {
     try expectEqual(3, display.fonts.items.len);
 
     //var display = try headless_display(allocator, io, 1024, 720, 2);
-    //defer display.destroy(allocator);
+    //defer display.destroy();
 
-    const panel = try display.addPanel(allocator, .{
+    const panel = try display.addPanel(.{
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },

@@ -324,7 +324,7 @@ test "animator_init" {
     const io = std.testing.io;
 
     var display = try headless_display(gpa, io, 300, 300, 2);
-    defer display.destroy(gpa);
+    defer display.destroy();
 
     const animator = try Animator.create(gpa, &.{
         .mode = .{ .move = .{} },

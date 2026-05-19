@@ -34,7 +34,7 @@ test "init" {
     const gpa = std.testing.allocator;
     const io = std.testing.io;
     const display = try headless_display(gpa, io, 300, 200, 2);
-    defer display.destroy(gpa);
+    defer display.destroy();
 
     const entity = Entity{
         .rect = .{ .width = 100, .height = 100 },

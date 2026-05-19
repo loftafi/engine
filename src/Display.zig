@@ -391,7 +391,7 @@ pub fn create(
     zstbi.init(display.allocator, display.io);
 
     if (config.desktop_icon) |desktop_icon| {
-        try display.requireResourceRecord(gpa, desktop_icon, .image);
+        try display.requireResourceRecord(desktop_icon, .image);
         if (try display.resources.lookupRandom(desktop_icon, .image)) |resource| {
             var surface: SurfaceInfo = undefined;
             try display.loadImage(&display.resources, resource, &surface);
@@ -408,7 +408,7 @@ pub fn create(
     }
 
     if (config.translation_filename) |translation_filename| {
-        try display.requireResourceRecord(gpa, translation_filename, .csv);
+        try display.requireResourceRecord(translation_filename, .csv);
         if (try display.resources.lookupRandom(translation_filename, .csv)) |resource| {
             const data = try loadResourceSdl(gpa, io, &display.resources, resource);
             defer gpa.free(data);
@@ -422,17 +422,17 @@ pub fn create(
     }
 
     // App can accept these keybindings or replace them
-    try display.keybindings.put(gpa, sdl.SDLK_D, .{ .func = @ptrCast(&toggle_dev_mode), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_K, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_X, .{ .func = @ptrCast(&increase_size), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_PLUS, .{ .func = @ptrCast(&increase_size), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_EQUALS, .{ .func = @ptrCast(&increase_size), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_MINUS, .{ .func = @ptrCast(&decrease_size), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_KP_PLUS, .{ .func = @ptrCast(&increase_size), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_KP_MINUS, .{ .func = @ptrCast(&decrease_size), .ptr = display });
     if (engine.dev_build) {
-        try display.keybindings.put(gpa, sdl.SDLK_B, .{ .func = @ptrCast(&make_bundle), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_D, .{ .func = @ptrCast(&toggleDevMode), .ptr = display });
+        try display.keybindings.put(gpa, sdl.SDLK_B, .{ .func = @ptrCast(&makeBundle), .ptr = display });
     }
+    try display.keybindings.put(gpa, sdl.SDLK_K, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
+    try display.keybindings.put(gpa, sdl.SDLK_X, .{ .func = @ptrCast(&increaseSize), .ptr = display });
+    try display.keybindings.put(gpa, sdl.SDLK_PLUS, .{ .func = @ptrCast(&increaseSize), .ptr = display });
+    try display.keybindings.put(gpa, sdl.SDLK_EQUALS, .{ .func = @ptrCast(&increaseSize), .ptr = display });
+    try display.keybindings.put(gpa, sdl.SDLK_MINUS, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
+    try display.keybindings.put(gpa, sdl.SDLK_KP_PLUS, .{ .func = @ptrCast(&increaseSize), .ptr = display });
+    try display.keybindings.put(gpa, sdl.SDLK_KP_MINUS, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
 
     display.update_system_theme();
     display.update_screen_metrics(true);
@@ -441,8 +441,9 @@ pub fn create(
 }
 
 /// Cleanup memory assocaited with this display.
-pub fn destroy(self: *Self, gpa: Allocator) void {
+pub fn destroy(self: *Self) void {
     trace("Engine cleanup", .{});
+    const gpa = self.allocator;
 
     self.stopAllAudio(0) catch {};
 
@@ -590,7 +591,6 @@ pub fn getPanel(self: *Self, name: []const u8) ?*Entity {
 /// _background_ and _menu_ panel is not altered.
 pub fn choosePanel(
     self: *Self,
-    gpa: Allocator,
     name: []const u8,
     event: *const Event,
 ) Allocator.Error!void {
@@ -614,7 +614,7 @@ pub fn choosePanel(
                 if (item.on_resized.call(self, item)) {
                     self.need_relayout = true;
                 }
-                self.on_panel_change.call(gpa, self, old_panel, item) catch |e| {
+                self.on_panel_change.call(self, old_panel, item) catch |e| {
                     trace("panel handler error. to {s} {any}", .{ item.name, e });
                 };
             }
@@ -706,27 +706,27 @@ pub fn relayout(display: *Self) void {
     }
 }
 
-pub fn setLanguage(display: *Self, allocator: Allocator, language: Lang) !void {
-    if (language == display.current_language) {
-        debug("setLanguage({s}) unchanged.", .{@tagName(display.current_language)});
+pub fn setLanguage(self: *Self, language: Lang) !void {
+    if (language == self.current_language) {
+        debug("setLanguage({s}) unchanged.", .{@tagName(self.current_language)});
         return;
     }
     debug("setLanguage() {s} => {s}.", .{
-        @tagName(display.current_language),
+        @tagName(self.current_language),
         @tagName(language),
     });
-    display.current_language = language;
-    display.translation.setLanguage(language);
-    for (display.root.type.panel.children.items) |item| {
+    self.current_language = language;
+    self.translation.setLanguage(language);
+    for (self.root.type.panel.children.items) |item| {
         switch (item.type) {
-            .label => try item.language_changed(allocator, display, language),
-            .checkbox => try item.language_changed(allocator, display, language),
-            .button => try item.language_changed(allocator, display, language),
-            .panel => try item.language_changed(allocator, display, language),
+            .label => try item.language_changed(self, language),
+            .checkbox => try item.language_changed(self, language),
+            .button => try item.language_changed(self, language),
+            .panel => try item.language_changed(self, language),
             else => {},
         }
     }
-    display.need_relayout = true;
+    self.need_relayout = true;
 }
 
 /// Update and draw all entities on the display.
@@ -751,7 +751,7 @@ pub fn draw(display: *Self) Allocator.Error!void {
             if (animator.mode == .visibility) {
                 try animator.target.set_visibility(display, animator.mode.visibility.end);
             }
-            try old.on_end.call(display.allocator, display, old.target);
+            try old.on_end.call(display, old.target);
             display.allocator.destroy(old);
         } else {
             i += 1;
@@ -947,18 +947,16 @@ fn loadImage(
 /// The entity must not be destroyed for the lifetime of the animation.
 pub inline fn addAnimator(
     self: *Self,
-    allocator: Allocator,
     animator: Animator,
 ) Allocator.Error!void {
-    const new_animator = try Animator.create(allocator, &animator);
-    try self.animators.append(allocator, new_animator);
+    const new_animator = try Animator.create(self.allocator, &animator);
+    try self.animators.append(self.allocator, new_animator);
 }
 
 /// Attach a child entity to the main display panel (root) entity. The
 /// main display panel should only contain panels as children
 pub inline fn addPanel(
     self: *Self,
-    allocator: Allocator,
     item: Entity,
 ) (Allocator.Error || Resources.Error || Error)!*Entity {
     if (item.type != .panel) {
@@ -973,15 +971,14 @@ pub inline fn addPanel(
         warn("addPanel called before setDefaultFont.", .{});
     }
 
-    return self.root.add(allocator, self, item);
+    return self.root.add(item, self);
 }
 
 /// A texture resource may be referenced by multiple on screen
 /// entities. This releases a texture, only when all references to
 /// a texture no longer exist.
-pub fn release_texture_resource(
+pub fn releaseTextureResource(
     self: *Self,
-    allocator: Allocator,
     ti: *Texture,
 ) void {
     if (ti.references == 0) {
@@ -999,7 +996,7 @@ pub fn release_texture_resource(
     }
     trace("free texture \"{f}\" (now)", .{base62.writer(u64, ti.uid)});
     _ = self.textures.remove(ti.uid);
-    ti.destroy(allocator);
+    ti.destroy(self.allocator);
 }
 
 /// A texture resource may be referenced by multiple on screen
@@ -1007,7 +1004,6 @@ pub fn release_texture_resource(
 /// a texture no longer exist.
 pub fn releaseAudioResource(
     self: *Self,
-    allocator: Allocator,
     ai: *Audio,
 ) void {
     if (ai.references == 0)
@@ -1038,14 +1034,13 @@ pub fn releaseAudioResource(
         }
     }
 
-    ai.destroy(allocator);
+    ai.destroy(self.allocator);
 }
 
 /// Add a named resource to the list of resources needed in the
 /// app resource bundle.
 pub inline fn requireResourceRecord(
     self: *Self,
-    gpa: Allocator,
     name: []const u8,
     category: Resources.SearchCategory,
 ) (Error || Allocator.Error || Resources.Error)!void {
@@ -1058,7 +1053,7 @@ pub inline fn requireResourceRecord(
         return;
     }
     try self.required_resource.put(
-        gpa,
+        self.allocator,
         resource.?.uid,
         resource.?,
     );
@@ -1073,10 +1068,9 @@ pub inline fn requireResourceRecord(
 /// Load an image from the default resource bundle.
 pub inline fn requireImage(
     self: *Self,
-    gpa: Allocator,
     name: []const u8,
 ) (Error || Allocator.Error || Resources.Error)!?*Texture {
-    const texture = try self.load_bundle_texture(gpa, &self.resources, name);
+    const texture = try self.loadBundleTexture(&self.resources, name);
     if (texture != null)
         try self.required_resource.put(
             self.allocator,
@@ -1087,9 +1081,8 @@ pub inline fn requireImage(
 }
 
 /// Load an image from a specific resource bundle.
-pub fn load_bundle_texture(
+pub fn loadBundleTexture(
     self: *Self,
-    gpa: Allocator,
     bundle: *Resources,
     name: []const u8,
 ) (Error || Allocator.Error || Resources.Error)!?*Texture {
@@ -1122,7 +1115,7 @@ pub fn load_bundle_texture(
 
     var si: SurfaceInfo = undefined;
     try self.loadImage(bundle, resource.?, &si);
-    defer si.deinit(gpa);
+    defer si.deinit(self.allocator);
     end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
     trace("made surface named \"{s}\" in {d}ms", .{ name, end - start });
 
@@ -1131,16 +1124,15 @@ pub fn load_bundle_texture(
     end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
     trace("sdl create texture in {d}ms", .{end - start});
 
-    const ti = try Texture.create(gpa, resource.?.uid, texture, resource.?);
+    const ti = try Texture.create(self.allocator, resource.?.uid, texture, resource.?);
     ti.references += 1;
-    try self.textures.put(gpa, ti.uid, ti);
+    try self.textures.put(self.allocator, ti.uid, ti);
     return ti;
 }
 
 /// Load an image from the formatted_default resource bundle.
 pub inline fn playResource(
     self: *Self,
-    gpa: Allocator,
     io: std.Io,
     name: []const u8,
     retain: Audio.Retain,
@@ -1148,7 +1140,6 @@ pub inline fn playResource(
     callback: ?Audio.Callback,
 ) (Error || Allocator.Error || Resources.Error)!?*Audio {
     return self.playBundleResource(
-        gpa,
         io,
         &self.resources,
         name,
@@ -1179,7 +1170,6 @@ pub fn getAudioInCache(self: *Self, name: []const u8) ?*Audio {
 /// Load an image from a specific resource bundle.
 pub fn playBundleResource(
     self: *Self,
-    gpa: Allocator,
     io: std.Io,
     bundle: *Resources,
     name: []const u8,
@@ -1210,8 +1200,8 @@ pub fn playBundleResource(
         debug("search audio named \"{s}\" in {d}ms", .{ name, end - start });
 
         start = end;
-        const audio = try loadResourceSdl(gpa, io, bundle, resource.?);
-        errdefer gpa.free(audio);
+        const audio = try loadResourceSdl(self.allocator, io, bundle, resource.?);
+        errdefer self.allocator.free(audio);
         end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
 
         debug("read audio named \"{s}\" size {d} in {d}ms", .{
@@ -1220,7 +1210,7 @@ pub fn playBundleResource(
             end - start,
         });
 
-        const ai = try Audio.create(gpa, name, audio, retain);
+        const ai = try Audio.create(self.allocator, name, audio, retain);
         ai.resource = resource;
         ai.next = self.audio_cache;
         if (ai.next != null) ai.next.?.previous = ai;
@@ -1246,10 +1236,10 @@ pub fn playBundleResource(
     _ = mixer.MIX_SetTrackGain(track, volume);
 
     // Connect the Audio object to a Progress callback function.
-    const progress = try gpa.create(Audio.Progress);
-    errdefer gpa.destroy(progress);
+    const progress = try self.allocator.create(Audio.Progress);
+    errdefer self.allocator.destroy(progress);
     progress.* = .{
-        .gpa = gpa,
+        .gpa = self.allocator,
         .audio = item.?,
         .audio_cache = &self.audio_cache,
         .callback = callback,
@@ -1321,7 +1311,6 @@ pub fn isVisibleInTree(
 /// top/left most enity visually drawn on the screen.
 pub fn selectFirstEntity(
     self: *Self,
-    gpa: Allocator,
     entities: []*Entity,
     event: *const Event,
 ) bool {
@@ -1330,7 +1319,6 @@ pub fn selectFirstEntity(
 
         if (item.type == .panel) {
             if (self.selectFirstEntity(
-                gpa,
                 item.type.panel.children.items,
                 event,
             ))
@@ -1365,7 +1353,6 @@ const SelectState = enum(u2) {
 /// not the entity visually located to the right of the current entity.
 pub fn selectNextEntity(
     self: *Self,
-    gpa: Allocator,
     event: *const Event,
 ) void {
     trace("selectNextEntity() find next entity", .{});
@@ -1382,7 +1369,6 @@ pub fn selectNextEntity(
     }
     if (state == .has_selectable_item or state == .found_currently_selected_item) {
         _ = self.selectFirstEntity(
-            gpa,
             self.root.type.panel.children.items,
             event,
         );
@@ -1397,7 +1383,6 @@ pub fn selectNextEntity(
 /// current entity.
 pub fn selectPreviousEntity(
     self: *Self,
-    gpa: Allocator,
     event: *const Event,
 ) void {
     trace("selectPreviousEntity() find previous entity", .{});
@@ -1410,7 +1395,6 @@ pub fn selectPreviousEntity(
     }
     if (state == .has_selectable_item or state == .found_currently_selected_item) {
         _ = self.selectFirstEntity(
-            gpa,
             self.root.type.panel.children.items,
             event,
         );
@@ -1840,7 +1824,7 @@ pub fn iterate(display: *Self) !void {
 
 /// Enters the main run loop and only returns when quit has been
 /// requested. Only used in conjunction with SDL_Main
-pub fn main(display: *Self, allocator: Allocator) !void {
+pub fn main(display: *Self) !void {
     info("Main loop starting", .{});
 
     while (display.state == .running) {
@@ -1850,7 +1834,7 @@ pub fn main(display: *Self, allocator: Allocator) !void {
         // Handle any outstanding events on the event queue
         var e: sdl.SDL_Event = undefined;
         while (sdl.SDL_PollEvent(&e)) {
-            try display.handle_event(allocator, &e);
+            try display.handleEvent(&e);
             if (display.state == .ending) break;
         }
     }
@@ -1858,17 +1842,16 @@ pub fn main(display: *Self, allocator: Allocator) !void {
     debug("Main loop ended", .{});
 }
 
-inline fn handle_key_up_event(
+inline fn handleKeyUpEvent(
     display: *Self,
-    gpa: Allocator,
     e: *sdl.SDL_Event,
 ) !void {
     trace("handle_key_up_event({any})", .{e.key.key});
     if (e.key.key == sdl.SDLK_TAB) {
         if (e.key.mod == sdl.SDL_KMOD_SHIFT or e.key.mod == sdl.SDL_KMOD_LSHIFT or e.key.mod == sdl.SDL_KMOD_RSHIFT) {
-            display.selectPreviousEntity(gpa, &.{ .type = .key_up });
+            display.selectPreviousEntity(&.{ .type = .key_up });
         } else {
-            display.selectNextEntity(gpa, &.{ .type = .key_up });
+            display.selectNextEntity(&.{ .type = .key_up });
         }
         if (display.selected != null) display.keyboard_activity = true;
         return;
@@ -1903,7 +1886,7 @@ inline fn handle_key_up_event(
                     e.key.key == sdl.SDLK_KP_SPACE or
                     e.key.key == sdl.SDLK_SPACE)
                 {
-                    try selected.chosen(gpa, display, &.{ .type = .key_up });
+                    try selected.chosen(display, &.{ .type = .key_up });
                     return; // keypress handled
                 }
             },
@@ -1914,7 +1897,7 @@ inline fn handle_key_up_event(
                     e.key.key == sdl.SDLK_KP_SPACE or
                     e.key.key == sdl.SDLK_SPACE)
                 {
-                    try selected.chosen(gpa, display, &.{ .type = .key_up });
+                    try selected.chosen(display, &.{ .type = .key_up });
                     return; // keypress handled
                 }
             },
@@ -1925,7 +1908,7 @@ inline fn handle_key_up_event(
                     e.key.key == sdl.SDLK_KP_SPACE or
                     e.key.key == sdl.SDLK_SPACE)
                 {
-                    try selected.chosen(gpa, display, &.{ .type = .key_up });
+                    try selected.chosen(display, &.{ .type = .key_up });
                     return; // keypress handled
                 }
             },
@@ -1936,7 +1919,7 @@ inline fn handle_key_up_event(
                     e.key.key == sdl.SDLK_KP_SPACE or
                     e.key.key == sdl.SDLK_SPACE)
                 {
-                    try selected.chosen(gpa, display, &.{ .type = .key_up });
+                    try selected.chosen(display, &.{ .type = .key_up });
                     return; // keypress handled
                 }
             },
@@ -1947,7 +1930,7 @@ inline fn handle_key_up_event(
                     e.key.key == sdl.SDLK_KP_SPACE or
                     e.key.key == sdl.SDLK_SPACE)
                 {
-                    try selected.chosen(gpa, display, &.{ .type = .key_up });
+                    try selected.chosen(display, &.{ .type = .key_up });
                     return; // keypress handled
                 }
             },
@@ -1956,20 +1939,20 @@ inline fn handle_key_up_event(
                     sdl.SDLK_BACKSPACE,
                     sdl.SDLK_DELETE,
                     sdl.SDLK_KP_BACKSPACE,
-                    => try selected.keypress(gpa, display, sdl.SDLK_BACKSPACE, "", &.{ .type = .key_up }),
+                    => try selected.keypress(display, sdl.SDLK_BACKSPACE, "", &.{ .type = .key_up }),
                     sdl.SDLK_RETURN,
                     sdl.SDLK_KP_ENTER,
                     sdl.SDLK_RETURN2,
                     => {
                         switch (selected.type) {
-                            .text_input => try selected.keypress(gpa, display, 10, "", &.{ .type = .key_up }),
-                            .button => |b| try b.on_pressed.call(gpa, display, selected, &.{ .type = .key_up }),
-                            .label => |l| try l.on_pressed.call(gpa, display, selected, &.{ .type = .key_up }),
+                            .text_input => try selected.keypress(display, 10, "", &.{ .type = .key_up }),
+                            .button => |b| try b.on_pressed.call(display, selected, &.{ .type = .key_up }),
+                            .label => |l| try l.on_pressed.call(display, selected, &.{ .type = .key_up }),
                             else => {},
                         }
                     },
                     sdl.SDLK_ESCAPE => if (display.keybindings.get(sdl.SDLK_ESCAPE)) |f| {
-                        try f.call(gpa, display, &display.root, &.{ .type = .key_up });
+                        try f.call(display, &display.root, &.{ .type = .key_up });
                     },
                     else => {},
                 }
@@ -1987,7 +1970,7 @@ inline fn handle_key_up_event(
     while (i.next()) |k| {
         if (k.key_ptr.* == e.key.key) {
             trace("keypress has special handler: {d}", .{e.key.key});
-            k.value_ptr.*.call(gpa, display, &display.root, &.{ .type = .key_up }) catch |f| {
+            k.value_ptr.*.call(display, &display.root, &.{ .type = .key_up }) catch |f| {
                 trace("keypress handler error: {d} {any}", .{ e.key.key, f });
             };
             trace("keypress special handler complete: {d}", .{e.key.key});
@@ -1997,7 +1980,7 @@ inline fn handle_key_up_event(
 
 /// Handle key down events. Usually no action is triggered until the
 /// key is released.
-inline fn handle_key_down_event(_: *Self, _: Allocator, _: *sdl.SDL_Event) !void {
+inline fn handleKeyDownEvent(_: *Self, _: *sdl.SDL_Event) !void {
     //
 }
 
@@ -2143,9 +2126,8 @@ fn recalculate_safe_area(self: *Self) bool {
 
 /// The mouse up event idicates a mouse click, or the end of a mouse
 /// scroll/drag action.
-inline fn handle_mouse_up_event(
+inline fn handleMouseUpEvent(
     display: *Self,
-    gpa: Allocator,
     _: *sdl.SDL_Event,
 ) !void {
     var cursor: Vector = undefined;
@@ -2191,17 +2173,17 @@ inline fn handle_mouse_up_event(
         switch (found.type) {
             .panel => {
                 if (found.type.panel.on_pressed.func != null) {
-                    try found.type.panel.on_pressed.call(gpa, display, found, &.{ .type = .mouse_up });
+                    try found.type.panel.on_pressed.call(display, found, &.{ .type = .mouse_up });
                 } else if (found.type.panel.scrollable.scroll.x or found.type.panel.scrollable.scroll.y) {
                     display.scrolling = found;
                     display.scroll_start = cursor;
                     trace("begin scrolling {s} at {any}", .{ found.name, cursor });
                 }
             },
-            .button => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
-            .label => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
-            .sprite => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
-            .checkbox => try found.chosen(gpa, display, &.{ .type = .mouse_up }),
+            .button => try found.chosen(display, &.{ .type = .mouse_up }),
+            .label => try found.chosen(display, &.{ .type = .mouse_up }),
+            .sprite => try found.chosen(display, &.{ .type = .mouse_up }),
+            .checkbox => try found.chosen(display, &.{ .type = .mouse_up }),
             .text_input => found.selected(display, &.{ .type = .mouse_up }),
             .rectangle, .progress_bar, .expander => {
                 // Not clickable
@@ -2217,9 +2199,8 @@ inline fn handle_mouse_up_event(
 
 /// Event handler for mouse down events. This begins a scroll event,
 /// or converts to a click on mouse up event later.
-inline fn handle_mouse_down_event(
+inline fn handleMouseDownEvent(
     display: *Self,
-    gpa: Allocator,
     _: *sdl.SDL_Event,
 ) !void {
     var cursor: Vector = undefined;
@@ -2246,13 +2227,11 @@ inline fn handle_mouse_down_event(
                 }
             },
             .label => try found.type.label.on_ui_event.call(
-                gpa,
                 display,
                 found,
                 &.{ .type = .mouse_down },
             ),
             .button => try found.type.button.on_ui_event.call(
-                gpa,
                 display,
                 found,
                 &.{ .type = .mouse_down },
@@ -2274,7 +2253,7 @@ fn limit_scroll(min: f32, value: f32, max: f32) f32 {
 }
 
 /// Event handler for mouse motion
-inline fn handle_mouse_motion_event(
+inline fn handleMouseMotionEvent(
     display: *Self,
     _: *sdl.SDL_Event,
 ) !void {
@@ -2354,13 +2333,11 @@ inline fn handle_mouse_motion_event(
             trace("end hover: {s} {s}", .{ @tagName(old_item.type), old_item.name });
             switch (old_item.type) {
                 .label => |l| try l.on_ui_event.call(
-                    display.allocator,
                     display,
                     old_item,
                     &.{ .type = .mouse_exit },
                 ),
                 .button => |b| try b.on_ui_event.call(
-                    display.allocator,
                     display,
                     old_item,
                     &.{ .type = .mouse_exit },
@@ -2389,13 +2366,11 @@ inline fn handle_mouse_motion_event(
             });
             switch (found.?.type) {
                 .label => |l| try l.on_ui_event.call(
-                    display.allocator,
                     display,
                     found.?,
                     &.{ .type = .mouse_enter },
                 ),
                 .button => |b| try b.on_ui_event.call(
-                    display.allocator,
                     display,
                     found.?,
                     &.{ .type = .mouse_enter },
@@ -2423,9 +2398,8 @@ inline fn handle_mouse_motion_event(
 }
 
 /// Handle an event on the event queue.
-pub fn handle_event(
+pub fn handleEvent(
     display: *Self,
-    allocator: Allocator,
     e: *sdl.SDL_Event,
 ) !void {
     switch (e.type) {
@@ -2433,7 +2407,6 @@ pub fn handle_event(
             if (display.selected) |selected| {
                 if (selected.type == .text_input) {
                     try selected.keypress(
-                        allocator,
                         display,
                         nextUnicodeChar(e.text.text),
                         nextUnicodeSlice(e.text.text),
@@ -2446,11 +2419,11 @@ pub fn handle_event(
                 err("sdl text input event when nothing selected.", .{});
             }
         },
-        sdl.SDL_EVENT_KEY_UP => try display.handle_key_up_event(allocator, e),
-        sdl.SDL_EVENT_KEY_DOWN => try display.handle_key_down_event(allocator, e),
-        sdl.SDL_EVENT_MOUSE_BUTTON_DOWN => try display.handle_mouse_down_event(allocator, e),
-        sdl.SDL_EVENT_MOUSE_BUTTON_UP => try display.handle_mouse_up_event(allocator, e),
-        sdl.SDL_EVENT_MOUSE_MOTION => try display.handle_mouse_motion_event(e),
+        sdl.SDL_EVENT_KEY_UP => try display.handleKeyUpEvent(e),
+        sdl.SDL_EVENT_KEY_DOWN => try display.handleKeyDownEvent(e),
+        sdl.SDL_EVENT_MOUSE_BUTTON_DOWN => try display.handleMouseDownEvent(e),
+        sdl.SDL_EVENT_MOUSE_BUTTON_UP => try display.handleMouseUpEvent(e),
+        sdl.SDL_EVENT_MOUSE_MOTION => try display.handleMouseMotionEvent(e),
 
         sdl.SDL_EVENT_SYSTEM_THEME_CHANGED => display.update_system_theme(),
         sdl.SDL_EVENT_WINDOW_RESIZED,
@@ -2479,7 +2452,7 @@ pub fn handle_event(
         },
 
         else => {
-            _ = try display.event_hook.call(allocator, e.type);
+            _ = try display.event_hook.call(display.allocator, e.type);
             // Other SDL events are not handled
         },
     }
@@ -2496,12 +2469,12 @@ pub fn user_scale_setting(display: *Self) Scale {
     return Scale.from_float(display.user_scale);
 }
 
-/// Keypress event handler expects `display`, `entity` and `allocator`.
-pub fn increase_size(
+/// Handle request to increase UI size.
+pub fn increaseSize(
     _: *Self,
     display: *Self,
     _: *Entity,
-    _: Allocator,
+    _: *const Event,
 ) void {
     display.user_scale = if (display.user_scale == 0.5)
         0.75
@@ -2521,12 +2494,12 @@ pub fn increase_size(
     });
 }
 
-/// Keypress event handler expects `display`, `entity` and `allocator`.
-pub fn decrease_size(
+/// Handle request to decrease UI size.
+pub fn decreaseSize(
     display: *Self,
     _: *Self,
     _: *Entity,
-    _: Allocator,
+    _: *const Event,
 ) void {
     debug("size = {d}", .{display.user_scale});
     display.user_scale = if (display.user_scale == 0.75)
@@ -2548,11 +2521,11 @@ pub fn decrease_size(
 }
 
 /// Keypress event handler expects `display`, `entity` and `allocator`.
-fn make_bundle(
+fn makeBundle(
     display: *Self,
     _: *Self,
     _: *Entity,
-    gpa: Allocator,
+    _: *const Event,
 ) error{OutOfMemory}!void {
     if (!engine.dev_build) return;
 
@@ -2577,7 +2550,7 @@ fn make_bundle(
     info("making resource bundle: {s}", .{display.config.app_bundle_output.?});
 
     display.resources.saveBundle(
-        gpa,
+        display.allocator,
         display.io,
         display.config.app_bundle_output.?,
         display.required_resource,
@@ -2590,33 +2563,28 @@ fn make_bundle(
 
 /// Provides a standardised way to place a back button in the top left
 /// corner of the screen.
-pub fn add_back_button(
+pub fn addBackButton(
     display: *Self,
-    allocator: Allocator,
     parent: *Entity,
     close_fn: Entity.Callback,
 ) (Error || Allocator.Error || Resources.Error)!*Entity {
-    return try parent.add(
-        allocator,
-        display,
-        .{
-            .name = "back",
-            .focus = .can_focus,
-            .rect = .{ .x = 20, .y = 20, .width = 120, .height = 120 },
-            .pad = .{ .left = 20, .right = 20, .top = 20, .bottom = 20 },
-            .layout = .{ .x = .fixed, .y = .fixed, .position = .float },
-            .type = .{ .button = .{
-                .icon_default_name = "icon-back",
-                .icon_pressed_name = "icon-back",
-                .icon_hover_name = "icon-back",
-                .text = "",
-                .translated = "",
-                .on_pressed = close_fn,
-                .icon_size = .{ .width = 70, .height = 70 },
-            } },
-            .on_resized = .{ .func = @ptrCast(&back_button_resize), .ptr = display },
-        },
-    );
+    return try parent.add(.{
+        .name = "back",
+        .focus = .can_focus,
+        .rect = .{ .x = 20, .y = 20, .width = 120, .height = 120 },
+        .pad = .{ .left = 20, .right = 20, .top = 20, .bottom = 20 },
+        .layout = .{ .x = .fixed, .y = .fixed, .position = .float },
+        .type = .{ .button = .{
+            .icon_default_name = "icon-back",
+            .icon_pressed_name = "icon-back",
+            .icon_hover_name = "icon-back",
+            .text = "",
+            .translated = "",
+            .on_pressed = close_fn,
+            .icon_size = .{ .width = 70, .height = 70 },
+        } },
+        .on_resized = .{ .func = @ptrCast(&back_button_resize), .ptr = display },
+    }, display);
 }
 
 /// This event handler repositions a back button into the top left corner
@@ -2641,31 +2609,28 @@ pub fn back_button_resize(
 /// Add an empty panel that keeps a space open in a list of entities.
 pub fn add_spacer(
     display: *Self,
-    allocator: Allocator,
     parent: *Entity,
     size: f32,
 ) (Error || Allocator.Error || Resources.Error)!*Entity {
-    return try parent.add(allocator, display, .{
+    return try parent.add(.{
         .name = "spacer",
         .rect = .{ .width = size, .height = size },
         .layout = .{ .x = .shrinks, .y = .shrinks },
         .minimum = .{ .width = size, .height = size },
         .type = .{ .panel = .{} },
-    });
+    }, display);
 }
 
 /// Add a label with generic settings needed for a paragraph.
 pub fn add_paragraph(
     display: *Self,
-    allocator: Allocator,
     parent: *Entity,
     size: TextSize,
     name: []const u8,
     text: []const u8,
 ) (Error || Allocator.Error || Resources.Error)!void {
-    _ = try parent.add(allocator, display, .{
+    _ = try parent.add(.{
         .name = name,
-        .style = .normal,
         .focus = .accessibility_focus,
         .rect = .{ .x = 250, .y = 50, .width = 500, .height = 80 },
         .layout = .{ .y = .shrinks, .x = .grows },
@@ -2675,11 +2640,16 @@ pub fn add_paragraph(
             .translated = "",
             .text_size = size,
         } },
-    });
+    }, display);
 }
 
 /// Keypress `Callback` handler to toggle dev mode.
-fn toggle_dev_mode(_: *Self, _: Allocator, _: *Display) Allocator.Error!void {
+fn toggleDevMode(
+    _: *Self,
+    _: *Display,
+    _: *Entity,
+    _: *Event,
+) Allocator.Error!void {
     engine.dev_mode = !engine.dev_mode;
     info("Dev mode: {any}", .{engine.dev_mode});
 }
@@ -2881,7 +2851,7 @@ test "init catch" {
     const io = std.testing.io;
     // The display takes ownership of the resources object
     var display = try Display.create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
 }
 
 fn create_label(
@@ -2900,9 +2870,9 @@ test "text input sizing" {
     const io = std.testing.io;
 
     var display = try headless_display(allocator, io, 1000, 1600, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    var panel = try display.addPanel(allocator, .{
+    var panel = try display.addPanel(.{
         .type = .{ .panel = .{ .direction = .top_to_bottom } },
         .layout = .{ .x = .grows, .y = .grows },
     });
@@ -2913,72 +2883,72 @@ test "text input sizing" {
 
     {
         // Create a fixed sized label with enough space
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 50 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .fixed, .y = .grows },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
         try eq(50, l.minimum_needed_height(display, 500));
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
     {
         // Create a fixed sized label with minimum
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 500, .height = 60 },
             .minimum = .{ .width = 300, .height = 55 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .fixed, .y = .fixed },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(500, l.minimum_needed_width(display, 500));
         try eq(60, l.minimum_needed_height(display, 500));
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
     {
         // Create a fixed sized label with minimum
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 200, .height = 100 },
             .minimum = .{ .width = 300, .height = 20 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(300, l.minimum_needed_width(display, 500));
         try eq(TextSize.normal.pixel_height(display.scale), l.minimum_needed_height(display, 500));
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
     {
         // Create a fixed sized label with x growth
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         // Minimum is not the actual width, but the smallest it could do.
         try eq(187, @round(l.minimum_needed_width(display, 500)));
         try eq(TextSize.normal.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
     {
         // Create a label with full shrinking
-        const l = try panel.add(allocator, display, .{
+        const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 1, .height = 1 },
             .minimum = .{ .width = 1, .height = 20 },
@@ -2986,7 +2956,7 @@ test "text input sizing" {
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .shrinks, .y = .shrinks },
             .pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 },
-        });
+        }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
@@ -3014,10 +2984,10 @@ test "text input sizing" {
             2 * TextSize.normal.pixel_height(display.pixel_scale),
             l.minimum_needed_height(display, 40 * display.pixel_scale),
         );
-        panel.removeEntities(allocator, display);
+        panel.removeEntities(display);
     }
 
-    panel = try display.addPanel(allocator, .{
+    panel = try display.addPanel(.{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
@@ -3028,28 +2998,28 @@ test "text input sizing" {
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
-    var label = try panel.add(allocator, display, .{
+    var label = try panel.add(.{
         .name = "hello",
         .rect = .{ .width = 500, .height = 60 },
         .minimum = .{ .width = 300, .height = 10 },
         .maximum = .{ .width = 600, .height = 200 },
         .type = .{ .label = .{ .text = "Hello world" } },
         .layout = .{ .x = .fixed, .y = .fixed },
-    });
+    }, display);
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
     try eq(500, label.minimum_needed_width(display, 500));
     try eq(60, label.minimum_needed_height(display, 500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
-    label = try panel.add(allocator, display, .{
+    label = try panel.add(.{
         .name = "hello",
         .rect = .{ .width = 295, .height = 60 },
         .minimum = .{ .width = 300, .height = 100 },
         .maximum = .{ .width = 401, .height = 201 },
         .type = .{ .label = .{ .text = "Hello world" } },
         .layout = .{ .x = .fixed, .y = .fixed },
-    });
+    }, display);
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
     try eq(300, label.minimum_needed_width(display, 500));
     try eq(100, label.minimum_needed_height(display, 500));
@@ -3094,9 +3064,9 @@ test "test_init" {
     const io = std.testing.io;
 
     var display: *Display = try .create(allocator, io, test_config);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
-    var panel = try display.addPanel(allocator, .{
+    var panel = try display.addPanel(.{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
@@ -3104,7 +3074,7 @@ test "test_init" {
     });
 
     try eq(1, display.root.type.panel.children.items.len);
-    _ = try panel.add(allocator, display, .{
+    _ = try panel.add(.{
         .name = "menu_bg",
         .rect = .{ .x = 0, .y = 0, .width = 550, .height = 100 },
         .minimum = .{ .width = 300, .height = 130 },
@@ -3112,7 +3082,7 @@ test "test_init" {
         .background = .{ .colour = .{ .r = 99, .g = 150, .b = 50, .a = 255 } },
         .style = .background,
         .type = .{ .rectangle = .{} },
-    });
+    }, display);
     try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
 }
 
@@ -3121,7 +3091,7 @@ test "font_loading" {
     const io = std.testing.io;
 
     var display = try headless_display(allocator, io, 1000, 1600, 2);
-    defer display.destroy(allocator);
+    defer display.destroy();
 
     // Initial headless display font
     try expectEqual(1, display.fonts.items.len);
