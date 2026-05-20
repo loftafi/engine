@@ -1374,14 +1374,14 @@ pub fn keypress(
         // Update the text line
         trace("pressed {d} {s} {t}", .{ key, slice, event.type });
         switch (key) {
-            13, 10 => {
+            @intFromEnum(Key.line_feed), @intFromEnum(Key.@"return") => {
                 _ = sdl.SDL_StopTextInput(display.window);
                 if (self.type.text_input.on_submit.func != null) {
                     try self.type.text_input.on_submit.call(display, self, event);
                 }
                 return;
             },
-            sdl.SDLK_BACKSPACE => {
+            @intFromEnum(Key.backspace) => {
                 if (self.type.text_input.runes.items.len == 0) {
                     return;
                 }
@@ -2657,6 +2657,7 @@ const trace = engine.log.trace;
 const Display = engine.Display;
 const Error = engine.Error;
 const Font = engine.Font;
+const Key = engine.Key;
 const directional_clamp = engine.directional_clamp;
 
 const resources = @import("resources");

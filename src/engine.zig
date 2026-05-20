@@ -490,9 +490,10 @@ const warn = log.warn;
 const info = log.info;
 const notice = log.notice;
 
-pub const Theme = @import("Theme.zig");
 pub const Colour = @import("Colour.zig");
 pub const BoxLayout = @import("BoxLayout.zig");
+pub const Key = @import("keys.zig").Key;
+pub const Theme = @import("Theme.zig");
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;

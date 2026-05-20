@@ -10,6 +10,10 @@ type: enum {
     mouse_exit,
 } = .unknown,
 
+key: Key = .unknown,
+
 pub inline fn isKeyboardEvent(event: *const Event) bool {
     return event.type == .key_up or event.type == .key_down;
 }
+
+const Key = @import("keys.zig").Key;

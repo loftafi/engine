@@ -162,7 +162,7 @@ root: Entity = .{
 },
 animators: ArrayListUnmanaged(*Animator) = .empty,
 
-keybindings: std.AutoHashMapUnmanaged(c_uint, Entity.Callback) = .empty,
+keybindings: std.AutoHashMapUnmanaged(Key, Entity.Callback) = .empty,
 on_resized: Entity.BoolCallback,
 event_hook: U32Callback,
 on_panel_change: Entity.PanelChangeCallback,
@@ -423,21 +423,37 @@ pub fn create(
 
     // App can accept these keybindings or replace them
     if (engine.dev_build) {
-        try display.keybindings.put(gpa, sdl.SDLK_D, .{ .func = @ptrCast(&toggleDevMode), .ptr = display });
-        try display.keybindings.put(gpa, sdl.SDLK_B, .{ .func = @ptrCast(&makeBundle), .ptr = display });
+        try display.setKeybinding(.d, .{ .func = @ptrCast(&toggleDevMode), .ptr = display });
+        try display.setKeybinding(.b, .{ .func = @ptrCast(&makeBundle), .ptr = display });
     }
-    try display.keybindings.put(gpa, sdl.SDLK_K, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_X, .{ .func = @ptrCast(&increaseSize), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_PLUS, .{ .func = @ptrCast(&increaseSize), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_EQUALS, .{ .func = @ptrCast(&increaseSize), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_MINUS, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_KP_PLUS, .{ .func = @ptrCast(&increaseSize), .ptr = display });
-    try display.keybindings.put(gpa, sdl.SDLK_KP_MINUS, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
+    try display.setKeybinding(.k, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
+    try display.setKeybinding(.x, .{ .func = @ptrCast(&increaseSize), .ptr = display });
+    try display.setKeybinding(.plus, .{ .func = @ptrCast(&increaseSize), .ptr = display });
+    try display.setKeybinding(.equals, .{ .func = @ptrCast(&increaseSize), .ptr = display });
+    try display.setKeybinding(.minus, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
+    try display.setKeybinding(.kp_plus, .{ .func = @ptrCast(&increaseSize), .ptr = display });
+    try display.setKeybinding(.kp_minus, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
 
     display.update_system_theme();
-    display.update_screen_metrics(true);
+    display.updateScreenMetrics(true);
 
     return display;
+}
+
+pub fn setKeybinding(
+    self: *Self,
+    key: Key,
+    callback: Entity.Callback,
+) Allocator.Error!void {
+    try self.keybindings.put(self.allocator, key, callback);
+    debug("bind key {t} count={d}", .{ key, self.keybindings.count() });
+}
+
+pub fn clearKeybinding(
+    self: *Self,
+    key: Key,
+) Allocator.Error!void {
+    try self.keybindings.remove(key);
 }
 
 /// Cleanup memory assocaited with this display.
@@ -597,7 +613,7 @@ pub fn choosePanel(
     const old_panel = self.currentPanel();
 
     var found = false;
-    self.update_screen_metrics(false);
+    self.updateScreenMetrics(false);
     for (self.root.type.panel.children.items) |item| {
         if (item.type != .panel) continue;
         if (std.mem.eql(u8, "background", item.name)) continue;
@@ -630,7 +646,7 @@ pub fn choosePanel(
     if (self.selected) |selected| {
         selected.deselected(self, event);
     }
-    self.update_screen_metrics(true);
+    self.updateScreenMetrics(true);
     if (!found and name.len > 0) {
         warn("choosePanel() did not find panel. name={s}", .{name});
     }
@@ -890,7 +906,7 @@ pub fn loadFontResource(
         self.scale,
         TextSize.pixels,
     });
-    //sdl.TTF_SetFontHinting(myfont, 0);
+    sdl.TTF_SetFontHinting(myfont, sdl.TTF_HINTING_LIGHT_SUBPIXEL);
 
     const font_info = try Font.create(
         self.allocator,
@@ -1842,117 +1858,71 @@ pub fn main(display: *Self) !void {
     debug("Main loop ended", .{});
 }
 
-inline fn handleKeyUpEvent(
+fn handleKeyUpEvent(
     display: *Self,
     e: *sdl.SDL_Event,
-) !void {
-    trace("handle_key_up_event({any})", .{e.key.key});
-    if (e.key.key == sdl.SDLK_TAB) {
-        if (e.key.mod == sdl.SDL_KMOD_SHIFT or e.key.mod == sdl.SDL_KMOD_LSHIFT or e.key.mod == sdl.SDL_KMOD_RSHIFT) {
-            display.selectPreviousEntity(&.{ .type = .key_up });
-        } else {
-            display.selectNextEntity(&.{ .type = .key_up });
-        }
-        if (display.selected != null) display.keyboard_activity = true;
-        return;
+) (Allocator.Error)!void {
+    const key: Key = @enumFromInt(e.key.key);
+    const event: Event = .{ .type = .key_up, .key = key };
+    trace("handle_key_up_event({any} -> {t} / {d})", .{ e.key.key, key, @intFromEnum(key) });
+
+    switch (key) {
+        .tab => {
+            if (e.key.mod == sdl.SDL_KMOD_SHIFT or e.key.mod == sdl.SDL_KMOD_LSHIFT or e.key.mod == sdl.SDL_KMOD_RSHIFT) {
+                display.selectPreviousEntity(&event);
+            } else {
+                display.selectNextEntity(&event);
+            }
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        },
+        .up => {
+            display.selectAboveEntity(&event);
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        },
+        .left => {
+            display.selectLeftEntity(&event);
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        },
+        .down => {
+            display.selectBelowEntity(&event);
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        },
+        .right => {
+            display.selectRightEntity(&event);
+            if (display.selected != null) display.keyboard_activity = true;
+            return;
+        },
+        else => {},
     }
-    if (e.key.key == sdl.SDLK_UP) {
-        display.selectAboveEntity(&.{ .type = .key_up });
-        if (display.selected != null) display.keyboard_activity = true;
-        return;
-    }
-    if (e.key.key == sdl.SDLK_LEFT) {
-        display.selectLeftEntity(&.{ .type = .key_up });
-        if (display.selected != null) display.keyboard_activity = true;
-        return;
-    }
-    if (e.key.key == sdl.SDLK_DOWN) {
-        display.selectBelowEntity(&.{ .type = .key_up });
-        if (display.selected != null) display.keyboard_activity = true;
-        return;
-    }
-    if (e.key.key == sdl.SDLK_RIGHT) {
-        display.selectRightEntity(&.{ .type = .key_up });
-        if (display.selected != null) display.keyboard_activity = true;
-        return;
-    }
+
     if (display.selected) |selected| {
-        trace("handle_key_up_event({any}) for selected {s} {s}", .{ e.key.key, @tagName(selected.type), selected.name });
+        trace("handle_key_up_event({t}) for selected {s} {s}", .{ key, @tagName(selected.type), selected.name });
         switch (selected.type) {
-            .button => {
-                if (e.key.key == sdl.SDLK_RETURN or
-                    e.key.key == sdl.SDLK_KP_ENTER or
-                    e.key.key == sdl.SDLK_RETURN2 or
-                    e.key.key == sdl.SDLK_KP_SPACE or
-                    e.key.key == sdl.SDLK_SPACE)
-                {
-                    try selected.chosen(display, &.{ .type = .key_up });
-                    return; // keypress handled
-                }
-            },
-            .sprite => {
-                if (e.key.key == sdl.SDLK_RETURN or
-                    e.key.key == sdl.SDLK_KP_ENTER or
-                    e.key.key == sdl.SDLK_RETURN2 or
-                    e.key.key == sdl.SDLK_KP_SPACE or
-                    e.key.key == sdl.SDLK_SPACE)
-                {
-                    try selected.chosen(display, &.{ .type = .key_up });
-                    return; // keypress handled
-                }
-            },
-            .panel => {
-                if (e.key.key == sdl.SDLK_RETURN or
-                    e.key.key == sdl.SDLK_KP_ENTER or
-                    e.key.key == sdl.SDLK_RETURN2 or
-                    e.key.key == sdl.SDLK_KP_SPACE or
-                    e.key.key == sdl.SDLK_SPACE)
-                {
-                    try selected.chosen(display, &.{ .type = .key_up });
-                    return; // keypress handled
-                }
-            },
-            .checkbox => {
-                if (e.key.key == sdl.SDLK_RETURN or
-                    e.key.key == sdl.SDLK_KP_ENTER or
-                    e.key.key == sdl.SDLK_RETURN2 or
-                    e.key.key == sdl.SDLK_KP_SPACE or
-                    e.key.key == sdl.SDLK_SPACE)
-                {
-                    try selected.chosen(display, &.{ .type = .key_up });
-                    return; // keypress handled
-                }
-            },
-            .label => {
-                if (e.key.key == sdl.SDLK_RETURN or
-                    e.key.key == sdl.SDLK_KP_ENTER or
-                    e.key.key == sdl.SDLK_RETURN2 or
-                    e.key.key == sdl.SDLK_KP_SPACE or
-                    e.key.key == sdl.SDLK_SPACE)
-                {
+            .panel, .checkbox, .label, .button, .sprite => {
+                if (key.isSelelectKey()) {
                     try selected.chosen(display, &.{ .type = .key_up });
                     return; // keypress handled
                 }
             },
             .text_input => {
-                switch (e.key.key) {
-                    sdl.SDLK_BACKSPACE,
-                    sdl.SDLK_DELETE,
-                    sdl.SDLK_KP_BACKSPACE,
-                    => try selected.keypress(display, sdl.SDLK_BACKSPACE, "", &.{ .type = .key_up }),
-                    sdl.SDLK_RETURN,
-                    sdl.SDLK_KP_ENTER,
-                    sdl.SDLK_RETURN2,
-                    => {
+                switch (key) {
+                    .backspace, .delete, .kp_backspace => {
+                        try selected.keypress(display, @intFromEnum(Key.backspace), "", &event);
+                    },
+                    .@"return", .kp_enter, .return2 => {
                         switch (selected.type) {
-                            .text_input => try selected.keypress(display, 10, "", &.{ .type = .key_up }),
-                            .button => |b| try b.on_pressed.call(display, selected, &.{ .type = .key_up }),
-                            .label => |l| try l.on_pressed.call(display, selected, &.{ .type = .key_up }),
+                            .text_input => try selected.keypress(display, @intFromEnum(Key.@"return"), "", &event),
+                            .button => |b| try b.on_pressed.call(display, selected, &event),
+                            .label => |l| try l.on_pressed.call(display, selected, &event),
                             else => {},
                         }
                     },
-                    sdl.SDLK_ESCAPE => if (display.keybindings.get(sdl.SDLK_ESCAPE)) |f| {
-                        try f.call(display, &display.root, &.{ .type = .key_up });
+                    .escape => if (display.keybindings.get(.escape)) |f| {
+                        try f.call(display, &display.root, &event);
                     },
                     else => {},
                 }
@@ -1968,12 +1938,12 @@ inline fn handleKeyUpEvent(
     // Unhandled keypresses fall through to user defined keybindings.
     var i = display.keybindings.iterator();
     while (i.next()) |k| {
-        if (k.key_ptr.* == e.key.key) {
-            trace("keypress has special handler: {d}", .{e.key.key});
+        if (k.key_ptr.* == key) {
+            trace("keypress has special handler: {t}", .{key});
             k.value_ptr.*.call(display, &display.root, &.{ .type = .key_up }) catch |f| {
-                trace("keypress handler error: {d} {any}", .{ e.key.key, f });
+                trace("keypress handler error: {t} {any}", .{ key, f });
             };
-            trace("keypress special handler complete: {d}", .{e.key.key});
+            trace("keypress special handler complete: {t}", .{key});
         }
     }
 }
@@ -1986,7 +1956,7 @@ inline fn handleKeyDownEvent(_: *Self, _: *sdl.SDL_Event) !void {
 
 /// Refresh the window size information, then refresh the
 /// safe area information.
-pub inline fn update_screen_metrics(display: *Self, forced: bool) void {
+pub inline fn updateScreenMetrics(display: *Self, forced: bool) void {
     var updated = false;
 
     var rwidth: c_int = 0;
@@ -2399,15 +2369,15 @@ inline fn handleMouseMotionEvent(
 
 /// Handle an event on the event queue.
 pub fn handleEvent(
-    display: *Self,
+    self: *Self,
     e: *sdl.SDL_Event,
-) !void {
+) (Allocator.Error)!void {
     switch (e.type) {
         sdl.SDL_EVENT_TEXT_INPUT => {
-            if (display.selected) |selected| {
+            if (self.selected) |selected| {
                 if (selected.type == .text_input) {
                     try selected.keypress(
-                        display,
+                        self,
                         nextUnicodeChar(e.text.text),
                         nextUnicodeSlice(e.text.text),
                         &.{ .type = .key_up },
@@ -2419,41 +2389,41 @@ pub fn handleEvent(
                 err("sdl text input event when nothing selected.", .{});
             }
         },
-        sdl.SDL_EVENT_KEY_UP => try display.handleKeyUpEvent(e),
-        sdl.SDL_EVENT_KEY_DOWN => try display.handleKeyDownEvent(e),
-        sdl.SDL_EVENT_MOUSE_BUTTON_DOWN => try display.handleMouseDownEvent(e),
-        sdl.SDL_EVENT_MOUSE_BUTTON_UP => try display.handleMouseUpEvent(e),
-        sdl.SDL_EVENT_MOUSE_MOTION => try display.handleMouseMotionEvent(e),
+        sdl.SDL_EVENT_KEY_UP => try self.handleKeyUpEvent(e),
+        sdl.SDL_EVENT_KEY_DOWN => try self.handleKeyDownEvent(e),
+        sdl.SDL_EVENT_MOUSE_BUTTON_DOWN => try self.handleMouseDownEvent(e),
+        sdl.SDL_EVENT_MOUSE_BUTTON_UP => try self.handleMouseUpEvent(e),
+        sdl.SDL_EVENT_MOUSE_MOTION => try self.handleMouseMotionEvent(e),
 
-        sdl.SDL_EVENT_SYSTEM_THEME_CHANGED => display.update_system_theme(),
+        sdl.SDL_EVENT_SYSTEM_THEME_CHANGED => self.update_system_theme(),
         sdl.SDL_EVENT_WINDOW_RESIZED,
         sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED,
         sdl.SDL_EVENT_DISPLAY_ORIENTATION,
         sdl.SDL_EVENT_WINDOW_SAFE_AREA_CHANGED,
-        => display.update_screen_metrics(false),
+        => self.updateScreenMetrics(false),
 
-        sdl.SDL_EVENT_QUIT => display.end_main_loop(),
+        sdl.SDL_EVENT_QUIT => self.end_main_loop(),
 
         sdl.SDL_EVENT_TERMINATING => {},
         sdl.SDL_EVENT_LOW_MEMORY => {},
         sdl.SDL_EVENT_WILL_ENTER_BACKGROUND => {},
         sdl.SDL_EVENT_DID_ENTER_BACKGROUND => {
-            if (display.state == .running) {
+            if (self.state == .running) {
                 info("Entered background mode. Paused", .{});
-                display.state = .paused;
+                self.state = .paused;
             }
         },
         sdl.SDL_EVENT_WILL_ENTER_FOREGROUND => {},
         sdl.SDL_EVENT_DID_ENTER_FOREGROUND => {
-            if (display.state == .paused) {
+            if (self.state == .paused) {
                 info("Exited background mode. Running", .{});
-                display.state = .running;
+                self.state = .running;
             }
         },
 
         else => {
-            _ = try display.event_hook.call(display.allocator, e.type);
-            // Other SDL events are not handled
+            // Unhandled events can be caught by an event hook.
+            _ = try self.event_hook.call(self.allocator, e.type);
         },
     }
 }
@@ -3164,6 +3134,7 @@ const StringBucket = @import("string_bucket.zig").StringBucket;
 const random = praxis.random;
 const seed = random.seed;
 
+const Key = @import("keys.zig").Key;
 const Event = @import("Event.zig");
 
 const Entity = @import("Entity.zig");
