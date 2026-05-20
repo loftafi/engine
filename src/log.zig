@@ -12,7 +12,7 @@
 /// more immediate operator response. Zig also does not distinguish
 /// between an `info` log message and an info `notice` that might require
 /// immediate action.
-const Level = enum {
+pub const Level = enum {
     trace,
     debug,
     info,
@@ -21,6 +21,89 @@ const Level = enum {
     err,
     alert,
 };
+
+const max_log_message_size = 5000;
+
+pub fn Log(size: usize) type {
+    return struct {
+        pub const Self = @This();
+
+        history: [size]Entry,
+        start: usize,
+        end: usize,
+
+        pub fn init() Self {
+            return .{
+                .history = undefined,
+                .start = 0,
+                .end = 0,
+            };
+        }
+
+        /// A `trace` message can be used liberally and should only be used for
+        /// log messages in programs that are under active development. Is never
+        /// included in a production ready build of an application.
+        pub inline fn trace(self: *Self, comptime format: []const u8, args: anytype) void {
+            if (builtin.mode != .Debug)
+                self.log(.trace, format, args);
+        }
+
+        pub inline fn log(
+            self: *Self,
+            io: std.Io,
+            level: Level,
+            comptime format: []const u8,
+            args: anytype,
+        ) void {
+            var current: usize = 0;
+            if (self.end == 0 and self.start == 0) {
+                self.end = 1;
+                current = 0;
+            } else if (self.end == self.history.len) {
+                self.end = 1;
+                self.start = 1;
+                current = 0;
+            } else {
+                current = self.end;
+                if (self.start == self.end) self.start += 1;
+                self.end += 1;
+                if (self.start == self.history.len) self.start = 0;
+            }
+            self.history[current].level = level;
+            self.history[current].time = std.Io.Timestamp.now(io, .real).toMilliseconds();
+            const message = std.fmt.bufPrintZ(&self.history[current].message, format, args) catch format;
+
+            const colour = switch (level) {
+                .trace => "90",
+                .debug => "34",
+                .info => "36",
+                .notice => "91",
+                .warn => "33",
+                .err => "31",
+                .alert => "31",
+            };
+
+            var stderr = std.debug.lockStderr(&.{}).terminal().writer;
+            defer std.debug.unlockStderr();
+            if (!builtin.abi.isAndroid() and builtin.os.tag != .ios) {
+                nosuspend stderr.print("\x1B[{s}m[\x1B[1m{t}\x1B[22m] {s}\x1B[0m\n", .{
+                    colour,
+                    level,
+                    message,
+                }) catch return;
+            } else {
+                nosuspend stderr.print("{t} {s}\r\n", .{ level, message }) catch return;
+            }
+            stderr.flush() catch {};
+        }
+
+        pub const Entry = struct {
+            level: Level,
+            time: i64,
+            message: [max_log_message_size]u8,
+        };
+    };
+}
 
 /// A `trace` message can be used liberally and should only be used for
 /// log messages in programs that are under active development. Is never
@@ -119,6 +202,9 @@ fn formatted_log_output(
         if (level == .debug and engine.dev_mode == false) return;
     }
 
+    var buffer: [max_log_message_size]u8 = undefined;
+    const message = std.fmt.bufPrintZ(&buffer, format, args) catch format;
+
     if (!builtin.abi.isAndroid()) {
         const prefix = switch (level) {
             .trace => "\x1B[90m[\x1B[1mtrace\x1B[22m] ",
@@ -130,12 +216,9 @@ fn formatted_log_output(
             .alert => "\x1B[31m[\x1B[1malert\x1B[22m] ",
         };
         // Log to terminal in debug mode
-        //var buffer: [1024 * 5]u8 = undefined;
-        //var stderr_writer = std.Io.File.stderr().writer(std.Options.debug_io, &buffer);
-        //const stderr = &stderr_writer.interface;
         var stderr = std.debug.lockStderr(&.{}).terminal().writer;
         defer std.debug.unlockStderr();
-        nosuspend stderr.print(prefix ++ format ++ "\x1B[0m\n", args) catch return;
+        nosuspend stderr.print("{s}{s}\x1B[0m\n", .{ prefix, message }) catch return;
         stderr.flush() catch {};
     } else {
         const prefix = switch (level) {
@@ -150,12 +233,7 @@ fn formatted_log_output(
 
         // Log using SDL when in release mode
         if (scope != .term_scope) {
-            var buffer: [1024 * 5]u8 = undefined;
-            if (std.fmt.bufPrintZ(&buffer, prefix ++ format, args)) |f| {
-                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), f.ptr);
-            } else |_| {
-                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ format);
-            }
+            sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ message);
         }
     }
 }
@@ -229,7 +307,45 @@ test "sdl_log_category" {
     try std.testing.expectEqual(.unknown, SdlLogPriority.fromInt(999));
 }
 
+test "log" {
+    const io = std.testing.io;
+    var l = Log(3).init();
+    try expectEqual(0, l.start);
+    try expectEqual(0, l.end);
+
+    l.log(io, .info, "message {d}", .{1});
+    try expectEqual(0, l.start);
+    try expectEqual(1, l.end);
+    l.log(io, .info, "message {d}", .{2});
+    try expectEqual(0, l.start);
+    try expectEqual(2, l.end);
+    l.log(io, .info, "message {d}", .{3});
+    try expectEqual(0, l.start);
+    try expectEqual(3, l.end);
+
+    l.log(io, .info, "message {d}", .{4});
+    try expectEqual(1, l.start);
+    try expectEqual(1, l.end);
+    l.log(io, .info, "message {d}", .{5});
+    try expectEqual(2, l.start);
+    try expectEqual(2, l.end);
+    l.log(io, .info, "message {d}", .{6});
+    try expectEqual(0, l.start);
+    try expectEqual(3, l.end);
+
+    l.log(io, .info, "message {d}", .{7});
+    try expectEqual(1, l.start);
+    try expectEqual(1, l.end);
+    l.log(io, .info, "message {d}", .{8});
+    try expectEqual(2, l.start);
+    try expectEqual(2, l.end);
+    l.log(io, .info, "message {d}", .{9});
+    try expectEqual(0, l.start);
+    try expectEqual(3, l.end);
+}
+
 const std = @import("std");
+const expectEqual = std.testing.expectEqual;
 const builtin = @import("builtin");
 
 const engine = @import("engine.zig");
