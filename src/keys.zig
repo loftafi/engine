@@ -257,6 +257,15 @@ pub const Key = enum(u32) {
     lhyper = 0x20000006,
     rhyper = 0x20000007,
 
+    pub fn isMeta(key: Key) bool {
+        if (key == .escape) return true;
+        if (@intFromEnum(key) <= 0xff) return false;
+        if (@intFromEnum(key) >= @intFromEnum(Key.kp_divide) and @intFromEnum(key) <= @intFromEnum(Key.kp_full_stop)) return false;
+        if (key == .kp_equals) return false;
+        if (@intFromEnum(key) >= @intFromEnum(Key.kp_00) and @intFromEnum(key) <= @intFromEnum(Key.kp_exclam)) return false;
+        return true;
+    }
+
     pub fn isSelelectKey(key: Key) bool {
         return (key == .@"return" or
             key == .kp_enter or

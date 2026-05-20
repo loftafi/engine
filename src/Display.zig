@@ -423,16 +423,17 @@ pub fn create(
 
     // App can accept these keybindings or replace them
     if (engine.dev_build) {
-        try display.setKeybinding(.d, .{ .func = @ptrCast(&toggleDevMode), .ptr = display });
-        try display.setKeybinding(.b, .{ .func = @ptrCast(&makeBundle), .ptr = display });
+        try display.setKeybinding(.f1, .{ .func = @ptrCast(&toggleDevMode), .ptr = display });
+        try display.setKeybinding(.f10, .{ .func = @ptrCast(&makeBundle), .ptr = display });
     }
-    try display.setKeybinding(.k, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
     try display.setKeybinding(.x, .{ .func = @ptrCast(&increaseSize), .ptr = display });
     try display.setKeybinding(.plus, .{ .func = @ptrCast(&increaseSize), .ptr = display });
     try display.setKeybinding(.equals, .{ .func = @ptrCast(&increaseSize), .ptr = display });
     try display.setKeybinding(.minus, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
     try display.setKeybinding(.kp_plus, .{ .func = @ptrCast(&increaseSize), .ptr = display });
     try display.setKeybinding(.kp_minus, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
+    try display.setKeybinding(.f2, .{ .func = @ptrCast(&dumpEntities), .ptr = display });
+    try display.setKeybinding(.f3, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
 
     display.update_system_theme();
     display.updateScreenMetrics(true);
@@ -446,7 +447,7 @@ pub fn setKeybinding(
     callback: Entity.Callback,
 ) Allocator.Error!void {
     try self.keybindings.put(self.allocator, key, callback);
-    debug("bind key {t} count={d}", .{ key, self.keybindings.count() });
+    trace("bind key {t} count={d}", .{ key, self.keybindings.count() });
 }
 
 pub fn clearKeybinding(
@@ -1858,6 +1859,7 @@ pub fn main(display: *Self) !void {
     debug("Main loop ended", .{});
 }
 
+/// Handle Key up events that are _not_ sent to a text input box
 fn handleKeyUpEvent(
     display: *Self,
     e: *sdl.SDL_Event,
@@ -1912,6 +1914,7 @@ fn handleKeyUpEvent(
                 switch (key) {
                     .backspace, .delete, .kp_backspace => {
                         try selected.keypress(display, @intFromEnum(Key.backspace), "", &event);
+                        return; // keypress consumed by text edit box
                     },
                     .@"return", .kp_enter, .return2 => {
                         switch (selected.type) {
@@ -1920,13 +1923,14 @@ fn handleKeyUpEvent(
                             .label => |l| try l.on_pressed.call(display, selected, &event),
                             else => {},
                         }
+                        return; // keypress consumed by text edit box
                     },
                     .escape => if (display.keybindings.get(.escape)) |f| {
                         try f.call(display, &display.root, &event);
+                        return; // keypress consumed by text edit box
                     },
-                    else => {},
+                    else => if (!key.isMeta()) return, // keypress consumed
                 }
-                return; // keypress consumed by text edit box
             },
             else => {
                 // Only button, label, and text_input have
@@ -1948,8 +1952,7 @@ fn handleKeyUpEvent(
     }
 }
 
-/// Handle key down events. Usually no action is triggered until the
-/// key is released.
+/// Handle key down events that are not sent to a text input box.
 inline fn handleKeyDownEvent(_: *Self, _: *sdl.SDL_Event) !void {
     //
 }
@@ -2383,10 +2386,10 @@ pub fn handleEvent(
                         &.{ .type = .key_up },
                     );
                 } else {
-                    err("sdl text input event on non text_input entity.", .{});
+                    err("text input event on non text_input entity.", .{});
                 }
             } else {
-                err("sdl text input event when nothing selected.", .{});
+                err("text input event when nothing selected.", .{});
             }
         },
         sdl.SDL_EVENT_KEY_UP => try self.handleKeyUpEvent(e),
@@ -2488,6 +2491,38 @@ pub fn decreaseSize(
         display.user_scale,
         display.scale,
     });
+}
+
+pub fn dumpEntityTree(
+    parent: *Entity,
+    gpa: Allocator,
+    depth: usize,
+) Allocator.Error!void {
+    var out = std.ArrayListUnmanaged(u8).empty;
+    defer out.deinit(gpa);
+    const pad = "                                          ";
+    try out.print(gpa, "{s}{s} {f}", .{
+        pad[0..depth],
+        pad[0..depth],
+        parent,
+    });
+    debug("{s}", .{out.items});
+    if (parent.type == .panel) {
+        for (parent.type.panel.children.items) |child| {
+            if (child.visible == .visible)
+                try dumpEntityTree(child, gpa, depth + 1);
+        }
+    }
+}
+
+/// Dump all currently visible on screen elements to the log.
+pub fn dumpEntities(
+    self: *Self,
+    _: *Self,
+    _: *Entity,
+    _: *const Event,
+) Allocator.Error!void {
+    try dumpEntityTree(&self.root, self.allocator, 0);
 }
 
 /// Keypress event handler expects `display`, `entity` and `allocator`.

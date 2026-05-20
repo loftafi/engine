@@ -112,7 +112,15 @@ pub fn setup(
         .text_input => try entity.setup_text_input(display),
     }
 
-    // Catch invalid layout states
+    // Warn about invalid layout configurations
+    if (entity.layout.x == .fixed)
+        warn("{t} `{s}` has fixed width {d} but minimum width {d}.", .{
+            entity.type,
+            entity.name,
+            entity.rect.width,
+            entity.minimum.width,
+        });
+
     var float_error = false;
     switch (entity.layout.x) {
         .grows => if (entity.layout.position == .float) {
@@ -1119,6 +1127,7 @@ pub fn minimum_needed_width(self: *Entity, display: *Display, parent_inner_width
         .expander => self.type.expander.minimum_needed_width(display, self, parent_inner_width),
         .label => self.type.label.minimum_needed_width(display, self, parent_inner_width),
         .checkbox => self.type.checkbox.minimum_needed_width(display, self, parent_inner_width),
+        .text_input => self.type.text_input.minimum_needed_width(display, self, parent_inner_width),
         else => @max(self.minimum.width, self.rect.width),
     };
 }
@@ -1370,65 +1379,71 @@ pub fn keypress(
     slice: []const u8,
     event: *const Event,
 ) Allocator.Error!void {
-    if (self.type == .text_input) {
-        // Update the text line
-        trace("pressed {d} {s} {t}", .{ key, slice, event.type });
-        switch (key) {
-            @intFromEnum(Key.line_feed), @intFromEnum(Key.@"return") => {
-                _ = sdl.SDL_StopTextInput(display.window);
-                if (self.type.text_input.on_submit.func != null) {
-                    try self.type.text_input.on_submit.call(display, self, event);
-                }
-                return;
-            },
-            @intFromEnum(Key.backspace) => {
-                if (self.type.text_input.runes.items.len == 0) {
-                    return;
-                }
-                _ = self.type.text_input.runes.pop();
-                self.text_runes_to_data(display.allocator);
-                self.type.text_input.cursor_character -= 1;
-            },
-            else => {
-                if (self.type.text_input.runes.items.len >= self.type.text_input.max_runes) {
-                    trace("Ignoring {u}. Input limited to {d} characters", .{
-                        key,
-                        self.type.text_input.max_runes,
-                    });
-                    return;
-                }
-                self.type.text_input.text.appendSlice(display.allocator, slice) catch {};
-                self.type.text_input.runes.append(display.allocator, key) catch {};
-                self.type.text_input.cursor_character += 1;
-            },
-        }
-        self.text_data_to_runes(display.allocator);
+    if (self.type != .text_input) {
+        err("keypress captured for {t}. {s} {t}", .{ self.type, slice, event.type });
+        return;
+    }
 
-        // Update the text texture image.
-        if (self.type.text_input.texture) |texture| {
-            sdl.SDL_DestroyTexture(texture);
-            self.type.text_input.texture = null;
-        }
-        if (self.type.text_input.text.items.len > 0) {
-            if (generateTextTexture(
-                display.renderer,
-                self.type.text_input.text.items,
-                self.type.text_input.font,
-            )) |texture| {
-                self.type.text_input.texture = texture;
-                // For now, the cursor position is simply the end of the text.
-                self.type.text_input.cursor_pixels = TextSize.normal.pixel_size(display.scale, texture).width;
+    // Update the text line
+    trace("{t} recieved {t} {s}", .{ self.type, event.type, slice });
+    switch (key) {
+        @intFromEnum(Key.line_feed), @intFromEnum(Key.@"return") => {
+            _ = sdl.SDL_StopTextInput(display.window);
+            if (self.type.text_input.on_submit.func != null) {
+                try self.type.text_input.on_submit.call(display, self, event);
             }
-        } else {
-            self.type.text_input.cursor_pixels = 0;
-        }
+            return;
+        },
+        @intFromEnum(Key.backspace) => {
+            if (self.type.text_input.runes.items.len == 0) {
+                return;
+            }
+            _ = self.type.text_input.runes.pop();
+            self.text_runes_to_data(display.allocator);
+            self.type.text_input.cursor_character -= 1;
+        },
+        else => {
+            const max_chars = @as(usize, self.type.text_input.max_length orelse TextInput.default_max_length);
+            if (self.type.text_input.runes.items.len >= max_chars) {
+                debug("Ignoring {u} {t}. {t} limited to {d} characters", .{
+                    key,
+                    event.type,
+                    self.type,
+                    max_chars,
+                });
+                return;
+            }
+            self.type.text_input.text.appendSlice(display.allocator, slice) catch {};
+            self.type.text_input.runes.append(display.allocator, key) catch {};
+            self.type.text_input.cursor_character += 1;
+        },
+    }
+    self.text_data_to_runes(display.allocator);
 
-        // Optionally, a text_input may have an `on_change` callback function.
-        if (self.type.text_input.on_change.func != null) {
-            trace("text_input calling on_change", .{});
-            try self.type.text_input.on_change.call(display, self, event);
-            trace("text_input called on_change", .{});
+    // Update the text texture image.
+    if (self.type.text_input.texture) |texture| {
+        sdl.SDL_DestroyTexture(texture);
+        self.type.text_input.texture = null;
+    }
+    if (self.type.text_input.text.items.len > 0) {
+        if (generateTextTexture(
+            display.renderer,
+            self.type.text_input.text.items,
+            self.type.text_input.font,
+        )) |texture| {
+            self.type.text_input.texture = texture;
+            // For now, the cursor position is simply the end of the text.
+            self.type.text_input.cursor_pixels = TextSize.normal.pixel_size(display.scale, texture).width;
         }
+    } else {
+        self.type.text_input.cursor_pixels = 0;
+    }
+
+    // Optionally, a text_input may have an `on_change` callback function.
+    if (self.type.text_input.on_change.func != null) {
+        trace("text_input calling on_change", .{});
+        try self.type.text_input.on_change.call(display, self, event);
+        trace("text_input called on_change", .{});
     }
 }
 
@@ -1882,6 +1897,14 @@ pub fn setup_text_input(
         entity.pad.top = TextSize.normal.pixel_height(display.scale * 0.5);
         entity.pad.bottom = TextSize.normal.pixel_height(display.scale * 0.5);
     }
+
+    if (entity.layout.y == .fixed)
+        warn("{t} `{s}` has fixed height {d} but minimum height {d}.", .{
+            entity.type,
+            entity.name,
+            entity.rect.height,
+            entity.minimum.height,
+        });
 
     entity.focus = .can_focus;
     entity.rect.height = (TextSize.normal.pixel_height(display.scale)) + (entity.pad.top + entity.pad.bottom);

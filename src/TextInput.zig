@@ -1,5 +1,7 @@
 pub const TextInput = @This();
 
+pub const default_max_length: u16 = 1000;
+
 font: *Font = undefined,
 font_name: ?[]const u8 = null,
 texture: ?*sdl.SDL_Texture = null,
@@ -8,7 +10,7 @@ icon_texture_name: ?[]const u8 = "",
 text_size: TextSize = .normal,
 text: ArrayListUnmanaged(u8) = .empty,
 runes: ArrayListUnmanaged(u21) = .empty,
-max_runes: usize = 0,
+max_length: ?u16 = null,
 cursor_character: usize = 0,
 cursor_pixels: f32 = 0,
 on_change: Entity.Callback = .empty,
@@ -140,6 +142,22 @@ pub inline fn minimum_needed_height(
     _ = parent_inner_width;
     const height = (self.text_size.pixel_height(display.scale)) + (entity.pad.top + entity.pad.bottom);
     return height;
+}
+
+// Return the absolute minimum width needed, even if more space
+// could be used. `.grows`  is ignored for the purpose of finding
+// the minimum width.
+//
+// `parent_inner_width` is the maximum space this entity could
+// theoretically grow to. Text might wrap if wider than this.
+pub inline fn minimum_needed_width(
+    _: *const TextInput,
+    _: *const Display,
+    entity: *const Entity,
+    _: f32,
+) f32 {
+    if (entity.layout.x == .fixed) return entity.rect.width;
+    return @max(0, entity.minimum.width);
 }
 
 const std = @import("std");
