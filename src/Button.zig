@@ -304,23 +304,23 @@ test "normal_use" {
     try button.setText(display, "Hello");
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(41, @round(button.rect.width / display.pixel_density));
+    try expectEqual(83, @ceil(button.rect.width));
     // Does the width grow more than 10 (minimum) because of the button size.
     try expectEqual(88, @round(panel.rect.width));
     // Minimum height was not_quite_one_line, expect it grew to font height.
-    try expectEqual(TextSize.normal.pixel_height(1), button.rect.height / display.pixel_density);
+    try expectEqual(TextSize.normal.pixel_height(1) * display.pixel_scale, button.rect.height);
     try expectEqual(TextSize.normal.pixel_height(2) + 4 + 5, panel.rect.height);
 
     // Buttons cant wrap, hight will only change with padding.
     button.maximum.height = 500;
     try button.setText(display, "Hello Defragment");
     display.relayout();
-    try expectEqual(TextSize.normal.pixel_height(1), button.rect.height / display.pixel_density);
+    try expectEqual(TextSize.normal.pixel_height(1) * display.pixel_scale, button.rect.height);
     button.pad.top = 4;
     button.pad.bottom = 5;
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(TextSize.normal.pixel_height(1), (button.rect.height - 4 - 5) / display.pixel_density);
+    try expectEqual(TextSize.normal.pixel_height(1) * display.pixel_scale, (button.rect.height - 4 - 5));
 }
 
 test "button_sizing" {
