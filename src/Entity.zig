@@ -113,12 +113,20 @@ pub fn setup(
     }
 
     // Warn about invalid layout configurations
-    if (entity.layout.x == .fixed)
+    if (entity.layout.x == .fixed and entity.rect.width < entity.minimum.width)
         warn("{t} `{s}` has fixed width {d} but minimum width {d}.", .{
             entity.type,
             entity.name,
             entity.rect.width,
             entity.minimum.width,
+        });
+
+    if (entity.layout.y == .fixed and entity.rect.height < entity.minimum.height)
+        warn("{t} `{s}` has fixed height {d} but minimum height {d}.", .{
+            entity.type,
+            entity.name,
+            entity.rect.height,
+            entity.minimum.height,
         });
 
     var float_error = false;
@@ -566,6 +574,16 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
         if (self.type.checkbox.on_change.func != null) {
             _ = try out.write(" on_change");
         }
+    }
+}
+
+/// Changing the alignment requires reflowing the text in a label
+pub inline fn setAlign(self: *Entity, display: *Display, x: LayoutAlign, y: LayoutAlign) void {
+    self.child_align.x = x;
+    self.child_align.y = y;
+    switch (self.type) {
+        .label, .checkbox => _ = Label.layout(self, display.scale, self.rect.width),
+        else => {},
     }
 }
 
@@ -1897,14 +1915,6 @@ pub fn setup_text_input(
         entity.pad.top = TextSize.normal.pixel_height(display.scale * 0.5);
         entity.pad.bottom = TextSize.normal.pixel_height(display.scale * 0.5);
     }
-
-    if (entity.layout.y == .fixed)
-        warn("{t} `{s}` has fixed height {d} but minimum height {d}.", .{
-            entity.type,
-            entity.name,
-            entity.rect.height,
-            entity.minimum.height,
-        });
 
     entity.focus = .can_focus;
     entity.rect.height = (TextSize.normal.pixel_height(display.scale)) + (entity.pad.top + entity.pad.bottom);

@@ -304,7 +304,7 @@ test "normal_use" {
     try button.setText(display, "Hello");
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(42, @round(button.rect.width / display.pixel_density));
+    try expectEqual(41, @round(button.rect.width / display.pixel_density));
     // Does the width grow more than 10 (minimum) because of the button size.
     try expectEqual(88, @round(panel.rect.width));
     // Minimum height was not_quite_one_line, expect it grew to font height.

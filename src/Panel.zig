@@ -994,21 +994,31 @@ test "centre_text_bug" {
             panel.child_align.x = .start;
             display.need_relayout = true;
             display.relayout();
-            try eq(full_width, footer.rect.width);
+            try eq(250, label.minimum_needed_width(display, 1000));
+            try eq(250, Label.layout(label, display.scale, 1000).minimum_width);
+            try eq(250, Label.layout(label, display.scale, 1000).width);
             try eq(250, label.rect.width); // text smaller than minimum
             try eq(44, label.rect.height);
+            try eq(full_width, footer.rect.width);
             try eq(icon.rect.x, footer.rect.x + footer.pad.left);
             try eq(icon.rect.y, footer.rect.y + footer.pad.top);
             try eq(label.rect.x, footer.rect.x + footer.pad.left + 12 + icon.rect.width);
             try eq(label.rect.y, footer.rect.y + footer.pad.top);
-            const entity1 = label.type.label.elements.items[0];
-            const entity2 = label.type.label.elements.items[1];
-            const entity3 = label.type.label.elements.items[2];
+            const word1 = &label.type.label.elements.items[0];
+            const word2 = &label.type.label.elements.items[1];
+            const word3 = &label.type.label.elements.items[2];
             const space = label.type.label.text_size.word_spacing(display.scale);
-            const text_width = entity1.location.width + space + entity2.location.width + space + entity3.location.width;
-            try eq(0, entity1.location.x);
-            try eq(0, entity1.location.y);
-            try eq(text_width, entity3.location.x + entity3.location.width);
+            const text_width = word1.location.width + space + word2.location.width + space + word3.location.width;
+            // Text is centred, so it doesnt start at the start
+            try eq(37, word1.location.x);
+            try eq(0, word1.location.y);
+            // Text is left aligned, so does start at the start
+            label.setAlign(display, .start, .start);
+            display.need_relayout = true;
+            display.relayout();
+            try eq(0, word1.location.x);
+            try eq(0, word1.location.y);
+            try eq(text_width, word3.location.x + word3.location.width);
         }
 
         {

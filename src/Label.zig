@@ -83,7 +83,12 @@ pub inline fn minimum_needed_width(
     entity: *const Entity,
     parent_inner_width: f32,
 ) f32 {
-    return layout(entity, display.scale, parent_inner_width).minimum_width;
+    const min = @max(
+        layout(entity, display.scale, parent_inner_width).minimum_width,
+        entity.minimum.width,
+    );
+    if (entity.maximum.width == 0) return min;
+    return @min(min, entity.maximum.width);
 }
 
 /// Calculate the layout of each text element. Returns the `minimum_width`
@@ -151,8 +156,10 @@ pub inline fn layout(
     }
     box.finalise();
 
+    const minimum_without_padding = @max(0, entity.minimum.width - entity.pad.left - entity.pad.right);
+
     const used_text_width = switch (entity.layout.x) {
-        .shrinks => @round(box.final.width),
+        .shrinks => @max(minimum_without_padding, @round(box.final.width)),
         .grows => maximum_text_width,
         .fixed => @max(0, entity.rect.width - (entity.pad.left - entity.pad.right)),
     };
@@ -525,7 +532,7 @@ test "label_multiword_align" {
         try eq(0, element2.location.y);
 
         // Wrap to next line
-        try eq(222, element3.location.width);
+        try eq(221, element3.location.width);
         try eq(44, element3.location.height);
         try eq(0, element3.location.x);
         try eq(44, element3.location.y);
@@ -559,7 +566,7 @@ test "label_multiword_align" {
         const space = text_size.word_spacing(display.scale);
         try eq(@round((panel.rect.width - element2.location.width - element1.location.width - space) / 2), element1.location.x);
         try eq(0, element1.location.y);
-        try eq((panel.rect.width - element3.location.width) / 2, element3.location.x);
+        try eq(@round((panel.rect.width - element3.location.width) / 2), element3.location.x);
         try eq(44, element3.location.y);
     }
 }
