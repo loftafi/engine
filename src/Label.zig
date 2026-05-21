@@ -298,11 +298,13 @@ pub fn draw_text_elements(
 test "label_panel_placement" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
-    // The display takes ownership of the resources object
+
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
 
     // TODO: 10->22
-    var display = try Display.create(allocator, io, test_config);
-    defer display.destroy();
+    //var display = try Display.create(allocator, io, test_config);
+    //defer display.destroy();
 
     try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);

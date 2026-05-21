@@ -773,10 +773,12 @@ inline fn place_children_left_to_right_wrap(
 test "root_panel_alignment" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
-    // The display takes ownership of the resources object
 
     // TODO: 10->22
-    var display = try Display.create(allocator, io, test_config);
+    //var display = try Display.create(allocator, io, test_config);
+    //defer display.destroy();
+
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
     defer display.destroy();
 
     try display.setDefaultFont("Roboto-Light", .unknown);
@@ -827,11 +829,13 @@ test "panel_padding" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    // The display takes ownership of the resources object
-
     // TODO: 10->22
-    var display = try Display.create(allocator, io, test_config);
+    //var display = try Display.create(allocator, io, test_config);
+    //defer display.destroy();
+
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
     defer display.destroy();
+
     try display.setDefaultFont("Roboto-Light", .unknown);
     try eq(1, display.fonts.items.len);
     display.root.rect.width = 300;
