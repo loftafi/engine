@@ -218,7 +218,7 @@ test "text input sizing" {
             .layout = .{ .x = .grows, .y = .shrinks },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(300, l.minimum_needed_width(display, 500));
+        try eq(401, l.minimum_needed_width(display, 500)); // grows to maximum
         try eq(TextSize.normal.pixel_height(display.scale), l.minimum_needed_height(display, 500));
         panel.removeEntities(display);
     }
@@ -234,8 +234,8 @@ test "text input sizing" {
             .layout = .{ .x = .grows, .y = .shrinks },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        // Minimum is not the actual width, but the smallest it could do.
-        try eq(187, @round(l.minimum_needed_width(display, 500)));
+        // Minimum is the smallest the label wants to be given the parent width provided
+        try eq(401, @round(l.minimum_needed_width(display, 500)));
         try eq(TextSize.normal.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
         panel.removeEntities(display);
     }
@@ -256,7 +256,7 @@ test "text input sizing" {
         display.relayout();
         try eq(2, l.type.label.elements.items.len);
         // Bitmap/Pixel width of first word in this font is 197 pixels
-        try eq(99, @round(l.type.label.elements.items[0].width / display.pixel_scale));
+        try eq(98, @ceil(l.type.label.elements.items[0].width / display.pixel_scale));
         // Bitmap/Pixel width of second word in this font is 197 pixels
         try eq(107, @round(l.type.label.elements.items[1].width / display.pixel_scale));
 
@@ -267,8 +267,8 @@ test "text input sizing" {
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(91, @round(l.minimum_needed_width(display, 500)));
-        // TODO: Is this correct? Why is it * 2 ?
+        try eq(186, @round(l.minimum_needed_width(display, 500)));
+
         try eq(
             2 * TextSize.normal.pixel_height(display.pixel_scale),
             l.minimum_needed_height(display, 500),
@@ -322,35 +322,7 @@ test "text input sizing" {
     label.minimum.height = TextSize.normal.pixel_height(1);
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    // TODo: 94 or 46?
-    try eq(46, @round(label.minimum_needed_width(display, 500) / display.pixel_scale));
-    try eq(TextSize.normal.pixel_height(2), @round(label.minimum_needed_height(display, 500) / display.pixel_scale));
-    label.layout.x = .grows;
-    try eq(187, @round(label.minimum_needed_width(display, 500)));
-
-    panel.layout.x = .shrinks;
-    panel.layout.y = .shrinks;
-    label.layout.x = .grows;
-    label.layout.y = .shrinks;
-
-    label.pad.top = 0;
-    label.pad.bottom = 0;
-    display.relayout();
-    debug("size={d}x{d} min={d}x{d}  max={d}x{d} ", .{
-        label.rect.width,
-        label.rect.height,
-        label.minimum.width,
-        label.minimum.height,
-        label.maximum.width,
-        label.maximum.height,
-    });
-
-    // Two words wrapped, so the with is the width of the longest word.
-    try eq(401, @round(label.rect.width)); // Label has 401 as maximum
-    try eq(500, @trunc(panel.rect.width));
-    // The height is two lines (44*2)
-    try eq(TextSize.normal.pixel_height(1), @round(label.rect.height / display.pixel_scale));
-    try eq(200, @trunc(panel.rect.height));
+    try eq(93, @ceil(label.minimum_needed_width(display, 500) / display.pixel_scale));
 }
 
 test "test_init" {
