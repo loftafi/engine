@@ -627,7 +627,7 @@ pub fn choosePanel(
                 } else {
                     info("choose panel. ___ -> {s}", .{name});
                 }
-                try item.set_visibility(self, .visible);
+                try item.setVisibility(self, .visible);
                 if (item.on_resized.call(self, item)) {
                     self.need_relayout = true;
                 }
@@ -639,7 +639,7 @@ pub fn choosePanel(
             // Other panels not matching `name` are hidden.
             if (item.visible != .hidden) {
                 debug("choosePanel({s}) hiding panel {s}.", .{ name, item.name });
-                try item.set_visibility(self, .hidden);
+                try item.setVisibility(self, .hidden);
             }
         }
         found = true;
@@ -766,7 +766,7 @@ pub fn draw(display: *Self) Allocator.Error!void {
                 old.internal.end_time,
             });
             if (animator.mode == .visibility) {
-                try animator.target.set_visibility(display, animator.mode.visibility.end);
+                try animator.target.setVisibility(display, animator.mode.visibility.end);
             }
             try old.on_end.call(display, old.target);
             display.allocator.destroy(old);

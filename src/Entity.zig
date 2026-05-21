@@ -590,7 +590,7 @@ pub inline fn setAlign(self: *Entity, display: *Display, x: LayoutAlign, y: Layo
 /// Show or hide this entity. If the visibliity is changed a relayout
 /// will be triggerd, and the `on_visibility` callback will be triggered
 /// if a callback is specified.
-pub inline fn set_visibility(self: *Entity, display: *Display, visible: Visibility) Allocator.Error!void {
+pub inline fn setVisibility(self: *Entity, display: *Display, visible: Visibility) Allocator.Error!void {
     if (self.visible == visible) return;
     self.visible = visible;
     display.need_relayout = true;
