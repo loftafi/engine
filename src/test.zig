@@ -23,6 +23,11 @@ pub fn headless_display(
     pixel_scale: f32,
 ) !*Display {
     var display = try Display.create(allocator, io, test_config);
+
+    display.pixel_scale = pixel_scale;
+    display.user_scale = 1;
+    display.scale = display.pixel_scale * display.user_scale;
+
     try display.setDefaultFont("Roboto-Light", .unknown);
     display.root.rect.width = width;
     display.root.rect.height = height;
@@ -30,10 +35,6 @@ pub fn headless_display(
     display.root.maximum.height = height;
     display.root.minimum.width = width;
     display.root.minimum.height = height;
-
-    display.pixel_scale = pixel_scale;
-    display.user_scale = 1;
-    display.scale = display.pixel_scale * display.user_scale;
 
     display.root.name = "root";
 
