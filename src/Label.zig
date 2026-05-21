@@ -164,6 +164,13 @@ pub inline fn layout(
         .fixed => @max(0, entity.rect.width - (entity.pad.left - entity.pad.right)),
     };
 
+    //err("finalize final.width={d} requested_min={d} [{t}] chosen_min={d}", .{
+    //    @ceil(box.final.width),
+    //    minimum_without_padding,
+    //    entity.layout.x,
+    //    used_text_width,
+    //});
+
     // Align words to centre or right if requested.
     // centre and end alignment might need the `grows`
     // full width, or the `shrinks` minimum width.
@@ -641,11 +648,11 @@ const Resources = resources.Resources;
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;
-const err = engine.err;
-const warn = engine.warn;
-const info = engine.info;
-const debug = engine.debug;
-const trace = engine.trace;
+const err = engine.log.err;
+const warn = engine.log.warn;
+const info = engine.log.info;
+const debug = engine.log.debug;
+const trace = engine.log.trace;
 const clamp = engine.clamp;
 const Display = engine.Display;
 const Entity = engine.Entity;

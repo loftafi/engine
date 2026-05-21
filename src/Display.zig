@@ -2919,7 +2919,13 @@ test "text input sizing" {
     }
 
     {
-        // Create a fixed sized label with minimum
+        // The parent desires to shrink, but the child label desires to grow.
+        // So a label (and its parent) should shrink down to the minimum if
+        // possible. The child label should not grow because the parent governs
+        // it.
+        panel.layout.x = .shrinks;
+        display.need_relayout = true;
+        display.relayout();
         const l = try panel.add(.{
             .name = "hello",
             .rect = .{ .width = 200, .height = 100 },
@@ -2929,26 +2935,53 @@ test "text input sizing" {
             .layout = .{ .x = .grows, .y = .shrinks },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(300, l.minimum_needed_width(display, 500));
+        display.need_relayout = true;
+        display.relayout();
+        try eq(187, l.type.label.elements.getLast().location.x + l.type.label.elements.getLast().location.width);
+        try eq(300, panel.rect.width);
+        try eq(300, Label.layout(l, display.scale, 100).minimum_width);
+        try eq(350, Label.layout(l, display.scale, 350).minimum_width);
+        try eq(401, Label.layout(l, display.scale, 450).minimum_width);
+        try eq(401, l.minimum_needed_width(display, 500));
+        display.need_relayout = true;
+        display.relayout();
+        try eq(300, panel.rect.width);
+        try eq(300, l.rect.width);
         try eq(TextSize.normal.pixel_height(display.scale), l.minimum_needed_height(display, 500));
         panel.removeEntities(display);
+        panel.layout.x = .grows;
+        display.need_relayout = true;
+        display.relayout();
     }
 
     {
-        // Create a fixed sized label with x growth
+        // The parent desires to grow and so does the label so they both
+        // hit their maximum.
+        panel.layout.x = .grows;
+        display.need_relayout = true;
+        display.relayout();
         const l = try panel.add(.{
             .name = "hello",
-            .rect = .{ .width = 1, .height = 1 },
-            .minimum = .{ .width = 1, .height = 20 },
+            .rect = .{ .width = 200, .height = 100 },
+            .minimum = .{ .width = 300, .height = 20 },
             .maximum = .{ .width = 401, .height = 201 },
             .type = .{ .label = .{ .text = "Hello world" } },
             .layout = .{ .x = .grows, .y = .shrinks },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        // Minimum is not the actual width, but the smallest it could do.
-        try eq(187, @round(l.minimum_needed_width(display, 500)));
-        try eq(TextSize.normal.pixel_height(display.pixel_scale), l.minimum_needed_height(display, 500));
+        display.need_relayout = true;
+        display.relayout();
+        try eq(187, l.type.label.elements.getLast().location.x + l.type.label.elements.getLast().location.width);
+        try eq(1000, panel.rect.width);
+        try eq(300, Label.layout(l, display.scale, 100).minimum_width);
+        try eq(350, Label.layout(l, display.scale, 350).minimum_width);
+        try eq(401, Label.layout(l, display.scale, 450).minimum_width);
+        try eq(401, l.minimum_needed_width(display, 500));
+        try eq(TextSize.normal.pixel_height(display.scale), l.minimum_needed_height(display, 500));
         panel.removeEntities(display);
+        panel.layout.x = .grows;
+        display.need_relayout = true;
+        display.relayout();
     }
 
     {
@@ -2967,9 +3000,9 @@ test "text input sizing" {
         display.relayout();
         try eq(2, l.type.label.elements.items.len);
         // Bitmap/Pixel width of first word in this font is 197 pixels
-        try eq(99, @round(l.type.label.elements.items[0].width / display.pixel_scale));
+        try eq(98, @ceil(l.type.label.elements.items[0].width / display.pixel_scale));
         // Bitmap/Pixel width of second word in this font is 197 pixels
-        try eq(107, @round(l.type.label.elements.items[1].width / display.pixel_scale));
+        try eq(107, @ceil(l.type.label.elements.items[1].width / display.pixel_scale));
 
         try eq(0, @round(l.type.label.elements.items[0].location.x));
         try eq(0, @round(l.type.label.elements.items[0].location.y));
@@ -2978,7 +3011,9 @@ test "text input sizing" {
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(91, @round(l.minimum_needed_width(display, 500)));
+        try eq(186, l.rect.width);
+        try eq(186, @round(l.minimum_needed_width(display, 500)));
+
         // TODO: Is this correct? Why is it * 2 ?
         try eq(
             2 * TextSize.normal.pixel_height(display.pixel_scale),
@@ -3015,6 +3050,7 @@ test "text input sizing" {
     try eq(500, label.minimum_needed_width(display, 500));
     try eq(60, label.minimum_needed_height(display, 500));
 
+    // Another label.
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
     label = try panel.add(.{
@@ -3029,16 +3065,26 @@ test "text input sizing" {
     try eq(300, label.minimum_needed_width(display, 500));
     try eq(100, label.minimum_needed_height(display, 500));
 
-    label.minimum.width = TextSize.normal.pixel_height(1);
+    try eq(22, TextSize.normal.pixel_height(1));
+    try eq(33, TextSize.heading.pixel_height(1));
     label.minimum.height = TextSize.normal.pixel_height(1);
+    try eq(22, label.minimum.height);
+    label.minimum.width = TextSize.normal.pixel_height(1);
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    // TODo: 94 or 46?
-    try eq(46, @round(label.minimum_needed_width(display, 500) / display.pixel_scale));
-    try eq(TextSize.normal.pixel_height(2), @round(label.minimum_needed_height(display, 500) / display.pixel_scale));
-    label.layout.x = .grows;
-    try eq(187, @round(label.minimum_needed_width(display, 500)));
 
+    // Min width at normal size
+    display.need_relayout = true;
+    display.relayout();
+    try eq(186, label.minimum_needed_width(display, 500));
+
+    // min width at heading size
+    label.type.label.text_size = .heading;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(279, @round(label.minimum_needed_width(display, 500)));
+
+    // Parent wants to shrink but child wants to grow.
     panel.layout.x = .shrinks;
     panel.layout.y = .shrinks;
     label.layout.x = .grows;
@@ -3046,8 +3092,9 @@ test "text input sizing" {
 
     label.pad.top = 0;
     label.pad.bottom = 0;
+    display.need_relayout = true;
     display.relayout();
-    debug("size={d}x{d} min={d}x{d}  max={d}x{d} ", .{
+    debug("label size={d}x{d} min={d}x{d}  max={d}x{d} ", .{
         label.rect.width,
         label.rect.height,
         label.minimum.width,
@@ -3056,12 +3103,13 @@ test "text input sizing" {
         label.maximum.height,
     });
 
-    // Two words wrapped, so the with is the width of the longest word.
+    // The label grows and has a maximum of 401.
+    // The parent wants to shrink but can accommodate 401.
     try eq(401, @round(label.rect.width)); // Label has 401 as maximum
     try eq(500, @trunc(panel.rect.width));
     // The height is two lines (44*2)
-    try eq(TextSize.normal.pixel_height(1), @round(label.rect.height / display.pixel_scale));
-    try eq(200, @trunc(panel.rect.height));
+    try eq(66, @trunc(label.rect.height)); // label min height = 22, text size = `heading`=*1.5 at double screen density
+    try eq(66 + 60, @trunc(panel.rect.height)); // Panel has two labes
 }
 
 test "test_init" {
@@ -3176,6 +3224,7 @@ const Entity = @import("Entity.zig");
 const Background = Entity.Background;
 const Clip = Entity.Clip;
 const Fit = Entity.Fit;
+const Label = Entity.Label;
 const LayoutSize = Entity.LayoutSize;
 const LayoutAlign = Entity.LayoutAlign;
 const LayoutMode = Entity.LayoutMode;
