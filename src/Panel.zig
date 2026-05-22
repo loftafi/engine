@@ -245,7 +245,7 @@ fn find_minimum_panel_width(
                 if (child.visible == .hidden) continue;
 
                 const child_width = child.minimum_needed_width(display, available_width);
-                if (true) {
+                if (false) {
                     trace("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
                         parent.name,
                         child.name,

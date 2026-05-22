@@ -704,7 +704,7 @@ pub fn initial_draw(display: *Self) !void {
 pub fn relayout(display: *Self) void {
     if (display.need_relayout == false) return;
 
-    trace("relayout", .{});
+    //trace("relayout", .{});
 
     display.need_relayout = false;
 
@@ -755,24 +755,26 @@ pub fn draw(display: *Self) Allocator.Error!void {
     var i: usize = 0;
     while (i < display.animators.items.len) {
         const animator = display.animators.items[i];
-        const done = try animator.animate(now);
-        // TODO: relayout is not always needed
-        display.need_relayout = true;
-        if (done) {
-            const old = display.animators.swapRemove(i);
-            trace("animate complete for {s} start={d} end={d}", .{
-                old.target.name,
-                old.internal.start_time,
-                old.internal.end_time,
+        const completed = try animator.animate(now);
+        if (completed) {
+            _ = display.animators.swapRemove(i);
+            trace("animate {t}-{t} complete for {s} start={d} end={d}", .{
+                animator.mode,
+                animator.movement,
+                animator.target.name,
+                animator.internal.start_time,
+                animator.internal.end_time,
             });
             if (animator.mode == .visibility) {
                 try animator.target.setVisibility(display, animator.mode.visibility.end);
             }
-            try old.on_end.call(display, old.target);
-            display.allocator.destroy(old);
+            try animator.on_end.call(display, animator.target);
+            display.allocator.destroy(animator);
         } else {
             i += 1;
         }
+        // TODO: relayout is not always needed
+        display.need_relayout = true;
     }
 
     // Step 1: Clear the background
@@ -968,6 +970,17 @@ pub inline fn addAnimator(
 ) Allocator.Error!void {
     const new_animator = try Animator.create(self.allocator, &animator);
     try self.animators.append(self.allocator, new_animator);
+}
+
+/// Check if an Entity is currently in animation
+pub inline fn isAnimating(
+    self: *Self,
+    entity: *Entity,
+) bool {
+    for (self.animators.items) |a| {
+        if (a.target == entity) return true;
+    }
+    return false;
 }
 
 /// Attach a child entity to the main display panel (root) entity. The
