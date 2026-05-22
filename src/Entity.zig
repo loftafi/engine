@@ -1644,14 +1644,14 @@ pub fn isSelectable(self: *const Entity, display: *Display) bool {
         .panel => |p| if (p.clickable()) return true,
         .button => |b| {
             if (b.clickable()) return true;
-            if (!display.accessibility) return false;
+            if (!display.blind_accessibility) return false;
             if (self.focus == .accessibility_focus)
                 return true;
         },
         .sprite => |s| if (s.clickable()) return true,
         .label => |l| {
             if (l.clickable()) return true;
-            if (!display.accessibility) return false;
+            if (!display.blind_accessibility) return false;
             if (self.focus == .accessibility_focus)
                 if (l.translated.len > 0)
                     return true;

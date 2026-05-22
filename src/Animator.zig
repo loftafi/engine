@@ -277,6 +277,34 @@ inline fn ease_int(comptime T: type, start: T, end: T, step: i64, total_steps: i
     return @as(T, @intFromFloat(ease_float(f32, @floatFromInt(start), @floatFromInt(end), step, total_steps)));
 }
 
+test "stretch formula" {
+
+    // Button top left
+    try eq(100, stretch_float(f32, 100, -10, 0, 10));
+    try eq(100, stretch_float(f32, 100, -10, 10, 10));
+    try eq(90, stretch_float(f32, 100, -10, 5, 10));
+    // Button size
+    try eq(200, stretch_int(u8, 200, 20, 0, 10));
+    try eq(200, stretch_int(u8, 200, 20, 10, 10));
+    try eq(220, stretch_int(u8, 200, 20, 5, 10));
+}
+
+test "animator_init" {
+    const gpa = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(gpa, io, 300, 300, 2);
+    defer display.destroy();
+
+    try eq(false, display.isAnimating(&display.root));
+    try display.addAnimator(.{
+        .mode = .{ .move = .{} },
+        .target = &display.root,
+        .duration = 10 * seconds,
+    });
+    try eq(true, display.isAnimating(&display.root));
+}
+
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
@@ -297,30 +325,3 @@ const trace = engine.log.trace;
 const debug = engine.log.debug;
 const eq = std.testing.expectEqual;
 const headless_display = @import("test.zig").headless_display;
-
-test "stretch formula" {
-
-    // Button top left
-    try eq(100, stretch_float(f32, 100, -10, 0, 10));
-    try eq(100, stretch_float(f32, 100, -10, 10, 10));
-    try eq(90, stretch_float(f32, 100, -10, 5, 10));
-    // Button size
-    try eq(200, stretch_int(u8, 200, 20, 0, 10));
-    try eq(200, stretch_int(u8, 200, 20, 10, 10));
-    try eq(220, stretch_int(u8, 200, 20, 5, 10));
-}
-
-test "animator_init" {
-    const gpa = std.testing.allocator;
-    const io = std.testing.io;
-
-    var display = try headless_display(gpa, io, 300, 300, 2);
-    defer display.destroy();
-
-    const animator = try Animator.create(gpa, &.{
-        .mode = .{ .move = .{} },
-        .target = &display.root,
-        .duration = 10 * seconds,
-    });
-    defer animator.destroy(gpa);
-}

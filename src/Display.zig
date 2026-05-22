@@ -34,7 +34,7 @@ old_safe_area: sdl.SDL_Rect = undefined,
 /// extra entities such as titles or guidance text entities
 /// can also be navigated onto. These special entities must
 /// be given the given `accessibility_focus` option.
-accessibility: bool = false,
+blind_accessibility: bool = false,
 
 /// Used to calculate frame rate in microseconds.
 last_draw: i64 = 0,
@@ -324,7 +324,7 @@ pub fn create(
         .need_relayout = true,
         .state = .running,
         .translation = .empty,
-        .accessibility = false,
+        .blind_accessibility = false,
         .animators = .empty,
         .keybindings = .empty,
         .event_hook = .empty,
@@ -1368,7 +1368,7 @@ pub fn selectFirstEntity(
         if (item.focus == .never_focus or item.focus == .unspecified)
             continue;
 
-        if (item.focus == .accessibility_focus and self.accessibility == false)
+        if (item.focus == .accessibility_focus and self.blind_accessibility == false)
             continue;
 
         item.selected(self, event);
@@ -1467,7 +1467,7 @@ fn do_selectNextEntity(
             continue;
 
         if (item.focus == .accessibility_focus) {
-            if (self.accessibility == false) {
+            if (self.blind_accessibility == false) {
                 trace("     skip no accessibility {s}/{s}", .{ @tagName(item.type), item.name });
                 continue;
             }
