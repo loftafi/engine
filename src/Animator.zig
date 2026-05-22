@@ -79,21 +79,12 @@ internal: struct {
 } = .{ .setup = false },
 
 /// Create an Animator struct.
-pub fn create(allocator: Allocator, animator: *const Animator) Allocator.Error!*Animator {
-    var new_animator = try allocator.create(Animator);
-    new_animator.* = animator.*;
-    new_animator.internal.setup = false;
-    if (new_animator.duration == 0) {
+pub fn setup(self: *Animator) void {
+    self.internal.setup = false;
+    if (self.duration == 0) {
         warn("add_animator called with duration of 0", .{});
-        new_animator.duration = 10;
+        self.duration = 10;
     }
-    return new_animator;
-}
-
-/// Destroy a previously `create`d Animator.
-pub fn destroy(self: *Animator, allocator: Allocator) void {
-    self.* = undefined;
-    allocator.destroy(self);
 }
 
 /// Reposition/adjust an entity based on the current_time in milliseconds.

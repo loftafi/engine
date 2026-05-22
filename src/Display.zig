@@ -160,7 +160,7 @@ root: Entity = .{
     .on_resized = .empty,
     .on_visibility = .empty,
 },
-animators: ArrayListUnmanaged(*Animator) = .empty,
+animators: ArrayListUnmanaged(Animator) = .empty,
 
 keybindings: std.AutoHashMapUnmanaged(Key, Entity.Callback) = .empty,
 on_resized: Entity.BoolCallback,
@@ -462,6 +462,8 @@ pub fn destroy(self: *Self) void {
     trace("Engine cleanup", .{});
     const gpa = self.allocator;
 
+    self.animators.deinit(gpa);
+
     self.stopAllAudio(0) catch {};
 
     self.root.deinit(gpa, self);
@@ -507,10 +509,6 @@ pub fn destroy(self: *Self) void {
 
     self.required_resource.deinit(gpa);
     self.resources.deinit(gpa);
-    for (self.animators.items) |animator| {
-        gpa.destroy(animator);
-    }
-    self.animators.deinit(gpa);
 
     sdl.SDL_DestroyRenderer(self.renderer);
     sdl.SDL_DestroyWindow(self.window);
@@ -751,13 +749,11 @@ pub fn draw(display: *Self) Allocator.Error!void {
     const now = std.Io.Timestamp.now(display.io, .real).toMilliseconds();
     display.last_delta = now - display.last_draw;
     display.last_draw = now;
-    //info("animate delta={d}", .{delta});
     var i: usize = 0;
     while (i < display.animators.items.len) {
-        const animator = display.animators.items[i];
+        const animator = &display.animators.items[i];
         const completed = try animator.animate(now);
         if (completed) {
-            _ = display.animators.swapRemove(i);
             trace("animate {t}-{t} complete for {s} start={d} end={d}", .{
                 animator.mode,
                 animator.movement,
@@ -769,7 +765,8 @@ pub fn draw(display: *Self) Allocator.Error!void {
                 try animator.target.setVisibility(display, animator.mode.visibility.end);
             }
             try animator.on_end.call(display, animator.target);
-            display.allocator.destroy(animator);
+            _ = display.animators.swapRemove(i);
+            //display.dumpAnimators();
         } else {
             i += 1;
         }
@@ -968,8 +965,9 @@ pub inline fn addAnimator(
     self: *Self,
     animator: Animator,
 ) Allocator.Error!void {
-    const new_animator = try Animator.create(self.allocator, &animator);
-    try self.animators.append(self.allocator, new_animator);
+    try self.animators.append(self.allocator, animator);
+    self.animators.items[self.animators.items.len - 1].setup();
+    //self.dumpAnimators();
 }
 
 /// Check if an Entity is currently in animation
@@ -977,10 +975,19 @@ pub inline fn isAnimating(
     self: *Self,
     entity: *Entity,
 ) bool {
-    for (self.animators.items) |a| {
-        if (a.target == entity) return true;
-    }
+    for (self.animators.items) |*a|
+        if (a.target == entity)
+            return true;
     return false;
+}
+
+/// List all of the animators currently in progress.
+pub fn dumpAnimators(self: *Self) void {
+    info("---", .{});
+    for (self.animators.items, 0..) |*animator, i| {
+        info("{d}: {s} {t} {t}", .{ i, animator.target.name, animator.mode, animator.movement });
+    }
+    info("---", .{});
 }
 
 /// Attach a child entity to the main display panel (root) entity. The
