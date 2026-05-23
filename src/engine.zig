@@ -441,17 +441,17 @@ const random = praxis.random;
 const seed = random.seed;
 
 pub const Entity = @import("Entity.zig");
-const Background = Entity.Background;
-const Clip = Entity.Clip;
-const Fit = Entity.Fit;
-const LayoutSize = Entity.LayoutSize;
-const LayoutAlign = Entity.LayoutAlign;
-const LayoutMode = Entity.LayoutMode;
+pub const Background = Entity.Background;
+pub const Clip = Entity.Clip;
+pub const Fit = Entity.Fit;
+pub const LayoutSize = Entity.LayoutSize;
+pub const LayoutAlign = Entity.LayoutAlign;
+pub const LayoutMode = Entity.LayoutMode;
 pub const Rect = Entity.Rect;
-const Scale = Entity.Scale;
-const Size = Entity.Size;
-const TextElement = Entity.TextElement;
-const ToggleState = Entity.ToggleState;
+pub const Scale = Entity.Scale;
+pub const Size = Entity.Size;
+pub const TextElement = Entity.TextElement;
+pub const ToggleState = Entity.ToggleState;
 pub const Vector = Entity.Vector;
 
 pub const log = @import("log.zig");
@@ -466,6 +466,7 @@ pub const Colour = @import("Colour.zig");
 pub const BoxLayout = @import("BoxLayout.zig");
 pub const Key = @import("keys.zig").Key;
 pub const Theme = @import("Theme.zig");
+pub const readEntity = @import("EntityParser.zig").readEntity;
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
