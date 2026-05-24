@@ -1,7 +1,7 @@
 pub fn readEntity(data: []const u8) Error!?Entity {
     var token: Token = try .init(data);
     errdefer {
-        err("Unexpected token {t} at {d}.{d}", .{ token.tag, token.pos.line, token.pos.column });
+        err("Unexpected token {t} at {d}.{d}", .{ token.tag, token.begins.line, token.begins.column });
     }
     if (token.tag == .eof) return null;
     var entity = readEntityType(&token) catch return error.UnexpectedToken;
@@ -43,11 +43,19 @@ pub fn readAttributes(token: *Token, entity: *Entity) Error!void {
             .velocity => readClipAttribute(token, &entity.pad),
             .flip => readClipAttribute(token, &entity.pad),
             .text_size => readTextSizeAttribute(token, entity),
+            .line_height => readLineHeightAttribute(token, entity),
+            .weight => readWeightAttribute(token, entity),
+            .progress => readProgressAttribute(token, entity),
             .visible => entity.visible = .visible,
             .hidden => entity.visible = .hidden,
             .style => readStyleAttribute(token, &entity.style),
             .colour => readClipAttribute(token, &entity.pad),
             .max_length => readMaxLengthAttribute(token, entity),
+            .checked => readCheckedAttribute(token, entity),
+            .on => readOnTextureAttribute(token, entity),
+            .off => readOffTextureAttribute(token, entity),
+            .checkbox_size => readCheckboxSizeAttribute(token, entity),
+            .icon_size => readIconSizeAttribute(token, entity),
             .placeholder_text => readPlaceholderTextAttribute(token, entity),
             .vertical => {
                 if (entity.type != .panel)
@@ -62,7 +70,24 @@ pub fn readAttributes(token: *Token, entity: *Entity) Error!void {
                 token.* = try token.next();
             },
             .eof => return,
-            else => error.UnexpectedToken,
+            else => {
+                if (entity.type == .button) {
+                    const button = &entity.type.button;
+                    try switch (token.tag) {
+                        .icon_default => readStringAttribute(token, &button.icon_default_name),
+                        .icon_hover => readStringAttribute(token, &button.icon_hover_name),
+                        .icon_pressed => readStringAttribute(token, &button.icon_pressed_name),
+                        .icon_disabled => readStringAttribute(token, &button.icon_disabled_name),
+                        .button_default => readStringAttribute(token, &button.background_default_name),
+                        .button_hover => readStringAttribute(token, &button.background_hover_name),
+                        .button_pressed => readStringAttribute(token, &button.background_pressed_name),
+                        .button_disabled => readStringAttribute(token, &button.background_disabled_name),
+                        else => return error.UnexpectedToken,
+                    };
+                    continue;
+                }
+                return error.UnexpectedToken;
+            },
         };
     }
 }
@@ -87,6 +112,80 @@ pub fn readPlaceholderTextAttribute(token: *Token, entity: *Entity) Error!void {
     switch (token.tag) {
         .string => {
             entity.type.text_input.placeholder_text = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOnTextureAttribute(token: *Token, entity: *Entity) Error!void {
+    if (entity.type != .checkbox) return error.UnexpectedToken;
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            entity.type.checkbox.on = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOffTextureAttribute(token: *Token, entity: *Entity) Error!void {
+    if (entity.type != .checkbox) return error.UnexpectedToken;
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            entity.type.checkbox.off = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readLineHeightAttribute(token: *Token, entity: *Entity) Error!void {
+    const line_height = switch (entity.type) {
+        .label => &entity.type.label.line_height,
+        .checkbox => &entity.type.checkbox.line_height,
+        else => return error.UnexpectedToken,
+    };
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .number => {
+            line_height.* = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readWeightAttribute(token: *Token, entity: *Entity) Error!void {
+    if (entity.type != .expander) return error.UnexpectedToken;
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .number => {
+            entity.type.expander.weight = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readProgressAttribute(token: *Token, entity: *Entity) Error!void {
+    if (entity.type != .progress_bar) return error.UnexpectedToken;
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .number => {
+            entity.type.progress_bar.progress = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
             token.* = try token.next();
             return;
         },
@@ -172,6 +271,11 @@ pub fn readAlignAttribute(token: *Token, entity: *Entity) Error!void {
     }
 }
 
+pub fn readCheckedAttribute(token: *Token, entity: *Entity) Error!void {
+    token.* = try token.next();
+    entity.type.checkbox.checked = true;
+}
+
 pub fn readRectAttribute(token: *Token, rect: *engine.Rect) Error!void {
     token.* = try token.next();
     switch (token.tag) {
@@ -184,6 +288,78 @@ pub fn readRectAttribute(token: *Token, rect: *engine.Rect) Error!void {
 }
 
 pub fn readSizeAttribute(token: *Token, size: *engine.Size) Error!void {
+    token.* = try token.next();
+    var value_count: u8 = 0;
+    var read_width = false;
+    var read_height = false;
+    while (true) {
+        switch (token.tag) {
+            .width => {
+                if (read_width == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                size.width = try readFloatValue(token);
+                read_width = true;
+            },
+            .height => {
+                if (read_height == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                size.height = try readFloatValue(token);
+                read_height = true;
+            },
+            .number => {
+                if (value_count == 2) return error.UnexpectedToken;
+                if (value_count == 0) size.width = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                if (value_count == 1) size.height = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                value_count += 1;
+                token.* = try token.next();
+            },
+            else => {
+                if (read_width == true or read_height == true or value_count > 0) return;
+                return error.UnexpectedToken;
+            },
+        }
+    }
+}
+
+pub fn readCheckboxSizeAttribute(token: *Token, entity: *engine.Entity) Error!void {
+    if (entity.type != .checkbox) return error.UnexpectedToken;
+    const size = &entity.type.checkbox.checkbox_size;
+    token.* = try token.next();
+    var value_count: u8 = 0;
+    var read_width = false;
+    var read_height = false;
+    while (true) {
+        switch (token.tag) {
+            .width => {
+                if (read_width == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                size.width = try readFloatValue(token);
+                read_width = true;
+            },
+            .height => {
+                if (read_height == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                size.height = try readFloatValue(token);
+                read_height = true;
+            },
+            .number => {
+                if (value_count == 2) return error.UnexpectedToken;
+                if (value_count == 0) size.width = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                if (value_count == 1) size.height = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                value_count += 1;
+                token.* = try token.next();
+            },
+            else => {
+                if (read_width == true or read_height == true or value_count > 0) return;
+                return error.UnexpectedToken;
+            },
+        }
+    }
+}
+
+pub fn readIconSizeAttribute(token: *Token, entity: *engine.Entity) Error!void {
+    if (entity.type != .button) return error.UnexpectedToken;
+    const size = &entity.type.checkbox.checkbox_size;
     token.* = try token.next();
     var value_count: u8 = 0;
     var read_width = false;
@@ -272,12 +448,13 @@ test "panel" {
 
 test "label" {
     const entity = try readEntity(
-        \\label name "coffee"
+        \\label name "coffee" line_height 1.2
         \\minimum 33 44
         \\style emphasised text_size heading
     ) orelse unreachable;
     try expectEqual(33, entity.minimum.width);
     try expectEqual(44, entity.minimum.height);
+    try expectEqual(1.2, entity.type.label.line_height);
     try expectEqualStrings("coffee", entity.name);
     try expectEqual(.heading, entity.type.label.text_size);
     try expectEqual(.emphasised, entity.style);
@@ -288,12 +465,19 @@ test "checkbox" {
         \\checkbox name "coffee"
         \\minimum width=12.34 height=120
         \\style tinted text_size heading
+        \\line_height 1.2 on "on" off "off"
+        \\checkbox_size 25 26
     ) orelse unreachable;
+    try expectEqual(1.2, entity.type.checkbox.line_height);
     try expectEqual(12.34, entity.minimum.width);
     try expectEqual(120, entity.minimum.height);
     try expectEqualStrings("coffee", entity.name);
+    try expectEqualStrings("on", entity.type.checkbox.on.?);
+    try expectEqualStrings("off", entity.type.checkbox.off.?);
     try expectEqual(.heading, entity.type.checkbox.text_size);
     try expectEqual(.tinted, entity.style);
+    try expectEqual(25, entity.type.checkbox.checkbox_size.width);
+    try expectEqual(26, entity.type.checkbox.checkbox_size.height);
 }
 
 test "text_input" {
@@ -308,6 +492,14 @@ test "text_input" {
     try expectEqualStrings("Enter your food", entity.type.text_input.placeholder_text.?);
     try expectEqual(.normal, entity.style);
     try expectEqual(123, entity.type.text_input.max_length);
+}
+
+test "expander" {
+    const entity = try readEntity(
+        \\expander name "expander 1" weight 0.4
+    ) orelse unreachable;
+    try expectEqual(0.4, entity.type.expander.weight);
+    try expectEqualStrings("expander 1", entity.name);
 }
 
 const std = @import("std");

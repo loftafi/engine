@@ -4,10 +4,10 @@ pub const Token = @This();
 /// Token type.
 tag: Tag,
 
-/// Location in file the token starts.
-begins: Pos,
-/// Location in file the token ends.
-pos: Pos,
+/// The cursor position of the start of this token.
+begins: Cursor,
+/// The cursor position of the end of this token.
+ends: Cursor,
 
 /// Beginning and ending of byte slice.
 loc: Loc,
@@ -22,7 +22,7 @@ pub const Loc = struct {
 };
 
 // Human readable description of where a token starts inside the data file.
-pub const Pos = struct {
+pub const Cursor = struct {
     line: u32,
     column: u32,
 };
@@ -30,7 +30,7 @@ pub const Pos = struct {
 pub const empty = Token{
     .tag = .eof,
     .begins = .{ .line = 0, .column = 0 },
-    .pos = .{ .line = 0, .column = 0 },
+    .ends = .{ .line = 0, .column = 0 },
     .loc = .{ .start = 0, .end = 0 },
     .data = "",
 };
@@ -93,14 +93,15 @@ pub const Tag = enum(u8) {
     corner_radius,
     image_corner_radius,
     border,
+    icon_size,
     icon_default,
     icon_pressed,
     icon_hover,
     icon_disabled,
-    background_default,
-    background_hover,
-    background_pressed,
-    background_disabled,
+    button_default,
+    button_hover,
+    button_pressed,
+    button_disabled,
     state,
     disabled,
     no_toggle,
@@ -117,6 +118,7 @@ pub const Tag = enum(u8) {
     normal,
     custom,
     checked,
+    checkbox_size,
     open_bracket,
     close_bracket,
     @"struct",
@@ -130,6 +132,8 @@ pub const Tag = enum(u8) {
     small,
     subheading,
     footnote,
+    weight,
+    progress,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does
@@ -138,7 +142,7 @@ pub fn init(text: []const u8) Error!Token {
     const token = Token{
         .tag = .eof,
         .begins = .{ .line = 0, .column = 0 },
-        .pos = .{ .line = 0, .column = 0 },
+        .ends = .{ .line = 0, .column = 0 },
         .loc = .{
             .start = 0,
             .end = if (std.mem.startsWith(u8, text, "\xEF\xBB\xBF")) 3 else 0,
@@ -159,18 +163,18 @@ pub fn next(self: *const Token) Error!Token {
     if (self.loc.end >= self.data.len) {
         return .{
             .tag = .eof,
-            .begins = self.pos,
-            .pos = self.pos,
+            .begins = self.ends,
+            .ends = self.ends,
             .loc = self.loc,
             .data = self.data,
         };
     }
 
     var loc = self.loc;
-    var begins = self.pos; // Remember the line/column of token start
-    var current = self.pos;
+    var begins = self.ends; // Remember the line/column of token start
+    var current = self.ends;
     loc.start = loc.end;
-    const whitespace_start = self.pos; // File ends at _last_ whitespace.
+    const whitespace_start = self.ends; // File ends at _last_ whitespace.
     const whitespace_byte = self.loc.start;
 
     // Pass over whitespace
@@ -179,7 +183,7 @@ pub fn next(self: *const Token) Error!Token {
         loc.start = loc.end; // Advance start since it was whitespace
         if (c == 0 or self.loc.end >= self.data.len) return .{
             .tag = .eof,
-            .pos = current,
+            .ends = current,
             .begins = whitespace_start,
             .loc = .{ .start = whitespace_byte, .end = loc.end },
             .data = self.data,
@@ -206,7 +210,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .number,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -219,7 +223,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .string,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -229,7 +233,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .equals,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -239,7 +243,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .comma,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -249,7 +253,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .unexpected,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -258,7 +262,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .open_bracket,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -267,7 +271,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .close_bracket,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -276,7 +280,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .colon,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -296,7 +300,7 @@ pub fn next(self: *const Token) Error!Token {
                     return .{
                         .tag = tag,
                         .begins = begins,
-                        .pos = current,
+                        .ends = current,
                         .loc = loc,
                         .data = self.data,
                     };
@@ -305,7 +309,7 @@ pub fn next(self: *const Token) Error!Token {
             return .{
                 .tag = .unexpected,
                 .begins = begins,
-                .pos = current,
+                .ends = current,
                 .loc = loc,
                 .data = self.data,
             };
@@ -314,7 +318,7 @@ pub fn next(self: *const Token) Error!Token {
 }
 
 /// Read the next character from the data stream.
-inline fn char(self: *const Token, index: *u32, pos: *Pos) Error!u21 {
+inline fn char(self: *const Token, index: *u32, pos: *Cursor) Error!u21 {
     if (index.* >= self.data.len) return 0;
     const x: u8 = self.data[index.*];
     const l = @as(u32, std.unicode.utf8ByteSequenceLength(x) catch {
@@ -326,7 +330,7 @@ inline fn char(self: *const Token, index: *u32, pos: *Pos) Error!u21 {
         return Error.InvalidUtf8;
     };
     if (c == '\n') {
-        if (self.pos.line == 0xffffffff) return Error.MaxLineCountExceeded;
+        if (self.ends.line == 0xffffffff) return Error.MaxLineCountExceeded;
         pos.*.line += 1;
         pos.*.column = 0;
     } else {
@@ -363,8 +367,8 @@ pub const Error = error{
 
 test "tokenise_nothing" {
     const token = try Token.init("");
-    try expectEqual(0, token.pos.line);
-    try expectEqual(0, token.pos.column);
+    try expectEqual(0, token.ends.line);
+    try expectEqual(0, token.ends.column);
     try expectEqual(.eof, token.tag);
 }
 
@@ -373,8 +377,8 @@ test "eof_cursor" {
     token = try token.next();
     try expectEqual(0, token.begins.line);
     try expectEqual(1, token.begins.column);
-    try expectEqual(0, token.pos.line);
-    try expectEqual(1, token.pos.column);
+    try expectEqual(0, token.ends.line);
+    try expectEqual(1, token.ends.column);
     try expectEqual(.eof, token.tag);
 }
 
@@ -383,13 +387,13 @@ test "one_token" {
     try expectEqual(.button, token.tag);
     try expectEqual(0, token.begins.line);
     try expectEqual(0, token.begins.column);
-    try expectEqual(0, token.pos.line);
-    try expectEqual(6, token.pos.column);
+    try expectEqual(0, token.ends.line);
+    try expectEqual(6, token.ends.column);
     token = try token.next();
     try expectEqual(0, token.begins.line);
     try expectEqual(6, token.begins.column);
-    try expectEqual(1, token.pos.line);
-    try expectEqual(0, token.pos.column);
+    try expectEqual(1, token.ends.line);
+    try expectEqual(0, token.ends.column);
     try expectEqual(.eof, token.tag);
 }
 
@@ -402,8 +406,8 @@ test "tokenise_word" {
     var token = try Token.init("cloth");
     try expectEqual(.unexpected, token.tag);
     try expectEqualStrings("cloth", token.slice());
-    try expectEqual(Pos{ .line = 0, .column = 0 }, token.begins);
-    try expectEqual(Pos{ .line = 0, .column = 5 }, token.pos);
+    try expectEqual(Cursor{ .line = 0, .column = 0 }, token.begins);
+    try expectEqual(Cursor{ .line = 0, .column = 5 }, token.ends);
     try expectEqual(Loc{ .start = 0, .end = 5 }, token.loc);
     token = try token.next();
     try expectEqual(.eof, token.tag);
@@ -413,14 +417,14 @@ test "tokenise_word_boundary" {
     var token = try Token.init("cloth=");
     try expectEqual(.unexpected, token.tag);
     try expectEqualStrings("cloth", token.slice());
-    try expectEqual(Pos{ .line = 0, .column = 0 }, token.begins);
-    try expectEqual(Pos{ .line = 0, .column = 5 }, token.pos);
+    try expectEqual(Cursor{ .line = 0, .column = 0 }, token.begins);
+    try expectEqual(Cursor{ .line = 0, .column = 5 }, token.ends);
     try expectEqual(Loc{ .start = 0, .end = 5 }, token.loc);
     token = try token.next();
     try expectEqual(.equals, token.tag);
     try expectEqualStrings("=", token.slice());
-    try expectEqual(Pos{ .line = 0, .column = 5 }, token.begins);
-    try expectEqual(Pos{ .line = 0, .column = 6 }, token.pos);
+    try expectEqual(Cursor{ .line = 0, .column = 5 }, token.begins);
+    try expectEqual(Cursor{ .line = 0, .column = 6 }, token.ends);
     try expectEqual(Loc{ .start = 5, .end = 6 }, token.loc);
     token = try token.next();
     try expectEqual(.eof, token.tag);
@@ -430,8 +434,8 @@ test "tokenise_position" {
     var token = try Token.init("style\n  normal");
     try expectEqualStrings("style", token.slice());
     try expectEqual(.style, token.tag);
-    try expectEqual(Pos{ .line = 0, .column = 0 }, token.begins);
-    try expectEqual(Pos{ .line = 0, .column = 5 }, token.pos);
+    try expectEqual(Cursor{ .line = 0, .column = 0 }, token.begins);
+    try expectEqual(Cursor{ .line = 0, .column = 5 }, token.ends);
     try expectEqual(Loc{ .start = 0, .end = 5 }, token.loc);
     token = try token.next();
     try expectEqual(.normal, token.tag);
@@ -470,32 +474,32 @@ test "sentence" {
     var token = try Token.init("label name \"green book\" layout grows");
     try expectEqual(.label, token.tag);
     try expectEqualStrings("label", token.slice());
-    try expectEqual(0, token.pos.line);
-    try expectEqual(5, token.pos.column);
+    try expectEqual(0, token.ends.line);
+    try expectEqual(5, token.ends.column);
 
     token = try token.next();
     try expectEqual(.name, token.tag);
     try expectEqualStrings("name", token.slice());
-    try expectEqual(0, token.pos.line);
-    try expectEqual(10, token.pos.column);
+    try expectEqual(0, token.ends.line);
+    try expectEqual(10, token.ends.column);
 
     token = try token.next();
     try expectEqual(.string, token.tag);
     try expectEqualStrings("\"green book\"", token.slice());
-    try expectEqual(0, token.pos.line);
-    try expectEqual(23, token.pos.column);
+    try expectEqual(0, token.ends.line);
+    try expectEqual(23, token.ends.column);
 
     token = try token.next();
     try expectEqual(.layout, token.tag);
     try expectEqualStrings("layout", token.slice());
-    try expectEqual(0, token.pos.line);
-    try expectEqual(30, token.pos.column);
+    try expectEqual(0, token.ends.line);
+    try expectEqual(30, token.ends.column);
 
     token = try token.next();
     try expectEqual(.grows, token.tag);
     try expectEqualStrings("grows", token.slice());
-    try expectEqual(0, token.pos.line);
-    try expectEqual(36, token.pos.column);
+    try expectEqual(0, token.ends.line);
+    try expectEqual(36, token.ends.column);
 
     token = try token.next();
     try expectEqual(.eof, token.tag);

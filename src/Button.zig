@@ -17,6 +17,8 @@ icon_pressed: ?*Texture = null,
 icon_pressed_name: ?[]const u8 = null,
 icon_disabled: ?*Texture = null,
 icon_disabled_name: ?[]const u8 = null,
+
+//TODO: should be 'button_*'
 background_default_name: ?[]const u8 = null,
 background_hover: ?*Texture = null,
 background_hover_name: ?[]const u8 = null,
