@@ -29,7 +29,7 @@ pub fn next(self: *Chunker, font: *Font.Language) ?TextElement {
             }
             self.data.ptr += 1;
             self.data.len -= 1;
-            return .{ .text = cr, .width = 0, .font = font.default, .texture = undefined };
+            return .{ .text = cr, .width = 0, .font = font.default };
         }
         if (!is_whitespace(self.data[0])) {
             break;
@@ -45,7 +45,7 @@ pub fn next(self: *Chunker, font: *Font.Language) ?TextElement {
             if (end == 0) {
                 self.data.ptr += 2;
                 self.data.len -= 2;
-                return .{ .text = cr, .width = 0, .font = font.default, .texture = undefined };
+                return .{ .text = cr, .width = 0, .font = font.default };
             }
             break;
         }
@@ -61,7 +61,6 @@ pub fn next(self: *Chunker, font: *Font.Language) ?TextElement {
         .text = token,
         .font = guess_language(token, font),
         .width = 0,
-        .texture = undefined,
     };
 }
 
@@ -278,8 +277,8 @@ test "guess_fail" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try expectEqual(5, panel.minimum_needed_width(display, 500));
-    try expectEqual(8, panel.minimum_needed_height(display, 500));
+    try expectEqual(5, panel.minimumNeededWidth(display, 500));
+    try expectEqual(8, panel.minimumNeededHeight(display, 500));
 
     {
         var data = Chunker.init("fish");

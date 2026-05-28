@@ -72,7 +72,7 @@ pub inline fn draw(
     }
 }
 
-pub inline fn minimum_needed_height(
+pub inline fn minimumNeededHeight(
     self: *Panel,
     display: *Display,
     entity: *Entity,
@@ -111,7 +111,7 @@ fn find_minimum_panel_height(_: *Panel, parent: *Entity, display: *Display) f32 
                     // Add spacing before next entity, if needed
                     minimum_needed += parent.type.panel.spacing;
                 }
-                const height = entity.minimum_needed_height(display, available_width);
+                const height = entity.minimumNeededHeight(display, available_width);
                 minimum_needed += height;
             }
             // Bound to the minimum/maximum height
@@ -135,7 +135,7 @@ fn find_minimum_panel_height(_: *Panel, parent: *Entity, display: *Display) f32 
                 if (child.visible == .hidden) continue;
                 if (child.type == .expander) continue;
 
-                const width = child.minimum_needed_width(display, available_width);
+                const width = child.minimumNeededWidth(display, available_width);
                 _ = box.place(width, child.rect.height);
             }
             box.finalise();
@@ -154,7 +154,7 @@ fn find_minimum_panel_height(_: *Panel, parent: *Entity, display: *Display) f32 
             for (parent.type.panel.children.items) |entity| {
                 if (entity.layout.position == .float) continue;
 
-                const height = entity.minimum_needed_height(display, available_width);
+                const height = entity.minimumNeededHeight(display, available_width);
                 if (height > minimum_needed)
                     minimum_needed = height;
             }
@@ -163,7 +163,7 @@ fn find_minimum_panel_height(_: *Panel, parent: *Entity, display: *Display) f32 
     }
 }
 
-pub inline fn minimum_needed_width(
+pub inline fn minimumNeededWidth(
     self: *Panel,
     display: *Display,
     entity: *Entity,
@@ -207,7 +207,7 @@ fn find_minimum_panel_width(
                 else
                     minimum_needed += panel.spacing;
 
-                const width = entity.minimum_needed_width(display, available_width);
+                const width = entity.minimumNeededWidth(display, available_width);
                 minimum_needed += width;
             }
             // Bound to the minimum/maximum width
@@ -228,7 +228,7 @@ fn find_minimum_panel_width(
                 if (child.visible == .hidden) continue;
                 if (child.type == .expander) continue;
 
-                const width = child.minimum_needed_width(display, available_width);
+                const width = child.minimumNeededWidth(display, available_width);
                 _ = box.place(width, child.rect.height);
             }
             box.finalise();
@@ -244,7 +244,7 @@ fn find_minimum_panel_width(
                 if (child.layout.position == .float) continue;
                 if (child.visible == .hidden) continue;
 
-                const child_width = child.minimum_needed_width(display, available_width);
+                const child_width = child.minimumNeededWidth(display, available_width);
                 if (false) {
                     trace("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
                         parent.name,
@@ -387,7 +387,7 @@ inline fn calculate_child_size(
         },
         .shrinks => {
             // Shrink to the smallest the children will allow.
-            const new_width = entity.minimum_needed_width(display, available_width);
+            const new_width = entity.minimumNeededWidth(display, available_width);
             if (entity.rect.width != new_width) {
                 entity.rect.width = new_width;
                 child_resized = true;
@@ -412,7 +412,7 @@ inline fn calculate_child_size(
         },
         .shrinks => {
             // Shrink to the smallest the children will allow
-            const new_height = entity.minimum_needed_height(display, available_width);
+            const new_height = entity.minimumNeededHeight(display, available_width);
             if (entity.rect.height != new_height) {
                 entity.rect.height = new_height;
                 child_resized = true;
@@ -998,7 +998,7 @@ test "centre_text_bug" {
             panel.child_align.x = .start;
             display.need_relayout = true;
             display.relayout();
-            try eq(250, label.minimum_needed_width(display, 1000));
+            try eq(250, label.minimumNeededWidth(display, 1000));
             try eq(250, Label.layout(label, display.scale, 1000).minimum_width);
             try eq(250, Label.layout(label, display.scale, 1000).width);
             try eq(250, label.rect.width); // text smaller than minimum

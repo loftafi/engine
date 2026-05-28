@@ -21,7 +21,7 @@ pub inline fn draw(
     }
 }
 
-pub inline fn minimum_needed_width(
+pub inline fn minimumNeededWidth(
     _: *const Expander,
     _: *Display,
     entity: *const Entity,
@@ -44,7 +44,7 @@ test "init" {
     };
     try std.testing.expectEqual(
         100.0,
-        entity.type.expander.minimum_needed_width(display, &entity, 1000),
+        entity.type.expander.minimumNeededWidth(display, &entity, 1000),
     );
 }
 

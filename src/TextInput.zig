@@ -23,23 +23,22 @@ placeholder_translate: []const u8 = "",
 /// may appear inside the text input box.
 pub inline fn draw(
     self: *const TextInput,
-    entity: *Entity,
+    entity: *const Entity,
     display: *Display,
     _: Vector,
     _: ?Clip, // parent_clip
     _: Vector, // scroll offset
 ) void {
-    var x = entity.rect.x + entity.pad.left;
-    const y = entity.rect.y + entity.pad.top;
     const word_spacing = self.text_size.word_spacing(display.scale);
+    const text_height = self.text_size.pixel_height(display.scale);
 
+    // Draw cursor around the text input if it is selected.
     if (display.selected != null and entity == display.selected.?) {
-        // Draw cursor
         var cursor_box: Rect = .{
-            .x = @round(x + self.cursor_pixels),
-            .y = @round(y),
+            .x = @round(entity.rect.x + entity.pad.left + self.cursor_pixels),
+            .y = @round(entity.rect.y + entity.pad.top),
             .width = self.text_size.pixel_height(display.scale / 8.0),
-            .height = self.text_size.pixel_height(display.scale),
+            .height = text_height,
         };
         if (entity.texture) |_| {
             // Add the icon width
@@ -56,84 +55,68 @@ pub inline fn draw(
         _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&cursor_box));
     }
 
-    if (entity.texture) |texture| {
-        const icon_size = entity.rect.height - entity.pad.top - entity.pad.bottom;
-        // Draw the text
+    // Draw the icon if one was specified
+    var icon_offset: f32 = 0;
+    if (entity.texture) |icon_texture| {
+        const icon_size = text_height;
+        icon_offset = icon_size + word_spacing;
         var dest: Rect = .{
-            .x = @round(x),
-            .y = @round(y),
+            .x = @round(entity.rect.x + entity.pad.left),
+            .y = @round(entity.rect.y + entity.pad.top),
             .width = icon_size,
             .height = icon_size,
         };
-        x += icon_size + word_spacing;
-        _ = sdl.SDL_SetTextureColorMod(
-            texture.texture,
+        _ = sdl.SDL_SetRenderDrawColor(
+            display.renderer,
             display.theme.placeholder_text_colour.r,
             display.theme.placeholder_text_colour.g,
             display.theme.placeholder_text_colour.b,
+            display.theme.placeholder_text_colour.a,
         );
-        _ = sdl.SDL_RenderTexture(
-            display.renderer,
-            texture.texture,
-            null,
-            @ptrCast(&dest),
-        );
+        _ = sdl.SDL_RenderTexture(display.renderer, icon_texture.texture, null, @ptrCast(&dest));
     }
 
     // Font baseline offset
     //y -= self.text_size * display.scale / 3.5;
 
+    // Draw either the user text or the placeholder text if set.
     if (self.text.items.len > 0) {
-        if (self.texture) |texture| {
-            const size = self.text_size.pixel_size(display.scale, texture);
-            // Draw the text
-            var dest: Rect = .{
-                .x = @round(x),
-                .y = @round(y),
-                .width = size.width,
-                .height = size.height,
-            };
-            x += size.height + word_spacing;
-            _ = sdl.SDL_SetTextureColorMod(
-                texture,
-                display.theme.text_colour.r,
-                display.theme.text_colour.g,
-                display.theme.text_colour.b,
-            );
-            _ = sdl.SDL_RenderTexture(
-                display.renderer,
-                texture,
-                null,
-                @ptrCast(&dest),
-            );
-        }
+        self.font.drawText(
+            display,
+            self.text.items,
+            .{
+                .x = entity.rect.x + entity.pad.left + icon_offset,
+                .y = entity.rect.y + entity.pad.top,
+            },
+            display.theme.text_colour,
+            self.text_size,
+        ) catch {
+            // Text should be valid utf8 at this point, and OutOfMemory
+            // should not occur if measureText(); was first
+            // used (which is should be)
+        };
     } else {
-        if (self.placeholder_texture) |texture| {
-            const size = self.text_size.pixel_size(display.scale, texture);
-            // Draw the placeholder text
-            var dest: Rect = .{
-                .x = @round(x),
-                .y = @round(y),
-                .width = size.width,
-                .height = size.height,
-            };
-            x += size.width + word_spacing;
-            _ = sdl.SDL_SetTextureColorMod(
-                texture,
-                display.theme.placeholder_text_colour.r,
-                display.theme.placeholder_text_colour.g,
-                display.theme.placeholder_text_colour.b,
-            );
-            _ = sdl.SDL_RenderTexture(
-                display.renderer,
-                texture,
-                null,
-                @ptrCast(&dest),
-            );
+        if (self.placeholder_text) |placeholder_text| {
+            if (placeholder_text.len > 0) {
+                self.font.drawText(
+                    display,
+                    placeholder_text,
+                    .{
+                        .x = entity.rect.x + entity.pad.left,
+                        .y = entity.rect.y + entity.pad.top,
+                    },
+                    display.theme.placeholder_text_colour,
+                    self.text_size,
+                ) catch {
+                    // Text should be valid utf8 at this point, and OutOfMemory
+                    // should not occur if measureText(); was first
+                    // used (which is should be)
+                };
+            }
         }
     }
 }
-pub inline fn minimum_needed_height(
+pub inline fn minimumNeededHeight(
     self: *TextInput,
     display: *Display,
     entity: *Entity,
@@ -150,7 +133,7 @@ pub inline fn minimum_needed_height(
 //
 // `parent_inner_width` is the maximum space this entity could
 // theoretically grow to. Text might wrap if wider than this.
-pub inline fn minimum_needed_width(
+pub inline fn minimumNeededWidth(
     _: *const TextInput,
     _: *const Display,
     entity: *const Entity,

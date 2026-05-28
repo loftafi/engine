@@ -4,28 +4,35 @@ pub const Button = @This();
 
 font: *Font = undefined,
 font_name: ?[]const u8 = null,
+
 text_size: TextSize = .normal,
 text: []const u8 = "",
 translated: []const u8 = "",
-text_texture: ?*sdl.SDL_Texture = null,
-icon_size: Size = .{ .width = 0, .height = 0 },
-spacing: f32 = 0,
-icon_default_name: ?[]const u8 = null,
-icon_hover: ?*Texture = null,
-icon_hover_name: ?[]const u8 = null,
-icon_pressed: ?*Texture = null,
-icon_pressed_name: ?[]const u8 = null,
-icon_disabled: ?*Texture = null,
-icon_disabled_name: ?[]const u8 = null,
+/// The width of the text including the adjustment for text size
+translated_text_width: f32 = 0,
 
-//TODO: should be 'button_*'
-background_default_name: ?[]const u8 = null,
-background_hover: ?*Texture = null,
-background_hover_name: ?[]const u8 = null,
-background_pressed: ?*Texture = null,
-background_pressed_name: ?[]const u8 = null,
-background_disabled: ?*Texture = null,
-background_disabled_name: ?[]const u8 = null,
+spacing: f32 = 0,
+icon: struct {
+    size: Size = .{ .width = 0, .height = 0 },
+    default_name: ?[]const u8 = null,
+    hover: ?*Texture = null,
+    hover_name: ?[]const u8 = null,
+    pressed: ?*Texture = null,
+    pressed_name: ?[]const u8 = null,
+    disabled: ?*Texture = null,
+    disabled_name: ?[]const u8 = null,
+} = .{},
+
+button: struct {
+    default_name: ?[]const u8 = null,
+    hover: ?*Texture = null,
+    hover_name: ?[]const u8 = null,
+    pressed: ?*Texture = null,
+    pressed_name: ?[]const u8 = null,
+    disabled: ?*Texture = null,
+    disabled_name: ?[]const u8 = null,
+} = .{},
+
 toggle: ToggleState = .no_toggle,
 
 // Handle User triggered events. Keyboard, Mouse, Game controller
@@ -43,7 +50,7 @@ pub inline fn draw(
     _: ?Clip, // parent_clip
     scroll_offset: Vector,
 ) void {
-    // Draw the background matching the  current button state
+    // Draw the background matching the current button state
     if (self.current_background(entity)) |background_image| {
         var dest = entity.rect.move(scroll_offset);
         if (entity.flip.x) {
@@ -74,19 +81,7 @@ pub inline fn draw(
         }
     }
 
-    // The inner content can contain a button and/or text texture.
-    var content_width = self.icon_size.width;
-    if (self.text_texture) |texture| {
-        const size = self.text_size.pixel_size(display.scale, texture);
-
-        // Do we need space between text and icon?
-        if (content_width > 0)
-            content_width += entity.type.button.spacing;
-
-        content_width += size.width;
-    }
-    content_width += entity.pad.left + entity.pad.right;
-
+    const content_width = self.contentWidth(display, entity);
     const content_x_offset = switch (entity.child_align.x) {
         .start => 0,
         .centre => (entity.rect.width - content_width) / 2.0,
@@ -94,8 +89,8 @@ pub inline fn draw(
     };
     const icon_y_offset = switch (entity.child_align.y) {
         .start => entity.pad.top,
-        .centre => entity.pad.top + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2) - (self.icon_size.height / 2),
-        .end => entity.rect.height - entity.pad.bottom - self.icon_size.height,
+        .centre => entity.pad.top + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2) - (self.icon.size.height / 2),
+        .end => entity.rect.height - entity.pad.bottom - self.icon.size.height,
     };
 
     const text_colour = button_text_colour(entity, display.theme);
@@ -107,8 +102,8 @@ pub inline fn draw(
         var dest: Rect = .{
             .x = entity.rect.x + entity.pad.left + content_x_offset,
             .y = entity.rect.y + icon_y_offset,
-            .width = self.icon_size.width,
-            .height = self.icon_size.height,
+            .width = self.icon.size.width,
+            .height = self.icon.size.height,
         };
         dest = dest.move(scroll_offset);
         if (entity.flip.x) {
@@ -125,24 +120,23 @@ pub inline fn draw(
     }
 
     // Place the text
-    if (self.text_texture) |texture| {
-        const size = self.text_size.pixel_size(display.scale, texture);
-        var dest: Rect = .{
-            .x = entity.rect.x + entity.type.button.icon_size.width + entity.pad.left + content_x_offset,
-            .y = entity.rect.y + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2.0) - (size.height / 2) + entity.pad.top,
-            .width = size.width,
-            .height = size.height,
+    if (self.text.len > 0) {
+        const height = self.text_size.pixel_height(display.scale);
+        var pos: Vector = .{
+            .x = entity.rect.x + entity.type.button.icon.size.width + entity.pad.left + content_x_offset,
+            .y = entity.rect.y + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2.0) - (height / 2) + entity.pad.top,
         };
-        if (entity.type.button.icon_size.width == 0 or entity.type.button.icon_size.height == 0) {
-            dest.x = entity.rect.x + entity.rect.width / 2 - size.width / 2;
+        if (entity.type.button.icon.size.width == 0 or entity.type.button.icon.size.height == 0) {
+            pos.x = entity.rect.x + entity.rect.width / 2 - (self.translated_text_width * display.scale * self.text_size.height()) / 2;
         }
-        dest = dest.move(scroll_offset);
-        if (has_icon or entity.type.button.icon_size.width > 0) {
-            dest.x += entity.type.button.spacing;
+        if (has_icon or entity.type.button.icon.size.width > 0) {
+            pos.x += entity.type.button.spacing;
         }
-        _ = sdl.SDL_SetTextureAlphaMod(texture, text_colour.a);
-        _ = sdl.SDL_SetTextureColorMod(texture, text_colour.r, text_colour.g, text_colour.b);
-        _ = sdl.SDL_RenderTexture(display.renderer, texture, null, @ptrCast(&dest));
+        _ = self.font.drawText(display, self.translated, pos.add(scroll_offset), text_colour, self.text_size) catch {
+            // Memory allocations should not be occuring during drawText.
+            // If OutOfMemory is thrown it is because drawText(.., measure)
+            // was not yet called on this string.
+        };
     }
 }
 
@@ -164,16 +158,10 @@ pub inline fn current_background(
     button: *const Button,
     entity: *const Entity,
 ) ?*sdl.SDL_Texture {
-    if (button.toggle == .disabled)
-        return button.background_disabled.?.texture;
-    if (entity.pressed and button.background_pressed != null)
-        return button.background_pressed.?.texture;
-    if (entity.hovered and button.background_hover != null)
-        return button.background_hover.?.texture;
-
-    if (entity.background.image != null)
-        return entity.background.image.?.texture;
-    return null;
+    if (button.toggle == .disabled) if (button.button.disabled) |value| return value.texture;
+    if (entity.pressed) if (button.button.pressed) |value| return value.texture;
+    if (entity.hovered) if (button.button.hover) |value| return value.texture;
+    return if (entity.background.image) |value| value.texture else null;
 }
 
 /// By default, button text is uses the default theme `text_colour`
@@ -191,51 +179,56 @@ inline fn button_text_colour(entity: *const Entity, theme: *const Theme) Colour 
 /// An icon may have different image textures for hovered, pressed
 /// and normal state. Return the image that is valid for the current state.
 inline fn current_icon(self: *const Button, entity: *const Entity) ?*sdl.SDL_Texture {
-    if (entity.pressed and self.icon_pressed != null)
-        return self.icon_pressed.?.texture;
-    if (entity.hovered and self.icon_hover != null)
-        return self.icon_hover.?.texture;
-
-    if (entity.texture != null)
-        return entity.texture.?.texture;
-    return null;
+    if (entity.pressed) if (self.icon.pressed) |value| return value.texture;
+    if (entity.hovered) if (self.icon.hover) |value| return value.texture;
+    return if (entity.texture) |value| value.texture else null;
 }
 
-pub inline fn minimum_needed_width(
-    button: *Button,
-    display: *Display,
-    entity: *Entity,
-    _: f32, //parent_inner_width
+/// Minimum width of a button includes any requested padding, icon, text and
+/// the icon-text spacing parameter.
+inline fn contentWidth(
+    button: *const Button,
+    display: *const Display,
+    entity: *const Entity,
 ) f32 {
-    // Buttons may contain padding, icon, text, and icon-text spacing.
-    var needed_width: f32 = entity.pad.left + entity.pad.right;
+    var width: f32 = 0;
 
-    needed_width += entity.type.button.icon_size.width;
+    width += entity.pad.left;
+    width += entity.pad.right;
+    width += entity.type.button.icon.size.width;
 
     // If button has icon _and_ text, add button spacing
-    if (button.icon_size.width > 0 and button.text.len > 0) {
-        needed_width += entity.type.button.spacing;
-    }
+    if (button.icon.size.width > 0 and button.text.len > 0)
+        width += entity.type.button.spacing;
 
-    // Add the width of the button text
-    if (entity.type.button.text_texture) |t| {
-        const size = button.text_size.pixel_size(display.scale, t);
-        needed_width += size.width;
-    }
-    return @max(entity.minimum.width, needed_width);
+    if (button.text.len > 0)
+        width += button.translated_text_width * display.scale * button.text_size.height();
+
+    return width;
 }
 
-pub inline fn minimum_needed_height(
+/// Minimum width of a button includes any requested padding, icon, text and
+/// the icon-text spacing parameter.
+pub inline fn minimumNeededWidth(
+    button: *const Button,
+    display: *const Display,
+    entity: *const Entity,
+    _: f32, //parent_inner_width
+) f32 {
+    return @max(entity.minimum.width, button.contentWidth(display, entity));
+}
+
+pub inline fn minimumNeededHeight(
     button: *Button,
     display: *Display,
     entity: *Entity,
     _: f32, //parent_inner_width
 ) f32 {
     var height: f32 = 0;
-    if (button.text_texture) |_| {
+    if (button.text.len > 0) {
         height = button.text_size.pixel_height(display.scale);
     }
-    height = @max(button.icon_size.height, height);
+    height = @max(button.icon.size.height, height);
     height += (entity.pad.top + entity.pad.bottom);
     return @max(entity.minimum.height, height);
 }
@@ -252,8 +245,8 @@ test "normal_use" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try expectEqual(5, panel.minimum_needed_width(display, 500));
-    try expectEqual(8, panel.minimum_needed_height(display, 500));
+    try expectEqual(5, panel.minimumNeededWidth(display, 500));
+    try expectEqual(8, panel.minimumNeededHeight(display, 500));
 
     const not_quite_one_line = TextSize.normal.pixel_height(display.scale) - 5;
     const not_quite_two_lines = TextSize.normal.pixel_height(display.scale) * 2 - 5;
@@ -267,17 +260,17 @@ test "normal_use" {
     }, display);
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(50, button.minimum_needed_width(display, 500));
-    try expectEqual(50, button.minimum_needed_height(display, 500));
+    try expectEqual(50, button.minimumNeededWidth(display, 500));
+    try expectEqual(50, button.minimumNeededHeight(display, 500));
     button.layout.x = .shrinks;
     button.layout.y = .shrinks;
-    try expectEqual(30, button.minimum_needed_width(display, 500));
+    try expectEqual(30, button.minimumNeededWidth(display, 500));
     // The words will overflow the bottom of the box
-    try expectEqual(not_quite_one_line, button.minimum_needed_height(display, 500));
+    try expectEqual(not_quite_one_line, button.minimumNeededHeight(display, 500));
 
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(30, panel.minimum_needed_width(display, 500));
+    try expectEqual(30, panel.minimumNeededWidth(display, 500));
     try expectEqual(30, button.rect.width);
     // panel has min width 5, but button pushes it out to 30
     try expectEqual(30, panel.rect.width);
@@ -296,7 +289,7 @@ test "normal_use" {
 
     panel.minimum.width = 100;
     display.relayout();
-    try expectEqual(100, panel.minimum_needed_width(display, 500));
+    try expectEqual(100, panel.minimumNeededWidth(display, 500));
     panel.minimum.width = 10;
 
     // Add test font so we can test label layout
@@ -349,13 +342,13 @@ test "button_sizing" {
     }, display);
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(44, button.minimum_needed_height(display, 500));
+    try expectEqual(44, button.minimumNeededHeight(display, 500));
 
     // Button with small height.
     button.type.button.text_size = .small;
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(44 * 0.75, button.minimum_needed_height(display, 500));
+    try expectEqual(44 * 0.75, button.minimumNeededHeight(display, 500));
 }
 
 const std = @import("std");

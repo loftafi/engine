@@ -68,7 +68,14 @@ pub inline fn draw(
         .y = entity.rect.y + entity.pad.top + scroll_offset.y,
     };
     const text_colour = entity.style.text(display.theme, entity.colour);
-    draw_text_elements(self.elements.items, loc, text_colour, display.renderer, parent_clip);
+    drawTextElements(
+        self.elements.items,
+        loc,
+        text_colour,
+        display,
+        parent_clip,
+        self.text_size,
+    );
 }
 
 // Return the absolute minimum width needed, even if more space
@@ -77,7 +84,7 @@ pub inline fn draw(
 //
 // `parent_inner_width` is the maximum space this entity could
 // theoretically grow to. Text might wrap if wider than this.
-pub inline fn minimum_needed_width(
+pub inline fn minimumNeededWidth(
     _: *const Label,
     display: *const Display,
     entity: *const Entity,
@@ -136,22 +143,23 @@ pub inline fn layout(
 
     // Lay down each word one by one and wrap before we hit the
     // `wrap_at` boundary.
-    for (children) |*item| {
-        if (item.text.len == 1 and item.text[0] == '\n') {
-            item.location = .{ .x = 0, .y = 0, .width = 0, .height = 0 };
+    for (children) |*word| {
+        if (word.text.len == 1 and word.text[0] == '\n') {
+            word.location = .{ .x = 0, .y = 0, .width = 0, .height = 0 };
             box.finalise();
             continue;
         }
 
-        const size = text_height.pixel_size(display_scale, item.texture);
+        const height = text_height.pixel_height(display_scale);
+        const width = word.width * display_scale * text_height.height();
 
-        const location = box.place(size.width, size.height);
+        const location = box.place(width, height);
 
-        item.location = .{
+        word.location = .{
             .x = @round(location.x),
             .y = @round(location.y),
-            .width = @round(size.width),
-            .height = size.height,
+            .width = @round(width),
+            .height = height,
         };
     }
     box.finalise();
@@ -239,7 +247,7 @@ inline fn applyLineJustification(
 
 // `parent_inner_width` is the maximum space this entity could
 // theoretically grow to. Text might wrap if wider than this.
-pub inline fn minimum_needed_height(
+pub inline fn minimumNeededHeight(
     _: *const Label,
     display: *const Display,
     entity: *const Entity,
@@ -263,35 +271,32 @@ pub inline fn minimum_needed_height(
     };
 }
 
-pub fn draw_text_elements(
+pub fn drawTextElements(
     items: []TextElement,
     loc: Vector,
     current_colour: engine.Colour,
-    renderer: *sdl.SDL_Renderer,
+    display: *Display,
     parent_clip: ?Clip,
+    text_size: TextSize,
 ) void {
-    for (items) |*item| {
-        var pos = item.location.move(loc);
+    for (items) |*word| {
+        var pos = word.location.move(loc);
         if (parent_clip) |clip| {
             // Individual inner elemements may still need clipping.
             if (clip.isClipped(pos)) continue;
             clip.applyEdgeClipping(&pos);
         }
 
-        // Only render text if display parameter is provided
-        _ = sdl.SDL_SetTextureColorMod(
-            item.texture,
-            current_colour.r,
-            current_colour.g,
-            current_colour.b,
-        );
-        _ = sdl.SDL_SetTextureAlphaMod(item.texture, current_colour.a);
-        _ = sdl.SDL_RenderTexture(
-            renderer,
-            item.texture,
-            null,
-            @ptrCast(&pos),
-        );
+        word.font.drawText(
+            display,
+            word.text,
+            pos.location(),
+            current_colour,
+            text_size,
+        ) catch {
+            // OutOfMemory should never occur, unless the developer has forgotten
+            // to measureText(...);
+        };
     }
 }
 

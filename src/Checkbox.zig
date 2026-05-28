@@ -31,7 +31,14 @@ pub inline fn draw(
         .y = entity.rect.y + entity.pad.top + scroll_offset.y,
     };
     const text_colour = entity.style.text(display.theme, entity.colour);
-    draw_text_elements(self.elements.items, loc, text_colour, display.renderer, parent_clip);
+    drawTextElements(
+        self.elements.items,
+        loc,
+        text_colour,
+        display,
+        parent_clip,
+        self.text_size,
+    );
 
     const checkbox = self.checkbox_size;
     var dest = Rect{
@@ -52,7 +59,7 @@ pub inline fn draw(
     }
 }
 
-pub inline fn minimum_needed_width(
+pub inline fn minimumNeededWidth(
     _: *Checkbox,
     display: *Display,
     entity: *Entity,
@@ -82,7 +89,7 @@ pub inline fn minimum_needed_width(
     }
 }
 
-pub inline fn minimum_needed_height(
+pub inline fn minimumNeededHeight(
     _: *Checkbox,
     display: *Display,
     entity: *Entity,
@@ -128,4 +135,4 @@ const TextElement = Entity.TextElement;
 const ToggleState = Entity.ToggleState;
 const Vector = Entity.Vector;
 
-const draw_text_elements = @import("Label.zig").draw_text_elements;
+const drawTextElements = @import("Label.zig").drawTextElements;

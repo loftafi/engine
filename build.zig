@@ -16,6 +16,9 @@ pub fn build(b: *std.Build) void {
     const zstbi = resources.builder.dependency("zstbi", .{ .target = target, .optimize = optimize });
     const zstbi_module = zstbi.module("root");
 
+    const truetype = b.dependency("TrueType", .{ .target = target, .optimize = optimize });
+    const truetype_module = truetype.module("TrueType");
+
     const sdl_module = define_sdl_module(b, &target, &optimize);
     const mixer_module = define_mixer_module(b, &target, &optimize);
 
@@ -30,8 +33,8 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("sdl", sdl_module);
     lib_mod.addImport("mixer", mixer_module);
     lib_mod.addImport("translator", translator_module);
+    lib_mod.addImport("TrueType", truetype_module);
     lib_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
-    lib_mod.addIncludePath(b.path("libs/SDL3_ttf.xcframework/macos-arm64_x86_64/SDL3_ttf.framework/Versions/A/Headers/"));
     link_sdl_framework(b, &target, lib_mod);
     addSystemPathsToModule(b, &target, lib_mod);
 
@@ -53,8 +56,8 @@ pub fn build(b: *std.Build) void {
     test_mod.addImport("sdl", sdl_module);
     test_mod.addImport("mixer", mixer_module);
     test_mod.addImport("translator", translator_module);
+    test_mod.addImport("TrueType", truetype_module);
     test_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
-    test_mod.addIncludePath(b.path("libs/SDL3_ttf.xcframework/macos-arm64_x86_64/SDL3_ttf.framework/Versions/A/Headers/"));
     link_sdl_framework(b, &target, test_mod);
     addSystemPathsToModule(b, &target, test_mod);
 
@@ -84,7 +87,6 @@ fn define_mixer_module(
 ) *std.Build.Module {
     const sdl_dep = b.dependency("sdl", .{});
     const headers2 = b.addTranslateC(.{
-        //.root_source_file = ttf_dep.path("libs/SDL3_mixer/SDL_mixer.h"),
         .root_source_file = b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"),
         .target = target.*,
         .optimize = optimize.*,
@@ -97,7 +99,7 @@ fn define_mixer_module(
     return sdl_mix_mod;
 }
 
-/// Build an SDL module from the SDL3 and SDL3_ttf header files that we
+/// Build an SDL module from the SDL3 and SDL3_mixer header files that we
 /// import as dependencies from zig packages that contain these headers.
 fn define_sdl_module(
     b: *std.Build,
@@ -105,20 +107,18 @@ fn define_sdl_module(
     optimize: *const std.builtin.OptimizeMode,
 ) *std.Build.Module {
 
-    // Use TranslateC to with the SDL and SDL_ttf headers found in
+    // Use TranslateC to with the SDL and SDL_mixer headers found in
     // zig sdl projects. The `xcframework` folders dont contain a
     // usable `include` folder, only a `Headers` folder which
     // doesnt work here.
     const sdl_dep = b.dependency("sdl", .{});
-    const ttf_dep = b.dependency("sdl_ttf", .{});
 
     const headers = b.addTranslateC(.{
-        .root_source_file = ttf_dep.path("include/SDL3_ttf/SDL_ttf.h"),
+        .root_source_file = sdl_dep.path("include/SDL3/SDL.h"),
         .target = target.*,
         .optimize = optimize.*,
     });
     headers.addIncludePath(sdl_dep.path("include"));
-    headers.addIncludePath(ttf_dep.path("include"));
     headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
     const module = headers.addModule("sdl");
     module.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
@@ -128,7 +128,7 @@ fn define_sdl_module(
     return module;
 }
 
-/// Tell a library/exe how to link to the SDL and SDL_ttf libraries
+/// Tell a library/exe how to link to the SDL and SDL_mixer libraries
 pub fn link_sdl_framework(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
@@ -137,13 +137,10 @@ pub fn link_sdl_framework(
     switch (target.result.os.tag) {
         .macos => {
             lib.addFrameworkPath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/"));
-            lib.addFrameworkPath(b.path("libs/SDL3_ttf.xcframework/macos-arm64_x86_64/"));
             lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/"));
             lib.addRPath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/"));
-            lib.addRPath(b.path("libs/SDL3_ttf.xcframework/macos-arm64_x86_64/"));
             lib.addRPath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/"));
             lib.linkFramework("SDL3", .{});
-            lib.linkFramework("SDL3_ttf", .{});
             lib.linkFramework("SDL3_mixer", .{});
             //lib.addLibraryPath(b.path("libs/vorbis/"));
             //lib.linkSystemLibrary("vorbis.0.4.9", .{});
@@ -152,23 +149,17 @@ pub fn link_sdl_framework(
         .ios => {
             if (target.result.abi == .simulator) {
                 lib.addFrameworkPath(b.path("libs/SDL3.xcframework/ios-arm64_x86_64-simulator/"));
-                lib.addFrameworkPath(b.path("libs/SDL3_ttf.xcframework/ios-arm64_x86_64-simulator/"));
                 lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64_x86_64-simulator/"));
                 lib.addRPath(b.path("libs/SDL3.xcframework/ios-arm64_x86_64-simulator/"));
-                lib.addRPath(b.path("libs/SDL3_ttf.xcframework/ios-arm64_x86_64-simulator/"));
                 lib.addRPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64_x86_64-simulator/"));
                 lib.linkFramework("SDL3", .{});
-                lib.linkFramework("SDL3_ttf", .{});
                 lib.linkFramework("SDL3_mixer", .{});
             } else {
                 lib.addFrameworkPath(b.path("libs/SDL3.xcframework/ios-arm64/"));
-                lib.addFrameworkPath(b.path("libs/SDL3_ttf.xcframework/ios-arm64/"));
                 lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64/"));
                 lib.addRPath(b.path("libs/SDL3.xcframework/ios-arm64/"));
-                lib.addRPath(b.path("libs/SDL3_ttf.xcframework/ios-arm64/"));
                 lib.addRPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64/"));
                 lib.linkFramework("SDL3", .{});
-                lib.linkFramework("SDL3_ttf", .{});
                 lib.linkFramework("SDL3_mixer", .{});
             }
         },
@@ -179,7 +170,6 @@ pub fn link_sdl_framework(
             } else if (target.result.cpu.arch == .x86_64) {
                 lib.addLibraryPath(b.path("libs/ubuntu-x64/"));
                 lib.linkSystemLibrary("SDL3.0.4.0", .{});
-                lib.linkSystemLibrary("SDL3_ttf.0.2.2", .{});
                 lib.linkSystemLibrary("SDL3_mixer.0.1.2", .{});
             } else {
                 std.log.err("Only aarch and x86_64 is supported for linux builds.", .{});

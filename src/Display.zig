@@ -1,8 +1,3 @@
-/// Render the font characters with double the pixel density of the
-/// `text_height` to ensure screens with double or triple pixel
-/// density have clear font edges.
-pub const font_pixel_density: f32 = 2.0;
-
 /// Display describes how to draw all visual entities onto the main
 /// application window. Typically one app has one display window.
 /// Typically a display consists of one or more panels. A background
@@ -220,11 +215,6 @@ pub fn create(
         return error.GraphicsInitFailed;
     }
 
-    if (!sdl.TTF_Init()) {
-        err("ttf setup font failed. {s}", .{sdl.SDL_GetError()});
-        return error.FontInitFailed;
-    }
-
     if (!mixer.MIX_Init()) {
         err("mixer setup failed. {s}", .{sdl.SDL_GetError()});
         return error.AudioInitFailed;
@@ -434,6 +424,7 @@ pub fn create(
     try display.setKeybinding(.kp_minus, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
     try display.setKeybinding(.f2, .{ .func = @ptrCast(&dumpEntities), .ptr = display });
     try display.setKeybinding(.f3, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
+    try display.setKeybinding(.f9, .{ .func = @ptrCast(&dumpFonts), .ptr = display });
 
     display.update_system_theme();
     display.updateScreenMetrics(true);
@@ -514,7 +505,6 @@ pub fn destroy(self: *Self) void {
     sdl.SDL_DestroyWindow(self.window);
     mixer.MIX_DestroyMixer(self.mix);
     mixer.MIX_Quit();
-    sdl.TTF_Quit();
     sdl.SDL_Quit();
 
     self.keybindings.deinit(gpa);
@@ -868,62 +858,19 @@ pub fn loadFontResource(
     }
 
     const resource = try self.resources.lookupRandom(name, .font) orelse return error.ResourceNotFound;
-
     const font_buffer = try loadResourceSdl(self.allocator, self.io, &self.resources, resource);
 
-    const fio = sdl.SDL_IOFromConstMem(font_buffer.ptr, font_buffer.len) orelse {
-        err("SDL_IOFromConstMem: {s}", .{sdl.SDL_GetError()});
-        return error.ResourceReadError;
-    };
-    const font_pixel_height = TextSize.normal.pixel_height(self.pixel_scale) * font_pixel_density;
-    const myfont = sdl.TTF_OpenFontIO(fio, true, font_pixel_height) orelse {
-        err("open font failed. size = {d}*{d}*2={d} error = {s}", .{
-            TextSize.pixels,
-            self.scale,
-            font_pixel_height,
-            sdl.SDL_GetError(),
-        });
-        return error.ResourceReadError;
-    };
-    const font_ascent = sdl.TTF_GetFontAscent(myfont);
-    const font_height = sdl.TTF_GetFontHeight(myfont);
-    const font_descent = sdl.TTF_GetFontDescent(myfont);
-    const font_size = sdl.TTF_GetFontSize(myfont);
-
-    debug(
-        \\font '{s}' ascent={d} descent={d} height={d},
-        \\font_pixel_height={d} font_size={d} pixel_scale={d}
-        \\user_scale={d} scale={d} screen_size={d}
-    , .{
-        name,
-        font_ascent,
-        font_descent,
-        font_height,
-        font_pixel_height,
-        font_size,
-        self.pixel_scale,
-        self.user_scale,
-        self.scale,
-        TextSize.pixels,
-    });
-    sdl.TTF_SetFontHinting(myfont, sdl.TTF_HINTING_LIGHT_SUBPIXEL);
-
-    const font_info = try Font.create(
+    const font = try Font.create(
         self.allocator,
         name,
-        myfont,
         font_buffer,
         resource,
+        @as(u8, @intFromFloat(TextSize.normal.pixel_height(1))),
     );
-    errdefer _ = font_info.release(self.allocator);
-    try self.fonts.append(self.allocator, font_info.clone());
+    errdefer _ = font.release(self.allocator);
+    try self.fonts.append(self.allocator, font.clone());
 
-    if (self.fonts.items.len > 1) {
-        const i = self.fonts.items.len - 2;
-        _ = sdl.TTF_AddFallbackFont(self.fonts.items[i].font, self.fonts.items[i + 1].font);
-    }
-
-    return font_info;
+    return font;
 }
 
 /// Load image data from a resource bucket into a `si` SurfaceInfo
@@ -2535,9 +2482,36 @@ pub fn dumpEntityTree(
     }
 }
 
+/// Log the basic metrics for each used and cached character.
+pub fn dumpFonts(
+    self: *Display,
+    _: *Self,
+    _: *Entity,
+    _: *const Event,
+) Allocator.Error!void {
+    for (self.fonts.items) |font| {
+        var i = font.cache.iterator();
+        while (i.next()) |entry| {
+            const value = entry.value_ptr;
+            info("font={s} glyph={d} char={u} bitmap={d}x{d} ({d}x{d}) pre_advance={d} advance={d} offset={d}", .{
+                font.name,
+                entry.key_ptr.*,
+                value.codepoint,
+                value.width,
+                value.height,
+                if (value.height > 0) value.texture.w else 0,
+                if (value.height > 0) value.texture.h else 0,
+                value.pre_advance,
+                value.advance,
+                value.offset,
+            });
+        }
+    }
+}
+
 /// Dump all currently visible on screen elements to the log.
 pub fn dumpEntities(
-    self: *Self,
+    self: *Display,
     _: *Self,
     _: *Entity,
     _: *const Event,
@@ -2547,7 +2521,7 @@ pub fn dumpEntities(
 
 /// Keypress event handler expects `display`, `entity` and `allocator`.
 fn makeBundle(
-    display: *Self,
+    display: *Display,
     _: *Self,
     _: *Entity,
     _: *const Event,
@@ -2600,13 +2574,13 @@ pub fn addBackButton(
         .pad = .{ .left = 20, .right = 20, .top = 20, .bottom = 20 },
         .layout = .{ .x = .fixed, .y = .fixed, .position = .float },
         .type = .{ .button = .{
-            .icon_default_name = "icon-back",
-            .icon_pressed_name = "icon-back",
-            .icon_hover_name = "icon-back",
-            .text = "",
-            .translated = "",
+            .icon = .{
+                .size = .{ .width = 70, .height = 70 },
+                .default_name = "icon-back",
+                .pressed_name = "icon-back",
+                .hover_name = "icon-back",
+            },
             .on_pressed = close_fn,
-            .icon_size = .{ .width = 70, .height = 70 },
         } },
         .on_resized = .{ .func = @ptrCast(&back_button_resize), .ptr = display },
     }, display);
@@ -2917,8 +2891,8 @@ test "text input sizing" {
             .layout = .{ .x = .fixed, .y = .grows },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(500, l.minimum_needed_width(display, 500));
-        try eq(50, l.minimum_needed_height(display, 500));
+        try eq(500, l.minimumNeededWidth(display, 500));
+        try eq(50, l.minimumNeededHeight(display, 500));
         panel.removeEntities(display);
     }
 
@@ -2933,8 +2907,8 @@ test "text input sizing" {
             .layout = .{ .x = .fixed, .y = .fixed },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(500, l.minimum_needed_width(display, 500));
-        try eq(60, l.minimum_needed_height(display, 500));
+        try eq(500, l.minimumNeededWidth(display, 500));
+        try eq(60, l.minimumNeededHeight(display, 500));
         panel.removeEntities(display);
     }
 
@@ -2962,12 +2936,12 @@ test "text input sizing" {
         try eq(300, Label.layout(l, display.scale, 100).minimum_width);
         try eq(350, Label.layout(l, display.scale, 350).minimum_width);
         try eq(401, Label.layout(l, display.scale, 450).minimum_width);
-        try eq(401, l.minimum_needed_width(display, 500));
+        try eq(401, l.minimumNeededWidth(display, 500));
         display.need_relayout = true;
         display.relayout();
         try eq(300, panel.rect.width);
         try eq(300, l.rect.width);
-        try eq(TextSize.normal.pixel_height(display.scale), l.minimum_needed_height(display, 500));
+        try eq(TextSize.normal.pixel_height(display.scale), l.minimumNeededHeight(display, 500));
         panel.removeEntities(display);
         panel.layout.x = .grows;
         display.need_relayout = true;
@@ -2996,8 +2970,8 @@ test "text input sizing" {
         try eq(300, Label.layout(l, display.scale, 100).minimum_width);
         try eq(350, Label.layout(l, display.scale, 350).minimum_width);
         try eq(401, Label.layout(l, display.scale, 450).minimum_width);
-        try eq(401, l.minimum_needed_width(display, 500));
-        try eq(TextSize.normal.pixel_height(display.scale), l.minimum_needed_height(display, 500));
+        try eq(401, l.minimumNeededWidth(display, 500));
+        try eq(TextSize.normal.pixel_height(display.scale), l.minimumNeededHeight(display, 500));
         panel.removeEntities(display);
         panel.layout.x = .grows;
         display.need_relayout = true;
@@ -3032,17 +3006,17 @@ test "text input sizing" {
 
         // Display width of the words when rendered to the physical display
         try eq(186, l.rect.width);
-        try eq(186, @round(l.minimum_needed_width(display, 500)));
+        try eq(186, @round(l.minimumNeededWidth(display, 500)));
 
         // TODO: Is this correct? Why is it * 2 ?
         try eq(
             2 * TextSize.normal.pixel_height(display.pixel_scale),
-            l.minimum_needed_height(display, 500),
+            l.minimumNeededHeight(display, 500),
         );
         // Display width on physical display with word wrap
         try eq(
             2 * TextSize.normal.pixel_height(display.pixel_scale),
-            l.minimum_needed_height(display, 40 * display.pixel_scale),
+            l.minimumNeededHeight(display, 40 * display.pixel_scale),
         );
         panel.removeEntities(display);
     }
@@ -3053,8 +3027,8 @@ test "text input sizing" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try eq(5, panel.minimum_needed_width(display, 500));
-    try eq(8, panel.minimum_needed_height(display, 500));
+    try eq(5, panel.minimumNeededWidth(display, 500));
+    try eq(8, panel.minimumNeededHeight(display, 500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
@@ -3067,8 +3041,8 @@ test "text input sizing" {
         .layout = .{ .x = .fixed, .y = .fixed },
     }, display);
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-    try eq(500, label.minimum_needed_width(display, 500));
-    try eq(60, label.minimum_needed_height(display, 500));
+    try eq(500, label.minimumNeededWidth(display, 500));
+    try eq(60, label.minimumNeededHeight(display, 500));
 
     // Another label.
     // Fixed width and height cant be shrunk or grown, except if minimum
@@ -3082,8 +3056,8 @@ test "text input sizing" {
         .layout = .{ .x = .fixed, .y = .fixed },
     }, display);
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-    try eq(300, label.minimum_needed_width(display, 500));
-    try eq(100, label.minimum_needed_height(display, 500));
+    try eq(300, label.minimumNeededWidth(display, 500));
+    try eq(100, label.minimumNeededHeight(display, 500));
 
     try eq(22, TextSize.normal.pixel_height(1));
     try eq(33, TextSize.heading.pixel_height(1));
@@ -3096,13 +3070,13 @@ test "text input sizing" {
     // Min width at normal size
     display.need_relayout = true;
     display.relayout();
-    try eq(186, label.minimum_needed_width(display, 500));
+    try eq(186, label.minimumNeededWidth(display, 500));
 
     // min width at heading size
     label.type.label.text_size = .heading;
     display.need_relayout = true;
     display.relayout();
-    try eq(279, @round(label.minimum_needed_width(display, 500)));
+    try eq(279, @round(label.minimumNeededWidth(display, 500)));
 
     // Parent wants to shrink but child wants to grow.
     panel.layout.x = .shrinks;

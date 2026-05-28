@@ -202,22 +202,13 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
             //
         },
         .text_input => |*i| {
-            if (i.*.texture) |texture| {
-                sdl.SDL_DestroyTexture(texture);
-            }
             i.*.runes.deinit(allocator);
             i.*.text.deinit(allocator);
         },
         .label => |*i| {
-            for (i.*.elements.items) |item| {
-                sdl.SDL_DestroyTexture(item.texture);
-            }
             i.*.elements.deinit(allocator);
         },
         .checkbox => |*i| {
-            for (i.*.elements.items) |item| {
-                sdl.SDL_DestroyTexture(item.texture);
-            }
             if (i.*.on_texture) |texture| {
                 display.releaseTextureResource(texture);
                 i.*.on_texture = null;
@@ -231,19 +222,16 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
         .rectangle => {},
         .sprite => {},
         .button => |*i| {
-            if (i.*.text_texture) |texture| {
-                sdl.SDL_DestroyTexture(texture);
-            }
-            if (i.*.icon_hover) |texture| {
+            if (i.*.icon.hover) |texture| {
                 display.releaseTextureResource(texture);
             }
-            if (i.*.icon_pressed) |texture| {
+            if (i.*.icon.pressed) |texture| {
                 display.releaseTextureResource(texture);
             }
-            if (i.*.background_hover) |texture| {
+            if (i.*.button.hover) |texture| {
                 display.releaseTextureResource(texture);
             }
-            if (i.*.background_pressed) |texture| {
+            if (i.*.button.pressed) |texture| {
                 display.releaseTextureResource(texture);
             }
         },
@@ -383,20 +371,13 @@ pub inline fn setPlaceholderText(
         .{ @tagName(self.type), self.name, text },
     );
     switch (self.type) {
-        .text_input => {
-            if (self.type.text_input.placeholder_texture) |texture| {
-                sdl.SDL_DestroyTexture(texture);
-                self.texture = null;
-            }
+        .text_input => |*text_input| {
             if (text.len == 0) return;
-            self.type.text_input.placeholder_text = text;
-            if (generateTextTexture(
-                display.renderer,
-                self.type.text_input.placeholder_text.?,
-                self.type.text_input.font,
-            )) |texture| {
-                self.type.text_input.placeholder_texture = texture;
-            }
+            text_input.placeholder_text = text;
+            _ = try text_input.font.measureText(
+                display,
+                text_input.placeholder_text.?,
+            );
         },
         else => {
             info("setPlaceholderText({s}.{s}) invalid", .{ @tagName(self.type), text });
@@ -525,10 +506,10 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             _ = try out.write(" translated=");
             _ = try out.write(self.type.button.translated);
         }
-        if (self.type.button.icon_size.height > 0 or self.type.button.icon_size.width > 0) {
-            _ = try out.print(" icon_size={d:1.0}x{d:1.0}", .{
-                self.type.button.icon_size.width,
-                self.type.button.icon_size.height,
+        if (self.type.button.icon.size.height > 0 or self.type.button.icon.size.width > 0) {
+            _ = try out.print(" icon.size={d:1.0}x{d:1.0}", .{
+                self.type.button.icon.size.width,
+                self.type.button.icon.size.height,
             });
         }
         if (self.type.button.font_name) |font| {
@@ -814,145 +795,79 @@ pub inline fn setText(
     }
 
     switch (self.type) {
-        .text_input => {
-            if (self.type.text_input.texture) |texture| {
-                sdl.SDL_DestroyTexture(texture);
-                self.texture = null;
-            }
-            self.type.text_input.text.clearRetainingCapacity();
-            self.type.text_input.runes.clearRetainingCapacity();
+        .text_input => |*ti| {
+            ti.text.clearRetainingCapacity();
+            ti.runes.clearRetainingCapacity();
             if (new_text.len > 0) {
-                try self.type.text_input.text.appendSlice(display.allocator, new_text);
+                try ti.text.appendSlice(display.allocator, new_text);
                 self.text_data_to_runes(display.allocator);
-                if (generateTextTexture(
-                    display.renderer,
-                    self.type.text_input.text.items,
-                    self.type.text_input.font,
-                )) |texture| {
-                    self.type.text_input.cursor_pixels = TextSize.normal.pixel_size(display.scale, texture).width;
-                    self.type.text_input.texture = texture;
-                    self.type.text_input.cursor_character = self.type.text_input.runes.items.len;
-                } else {
-                    self.type.text_input.cursor_pixels = 0.0;
-                    self.type.text_input.cursor_character = 0;
-                }
+                ti.cursor_character = ti.runes.items.len;
+                ti.cursor_pixels = try ti.font.measureText(
+                    display,
+                    ti.text.items,
+                );
             } else {
-                self.type.text_input.cursor_pixels = 0.0;
-                self.type.text_input.cursor_character = 0;
+                ti.cursor_pixels = 0.0;
+                ti.cursor_character = 0;
             }
         },
-        .label => {
+        .label => |*label| {
             // Clear old text
-            for (self.type.label.elements.items) |item| {
-                sdl.SDL_DestroyTexture(item.texture);
-            }
-            self.type.label.elements.clearRetainingCapacity();
-            self.type.label.text = new_text;
-            self.type.label.translated = new_translated;
-            if (self.type.label.translated.len > 0) {
-                var data = Chunker.init(self.type.label.translated);
-                if (self.type.label.font_name) |_| {
-                    while (data.next(&display.font)) |word| {
-                        if (generateTextTexture(
-                            display.renderer,
-                            word.text,
-                            self.type.label.font,
-                        )) |texture| {
-                            try self.type.label.elements.append(display.allocator, .{
-                                .text = word.text,
-                                .width = @floatFromInt(texture.*.w),
-                                .texture = texture,
-                                .font = word.font,
-                            });
-                        }
-                    }
-                } else {
-                    while (data.next(&display.font)) |word| {
-                        if (generateTextTexture(display.renderer, word.text, word.font)) |texture| {
-                            try self.type.label.elements.append(display.allocator, .{
-                                .text = word.text,
-                                .width = @floatFromInt(texture.*.w),
-                                .texture = texture,
-                                .font = word.font,
-                            });
-                        }
-                    }
+            label.elements.clearRetainingCapacity();
+            label.text = new_text;
+            label.translated = new_translated;
+            if (label.translated.len > 0) {
+                var data = Chunker.init(label.translated);
+                while (data.next(&display.font)) |word| {
+                    // Store width as a placeholder until layout function is run.
+                    const width = try word.font.measureText(
+                        display,
+                        word.text,
+                    );
+                    try label.elements.append(display.allocator, .{
+                        .text = word.text,
+                        .width = width,
+                        .font = word.font,
+                    });
                 }
             }
         },
-        .checkbox => {
+        .checkbox => |*checkbox| {
             // Clear old text
-            for (self.type.checkbox.elements.items) |item| {
-                sdl.SDL_DestroyTexture(item.texture);
-            }
-            self.type.checkbox.elements.clearRetainingCapacity();
-            self.type.checkbox.text = new_text;
-            self.type.checkbox.translated = new_translated;
-            if (self.type.checkbox.translated.len > 0) {
+            checkbox.elements.clearRetainingCapacity();
+            checkbox.text = new_text;
+            checkbox.translated = new_translated;
+            if (checkbox.translated.len > 0) {
                 self.type.checkbox.elements.clearRetainingCapacity();
                 var data = Chunker.init(self.type.checkbox.translated);
-                if (self.type.checkbox.font_name) |_| {
-                    while (data.next(&display.font)) |text| {
-                        if (generateTextTexture(
-                            display.renderer,
-                            text.text,
-                            self.type.checkbox.font,
-                        )) |texture| {
-                            try self.type.checkbox.elements.append(display.allocator, .{
-                                .text = text.text,
-                                .width = @floatFromInt(texture.*.w),
-                                .texture = texture,
-                                .font = text.font,
-                            });
-                        }
-                    }
-                } else {
-                    while (data.next(&display.font)) |text| {
-                        if (generateTextTexture(
-                            display.renderer,
-                            text.text,
-                            text.font,
-                        )) |texture| {
-                            try self.type.checkbox.elements.append(display.allocator, .{
-                                .text = text.text,
-                                .width = @floatFromInt(texture.*.w),
-                                .texture = texture,
-                                .font = text.font,
-                            });
-                        }
-                    }
+                while (data.next(&display.font)) |text| {
+                    // Store width as a placeholder until layout function is run.
+                    const width = try text.font.measureText(
+                        display,
+                        text.text,
+                    );
+                    try self.type.checkbox.elements.append(display.allocator, .{
+                        .text = text.text,
+                        .width = width,
+                        .font = text.font,
+                    });
                 }
             }
         },
-        .button => {
+        .button => |*button| {
             // Clear old text
-            if (self.type.button.text_texture) |texture| {
-                sdl.SDL_DestroyTexture(texture);
-                self.type.button.text_texture = null;
-            }
-            self.type.button.text = new_text;
-            self.type.button.translated = new_translated;
+            button.text = new_text;
+            button.translated = new_translated;
             if (new_translated.len > 0) {
-                if (self.type.button.font_name != null) {
-                    trace("use requested font '{s}' for {s}", .{ self.type.button.font_name.?, self.type.button.translated });
-                    if (generateTextTexture(
-                        display.renderer,
-                        self.type.button.translated,
-                        self.type.button.font,
-                    )) |texture| {
-                        self.type.button.text_texture = texture;
-                    }
-                } else {
-                    const font = Chunker.guess_language(self.type.button.translated, &display.font);
-                    trace("use detected font '{s}' for {s}", .{ font.name, self.type.button.translated });
-                    if (generateTextTexture(
-                        display.renderer,
-                        self.type.button.translated,
-                        font,
-                    )) |texture| {
-                        self.type.button.text_texture = texture;
-                    }
-                }
+                var font = if (button.font_name != null)
+                    button.font
+                else
+                    Chunker.guess_language(self.type.button.translated, &display.font);
+
+                button.translated_text_width = try font.measureText(
+                    display,
+                    button.translated,
+                );
             }
         },
         else => {
@@ -1110,19 +1025,19 @@ pub fn update(self: *Entity, display: *Display) void {
 /// shrink to based on the children. If children wrap according
 /// to the width of the parent, then the parent width is needed
 /// to calculate the height
-pub fn minimum_needed_height(self: *Entity, display: *Display, parent_width: f32) f32 {
+pub fn minimumNeededHeight(self: *Entity, display: *Display, parent_width: f32) f32 {
     if (self.visible == .hidden)
         return 0;
     if (self.layout.y == .fixed)
         return @max(self.minimum.height, self.rect.height);
 
     const height = switch (self.type) {
-        .button => return self.type.button.minimum_needed_height(display, self, parent_width),
-        .checkbox => return self.type.checkbox.minimum_needed_height(display, self, parent_width),
+        .button => return self.type.button.minimumNeededHeight(display, self, parent_width),
+        .checkbox => return self.type.checkbox.minimumNeededHeight(display, self, parent_width),
         .expander => return self.minimum.height,
-        .label => return self.type.label.minimum_needed_height(display, self, parent_width),
-        .panel => return self.type.panel.minimum_needed_height(display, self, parent_width),
-        .text_input => return self.type.text_input.minimum_needed_height(display, self, parent_width),
+        .label => return self.type.label.minimumNeededHeight(display, self, parent_width),
+        .panel => return self.type.panel.minimumNeededHeight(display, self, parent_width),
+        .text_input => return self.type.text_input.minimumNeededHeight(display, self, parent_width),
         else => self.rect.height,
     };
     return @max(self.minimum.height, height);
@@ -1132,7 +1047,7 @@ pub fn minimum_needed_height(self: *Entity, display: *Display, parent_width: f32
 /// .
 /// Some entities grow to the `parent_width`, which is usually the
 /// `parent.rect.width` minus any internal padding.
-pub fn minimum_needed_width(self: *Entity, display: *Display, parent_inner_width: f32) f32 {
+pub fn minimumNeededWidth(self: *Entity, display: *Display, parent_inner_width: f32) f32 {
     if (self.visible == .hidden)
         return 0;
 
@@ -1140,12 +1055,12 @@ pub fn minimum_needed_width(self: *Entity, display: *Display, parent_inner_width
         return @max(self.minimum.width, self.rect.width);
 
     return switch (self.type) {
-        .panel => self.type.panel.minimum_needed_width(display, self, parent_inner_width),
-        .button => self.type.button.minimum_needed_width(display, self, parent_inner_width),
-        .expander => self.type.expander.minimum_needed_width(display, self, parent_inner_width),
-        .label => self.type.label.minimum_needed_width(display, self, parent_inner_width),
-        .checkbox => self.type.checkbox.minimum_needed_width(display, self, parent_inner_width),
-        .text_input => self.type.text_input.minimum_needed_width(display, self, parent_inner_width),
+        .panel => self.type.panel.minimumNeededWidth(display, self, parent_inner_width),
+        .button => self.type.button.minimumNeededWidth(display, self, parent_inner_width),
+        .expander => self.type.expander.minimumNeededWidth(display, self, parent_inner_width),
+        .label => self.type.label.minimumNeededWidth(display, self, parent_inner_width),
+        .checkbox => self.type.checkbox.minimumNeededWidth(display, self, parent_inner_width),
+        .text_input => self.type.text_input.minimumNeededWidth(display, self, parent_inner_width),
         else => @max(self.minimum.width, self.rect.width),
     };
 }
@@ -1397,32 +1312,35 @@ pub fn keypress(
     slice: []const u8,
     event: *const Event,
 ) Allocator.Error!void {
-    if (self.type != .text_input) {
-        err("keypress captured for {t}. {s} {t}", .{ self.type, slice, event.type });
-        return;
-    }
+    var text_input = switch (self.type) {
+        .text_input => self.type.text_input,
+        else => {
+            err("keypress captured for {t}. {s} {t}", .{ self.type, slice, event.type });
+            return;
+        },
+    };
 
     // Update the text line
     trace("{t} recieved {t} {s}", .{ self.type, event.type, slice });
     switch (key) {
         @intFromEnum(Key.line_feed), @intFromEnum(Key.@"return") => {
             _ = sdl.SDL_StopTextInput(display.window);
-            if (self.type.text_input.on_submit.func != null) {
-                try self.type.text_input.on_submit.call(display, self, event);
+            if (text_input.on_submit.func != null) {
+                try text_input.on_submit.call(display, self, event);
             }
             return;
         },
         @intFromEnum(Key.backspace) => {
-            if (self.type.text_input.runes.items.len == 0) {
+            if (text_input.runes.items.len == 0) {
                 return;
             }
-            _ = self.type.text_input.runes.pop();
+            _ = text_input.runes.pop();
             self.text_runes_to_data(display.allocator);
-            self.type.text_input.cursor_character -= 1;
+            text_input.cursor_character -= 1;
         },
         else => {
-            const max_chars = @as(usize, self.type.text_input.max_length orelse TextInput.default_max_length);
-            if (self.type.text_input.runes.items.len >= max_chars) {
+            const max_chars = @as(usize, text_input.max_length orelse TextInput.default_max_length);
+            if (text_input.runes.items.len >= max_chars) {
                 debug("Ignoring {u} {t}. {t} limited to {d} characters", .{
                     key,
                     event.type,
@@ -1431,36 +1349,27 @@ pub fn keypress(
                 });
                 return;
             }
-            self.type.text_input.text.appendSlice(display.allocator, slice) catch {};
-            self.type.text_input.runes.append(display.allocator, key) catch {};
-            self.type.text_input.cursor_character += 1;
+            text_input.text.appendSlice(display.allocator, slice) catch {};
+            text_input.runes.append(display.allocator, key) catch {};
+            text_input.cursor_character += 1;
         },
     }
     self.text_data_to_runes(display.allocator);
 
-    // Update the text texture image.
-    if (self.type.text_input.texture) |texture| {
-        sdl.SDL_DestroyTexture(texture);
-        self.type.text_input.texture = null;
-    }
     if (self.type.text_input.text.items.len > 0) {
-        if (generateTextTexture(
-            display.renderer,
-            self.type.text_input.text.items,
-            self.type.text_input.font,
-        )) |texture| {
-            self.type.text_input.texture = texture;
-            // For now, the cursor position is simply the end of the text.
-            self.type.text_input.cursor_pixels = TextSize.normal.pixel_size(display.scale, texture).width;
-        }
+        // For now, the cursor position is simply the end of the text.
+        text_input.cursor_pixels = try text_input.font.measureText(
+            display,
+            text_input.text.items,
+        );
     } else {
-        self.type.text_input.cursor_pixels = 0;
+        text_input.cursor_pixels = 0;
     }
 
     // Optionally, a text_input may have an `on_change` callback function.
-    if (self.type.text_input.on_change.func != null) {
+    if (text_input.on_change.func != null) {
         trace("text_input calling on_change", .{});
-        try self.type.text_input.on_change.call(display, self, event);
+        try text_input.on_change.call(display, self, event);
         trace("text_input called on_change", .{});
     }
 }
@@ -1981,12 +1890,12 @@ pub fn setup_button(
     entity.type.button.translated = "";
     entity.texture = null;
     entity.background.image = null;
-    entity.type.button.icon_pressed = null;
-    entity.type.button.icon_hover = null;
-    entity.type.button.icon_disabled = null;
-    entity.type.button.background_pressed = null;
-    entity.type.button.background_hover = null;
-    entity.type.button.background_disabled = null;
+    entity.type.button.icon.pressed = null;
+    entity.type.button.icon.hover = null;
+    entity.type.button.icon.disabled = null;
+    entity.type.button.button.pressed = null;
+    entity.type.button.button.hover = null;
+    entity.type.button.button.disabled = null;
     //entity.type.button.text_size = .normal;
     entity.type.button.font = try select_font(display.fonts.items, entity.type.button.font_name);
 
@@ -1994,7 +1903,7 @@ pub fn setup_button(
         entity.focus = .can_focus;
 
     if (entity.texture_name != null)
-        warn("button `{s}` has texture_name `{s}`. Buttons use `icon_default_name`", .{
+        warn("button `{s}` has texture_name `{s}`. Buttons use `icon.default_name`", .{
             entity.name,
             entity.texture_name.?,
         });
@@ -2007,82 +1916,82 @@ pub fn setup_button(
 
     try entity.setText(display, entity.type.button.text);
 
-    if (entity.type.button.icon_default_name) |icon_default| {
-        if (try display.requireImage(icon_default)) |texture| {
+    if (entity.type.button.icon.default_name) |value| {
+        if (try display.requireImage(value)) |texture| {
             entity.texture = texture;
-            if (entity.type.button.icon_size.width == 0 or entity.type.button.icon_size.height == 0)
+            if (entity.type.button.icon.size.width == 0 or entity.type.button.icon.size.height == 0)
                 warn("button `{s}` has icon `{s}`, but no icon size.", .{
                     entity.name,
-                    icon_default,
+                    value,
                 });
         }
     }
 
-    if (entity.type.button.icon_pressed_name) |icon_pressed| {
-        if (try display.requireImage(icon_pressed)) |ip|
-            entity.type.button.icon_pressed = ip
+    if (entity.type.button.icon.pressed_name) |value| {
+        if (try display.requireImage(value)) |ip|
+            entity.type.button.icon.pressed = ip
         else
-            err("setup_button failed to load icon_pressed resource {s}.", .{icon_pressed});
+            err("setup_button failed to load icon_pressed resource {s}.", .{value});
 
-        if (entity.type.button.icon_pressed == null and entity.texture != null)
-            entity.type.button.icon_pressed = entity.texture.?.clone();
+        if (entity.type.button.icon.pressed == null and entity.texture != null)
+            entity.type.button.icon.pressed = entity.texture.?.clone();
     }
 
-    if (entity.type.button.icon_hover_name) |icon_hover| {
-        if (try display.requireImage(icon_hover)) |ih|
-            entity.type.button.icon_hover = ih
+    if (entity.type.button.icon.hover_name) |value| {
+        if (try display.requireImage(value)) |ih|
+            entity.type.button.icon.hover = ih
         else
-            err("setup_button failed to load icon_hover resource {s}.", .{icon_hover});
+            err("setup_button failed to load icon_hover resource {s}.", .{value});
 
-        if (entity.type.button.icon_hover == null and entity.texture != null)
-            entity.type.button.icon_hover = entity.texture.?.clone();
+        if (entity.type.button.icon.hover == null and entity.texture != null)
+            entity.type.button.icon.hover = entity.texture.?.clone();
     }
 
-    if (entity.type.button.icon_disabled_name) |icon_disabled| {
-        if (try display.requireImage(icon_disabled)) |ih|
-            entity.type.button.icon_disabled = ih
+    if (entity.type.button.icon.disabled_name) |value| {
+        if (try display.requireImage(value)) |ih|
+            entity.type.button.icon.disabled = ih
         else
-            err("setup_button failed to load icon_disabled resource {s}.", .{icon_disabled});
+            err("setup_button failed to load icon_disabled resource {s}.", .{value});
 
-        if (entity.type.button.icon_disabled == null and entity.texture != null)
-            entity.type.button.icon_disabled = entity.texture.?.clone();
+        if (entity.type.button.icon.disabled == null and entity.texture != null)
+            entity.type.button.icon.disabled = entity.texture.?.clone();
     }
 
-    if (entity.type.button.background_default_name) |background_default| {
-        if (try display.requireImage(background_default)) |texture|
+    if (entity.type.button.button.default_name) |value| {
+        if (try display.requireImage(value)) |texture|
             entity.background.image = texture
         else
-            err("setup_button failed to load background_default resource {s}.", .{background_default});
+            err("setup_button failed to load button.default resource {s}.", .{value});
     }
 
-    if (entity.type.button.background_pressed_name) |background_pressed| {
-        if (try display.requireImage(background_pressed)) |bp|
-            entity.type.button.background_pressed = bp
+    if (entity.type.button.button.pressed_name) |value| {
+        if (try display.requireImage(value)) |bp|
+            entity.type.button.button.pressed = bp
         else
-            err("setup_button background_pressed resource resource `{s}` not loaded.", .{background_pressed});
+            err("setup_button button.pressed resource resource `{s}` not loaded.", .{value});
 
-        if (entity.type.button.background_pressed == null and entity.background.image != null)
-            entity.type.button.background_pressed = entity.background.image.?.clone();
+        if (entity.type.button.button.pressed == null and entity.background.image != null)
+            entity.type.button.button.pressed = entity.background.image.?.clone();
     }
 
-    if (entity.type.button.background_hover_name) |background_hover| {
-        if (try display.requireImage(background_hover)) |bh|
-            entity.type.button.background_hover = bh
+    if (entity.type.button.button.hover_name) |value| {
+        if (try display.requireImage(value)) |bh|
+            entity.type.button.button.hover = bh
         else
-            err("setup_button background_hover resource `{s}` not loaded.", .{background_hover});
+            err("setup_button button.hover resource `{s}` not loaded.", .{value});
 
-        if (entity.type.button.background_hover == null and entity.background.image != null)
-            entity.type.button.background_hover = entity.background.image.?.clone();
+        if (entity.type.button.button.hover == null and entity.background.image != null)
+            entity.type.button.button.hover = entity.background.image.?.clone();
     }
 
-    if (entity.type.button.background_disabled_name) |background_disabled| {
-        if (try display.requireImage(background_disabled)) |bh|
-            entity.type.button.background_disabled = bh
+    if (entity.type.button.button.disabled_name) |value| {
+        if (try display.requireImage(value)) |bh|
+            entity.type.button.button.disabled = bh
         else
-            err("setup_button background_disabled resource `{s}` not loaded.", .{background_disabled});
+            err("setup_button background.disabled resource `{s}` not loaded.", .{value});
 
-        if (entity.type.button.background_disabled == null and entity.background.image != null)
-            entity.type.button.background_disabled = entity.background.image.?.clone();
+        if (entity.type.button.button.disabled == null and entity.background.image != null)
+            entity.type.button.button.disabled = entity.background.image.?.clone();
     }
 }
 
@@ -2284,44 +2193,6 @@ pub inline fn tint_texture(texture: *sdl.SDL_Texture, colour: Colour) void {
     _ = sdl.SDL_SetTextureColorMod(texture, colour.r, colour.g, colour.b);
 }
 
-/// Convert a text string into an image that is sent as a texture to
-/// the graphics card.
-pub fn generateTextTexture(
-    renderer: *sdl.SDL_Renderer,
-    text: []const u8,
-    myfont: *Font,
-) ?*sdl.SDL_Texture {
-
-    // Step 1: Create a surface (a bitmap) that holds the text.
-    //
-    // The text colour is set to white, so that it can be tinted to
-    // match the current theme.
-    const surface = sdl.TTF_RenderText_Blended(
-        myfont.font,
-        text.ptr,
-        text.len,
-        .{ .r = 255, .g = 255, .b = 255, .a = 255 },
-    ) orelse {
-        err("generate_text_texture failed. {any} Error: {s}", .{
-            text,
-            sdl.SDL_GetError(),
-        });
-        return null;
-    };
-    errdefer sdl.SDL_DestroySurface(surface);
-
-    // Step 2: Send the surface (a bitmap) to the grahpics card.
-    const texture = sdl.SDL_CreateTextureFromSurface(renderer, surface) orelse {
-        err("text input texture failed. {s}", .{sdl.SDL_GetError()});
-        return null;
-    };
-    errdefer sdl.SDL_DestroyTexture(texture);
-
-    // Step 3: The surface bitmap is no longer needed.
-    sdl.SDL_DestroySurface(surface);
-    return texture;
-}
-
 pub const Background = struct {
     colour: Colour = Colour.TRANSPARENT,
 
@@ -2357,8 +2228,9 @@ pub fn select_font(fonts: []*Font, name: ?[]const u8) Error!*Font {
 pub const TextElement = struct {
     text: []const u8 = "",
     font: *Font,
-    width: f32 = 0, // compared to default height
-    texture: *sdl.SDL_Texture,
+    /// Width of this word/element not including display scaling
+    /// or text size scaling.
+    width: f32 = 0,
     location: Rect = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
 };
 

@@ -2,35 +2,103 @@
 //! Typically this is the lifetime of the app.
 const Font = @This();
 
-/// The name of the font as it appeared in the bundle file or resource directory.
-name: []const u8,
-
-/// The SDL handle to access the font.
-font: *sdl.TTF_Font,
-
-/// A pointer to the raw font data. This must be kept in memory.
-font_buffer: []const u8,
+/// Render the font characters with double the pixel density of the
+/// `text_height` to ensure screens with double or triple pixel
+/// density have clear font edges.
+const character_pixel_density: f32 = 4.0;
 
 resource: *Resource,
 
 references: usize = 0,
 
+/// The name of the font as it appeared in the bundle file or resource directory.
+name: []const u8,
+
+/// On screen height raw pixel height.
+pixel_height: u8,
+
+/// Multiplication factor to convert font character height to actual pixel height.
+scale: f32,
+
+// Raw font data parsed from a TTF file.
+font: TrueType,
+
+/// A pointer to the raw font data. This must be kept in memory.
+font_buffer: []const u8,
+
+/// A cache of the bitmap for each drawn character.
+cache: std.AutoHashMap(TrueType.GlyphIndex, GlyphBitmap),
+
+glyph_buffer: ArrayListUnmanaged(u8),
+image_buffer: ArrayListUnmanaged(u8),
+
+ascent: f32,
+descent: f32,
+line_gap: f32,
+space_width: f32,
+
+pub const GlyphBitmap = struct {
+    /// Unicode character
+    codepoint: u21,
+
+    // Width in pixels of the character in the `data` field.
+    width: f32,
+    // Height in pixels of the character in the `data` field.
+    height: f32,
+    // How much space appears before the character.
+    pre_advance: f32,
+    // How many pixels to move across to draw the next character.
+    advance: f32,
+    // Move a charaacter down slightly if it doesnt start at top.
+    offset: f32,
+
+    texture: *sdl.SDL_Texture,
+};
+
 pub fn create(
     allocator: Allocator,
     name: []const u8,
-    font: *sdl.TTF_Font,
     raw_data: []const u8,
     resource: *Resource,
-) !*Font {
+    pixel_height: u8,
+) (Allocator.Error || engine.Error)!*Font {
+    debug("loading font {s} size={d} height={d}", .{ name, raw_data.len, pixel_height });
+
+    const ttf = TrueType.load(raw_data) catch {
+        return engine.Error.FontInitFailed;
+    };
+
+    // scale = pixel_height / ascent + descent
+    const scale = ttf.scaleForPixelHeight(pixel_height);
+
+    const metrics = ttf.verticalMetrics();
+    debug("loaded font: {s} ascent={d}->{d}, descent={d}->{d}, line_gap={d}->{d}", .{
+        name,
+        metrics.ascent,
+        metrics.ascent * scale,
+        metrics.descent,
+        metrics.descent * scale,
+        metrics.line_gap,
+        metrics.line_gap * scale,
+    });
+
     const font_info = try allocator.create(Font);
     font_info.* = .{
-        .name = try allocator.dupe(u8, name),
-        .font = font,
         .resource = resource,
-        .font_buffer = raw_data,
         .references = 0,
+        .name = try allocator.dupe(u8, name),
+        .pixel_height = pixel_height,
+        .scale = scale,
+        .font = ttf,
+        .font_buffer = raw_data,
+        .cache = .init(allocator),
+        .image_buffer = .empty,
+        .glyph_buffer = .empty,
+        .ascent = @round(metrics.ascent * scale),
+        .descent = @round(metrics.descent * scale),
+        .line_gap = metrics.line_gap * scale,
+        .space_width = metrics.ascent * scale * 0.5,
     };
-    debug("loaded font: {s}", .{sdl.TTF_GetFontFamilyName(font_info.font)});
     return font_info;
 }
 
@@ -49,12 +117,248 @@ pub fn release(self: *Font, allocator: Allocator) bool {
 }
 
 pub fn cleanup(self: *Font, allocator: Allocator) void {
-    sdl.TTF_CloseFont(self.font);
     trace("unloaded font: {s}", .{self.name});
     allocator.free(self.font_buffer);
     allocator.free(self.name);
+    var vi = self.cache.valueIterator();
+    while (vi.next()) |value| {
+        sdl.SDL_DestroyTexture(value.texture);
+    }
+    self.glyph_buffer.deinit(allocator);
+    self.image_buffer.deinit(allocator);
     self.* = undefined;
     allocator.destroy(self);
+}
+
+/// Measure the width of a text string in pixels at normal text size.
+/// Measurement must still bem ultiplied by display scale and text size.
+/// Always call `measureText` before `drawText`.
+pub fn measureText(
+    self: *Font,
+    display: *engine.Display,
+    string: []const u8,
+) (Allocator.Error)!f32 {
+    return self.drawString(
+        display.allocator,
+        display.renderer,
+        string,
+        .{},
+        .WHITE,
+        .normal,
+        1,
+        .measure,
+    );
+}
+
+/// Draw a text string at the requested size, colour, and position.
+/// `measureText` must be called before drawText.
+pub fn drawText(
+    self: *Font,
+    display: *engine.Display,
+    string: []const u8,
+    pos: engine.Vector,
+    colour: engine.Colour,
+    size: engine.TextSize,
+) Allocator.Error!void {
+    _ = try self.drawString(
+        display.allocator,
+        display.renderer,
+        string,
+        pos,
+        colour,
+        size,
+        display.scale,
+        .draw,
+    );
+}
+
+/// Send a text string to the renderer.
+fn drawString(
+    self: *Font,
+    allocator: Allocator,
+    renderer: *sdl.SDL_Renderer,
+    string: []const u8,
+    pos: engine.Vector,
+    colour: engine.Colour,
+    size: engine.TextSize,
+    scale: f32,
+    comptime mode: enum { draw, measure },
+) Allocator.Error!f32 {
+    // Scale factor is the physical pixel density * user scale * text scale
+    const scale_factor = scale * size.height();
+    var dest: engine.Rect = .{
+        .x = @round(pos.x),
+        .y = @round(pos.y),
+        .width = 0,
+        .height = 0,
+    };
+    const start_x = dest.x;
+
+    var dbg = if (builtin.mode == .Debug)
+        std.Io.Writer.Allocating.init(allocator)
+    else
+        void;
+    defer if (builtin.mode == .Debug) dbg.deinit();
+
+    //debug("{t} '{s}' ", .{ mode, string });
+
+    var previous_glyph: ?TrueType.GlyphIndex = null;
+    // Invalid UTF8 should not be possible at this point.
+    const view = std.unicode.Utf8View.initUnchecked(string);
+    var it = view.iterator();
+    while (it.nextCodepoint()) |codepoint| {
+        if (codepoint == '\r' or codepoint == '\n' or codepoint == '\t')
+            continue;
+        //debug("lookup {u} in font {s}", .{ codepoint, self.name });
+        const glyph = self.font.codepointGlyphIndex(codepoint);
+        if (glyph == .notdef) {
+            if (codepoint != ' ')
+                warn("skip {u} in font {s} ({t})", .{ codepoint, self.name, mode });
+            previous_glyph = null;
+            dest.x += self.space_width * scale_factor;
+            continue;
+        }
+
+        const entry = try self.cache.getOrPut(glyph);
+        if (!entry.found_existing) {
+            self.createGlyphTexture(
+                allocator,
+                codepoint,
+                glyph,
+                entry.value_ptr,
+                renderer,
+            ) catch |e| {
+                warn("failed to generate glyph '{u}'. ({t}) {t}", .{ codepoint, mode, e });
+                entry.value_ptr.* = .{
+                    .codepoint = codepoint,
+                    .width = 0,
+                    .height = 0,
+                    .pre_advance = 0,
+                    .advance = self.space_width * scale_factor,
+                    .offset = 0,
+                    .texture = undefined,
+                };
+            };
+            trace("added glyph '{u}' in font {s} ({t})", .{ codepoint, self.name, mode });
+        }
+        const glyph_info = entry.value_ptr;
+
+        //const line_height = size.pixel_height(display.scale);
+        dest.height = glyph_info.height * scale_factor;
+        dest.width = glyph_info.width * scale_factor;
+        dest.y = pos.y + (self.ascent * scale_factor) - dest.height - (glyph_info.offset * scale_factor);
+
+        const kern = if (previous_glyph) |previous|
+            self.font.glyphKernAdvance(previous, glyph) * self.scale
+        else
+            0;
+        dest.x += (kern * scale_factor);
+        dest.x += glyph_info.pre_advance * scale_factor;
+
+        if (mode == .draw) {
+            if (glyph_info.height > 0 and glyph_info.width > 0) {
+                //_ = colour;
+                _ = sdl.SDL_SetTextureAlphaMod(glyph_info.texture, colour.a);
+                _ = sdl.SDL_SetTextureColorMod(glyph_info.texture, colour.r, colour.g, colour.b);
+                _ = sdl.SDL_RenderTexture(renderer, glyph_info.texture, null, @ptrCast(&dest));
+            } else {
+                if (glyph_info.codepoint != ' ')
+                    debug("    '{u}' {d} cant draw.", .{ codepoint, codepoint });
+            }
+        }
+
+        if (mode == .measure) {
+            dbg.writer.print("\n  {u} width {d}/{d} height {d}/{d} kern {d}/{d} advance {d}/{d}", .{
+                codepoint,
+                glyph_info.width,
+                dest.width,
+                glyph_info.height,
+                dest.height,
+                kern,
+                kern * scale_factor,
+                glyph_info.advance,
+                glyph_info.advance * scale_factor,
+            }) catch {};
+        }
+        dest.x += glyph_info.advance * scale_factor;
+
+        previous_glyph = glyph;
+    }
+
+    if (builtin.mode == .Debug and mode == .measure) {
+        dbg.writer.print("draw '{s}': ", .{string}) catch {};
+        debug("{s} width={d}", .{ dbg.written(), dest.x - start_x });
+    }
+
+    return @ceil(dest.x - start_x);
+}
+
+/// Create a bitmap for an individual codepoint. The `GlyphBitmap` represents
+/// standard `normal` sized character width and height. The `texture` contains
+/// a higher density version of the character.
+pub fn createGlyphTexture(
+    self: *Font,
+    gpa: Allocator,
+    codepoint: u21,
+    glyph: TrueType.GlyphIndex,
+    entry: *GlyphBitmap,
+    renderer: *sdl.SDL_Renderer,
+) error{ GlyphNotFound, GlyphBitmapFailed, OutOfMemory }!void {
+    self.glyph_buffer.clearRetainingCapacity();
+    self.image_buffer.clearRetainingCapacity();
+
+    const horizontal = self.font.glyphHMetrics(glyph);
+    const vertical = try self.font.glyphBox(glyph);
+
+    // `scale` to the desired physical width and height
+    // but multiply the bitmap to the desired `character_pixel_density`
+    const dims = self.font.glyphBitmap(
+        gpa,
+        &self.glyph_buffer,
+        glyph,
+        self.scale * character_pixel_density,
+        self.scale * character_pixel_density,
+    ) catch {
+        return error.GlyphBitmapFailed;
+    };
+
+    // Convert from 1 byte per pixel to RGBA
+    try self.image_buffer.ensureTotalCapacity(gpa, dims.width * dims.height * 4);
+    for (0..dims.height) |y| {
+        for (0..dims.width) |x| {
+            self.image_buffer.appendAssumeCapacity(self.glyph_buffer.items[y * dims.width + x]);
+            self.image_buffer.appendSliceAssumeCapacity(&.{ 255, 255, 255 });
+        }
+    }
+
+    // Register the bitmap to an SDL Surface
+    const tmp = sdl.SDL_CreateSurfaceFrom(
+        dims.width,
+        dims.height,
+        sdl.SDL_PIXELFORMAT_RGBA8888,
+        self.image_buffer.items.ptr,
+        dims.width * 4, // 4 bytes per pixel per row.
+    );
+    defer sdl.SDL_DestroySurface(tmp);
+
+    // Load the SDL Surface into a GPU Texture
+    const texture = sdl.SDL_CreateTextureFromSurface(renderer, tmp) orelse {
+        engine.log.err("character {u} to texture failed. {s}", .{
+            codepoint,
+            sdl.SDL_GetError(),
+        });
+        return error.GlyphBitmapFailed;
+    };
+
+    entry.* = .{
+        .codepoint = codepoint,
+        .width = dims.width / character_pixel_density,
+        .height = dims.height / character_pixel_density,
+        .pre_advance = @as(f32, @floatFromInt(horizontal.left_side_bearing)) * self.scale,
+        .advance = @as(f32, @floatFromInt(horizontal.advance_width)) * self.scale,
+        .offset = @round(@as(f32, @floatFromInt(vertical.y0)) * self.scale),
+        .texture = texture,
+    };
 }
 
 /// Holdes references to the currently loaded fonts in use for each
@@ -73,8 +377,12 @@ const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 
 const engine = @import("engine.zig");
-const sdl = engine.sdl;
+const warn = engine.log.warn;
 const debug = engine.log.debug;
 const trace = engine.log.trace;
+const sdl = engine.sdl;
+const Colour = engine.Colour;
 
 const Resource = @import("resources").Resource;
+
+const TrueType = @import("TrueType");

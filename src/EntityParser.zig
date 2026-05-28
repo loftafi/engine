@@ -74,14 +74,14 @@ pub fn readAttributes(token: *Token, entity: *Entity) Error!void {
                 if (entity.type == .button) {
                     const button = &entity.type.button;
                     try switch (token.tag) {
-                        .icon_default => readStringAttribute(token, &button.icon_default_name),
-                        .icon_hover => readStringAttribute(token, &button.icon_hover_name),
-                        .icon_pressed => readStringAttribute(token, &button.icon_pressed_name),
-                        .icon_disabled => readStringAttribute(token, &button.icon_disabled_name),
-                        .button_default => readStringAttribute(token, &button.background_default_name),
-                        .button_hover => readStringAttribute(token, &button.background_hover_name),
-                        .button_pressed => readStringAttribute(token, &button.background_pressed_name),
-                        .button_disabled => readStringAttribute(token, &button.background_disabled_name),
+                        .icon_default => readStringAttribute(token, &button.icon.default_name),
+                        .icon_hover => readStringAttribute(token, &button.icon.hover_name),
+                        .icon_pressed => readStringAttribute(token, &button.icon.pressed_name),
+                        .icon_disabled => readStringAttribute(token, &button.icon.disabled_name),
+                        .button_default => readStringAttribute(token, &button.button.default_name),
+                        .button_hover => readStringAttribute(token, &button.button.hover_name),
+                        .button_pressed => readStringAttribute(token, &button.button.pressed_name),
+                        .button_disabled => readStringAttribute(token, &button.button.disabled_name),
                         else => return error.UnexpectedToken,
                     };
                     continue;
