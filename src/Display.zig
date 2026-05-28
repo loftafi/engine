@@ -2493,7 +2493,7 @@ pub fn dumpFonts(
         var i = font.cache.iterator();
         while (i.next()) |entry| {
             const value = entry.value_ptr;
-            info("font={s} glyph={d} char={u} bitmap={d}x{d} ({d}x{d}) pre_advance={d} advance={d} offset={d}", .{
+            info("font={s} glyph={d} char={u} bitmap={d}x{d} ({d}x{d}) lsb={d} advance={d} offset={d}/{d} scale={d}/{d}", .{
                 font.name,
                 entry.key_ptr.*,
                 value.codepoint,
@@ -2501,9 +2501,12 @@ pub fn dumpFonts(
                 value.height,
                 if (value.height > 0) value.texture.w else 0,
                 if (value.height > 0) value.texture.h else 0,
-                value.pre_advance,
+                value.left_side_bearing,
                 value.advance,
-                value.offset,
+                value.x_offset,
+                value.y_offset,
+                value.x_scale,
+                value.y_scale,
             });
         }
     }

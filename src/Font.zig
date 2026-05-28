@@ -1,5 +1,5 @@
-//! A font is held in memory for the entire duration it might be needed.
-//! Typically this is the lifetime of the app.
+/// A font is held in memory for the entire duration it might be needed.
+/// Typically this is the lifetime of the app.
 const Font = @This();
 
 /// Render the font characters with double the pixel density of the
@@ -46,11 +46,16 @@ pub const GlyphBitmap = struct {
     // Height in pixels of the character in the `data` field.
     height: f32,
     // How much space appears before the character.
-    pre_advance: f32,
+    left_side_bearing: f32,
     // How many pixels to move across to draw the next character.
     advance: f32,
     // Move a charaacter down slightly if it doesnt start at top.
-    offset: f32,
+    y_offset: f32,
+    // Move a charaacter across slightly if it doesnt start at top.
+    x_offset: f32,
+
+    x_scale: f32,
+    y_scale: f32,
 
     texture: *sdl.SDL_Texture,
 };
@@ -233,9 +238,12 @@ fn drawString(
                     .codepoint = codepoint,
                     .width = 0,
                     .height = 0,
-                    .pre_advance = 0,
+                    .left_side_bearing = 0,
                     .advance = self.space_width * scale_factor,
-                    .offset = 0,
+                    .x_offset = 0,
+                    .y_offset = 0,
+                    .x_scale = 0,
+                    .y_scale = 0,
                     .texture = undefined,
                 };
             };
@@ -246,18 +254,18 @@ fn drawString(
         //const line_height = size.pixel_height(display.scale);
         dest.height = glyph_info.height * scale_factor;
         dest.width = glyph_info.width * scale_factor;
-        dest.y = pos.y + (self.ascent * scale_factor) - dest.height - (glyph_info.offset * scale_factor);
+        dest.y = pos.y + (self.ascent * scale_factor) - dest.height - (glyph_info.y_offset * scale_factor);
 
         const kern = if (previous_glyph) |previous|
             self.font.glyphKernAdvance(previous, glyph) * self.scale
         else
             0;
         dest.x += (kern * scale_factor);
-        dest.x += glyph_info.pre_advance * scale_factor;
+        const left_side_bearing = glyph_info.left_side_bearing * scale_factor;
+        dest.x += left_side_bearing;
 
         if (mode == .draw) {
             if (glyph_info.height > 0 and glyph_info.width > 0) {
-                //_ = colour;
                 _ = sdl.SDL_SetTextureAlphaMod(glyph_info.texture, colour.a);
                 _ = sdl.SDL_SetTextureColorMod(glyph_info.texture, colour.r, colour.g, colour.b);
                 _ = sdl.SDL_RenderTexture(renderer, glyph_info.texture, null, @ptrCast(&dest));
@@ -268,26 +276,25 @@ fn drawString(
         }
 
         if (mode == .measure) {
-            dbg.writer.print("\n  {u} width {d}/{d} height {d}/{d} kern {d}/{d} advance {d}/{d}", .{
+            dbg.writer.print("\n  {u} bitmap.width {d} bitmap.height {d} kern {d} lsb={d} char.width {d}", .{
                 codepoint,
                 glyph_info.width,
-                dest.width,
                 glyph_info.height,
-                dest.height,
                 kern,
-                kern * scale_factor,
+                glyph_info.left_side_bearing,
                 glyph_info.advance,
-                glyph_info.advance * scale_factor,
             }) catch {};
         }
-        dest.x += glyph_info.advance * scale_factor;
+        dest.x -= left_side_bearing;
+        dest.x += (glyph_info.advance * scale_factor);
 
         previous_glyph = glyph;
     }
 
     if (builtin.mode == .Debug and mode == .measure) {
-        dbg.writer.print("draw '{s}': ", .{string}) catch {};
-        debug("{s} width={d}", .{ dbg.written(), dest.x - start_x });
+        trace("draw '{s}': ", .{string});
+        trace("{s}", .{dbg.written()});
+        trace("width={d}", .{dest.x - start_x});
     }
 
     return @ceil(dest.x - start_x);
@@ -354,9 +361,12 @@ pub fn createGlyphTexture(
         .codepoint = codepoint,
         .width = dims.width / character_pixel_density,
         .height = dims.height / character_pixel_density,
-        .pre_advance = @as(f32, @floatFromInt(horizontal.left_side_bearing)) * self.scale,
+        .left_side_bearing = @as(f32, @floatFromInt(horizontal.left_side_bearing)) * self.scale,
         .advance = @as(f32, @floatFromInt(horizontal.advance_width)) * self.scale,
-        .offset = @round(@as(f32, @floatFromInt(vertical.y0)) * self.scale),
+        .x_offset = @round(@as(f32, @floatFromInt(vertical.x0)) * self.scale),
+        .y_offset = @round(@as(f32, @floatFromInt(vertical.y0)) * self.scale),
+        .x_scale = @round(@as(f32, @floatFromInt(vertical.x1)) * self.scale),
+        .y_scale = @round(@as(f32, @floatFromInt(vertical.y1)) * self.scale),
         .texture = texture,
     };
 }

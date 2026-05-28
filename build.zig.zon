@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.22.8",
+    .version = "0.23.0",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
@@ -21,8 +21,8 @@
             .hash = "translator-0.1.8-cfHZxjhNAAAgL8zOVPESfQGNaAGYbz4X0m50as2_6aGs",
         },
         .TrueType = .{
-            .url = "git+https://codeberg.org/andrewrk/TrueType.git#2d7f80bf0d18c0e74fd5291aa0749718db3405d0",
-            .hash = "TrueType-0.0.0-Ne-mWPBxAQCuGsQqPVw_0AyZVJcgKCpZDmd-XHEwNOEP",
+            .url = "git+https://codeberg.org/loftafi/TrueType?ref=glyphclass-underflow#e46bd6a01e1be78ee280284733993a988eaef0d6",
+            .hash = "TrueType-0.0.0-Ne-mWOdyAQDy0_HzImRIFlqXnBWQ97MlU6S1dGJvH4nX",
         },
     },
     .paths = .{
