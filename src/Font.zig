@@ -106,24 +106,21 @@ pub fn create(
     pixel_height: u8,
     config: Config,
 ) (Allocator.Error || engine.Error)!*Font {
-    debug("loading font {s} size={d} height={d}", .{ name, raw_data.len, pixel_height });
-
-    const ttf = TrueType.load(raw_data) catch {
+    const ttf = TrueType.load(raw_data) catch |f| {
+        err("Failed loading font '{s}' size={d} height={d}. {t}", .{ name, raw_data.len, pixel_height, f });
         return engine.Error.FontInitFailed;
     };
 
-    // scale = pixel_height / ascent + descent
+    // scale = desired pixel_height / (ascent + descent)
     const scale = ttf.scaleForPixelHeight(pixel_height) * config.scale;
 
     const metrics = ttf.verticalMetrics();
-    debug("loaded font: {s} ascent={d}->{d}, descent={d}->{d}, line_gap={d}->{d}", .{
+    debug("Loaded font: '{s}' ascent={d}, descent={d}, line_gap={d}, scale={d}", .{
         name,
         metrics.ascent,
-        metrics.ascent * scale,
         metrics.descent,
-        metrics.descent * scale,
         metrics.line_gap,
-        metrics.line_gap * scale,
+        scale,
     });
 
     const font_info = try allocator.create(Font);
@@ -265,7 +262,7 @@ fn drawString(
     while (it.nextCodepoint()) |codepoint| {
         if (codepoint == '\r' or codepoint == '\n' or codepoint == '\t')
             continue;
-        //debug("lookup {u} in font {s}", .{ codepoint, self.name });
+
         const glyph = self.font.codepointGlyphIndex(codepoint);
         if (glyph == .notdef) {
             if (codepoint != ' ')
@@ -436,6 +433,7 @@ const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 
 const engine = @import("engine.zig");
+const err = engine.log.err;
 const warn = engine.log.warn;
 const debug = engine.log.debug;
 const trace = engine.log.trace;
