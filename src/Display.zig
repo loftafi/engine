@@ -2402,8 +2402,11 @@ pub fn handleEvent(
 }
 
 /// Set the user preferred screen scale.
-pub fn set_scale(display: *Self, scale: Scale) void {
-    display.user_scale = scale.float();
+pub fn setUserScale(display: *Self, scale: Scale) void {
+    if (scale == .unknown)
+        display.user_scale = 1
+    else
+        display.user_scale = scale.float();
     display.scale = display.pixel_scale * display.user_scale;
 }
 
