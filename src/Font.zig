@@ -2,22 +2,27 @@
 /// Typically this is the lifetime of the app.
 const Font = @This();
 
-/// Render the font characters with double the pixel density of the
-/// `text_height` to ensure screens with double or triple pixel
-/// density have clear font edges.
+/// Render the each font character bitmap with four times the pixel density
+/// of the default `text_height`. This ensures text is clear on retina double
+/// or triple pixel density screens screens. This enables rendering the bitmap
+/// as a larger heading.
 const character_pixel_density: f32 = 4.0;
 
+/// Pointer to the font resourcefile in the resource bundle pack.
 resource: *Resource,
 
-references: usize = 0,
-
-/// The name of the font as it appeared in the bundle file or resource directory.
+/// Name of the font as it appeared in the bundle file or resource directory.
 name: []const u8,
 
-/// On screen height raw pixel height.
+/// Font is freed when no more references point to the font.
+references: usize = 0,
+
+/// Default pixel height to render a character on the screen when `normal`
+/// text size is chosen.
 pixel_height: u8,
 
-/// Multiplication factor to convert font character height to actual pixel height.
+/// Convert the internal TrueType character size, to the `pixel_height` using
+/// this scale factor.
 scale: f32,
 
 // Raw font data parsed from a TTF file.
@@ -26,17 +31,33 @@ font: TrueType,
 /// A pointer to the raw font data. This must be kept in memory.
 font_buffer: []const u8,
 
-/// A cache of the bitmap for each drawn character.
+/// The first time a character is needed, it is converted to a bitmap.
 cache: std.AutoHashMap(TrueType.GlyphIndex, GlyphBitmap),
 
+/// Temporary working buffer to hold bitmap bytes when an individual character
+/// is generated.
 glyph_buffer: ArrayListUnmanaged(u8),
+
+/// Temporary working buffer used to convert the greyscale character bitmap
+/// bytes into an RGBA image for SDL.
 image_buffer: ArrayListUnmanaged(u8),
 
+/// A character bitmap only contains enough width and hight to store the character.
+/// Ascent describes how far up from the base "line" the bitmap should be drawn.
 ascent: f32,
+
+/// Describes how many pixels below the base "line" a character might fall.
 descent: f32,
+
+/// The TTF file may request `line_gap` number of extra pixels in-between
+/// each text line.
 line_gap: f32,
+
+/// The width of the `space` character, because the `TrueType` module doesnt
+/// allow fetching the metrics of a space character.
 space_width: f32,
 
+/// Apply a global adjustment to the size and baseline of an entire font file.
 config: Config = .{},
 
 pub const Config = struct {
@@ -51,25 +72,31 @@ pub const GlyphBitmap = struct {
     /// Unicode character
     codepoint: u21,
 
-    // Width in pixels of the character in the `data` field.
+    /// Width in pixels of the character in the `data` field.
     width: f32,
-    // Height in pixels of the character in the `data` field.
+    /// Height in pixels of the character in the `data` field.
     height: f32,
-    // How much space appears before the character.
-    left_side_bearing: f32,
-    // How many pixels to move across to draw the next character.
+    /// The width (in pixels) that this character needs. The character may
+    /// overflow to the left or right of this width.
     advance: f32,
-    // Move a charaacter down slightly if it doesnt start at top.
+    /// If a character wants to overflow outside of its bounding box, the
+    /// bitmap may be drawn slightly to the left or right of its bounding box.
+    left_side_bearing: f32,
+    /// Unused. Move a charaacter down slightly if it doesnt start at top.
     y_offset: f32,
-    // Move a charaacter across slightly if it doesnt start at top.
+    /// Unused. Move a charaacter across slightly if it doesnt start at top.
     x_offset: f32,
 
+    /// Unused. May be removed.
     x_scale: f32,
+    // Unused. May be removed.
     y_scale: f32,
 
     texture: *sdl.SDL_Texture,
 };
 
+/// Load font data into memory and read the basic font metrics. Use `clone()`
+/// to retain this Font in memory, and `release()` when no longer needed.
 pub fn create(
     allocator: Allocator,
     name: []const u8,
@@ -119,11 +146,13 @@ pub fn create(
     return font_info;
 }
 
+/// Hold a pointer/reference to this `Font` so that it is not deallocated.
 pub fn clone(self: *Font) *Font {
     self.references += 1;
     return self;
 }
 
+/// Release a pointer/reference to this `Font` so that it may be deallocated.
 pub fn release(self: *Font, allocator: Allocator) bool {
     if (self.references <= 1) {
         self.cleanup(allocator);
@@ -133,6 +162,9 @@ pub fn release(self: *Font, allocator: Allocator) bool {
     return false;
 }
 
+/// Use `clone()` or `release()` to hold or release a handle/reference to this
+/// font. Cleanup is automatically called when no more references to this `Font`
+/// exist.
 pub fn cleanup(self: *Font, allocator: Allocator) void {
     trace("unloaded font: {s}", .{self.name});
     allocator.free(self.font_buffer);
@@ -149,8 +181,11 @@ pub fn cleanup(self: *Font, allocator: Allocator) void {
     allocator.destroy(self);
 }
 
-/// Measure the width of a text string in pixels at normal text size.
-/// Measurement must still bem ultiplied by display scale and text size.
+/// Measure the width of a text string in pixels at `TextSize.normal`.
+/// This is the base pixel hight not including display scale or adjustemnt
+/// to a different `TextSize`.
+///
+/// Measurement must still be multiplied by display scale and text size.
 /// Always call `measureText` before `drawText`.
 pub fn measureText(
     self: *Font,
@@ -170,7 +205,8 @@ pub fn measureText(
 }
 
 /// Draw a text string at the requested size, colour, and position.
-/// `measureText` must be called before drawText.
+/// `measureText` must be called before `drawText` to ensure any
+/// needed character bitmaps may be generated.
 pub fn drawText(
     self: *Font,
     display: *engine.Display,
@@ -191,7 +227,8 @@ pub fn drawText(
     );
 }
 
-/// Send a text string to the renderer.
+/// Measure or send a text string to the renderer. `string` must be _valid_
+/// UTF8 text.
 fn drawString(
     self: *Font,
     allocator: Allocator,
@@ -219,10 +256,9 @@ fn drawString(
         void;
     defer if (builtin.mode == .Debug) dbg.deinit();
 
-    //debug("{t} '{s}' ", .{ mode, string });
-
     var previous_glyph: ?TrueType.GlyphIndex = null;
-    // Invalid UTF8 should not be possible at this point.
+    // Invalid UTF8 should not be possible at this point because
+    // all text should be ingested through `Entity.setText()`
     const view = std.unicode.Utf8View.initUnchecked(string);
     var it = view.iterator();
     while (it.nextCodepoint()) |codepoint| {
