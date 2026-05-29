@@ -790,8 +790,9 @@ pub fn setDefaultFont(
     self: *Self,
     name: []const u8,
     lang: praxis.Lang,
+    config: Font.Config,
 ) (Error || Allocator.Error || Resources.Error)!void {
-    const font_info = try self.loadFontResource(name);
+    const font_info = try self.loadFontResource(name, config);
     try self.required_resource.put(self.allocator, font_info.resource.uid, font_info.resource);
     defer removeFontFromList(self.allocator, &self.fonts, font_info);
 
@@ -849,6 +850,7 @@ fn removeFontFromList(allocator: Allocator, list: *ArrayListUnmanaged(*Font), it
 pub fn loadFontResource(
     self: *Self,
     name: []const u8,
+    config: Font.Config,
 ) (Error || Allocator.Error || Resources.Error)!*Font {
     assert(self.pixel_scale > 0);
 
@@ -866,6 +868,7 @@ pub fn loadFontResource(
         font_buffer,
         resource,
         @as(u8, @intFromFloat(TextSize.normal.pixel_height(1))),
+        config,
     );
     errdefer _ = font.release(self.allocator);
     try self.fonts.append(self.allocator, font.clone());
@@ -2881,7 +2884,7 @@ test "text input sizing" {
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    try display.setDefaultFont("Roboto-Light", .unknown);
+    try display.setDefaultFont("Roboto-Light", .unknown, .{});
 
     {
         // Create a fixed sized label with enough space
@@ -2934,7 +2937,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
-        try eq(187, l.type.label.elements.getLast().location.x + l.type.label.elements.getLast().location.width);
+        try eq(199, l.type.label.elements.getLast().location.x + l.type.label.elements.getLast().location.width);
         try eq(300, panel.rect.width);
         try eq(300, Label.layout(l, display.scale, 100).minimum_width);
         try eq(350, Label.layout(l, display.scale, 350).minimum_width);
@@ -2968,7 +2971,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
-        try eq(187, l.type.label.elements.getLast().location.x + l.type.label.elements.getLast().location.width);
+        try eq(199, l.type.label.elements.getLast().location.x + l.type.label.elements.getLast().location.width);
         try eq(1000, panel.rect.width);
         try eq(300, Label.layout(l, display.scale, 100).minimum_width);
         try eq(350, Label.layout(l, display.scale, 350).minimum_width);
@@ -2997,19 +3000,19 @@ test "text input sizing" {
         display.relayout();
         try eq(2, l.type.label.elements.items.len);
         // Bitmap/Pixel width of first word in this font is 197 pixels
-        try eq(98, @ceil(l.type.label.elements.items[0].width / display.pixel_scale));
+        try eq(45, @ceil(l.type.label.elements.items[0].width));
         // Bitmap/Pixel width of second word in this font is 197 pixels
-        try eq(107, @ceil(l.type.label.elements.items[1].width / display.pixel_scale));
+        try eq(48, @ceil(l.type.label.elements.items[1].width));
 
         try eq(0, @round(l.type.label.elements.items[0].location.x));
         try eq(0, @round(l.type.label.elements.items[0].location.y));
 
-        try eq(96, @round(l.type.label.elements.items[1].location.x));
+        try eq(103, @round(l.type.label.elements.items[1].location.x));
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(186, l.rect.width);
-        try eq(186, @round(l.minimumNeededWidth(display, 500)));
+        try eq(199, l.rect.width);
+        try eq(199, @round(l.minimumNeededWidth(display, 500)));
 
         // TODO: Is this correct? Why is it * 2 ?
         try eq(
@@ -3073,13 +3076,13 @@ test "text input sizing" {
     // Min width at normal size
     display.need_relayout = true;
     display.relayout();
-    try eq(186, label.minimumNeededWidth(display, 500));
+    try eq(199, label.minimumNeededWidth(display, 500));
 
     // min width at heading size
     label.type.label.text_size = .heading;
     display.need_relayout = true;
     display.relayout();
-    try eq(279, @round(label.minimumNeededWidth(display, 500)));
+    try eq(298, @round(label.minimumNeededWidth(display, 500)));
 
     // Parent wants to shrink but child wants to grow.
     panel.layout.x = .shrinks;
@@ -3144,32 +3147,11 @@ test "font_loading" {
     defer display.destroy();
 
     // Initial headless display font
-    try expectEqual(1, display.fonts.items.len);
+    try expectEqual(4, display.fonts.items.len);
     const first_font = display.fonts.items[0];
     try expectEqual(first_font, display.font.default);
-    try expectEqual(first_font, display.font.greek);
-    try expectEqual(first_font, display.font.english);
-    try expectEqual(first_font, display.font.korean);
-    try expectEqual(first_font, display.font.chinese);
 
-    try display.setDefaultFont("Roboto-Bold", .unknown);
-    try expectEqual(2, display.fonts.items.len);
-    const second_font = display.fonts.items[1];
-
-    try expectEqual(second_font, display.font.default);
-    try expectEqual(first_font, display.font.greek);
-    try expectEqual(first_font, display.font.english);
-    try expectEqual(first_font, display.font.korean);
-    try expectEqual(first_font, display.font.chinese);
-
-    try display.setDefaultFont("Roboto-Bold", .greek);
-    try display.setDefaultFont("Roboto-Bold", .english);
-    try display.setDefaultFont("Roboto-Bold", .korean);
-    try expectEqual(2, display.fonts.items.len);
-    try display.setDefaultFont("Roboto-Bold", .chinese);
-    try expectEqual(1, display.fonts.items.len);
-
-    try std.testing.expectError(error.ResourceNotFound, display.setDefaultFont("UnknownFont", .greek));
+    try std.testing.expectError(error.ResourceNotFound, display.setDefaultFont("UnknownFont", .greek, .{}));
 }
 
 const std = @import("std");

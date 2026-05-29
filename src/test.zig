@@ -28,7 +28,12 @@ pub fn headless_display(
     display.user_scale = 1;
     display.scale = display.pixel_scale * display.user_scale;
 
-    try display.setDefaultFont("Roboto-Light", .unknown);
+    try display.setDefaultFont("Roboto-Light", .unknown, .{});
+    try display.setDefaultFont("Roboto-Black", .greek, .{});
+    try display.setDefaultFont("Roboto-Black", .english, .{});
+    try display.setDefaultFont("Roboto-Bold", .chinese, .{});
+    try display.setDefaultFont("Roboto-Thin", .korean, .{});
+
     display.root.rect.width = width;
     display.root.rect.height = height;
     display.root.maximum.width = width;

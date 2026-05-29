@@ -311,8 +311,8 @@ test "label_panel_placement" {
     //var display = try Display.create(allocator, io, test_config);
     //defer display.destroy();
 
-    try display.setDefaultFont("Roboto-Light", .unknown);
-    try eq(1, display.fonts.items.len);
+    try display.setDefaultFont("Roboto-Light", .unknown, .{});
+    try eq(4, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
     display.root.minimum.width = 300;
@@ -340,7 +340,7 @@ test "label_panel_placement" {
     panel.type.panel.direction = .top_to_bottom;
     display.need_relayout = true;
     display.relayout();
-    try eq(112, child.rect.width);
+    try eq(120, child.rect.width);
     try eq(44, child.rect.height);
     try eq(0, child.rect.x);
     try eq(0, child.rect.y);
@@ -348,7 +348,7 @@ test "label_panel_placement" {
     panel.type.panel.direction = .top_left;
     display.need_relayout = true;
     display.relayout();
-    try eq(112, child.rect.width);
+    try eq(120, child.rect.width);
     try eq(44, child.rect.height);
     try eq(0, child.rect.x);
     try eq(0, child.rect.y);
@@ -356,7 +356,7 @@ test "label_panel_placement" {
     panel.type.panel.direction = .top_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(112, child.rect.width);
+    try eq(120, child.rect.width);
     try eq(44, child.rect.height);
     try eq(panel.rect.width - child.rect.width, child.rect.x);
     try eq(0, child.rect.y);
@@ -364,7 +364,7 @@ test "label_panel_placement" {
     panel.type.panel.direction = .centre;
     display.need_relayout = true;
     display.relayout();
-    try eq(112, child.rect.width);
+    try eq(120, child.rect.width);
     try eq(44, child.rect.height);
     try eq(@round(panel.rect.width / 2 - child.rect.width / 2), child.rect.x);
     try eq(@round(panel.rect.height / 2 - child.rect.height / 2), child.rect.y);
@@ -413,7 +413,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(112, element.location.width);
+        try eq(120, element.location.width);
         try eq(44, element.location.height);
         try eq(0, element.location.x);
         try eq(0, element.location.y);
@@ -424,7 +424,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(112, element.location.width);
+        try eq(120, element.location.width);
         try eq(44, element.location.height);
         try eq(panel.rect.width - element.location.width, element.location.x);
         try eq(0, element.location.y);
@@ -435,7 +435,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(112, element.location.width);
+        try eq(120, element.location.width);
         try eq(44, element.location.height);
         try eq(@round(panel.rect.width / 2 - element.location.width / 2), element.location.x);
         try eq(0, element.location.y);
@@ -449,7 +449,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(112, element.location.width);
+        try eq(120, element.location.width);
         try eq(44, element.location.height);
         try eq(0, element.location.x);
         try eq(0, element.location.y);
@@ -464,7 +464,7 @@ test "label_single_word_alignment" {
         try eq(panel.rect.width - child.pad.left - child.pad.right, child.inner_width());
         try eq(300 - 8 - 4, child.inner_width());
         const element = child.type.label.elements.items[0];
-        try eq(112, element.location.width);
+        try eq(120, element.location.width);
         try eq(44, element.location.height);
         // `element.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
@@ -478,7 +478,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(112, element.location.width);
+        try eq(120, element.location.width);
         try eq(44, element.location.height);
         // `entity.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
@@ -535,18 +535,18 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(138, element1.location.width);
+        try eq(154, element1.location.width);
         try eq(44, element1.location.height);
         try eq(0, element1.location.x);
         try eq(0, element1.location.y);
 
-        try eq(112, element2.location.width);
+        try eq(120, element2.location.width);
         try eq(44, element2.location.height);
-        try eq(138 + text_size.word_spacing(display.scale), element2.location.x);
+        try eq(154 + text_size.word_spacing(display.scale), element2.location.x);
         try eq(0, element2.location.y);
 
         // Wrap to next line
-        try eq(221, element3.location.width);
+        try eq(234, element3.location.width);
         try eq(44, element3.location.height);
         try eq(0, element3.location.x);
         try eq(44, element3.location.y);
@@ -560,7 +560,7 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(138, element1.location.width);
+        try eq(154, element1.location.width);
         try eq(44, element1.location.height);
         try eq(panel.rect.width - element2.location.width, element2.location.x);
         try eq(0, element1.location.y);
@@ -575,7 +575,7 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(138, element1.location.width);
+        try eq(154, element1.location.width);
         try eq(44, element1.location.height);
         const space = text_size.word_spacing(display.scale);
         try eq(@round((panel.rect.width - element2.location.width - element1.location.width - space) / 2), element1.location.x);
@@ -614,7 +614,7 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(112, child.rect.width);
+    try eq(120, child.rect.width);
     try eq(44, child.rect.height);
     try eq(4, child.rect.x);
     try eq(2, child.rect.y);
@@ -623,7 +623,7 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(112, child.rect.width);
+    try eq(120, child.rect.width);
     try eq(44, child.rect.height);
     try eq(panel.rect.width - panel.pad.right - child.rect.width, child.rect.x);
     try eq(2, child.rect.y);
@@ -632,7 +632,7 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(112, child.rect.width);
+    try eq(120, child.rect.width);
     try eq(44, child.rect.height);
     // Check child is centred. Accommodate all padding.
     try eq(@round((panel.rect.width - panel.pad.left - panel.pad.right) / 2 - (child.rect.width / 2)) + panel.pad.left, child.rect.x);

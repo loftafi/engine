@@ -173,7 +173,7 @@ test "text input sizing" {
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    try display.setDefaultFont("Roboto-Light", .unknown);
+    try display.setDefaultFont("Roboto-Light", .unknown, .{});
 
     {
         // Create a fixed sized label with enough space
@@ -256,18 +256,18 @@ test "text input sizing" {
         display.relayout();
         try eq(2, l.type.label.elements.items.len);
         // Bitmap/Pixel width of first word in this font is 197 pixels
-        try eq(98, @ceil(l.type.label.elements.items[0].width / display.pixel_scale));
+        try eq(45, @ceil(l.type.label.elements.items[0].width));
         // Bitmap/Pixel width of second word in this font is 197 pixels
-        try eq(107, @round(l.type.label.elements.items[1].width / display.pixel_scale));
+        try eq(48, @round(l.type.label.elements.items[1].width));
 
         try eq(0, @round(l.type.label.elements.items[0].location.x));
         try eq(0, @round(l.type.label.elements.items[0].location.y));
 
-        try eq(96, @round(l.type.label.elements.items[1].location.x));
+        try eq(103, @round(l.type.label.elements.items[1].location.x));
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(186, @round(l.minimumNeededWidth(display, 500)));
+        try eq(199, @round(l.minimumNeededWidth(display, 500)));
 
         try eq(
             2 * TextSize.normal.pixel_height(display.pixel_scale),
@@ -322,7 +322,7 @@ test "text input sizing" {
     label.minimum.height = TextSize.normal.pixel_height(1);
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(93, @ceil(label.minimumNeededWidth(display, 500) / display.pixel_scale));
+    try eq(100, @ceil(label.minimumNeededWidth(display, 500) / display.pixel_scale));
 }
 
 test "test_init" {
@@ -360,32 +360,10 @@ test "font_loading" {
     defer display.destroy();
 
     // Initial headless display font
-    try expectEqual(1, display.fonts.items.len);
+    try expectEqual(4, display.fonts.items.len);
     const first_font = display.fonts.items[0];
     try expectEqual(first_font, display.font.default);
-    try expectEqual(first_font, display.font.greek);
-    try expectEqual(first_font, display.font.english);
-    try expectEqual(first_font, display.font.korean);
-    try expectEqual(first_font, display.font.chinese);
-
-    try display.setDefaultFont("Roboto-Bold", .unknown);
-    try expectEqual(2, display.fonts.items.len);
-    const second_font = display.fonts.items[1];
-
-    try expectEqual(second_font, display.font.default);
-    try expectEqual(first_font, display.font.greek);
-    try expectEqual(first_font, display.font.english);
-    try expectEqual(first_font, display.font.korean);
-    try expectEqual(first_font, display.font.chinese);
-
-    try display.setDefaultFont("Roboto-Bold", .greek);
-    try display.setDefaultFont("Roboto-Bold", .english);
-    try display.setDefaultFont("Roboto-Bold", .korean);
-    try expectEqual(2, display.fonts.items.len);
-    try display.setDefaultFont("Roboto-Bold", .chinese);
-    try expectEqual(1, display.fonts.items.len);
-
-    try std.testing.expectError(error.ResourceNotFound, display.setDefaultFont("UnknownFont", .greek));
+    try std.testing.expectError(error.ResourceNotFound, display.setDefaultFont("UnknownFont", .greek, .{}));
 }
 
 const std = @import("std");

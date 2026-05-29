@@ -781,8 +781,8 @@ test "root_panel_alignment" {
     var display = try headless_display(allocator, io, 1000, 1600, 2);
     defer display.destroy();
 
-    try display.setDefaultFont("Roboto-Light", .unknown);
-    try eq(1, display.fonts.items.len);
+    try display.setDefaultFont("Roboto-Light", .unknown, .{});
+    try eq(4, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
 
@@ -836,8 +836,8 @@ test "panel_padding" {
     var display = try headless_display(allocator, io, 1000, 1600, 2);
     defer display.destroy();
 
-    try display.setDefaultFont("Roboto-Light", .unknown);
-    try eq(1, display.fonts.items.len);
+    try display.setDefaultFont("Roboto-Light", .unknown, .{});
+    try eq(4, display.fonts.items.len);
     display.root.rect.width = 300;
     display.root.rect.height = 200;
     display.root.minimum.width = 300;
@@ -1014,7 +1014,7 @@ test "centre_text_bug" {
             const space = label.type.label.text_size.word_spacing(display.scale);
             const text_width = word1.location.width + space + word2.location.width + space + word3.location.width;
             // Text is centred, so it doesnt start at the start
-            try eq(37, word1.location.x);
+            try eq(31, word1.location.x);
             try eq(0, word1.location.y);
             // Text is left aligned, so does start at the start
             label.setAlign(display, .start, .start);

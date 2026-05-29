@@ -101,9 +101,15 @@ pub fn guess_language(word: []const u8, font: *Font.Language) *Font {
             x = .korean;
         } else if (is_chinese_letter(c)) {
             x = .chinese;
-        } else if (c == ' ' or c == '\n' or c == '\t' or c == '"' or c == '\'') {
+        } else if (c == ' ' or c == '\n' or c == '\t' or c == '"' or c == '\'' or c == '“' or c == '”' or c == '‘' or c == '’') {
             continue;
         } else if (is_greek_punctuation(c)) {
+            continue;
+        } else if (is_chinese_punctuation(c)) {
+            if (lang == .unknown or lang == .chinese)
+                lang = .chinese
+            else
+                return font.default;
             continue;
         } else if (is_english_punctuation(c)) {
             if (lang == .greek) return font.default;
@@ -138,6 +144,10 @@ pub inline fn is_greek_punctuation(c: u21) bool {
     return (c == '.' or c == ';' or c == ',' or c == '"' or c == '!' or c == '·' or c == '«' or c == '»');
 }
 
+pub inline fn is_chinese_punctuation(c: u21) bool {
+    return (c == '【' or c == '】' or c == '「' or c == '」' or c == '。' or c == '！' or c == '、' or c == '，' or c == '（' or c == '）');
+}
+
 pub inline fn is_english_letter(c: u21) bool {
     return (c >= 'A' and c <= 'Z') or (c >= 'a' and c <= 'z') or (c >= '0' and c <= '9');
 }
@@ -165,18 +175,40 @@ pub inline fn is_chinese_letter(c: u21) bool {
         (c >= '\u{2e80}' and c <= '\u{2fdf}');
 }
 
+test "detect_chinese" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 1024, 720, 2);
+    defer display.destroy();
+
+    try expect(display.font.chinese != display.font.english);
+    try expect(display.font.chinese != display.font.default);
+
+    var data = Chunker.init("中文");
+    var item = data.next(&display.font);
+    try expectEqualStrings("中文", item.?.text);
+    try expectEqual(display.font.chinese, item.?.font);
+    item = data.next(&display.font);
+    try expectEqual(null, item);
+
+    data = Chunker.init("中文（繁體）");
+    try expectEqualStrings("中文（繁體）", data.next(&display.font).?.text);
+    try expectEqual(null, data.next(&display.font));
+}
+
 test "read_chunks" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
     var display = try Display.create(allocator, io, test_config);
     defer display.destroy();
-    try display.setDefaultFont("Roboto-Light", .unknown);
+    try display.setDefaultFont("Roboto-Light", .unknown, .{});
     try expectEqual(1, display.fonts.items.len);
-    try display.setDefaultFont("Roboto-Black", .greek);
-    try display.setDefaultFont("Roboto-Black", .english);
-    try display.setDefaultFont("Roboto-Bold", .chinese);
-    try display.setDefaultFont("Roboto-Thin", .korean);
+    try display.setDefaultFont("Roboto-Black", .greek, .{});
+    try display.setDefaultFont("Roboto-Black", .english, .{});
+    try display.setDefaultFont("Roboto-Bold", .chinese, .{});
+    try display.setDefaultFont("Roboto-Thin", .korean, .{});
     try expectEqual(4, display.fonts.items.len);
 
     var data = Chunker.init("the fish");
@@ -261,12 +293,12 @@ test "guess_fail" {
 
     var display = try Display.create(allocator, io, test_config);
     defer display.destroy();
-    try display.setDefaultFont("Roboto-Black", .unknown);
+    try display.setDefaultFont("Roboto-Black", .unknown, .{});
     try expectEqual(1, display.fonts.items.len);
-    try display.setDefaultFont("Roboto-Bold", .chinese);
-    try display.setDefaultFont("Roboto-Bold", .greek);
-    try display.setDefaultFont("Roboto-Bold", .english);
-    try display.setDefaultFont("Roboto-Thin", .korean);
+    try display.setDefaultFont("Roboto-Bold", .chinese, .{});
+    try display.setDefaultFont("Roboto-Bold", .greek, .{});
+    try display.setDefaultFont("Roboto-Bold", .english, .{});
+    try display.setDefaultFont("Roboto-Thin", .korean, .{});
     try expectEqual(3, display.fonts.items.len);
 
     //var display = try headless_display(allocator, io, 1024, 720, 2);
@@ -305,6 +337,7 @@ const Lang = praxis.Lang;
 
 const TextElement = @import("Entity.zig").TextElement;
 const test_config = @import("test.zig").test_config;
+const headless_display = @import("test.zig").headless_display;
 
 const engine = @import("engine.zig");
 const Display = engine.Display;

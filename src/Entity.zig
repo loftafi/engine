@@ -799,6 +799,7 @@ pub inline fn setText(
             ti.text.clearRetainingCapacity();
             ti.runes.clearRetainingCapacity();
             if (new_text.len > 0) {
+                ti.font = Chunker.guess_language(new_text, &display.font);
                 try ti.text.appendSlice(display.allocator, new_text);
                 self.text_data_to_runes(display.allocator);
                 ti.cursor_character = ti.runes.items.len;
@@ -859,12 +860,12 @@ pub inline fn setText(
             button.text = new_text;
             button.translated = new_translated;
             if (new_translated.len > 0) {
-                var font = if (button.font_name != null)
+                button.font = if (button.font_name != null)
                     button.font
                 else
                     Chunker.guess_language(self.type.button.translated, &display.font);
 
-                button.translated_text_width = try font.measureText(
+                button.translated_text_width = try button.font.measureText(
                     display,
                     button.translated,
                 );

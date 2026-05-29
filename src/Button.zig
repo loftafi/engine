@@ -294,14 +294,14 @@ test "normal_use" {
 
     // Add test font so we can test label layout
     try std.testing.expect(display.resources.by_uid.count() > 0);
-    try display.setDefaultFont("Roboto-Light", .unknown);
+    try display.setDefaultFont("Roboto-Light", .unknown, .{});
 
     try button.setText(display, "Hello");
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(83, @ceil(button.rect.width));
+    try expectEqual(90, @ceil(button.rect.width));
     // Does the width grow more than 10 (minimum) because of the button size.
-    try expectEqual(88, @round(panel.rect.width));
+    try expectEqual(95, @round(panel.rect.width));
     // Minimum height was not_quite_one_line, expect it grew to font height.
     try expectEqual(TextSize.normal.pixel_height(1) * display.pixel_scale, button.rect.height);
     try expectEqual(TextSize.normal.pixel_height(2) + 4 + 5, panel.rect.height);

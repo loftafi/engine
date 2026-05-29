@@ -37,6 +37,16 @@ descent: f32,
 line_gap: f32,
 space_width: f32,
 
+config: Config = .{},
+
+pub const Config = struct {
+    /// Use to make minor adjustments to the size of characters in this font.
+    scale: f32 = 1,
+    /// Use to make minor pixel sized adjustments to the baseline of
+    /// characters in this font.
+    baseline: i8 = 0,
+};
+
 pub const GlyphBitmap = struct {
     /// Unicode character
     codepoint: u21,
@@ -66,6 +76,7 @@ pub fn create(
     raw_data: []const u8,
     resource: *Resource,
     pixel_height: u8,
+    config: Config,
 ) (Allocator.Error || engine.Error)!*Font {
     debug("loading font {s} size={d} height={d}", .{ name, raw_data.len, pixel_height });
 
@@ -74,7 +85,7 @@ pub fn create(
     };
 
     // scale = pixel_height / ascent + descent
-    const scale = ttf.scaleForPixelHeight(pixel_height);
+    const scale = ttf.scaleForPixelHeight(pixel_height) * config.scale;
 
     const metrics = ttf.verticalMetrics();
     debug("loaded font: {s} ascent={d}->{d}, descent={d}->{d}, line_gap={d}->{d}", .{
@@ -99,10 +110,11 @@ pub fn create(
         .cache = .init(allocator),
         .image_buffer = .empty,
         .glyph_buffer = .empty,
-        .ascent = @round(metrics.ascent * scale),
+        .ascent = @round(metrics.ascent * scale) + config.baseline,
         .descent = @round(metrics.descent * scale),
         .line_gap = metrics.line_gap * scale,
         .space_width = metrics.ascent * scale * 0.5,
+        .config = config,
     };
     return font_info;
 }
@@ -127,8 +139,10 @@ pub fn cleanup(self: *Font, allocator: Allocator) void {
     allocator.free(self.name);
     var vi = self.cache.valueIterator();
     while (vi.next()) |value| {
-        sdl.SDL_DestroyTexture(value.texture);
+        if (value.width > 0 or value.height > 0)
+            sdl.SDL_DestroyTexture(value.texture);
     }
+    self.cache.deinit();
     self.glyph_buffer.deinit(allocator);
     self.image_buffer.deinit(allocator);
     self.* = undefined;

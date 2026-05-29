@@ -28,7 +28,7 @@ pub fn readEntityType(token: *Token) Error!Entity {
 pub fn readAttributes(token: *Token, entity: *Entity) Error!void {
     token.* = try token.next();
     while (true) {
-        err("reading attribute {t}", .{token.tag});
+        //err("reading attribute {t}", .{token.tag});
         try switch (token.tag) {
             .panel, .sprite, .rectangle, .text_input, .label, .checkbox, .expander, .progress_bar => return,
             .name => readNameAttribute(token, entity),
@@ -94,7 +94,7 @@ pub fn readAttributes(token: *Token, entity: *Entity) Error!void {
 
 pub fn readNameAttribute(token: *Token, entity: *Entity) Error!void {
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .string => {
             entity.name = token.data[token.loc.start + 1 .. token.loc.end - 1];
@@ -108,7 +108,7 @@ pub fn readNameAttribute(token: *Token, entity: *Entity) Error!void {
 pub fn readPlaceholderTextAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .text_input) return error.UnexpectedToken;
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .string => {
             entity.type.text_input.placeholder_text = token.data[token.loc.start + 1 .. token.loc.end - 1];
@@ -122,7 +122,7 @@ pub fn readPlaceholderTextAttribute(token: *Token, entity: *Entity) Error!void {
 pub fn readOnTextureAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .checkbox) return error.UnexpectedToken;
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .string => {
             entity.type.checkbox.on = token.data[token.loc.start + 1 .. token.loc.end - 1];
@@ -136,7 +136,7 @@ pub fn readOnTextureAttribute(token: *Token, entity: *Entity) Error!void {
 pub fn readOffTextureAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .checkbox) return error.UnexpectedToken;
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .string => {
             entity.type.checkbox.off = token.data[token.loc.start + 1 .. token.loc.end - 1];
@@ -154,7 +154,7 @@ pub fn readLineHeightAttribute(token: *Token, entity: *Entity) Error!void {
         else => return error.UnexpectedToken,
     };
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .number => {
             line_height.* = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
@@ -168,7 +168,7 @@ pub fn readLineHeightAttribute(token: *Token, entity: *Entity) Error!void {
 pub fn readWeightAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .expander) return error.UnexpectedToken;
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .number => {
             entity.type.expander.weight = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
@@ -182,7 +182,7 @@ pub fn readWeightAttribute(token: *Token, entity: *Entity) Error!void {
 pub fn readProgressAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .progress_bar) return error.UnexpectedToken;
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .number => {
             entity.type.progress_bar.progress = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
@@ -196,7 +196,7 @@ pub fn readProgressAttribute(token: *Token, entity: *Entity) Error!void {
 pub fn readMaxLengthAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .text_input) return error.UnexpectedToken;
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .number => {
             const f = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
@@ -212,7 +212,7 @@ pub fn readMaxLengthAttribute(token: *Token, entity: *Entity) Error!void {
 
 pub fn readStyleAttribute(token: *Token, style: *engine.Theme.Style) Error!void {
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     if (token.tag == .equals)
         token.* = try token.next();
     switch (token.tag) {
@@ -231,9 +231,9 @@ pub fn readStyleAttribute(token: *Token, style: *engine.Theme.Style) Error!void 
 }
 
 pub fn readStringAttribute(token: *Token, string: *?[]const u8) Error!void {
-    err("token={t} {s}", .{ token.tag, token.slice() });
+    //err("token={t} {s}", .{ token.tag, token.slice() });
     token.* = try token.next();
-    err("token={t} {s}", .{ token.tag, token.slice() });
+    //err("token={t} {s}", .{ token.tag, token.slice() });
     switch (token.tag) {
         .string => {
             string.* = token.data[token.loc.start + 1 .. token.loc.end - 1];
@@ -245,9 +245,9 @@ pub fn readStringAttribute(token: *Token, string: *?[]const u8) Error!void {
 }
 
 pub fn readFloatValue(token: *Token) Error!f32 {
-    err("token={t} {s}", .{ token.tag, token.slice() });
+    //err("token={t} {s}", .{ token.tag, token.slice() });
     token.* = try token.next();
-    err("token={t} {s}", .{ token.tag, token.slice() });
+    //err("token={t} {s}", .{ token.tag, token.slice() });
     if (token.tag == .equals)
         token.* = try token.next();
     switch (token.tag) {
