@@ -82,6 +82,7 @@ pub const GlyphBitmap = struct {
     /// If a character wants to overflow outside of its bounding box, the
     /// bitmap may be drawn slightly to the left or right of its bounding box.
     left_side_bearing: f32,
+
     /// Unused. Move a charaacter down slightly if it doesnt start at top.
     y_offset: f32,
     /// Unused. Move a charaacter across slightly if it doesnt start at top.
@@ -299,20 +300,18 @@ fn drawString(
             };
             trace("added glyph '{u}' in font {s} ({t})", .{ codepoint, self.name, mode });
         }
+
         const glyph_info = entry.value_ptr;
-
-        //const line_height = size.pixel_height(display.scale);
-        dest.height = glyph_info.height * scale_factor;
-        dest.width = glyph_info.width * scale_factor;
-        dest.y = pos.y + (self.ascent * scale_factor) - dest.height - (glyph_info.y_offset * scale_factor);
-
         const kern = if (previous_glyph) |previous|
             self.font.glyphKernAdvance(previous, glyph) * self.scale
         else
             0;
-        dest.x += (kern * scale_factor);
-        const left_side_bearing = glyph_info.left_side_bearing * scale_factor;
-        dest.x += left_side_bearing;
+
+        dest.x += kern * scale_factor;
+        dest.x += glyph_info.left_side_bearing * scale_factor;
+        dest.y = pos.y + ((self.ascent - glyph_info.height - glyph_info.y_offset) * scale_factor);
+        dest.height = glyph_info.height * scale_factor;
+        dest.width = glyph_info.width * scale_factor;
 
         if (mode == .draw) {
             if (glyph_info.height > 0 and glyph_info.width > 0) {
@@ -335,8 +334,8 @@ fn drawString(
                 glyph_info.advance,
             }) catch {};
         }
-        dest.x -= left_side_bearing;
-        dest.x += (glyph_info.advance * scale_factor);
+        dest.x -= glyph_info.left_side_bearing * scale_factor;
+        dest.x += glyph_info.advance * scale_factor;
 
         previous_glyph = glyph;
     }
