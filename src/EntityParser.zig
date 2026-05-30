@@ -7,21 +7,26 @@
 ///        \\horizontal style tinted
 ///        \\on_resized "recalculate_speed"
 ///    )
+///
+/// Developer note: A three parameter option that declares the type
+/// explicitly might be better. Undecided at this point.
+///
+///    pub fn readEntity(
+///       comptime HandlerType: type, handler: *HandleType, data: []const u8
+///    ) Error!?Entity {
 pub fn readEntity(
     data: []const u8,
-    comptime handler_type: anytype,
-    handler: *handler_type,
+    handler_type: anytype,
 ) Error!?Entity {
-    const so = @typeInfo(handler_type);
+    const po = @TypeOf(handler_type);
+    const pi = @typeInfo(po);
+    if (pi != .pointer) @compileError("callback parameter must be a pointer to a struct.");
+    const so = @typeInfo(pi.pointer.child);
     if (so != .@"struct") @compileError("callback parameter must be a pointer to a struct");
-    const callbacks = comptime callbackFunctionList(handler_type);
-    const state_callbacks = comptime callbackStateFunctionList(handler_type);
-    const update_callbacks = comptime callbackUpdateFunctionList(handler_type);
-    const bool_callbacks = comptime callbackBoolFunctionList(handler_type);
-
-    for (callbacks) |c| {
-        engine.log.info("callback {s}", .{c.name});
-    }
+    const callbacks = comptime callbackFunctionList(pi.pointer.child);
+    const state_callbacks = comptime callbackStateFunctionList(pi.pointer.child);
+    const update_callbacks = comptime callbackUpdateFunctionList(pi.pointer.child);
+    const bool_callbacks = comptime callbackBoolFunctionList(pi.pointer.child);
 
     var token: Token = try .init(data);
     errdefer {
@@ -33,7 +38,7 @@ pub fn readEntity(
     readAttributes(
         &token,
         &entity,
-        handler,
+        handler_type,
         callbacks,
         state_callbacks,
         update_callbacks,
@@ -910,7 +915,7 @@ test "panel" {
         \\maximum height=99 width=88
         \\horizontal
         \\style tinted
-    , TestHandler, &te) orelse unreachable;
+    , &te) orelse unreachable;
 
     try expectEqual(33, entity.minimum.width);
     try expectEqual(120, entity.minimum.height);
@@ -928,7 +933,7 @@ test "label" {
         \\label name "coffee" line_height 1.2
         \\minimum 33 44
         \\style emphasised text_size heading
-    , TestHandler, &te) orelse unreachable;
+    , &te) orelse unreachable;
     try expectEqual(33, entity.minimum.width);
     try expectEqual(44, entity.minimum.height);
     try expectEqual(1.2, entity.type.label.line_height);
@@ -946,7 +951,7 @@ test "checkbox" {
         \\line_height 1.2 on "on" off "off"
         \\checkbox_size 25 26
         \\on_change "on_click"
-    , TestHandler, &te) orelse unreachable;
+    , &te) orelse unreachable;
 
     try expectEqual(1.2, entity.type.checkbox.line_height);
     try expectEqual(12.34, entity.minimum.width);
@@ -976,7 +981,7 @@ test "text_input" {
         \\minimum 100 40
         \\style normal placeholder_text "Enter your food"
         \\max_length 123
-    , TestHandler, &te) orelse unreachable;
+    , &te) orelse unreachable;
     try expectEqual(100, entity.minimum.width);
     try expectEqual(40, entity.minimum.height);
     try expectEqualStrings("Enter your food", entity.type.text_input.placeholder_text.?);
@@ -988,7 +993,7 @@ test "expander" {
     var te: TestHandler = .{};
     const entity = try readEntity(
         \\expander name "expander 1" weight 0.4
-    , TestHandler, &te) orelse unreachable;
+    , &te) orelse unreachable;
     try expectEqual(0.4, entity.type.expander.weight);
     try expectEqualStrings("expander 1", entity.name);
 }
