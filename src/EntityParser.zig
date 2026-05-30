@@ -1,3 +1,12 @@
+/// Add or update the fields of an Entity by parsing the contents of a
+/// string describing the contents to apply to that entity.
+///
+///     var entity = try readEntity(MyStruct, &my_struct,
+///        \\panel name "coffee" image "cat"
+///        \\minimum width=33 height=120
+///        \\horizontal style tinted
+///        \\on_resized "recalculate_speed"
+///    )
 pub fn readEntity(data: []const u8, comptime handler_type: anytype, handler: *anyopaque) Error!?Entity {
     const so = @typeInfo(handler_type);
     if (so != .@"struct") @compileError("callback parameter must be a pointer to a struct");
