@@ -1,4 +1,15 @@
-pub fn readEntity(data: []const u8) Error!?Entity {
+pub fn readEntity(data: []const u8, comptime handler_type: anytype, handler: *anyopaque) Error!?Entity {
+    const so = @typeInfo(handler_type);
+    if (so != .@"struct") @compileError("callback parameter must be a pointer to a struct");
+    const callbacks = comptime callbackFunctionList(handler_type);
+    const state_callbacks = comptime callbackStateFunctionList(handler_type);
+    const update_callbacks = comptime callbackUpdateFunctionList(handler_type);
+    const bool_callbacks = comptime callbackBoolFunctionList(handler_type);
+
+    for (callbacks) |c| {
+        engine.log.info("callback {s}", .{c.name});
+    }
+
     var token: Token = try .init(data);
     errdefer {
         err("Unexpected token {t} at {d}.{d}", .{ token.tag, token.begins.line, token.begins.column });
@@ -6,8 +17,233 @@ pub fn readEntity(data: []const u8) Error!?Entity {
     if (token.tag == .eof) return null;
     var entity = readEntityType(&token) catch return error.UnexpectedToken;
     //entity.setup(display);
-    readAttributes(&token, &entity) catch return error.UnexpectedToken;
+    readAttributes(
+        &token,
+        &entity,
+        handler,
+        callbacks,
+        state_callbacks,
+        update_callbacks,
+        bool_callbacks,
+    ) catch return error.UnexpectedToken;
     return entity;
+}
+
+/// Describes a function exposed to a UI at runtime
+pub const CallbackOption = struct {
+    f: *const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event) error{OutOfMemory}!void,
+    name: []const u8,
+};
+
+/// Return the name and pointer to all functions matching the Callback
+/// function definition.
+pub fn callbackFunctionList(comptime t: type) []const CallbackOption {
+    var list: []const CallbackOption = &.{};
+    inline for (@typeInfo(t).@"struct".decls) |decl| {
+        const f = @field(t, decl.name);
+        const info = @typeInfo(@TypeOf(f));
+        if (info != .@"fn") continue;
+        if (info.@"fn".params.len != 4) continue;
+        if (info.@"fn".return_type == null) continue;
+        if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
+        if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
+        if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
+
+        if (info.@"fn".params[0].type == null) continue;
+        const t0 = @typeInfo(info.@"fn".params[0].type.?);
+        if (t0 != .pointer) continue;
+        const t0i = @typeInfo(t0.pointer.child);
+        if (t0i != .@"struct") continue;
+
+        if (info.@"fn".params[1].type == null) continue;
+        const t1 = @typeInfo(info.@"fn".params[1].type.?);
+        if (t1 != .pointer) continue;
+        const t1i = @typeInfo(t1.pointer.child);
+        if (t1i != .@"struct") continue;
+        if (t1.pointer.child != engine.Display) continue;
+
+        if (info.@"fn".params[2].type == null) continue;
+        const t2 = @typeInfo(info.@"fn".params[2].type.?);
+        if (t2 != .pointer) continue;
+        const t2i = @typeInfo(t2.pointer.child);
+        if (t2i != .@"struct") continue;
+        if (t2.pointer.child != engine.Entity) continue;
+
+        if (info.@"fn".params[3].type == null) continue;
+        const t3 = @typeInfo(info.@"fn".params[3].type.?);
+        if (t3 != .pointer) continue;
+        const t3i = @typeInfo(t3.pointer.child);
+        if (t3i != .@"struct") continue;
+        if (t3.pointer.child != engine.Event) continue;
+
+        list = list ++ .{CallbackOption{ .name = decl.name, .f = @ptrCast(&f) }};
+    }
+    return list;
+}
+
+fn findMatchingCallback(name: []const u8, options: []const CallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event) error{OutOfMemory}!void {
+    for (options) |option| {
+        if (std.ascii.eqlIgnoreCase(name, option.name))
+            return option.f;
+    }
+    return Error.UnexpectedToken;
+}
+
+/// Describes a function exposed to a UI at runtime
+pub const UpdateCallbackOption = struct {
+    f: *const fn (*anyopaque, *engine.Display, *Entity) void,
+    name: []const u8,
+};
+
+/// Return the name and pointer to all functions matching the Callback
+/// function definition.
+pub fn callbackUpdateFunctionList(comptime t: type) []const UpdateCallbackOption {
+    var list: []const UpdateCallbackOption = &.{};
+    inline for (@typeInfo(t).@"struct".decls) |decl| {
+        const f = @field(t, decl.name);
+        const info = @typeInfo(@TypeOf(f));
+        if (info != .@"fn") continue;
+        if (info.@"fn".params.len != 4) continue;
+        if (info.@"fn".return_type == null) continue;
+        if (@typeInfo(info.@"fn".return_type.?) != .void) continue;
+
+        if (info.@"fn".params[0].type == null) continue;
+        const t0 = @typeInfo(info.@"fn".params[0].type.?);
+        if (t0 != .pointer) continue;
+        const t0i = @typeInfo(t0.pointer.child);
+        if (t0i != .@"struct") continue;
+
+        if (info.@"fn".params[1].type == null) continue;
+        const t1 = @typeInfo(info.@"fn".params[1].type.?);
+        if (t1 != .pointer) continue;
+        const t1i = @typeInfo(t1.pointer.child);
+        if (t1i != .@"struct") continue;
+        if (t1.pointer.child != engine.Display) continue;
+
+        if (info.@"fn".params[2].type == null) continue;
+        const t2 = @typeInfo(info.@"fn".params[2].type.?);
+        if (t2 != .pointer) continue;
+        const t2i = @typeInfo(t2.pointer.child);
+        if (t2i != .@"struct") continue;
+        if (t2.pointer.child != engine.Entity) continue;
+
+        list = list ++ .{UpdateCallbackOption{ .name = decl.name, .f = @ptrCast(&f) }};
+    }
+    return list;
+}
+
+fn findMatchingUpdateCallback(name: []const u8, options: []const UpdateCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) void {
+    for (options) |option| {
+        if (std.ascii.eqlIgnoreCase(name, option.name))
+            return option.f;
+    }
+    return Error.UnexpectedToken;
+}
+
+/// Describes a function exposed to a UI at runtime
+pub const StateCallbackOption = struct {
+    f: *const fn (*anyopaque, *engine.Display, *Entity) error{OutOfMemory}!void,
+    name: []const u8,
+};
+
+/// Return the name and pointer to all functions matching the Callback
+/// function definition.
+pub fn callbackStateFunctionList(comptime t: type) []const StateCallbackOption {
+    var list: []const StateCallbackOption = &.{};
+    inline for (@typeInfo(t).@"struct".decls) |decl| {
+        const f = @field(t, decl.name);
+        const info = @typeInfo(@TypeOf(f));
+        if (info != .@"fn") continue;
+        if (info.@"fn".params.len != 4) continue;
+        if (info.@"fn".return_type == null) continue;
+        if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
+        if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
+        if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
+
+        if (info.@"fn".params[0].type == null) continue;
+        const t0 = @typeInfo(info.@"fn".params[0].type.?);
+        if (t0 != .pointer) continue;
+        const t0i = @typeInfo(t0.pointer.child);
+        if (t0i != .@"struct") continue;
+
+        if (info.@"fn".params[1].type == null) continue;
+        const t1 = @typeInfo(info.@"fn".params[1].type.?);
+        if (t1 != .pointer) continue;
+        const t1i = @typeInfo(t1.pointer.child);
+        if (t1i != .@"struct") continue;
+        if (t1.pointer.child != engine.Display) continue;
+
+        if (info.@"fn".params[2].type == null) continue;
+        const t2 = @typeInfo(info.@"fn".params[2].type.?);
+        if (t2 != .pointer) continue;
+        const t2i = @typeInfo(t2.pointer.child);
+        if (t2i != .@"struct") continue;
+        if (t2.pointer.child != engine.Entity) continue;
+
+        list = list ++ .{StateCallbackOption{ .name = decl.name, .f = @ptrCast(&f) }};
+    }
+    return list;
+}
+
+fn findMatchingStateCallback(name: []const u8, options: []const StateCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) error{OutOfMemory}!void {
+    for (options) |option| {
+        if (std.ascii.eqlIgnoreCase(name, option.name))
+            return option.f;
+    }
+    return Error.UnexpectedToken;
+}
+
+/// Describes a function exposed to a UI at runtime
+pub const BoolCallbackOption = struct {
+    f: *const fn (*anyopaque, *engine.Display, *Entity) bool,
+    name: []const u8,
+};
+
+/// Return the name and pointer to all functions matching the Callback
+/// function definition.
+pub fn callbackBoolFunctionList(comptime t: type) []const BoolCallbackOption {
+    var list: []const BoolCallbackOption = &.{};
+    inline for (@typeInfo(t).@"struct".decls) |decl| {
+        const f = @field(t, decl.name);
+        const info = @typeInfo(@TypeOf(f));
+        if (info != .@"fn") continue;
+        if (info.@"fn".params.len != 4) continue;
+        if (info.@"fn".return_type == null) continue;
+        if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
+        if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
+        if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
+
+        if (info.@"fn".params[0].type == null) continue;
+        const t0 = @typeInfo(info.@"fn".params[0].type.?);
+        if (t0 != .pointer) continue;
+        const t0i = @typeInfo(t0.pointer.child);
+        if (t0i != .@"struct") continue;
+
+        if (info.@"fn".params[1].type == null) continue;
+        const t1 = @typeInfo(info.@"fn".params[1].type.?);
+        if (t1 != .pointer) continue;
+        const t1i = @typeInfo(t1.pointer.child);
+        if (t1i != .@"struct") continue;
+        if (t1.pointer.child != engine.Display) continue;
+
+        if (info.@"fn".params[2].type == null) continue;
+        const t2 = @typeInfo(info.@"fn".params[2].type.?);
+        if (t2 != .pointer) continue;
+        const t2i = @typeInfo(t2.pointer.child);
+        if (t2i != .@"struct") continue;
+        if (t2.pointer.child != engine.Entity) continue;
+
+        list = list ++ .{BoolCallbackOption{ .name = decl.name, .f = @ptrCast(&f) }};
+    }
+    return list;
+}
+
+fn findMatchingBoolCallback(name: []const u8, options: []const BoolCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) bool {
+    for (options) |option| {
+        if (std.ascii.eqlIgnoreCase(name, option.name))
+            return option.f;
+    }
+    return Error.UnexpectedToken;
 }
 
 pub fn readEntityType(token: *Token) Error!Entity {
@@ -25,10 +261,18 @@ pub fn readEntityType(token: *Token) Error!Entity {
     };
 }
 
-pub fn readAttributes(token: *Token, entity: *Entity) Error!void {
+pub fn readAttributes(
+    token: *Token,
+    entity: *Entity,
+    handler: *anyopaque,
+    callbacks: []const CallbackOption,
+    state_callbacks: []const StateCallbackOption,
+    update_callbacks: []const UpdateCallbackOption,
+    bool_callbacks: []const BoolCallbackOption,
+) Error!void {
     token.* = try token.next();
     while (true) {
-        //err("reading attribute {t}", .{token.tag});
+        err("reading attribute {t}", .{token.tag});
         try switch (token.tag) {
             .panel, .sprite, .rectangle, .text_input, .label, .checkbox, .expander, .progress_bar => return,
             .name => readNameAttribute(token, entity),
@@ -52,11 +296,18 @@ pub fn readAttributes(token: *Token, entity: *Entity) Error!void {
             .colour => readClipAttribute(token, &entity.pad),
             .max_length => readMaxLengthAttribute(token, entity),
             .checked => readCheckedAttribute(token, entity),
-            .on => readOnTextureAttribute(token, entity),
-            .off => readOffTextureAttribute(token, entity),
+            .on => readOnAttribute(token, entity),
+            .off => readOffAttribute(token, entity),
             .checkbox_size => readCheckboxSizeAttribute(token, entity),
             .icon_size => readIconSizeAttribute(token, entity),
             .placeholder_text => readPlaceholderTextAttribute(token, entity),
+            .on_change => readOnChangeAttribute(token, entity, handler, callbacks),
+            .on_pressed => readOnPressedAttribute(token, entity, handler, callbacks),
+            .on_resized => readOnResizedAttribute(token, entity, handler, bool_callbacks),
+            .on_visibility => readOnVisibilityAttribute(token, entity, handler, state_callbacks),
+            .on_update => readOnUpdateAttribute(token, entity, handler, update_callbacks),
+            .on_submit => readOnSubmitAttribute(token, entity, handler, callbacks),
+            .on_ui_event => readOnUiEventAttribute(token, entity, handler, callbacks),
             .vertical => {
                 if (entity.type != .panel)
                     return error.UnexpectedToken;
@@ -119,7 +370,173 @@ pub fn readPlaceholderTextAttribute(token: *Token, entity: *Entity) Error!void {
     }
 }
 
-pub fn readOnTextureAttribute(token: *Token, entity: *Entity) Error!void {
+pub fn readOnResizedAttribute(
+    token: *Token,
+    entity: *Entity,
+    handler: *anyopaque,
+    callbacks: []const BoolCallbackOption,
+) Error!void {
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            entity.on_resized.func = try findMatchingBoolCallback(callback_name, callbacks);
+            entity.on_resized.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOnVisibilityAttribute(
+    token: *Token,
+    entity: *Entity,
+    handler: *anyopaque,
+    callbacks: []const StateCallbackOption,
+) Error!void {
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            entity.on_visibility.func = try findMatchingStateCallback(callback_name, callbacks);
+            entity.on_visibility.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOnUpdateAttribute(
+    token: *Token,
+    entity: *Entity,
+    handler: *anyopaque,
+    callbacks: []const UpdateCallbackOption,
+) Error!void {
+    const f: *engine.Entity.UpdateCallback = switch (entity.type) {
+        .sprite => &entity.type.sprite.update,
+        else => return Error.UnexpectedToken,
+    };
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            f.func = try findMatchingUpdateCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOnSubmitAttribute(
+    token: *Token,
+    entity: *Entity,
+    handler: *anyopaque,
+    callbacks: []const CallbackOption,
+) Error!void {
+    const f: *Entity.Callback = switch (entity.type) {
+        .text_input => &entity.type.text_input.on_submit,
+        else => return Error.UnexpectedToken,
+    };
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOnUiEventAttribute(
+    token: *Token,
+    entity: *Entity,
+    handler: *anyopaque,
+    callbacks: []const CallbackOption,
+) Error!void {
+    const f: *Entity.Callback = switch (entity.type) {
+        .button => &entity.type.button.on_ui_event,
+        .label => &entity.type.label.on_ui_event,
+        .panel => &entity.type.panel.on_ui_event,
+        .sprite => &entity.type.sprite.on_ui_event,
+        else => return Error.UnexpectedToken,
+    };
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOnChangeAttribute(
+    token: *Token,
+    entity: *Entity,
+    handler: *anyopaque,
+    callbacks: []const CallbackOption,
+) Error!void {
+    const f: *Entity.Callback = switch (entity.type) {
+        .checkbox => &entity.type.checkbox.on_change,
+        else => return Error.UnexpectedToken,
+    };
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOnPressedAttribute(
+    token: *Token,
+    entity: *Entity,
+    handler: *anyopaque,
+    callbacks: []const CallbackOption,
+) Error!void {
+    const f: *Entity.Callback = switch (entity.type) {
+        .button => &entity.type.button.on_pressed,
+        .label => &entity.type.label.on_pressed,
+        .panel => &entity.type.panel.on_pressed,
+        .sprite => &entity.type.sprite.on_pressed,
+        else => return Error.UnexpectedToken,
+    };
+    token.* = try token.next();
+    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readOnAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .checkbox) return error.UnexpectedToken;
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
@@ -133,7 +550,7 @@ pub fn readOnTextureAttribute(token: *Token, entity: *Entity) Error!void {
     }
 }
 
-pub fn readOffTextureAttribute(token: *Token, entity: *Entity) Error!void {
+pub fn readOffAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .checkbox) return error.UnexpectedToken;
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
@@ -428,14 +845,60 @@ pub const Error = error{
     UnexpectedToken,
 };
 
+const TestHandler = struct {
+    count: u8 = 0,
+
+    pub fn on_jump(_: *TestHandler, two: bool, three: bool, four: bool) void {
+        _ = two;
+        _ = three;
+        _ = four;
+        return;
+    }
+
+    pub fn on_run(_: *TestHandler, two: *engine.Display, three: *engine.Entity, four: *engine.Colour) void {
+        _ = two;
+        _ = three;
+        _ = four;
+        return;
+    }
+
+    pub fn on_click(self: *TestHandler, two: *engine.Display, three: *engine.Entity, four: *engine.Event) error{OutOfMemory}!void {
+        _ = two;
+        _ = three;
+        _ = four;
+        self.count += 1;
+        return;
+    }
+
+    pub fn on_move(_: *TestHandler, two: *engine.Display, three: *engine.Entity, four: *engine.Event) void {
+        _ = two;
+        _ = three;
+        _ = four;
+        return;
+    }
+
+    pub fn on_hide(_: *TestHandler, two: *engine.Display, three: *engine.Entity, four: *engine.Event) std.mem.Allocator.Error!void {
+        _ = two;
+        _ = three;
+        _ = four;
+        return;
+    }
+
+    pub fn save(_: *TestHandler, name: []const u8) void {
+        _ = name;
+    }
+};
+
 test "panel" {
+    var te: TestHandler = .{};
     const entity = try readEntity(
         \\panel name "coffee" image "cat"
         \\minimum width=33 height=120
         \\maximum height=99 width=88
         \\horizontal
         \\style tinted
-    ) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
+
     try expectEqual(33, entity.minimum.width);
     try expectEqual(120, entity.minimum.height);
     try expectEqual(88, entity.maximum.width);
@@ -447,11 +910,12 @@ test "panel" {
 }
 
 test "label" {
+    var te: TestHandler = .{};
     const entity = try readEntity(
         \\label name "coffee" line_height 1.2
         \\minimum 33 44
         \\style emphasised text_size heading
-    ) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
     try expectEqual(33, entity.minimum.width);
     try expectEqual(44, entity.minimum.height);
     try expectEqual(1.2, entity.type.label.line_height);
@@ -461,13 +925,16 @@ test "label" {
 }
 
 test "checkbox" {
-    const entity = try readEntity(
+    var te: TestHandler = .{};
+    var entity = try readEntity(
         \\checkbox name "coffee"
         \\minimum width=12.34 height=120
         \\style tinted text_size heading
         \\line_height 1.2 on "on" off "off"
         \\checkbox_size 25 26
-    ) orelse unreachable;
+        \\on_change "on_click"
+    , TestHandler, &te) orelse unreachable;
+
     try expectEqual(1.2, entity.type.checkbox.line_height);
     try expectEqual(12.34, entity.minimum.width);
     try expectEqual(120, entity.minimum.height);
@@ -478,15 +945,25 @@ test "checkbox" {
     try expectEqual(.tinted, entity.style);
     try expectEqual(25, entity.type.checkbox.checkbox_size.width);
     try expectEqual(26, entity.type.checkbox.checkbox_size.height);
+
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
+    try expectEqual(0, te.count);
+    try entity.type.checkbox.on_change.call(display, &entity, &.{});
+    try expectEqual(1, te.count);
 }
 
 test "text_input" {
+    var te: TestHandler = .{};
     const entity = try readEntity(
         \\text_input name "coffee"
         \\minimum 100 40
         \\style normal placeholder_text "Enter your food"
         \\max_length 123
-    ) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
     try expectEqual(100, entity.minimum.width);
     try expectEqual(40, entity.minimum.height);
     try expectEqualStrings("Enter your food", entity.type.text_input.placeholder_text.?);
@@ -495,9 +972,10 @@ test "text_input" {
 }
 
 test "expander" {
+    var te: TestHandler = .{};
     const entity = try readEntity(
         \\expander name "expander 1" weight 0.4
-    ) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
     try expectEqual(0.4, entity.type.expander.weight);
     try expectEqualStrings("expander 1", entity.name);
 }
@@ -511,3 +989,5 @@ const err = engine.log.err;
 
 const Token = @import("Token.zig");
 const Entity = @import("Entity.zig");
+
+const headless_display = @import("test.zig").headless_display;

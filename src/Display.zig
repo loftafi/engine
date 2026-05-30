@@ -2408,6 +2408,7 @@ pub fn setUserScale(display: *Self, scale: Scale) void {
     else
         display.user_scale = scale.float();
     display.scale = display.pixel_scale * display.user_scale;
+    display.need_relayout = true;
 }
 
 /// Lookoup the user preferred screen scale.
