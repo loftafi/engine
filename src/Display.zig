@@ -3195,7 +3195,7 @@ const BoundedArray = praxis.BoundedArray;
 const mixer = @import("mixer");
 
 const Translation = @import("translator").Translation;
-const StringBucket = @import("string_bucket.zig").StringBucket;
+const StringBucket = @import("StringBucket.zig");
 
 const random = praxis.random;
 const seed = random.seed;

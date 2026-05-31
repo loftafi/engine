@@ -4,8 +4,10 @@ pub const Theme = @This();
 /// A zig enum formmatted tag. i.e. midnight_glow
 tag: []const u8,
 
-// Default background and text colour for all elements.
+/// Default background for all elements.
 background_colour: Colour,
+
+/// Default text colour for all elements.
 text_colour: Colour,
 
 /// Colour of the placeholder text in the text input entity.
@@ -17,21 +19,21 @@ cursor_colour: Colour,
 label_background_colour: Colour,
 tinted_text_colour: Colour,
 
-// Some elements can switch from default background and text colour to
-// an alternate stronger text and background colour.
+/// Some elements can switch from default background and text colour to
+/// an alternate stronger text and background colour.
 emphasised_panel_colour: Colour,
 emphasised_text_colour: Colour,
 
-// Switch from default panel style to a faded/de-emphasised panel style.
+/// Switch from default panel style to a faded/de-emphasised panel style.
 faded_panel_colour: Colour,
 faded_text_colour: Colour,
 
-// Use for success dialogue boxes and panels.
+/// Use for success dialogue boxes and panels.
 success_panel_colour: Colour,
 success_text_colour: Colour,
 success_button_colour: Colour,
 
-// Use for error dialogue boxes and panels.
+/// Use for error dialogue boxes and panels.
 failed_panel_colour: Colour,
 failed_text_colour: Colour,
 failed_button_colour: Colour,

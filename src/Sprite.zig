@@ -1,11 +1,15 @@
 /// An entity that displays a simple image texture.
 pub const Sprite = @This();
 
+/// Request a callback every iteration of the main app loop.
 update: Entity.UpdateCallback = .empty,
 scale: Fit = .stretch,
 
-// Handle User triggered events. Keyboard, Mouse, Game controller
+/// A callback when the user triggers an event using a Keyboard, Mouse, or
+/// Game controller
 on_ui_event: Entity.Callback = .empty,
+
+/// A callback when this sprite is tapped.
 on_pressed: Entity.Callback = .empty,
 
 /// A sprite is clickable if it has a user driven event handler.

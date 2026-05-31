@@ -1,0 +1,7 @@
+i:white
+d:202605190200
+v:true
+c:jay
+s:on
+s:off
+s:cat

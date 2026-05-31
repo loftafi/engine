@@ -1,16 +1,24 @@
+/// An entity that holds other entities and may become scrollable.
 pub const Panel = @This();
 
 children: ArrayListUnmanaged(*Entity) = .empty,
 direction: LayoutDirection = .centre,
+/// Empty space to place between entities.
 spacing: f32 = 0,
+
+/// Called every iteration of the main app loop.
 update: Entity.UpdateCallback = .empty,
+
+/// Indicates if vertical or horizontal scrolling is allowed.
 scrollable: Scroller = .{
     .scroll = .{ .x = false, .y = false },
     .size = .{ .width = 0, .height = 0 },
 },
 
-// Handle User triggered events. Keyboard, Mouse, Game controller
+/// Handle User triggered events. Keyboard, Mouse, Game controller
 on_ui_event: Entity.Callback = .empty,
+
+/// Callback event that occurs if the backgroind of this panel is tapped.
 on_pressed: Entity.Callback = .empty,
 
 pub inline fn topScrollSpace(self: *const Panel) f32 {
@@ -264,7 +272,6 @@ fn find_minimum_panel_width(
 
 /// The parent has a known fixed width and height. Each of the child
 /// objects can grow or shrink to fit in what the parent is providing.
-///
 pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     var resized = false;
     //trace("layout on {s}", .{parent.name});

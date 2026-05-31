@@ -1,3 +1,4 @@
+/// Draw a basic rectangle with a basic colour background.
 pub const Rectangle = @This();
 
 /// Draw a basic rectangle.

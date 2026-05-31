@@ -406,7 +406,7 @@ const BoundedArray = praxis.BoundedArray;
 const mixer = @import("mixer");
 
 pub const Chunker = @import("Chunker.zig");
-pub const StringBucket = @import("string_bucket.zig").StringBucket;
+pub const StringBucket = @import("StringBucket.zig");
 pub const TextSize = @import("TextSize.zig").TextSize(22);
 
 const base62 = @import("resources").base62;

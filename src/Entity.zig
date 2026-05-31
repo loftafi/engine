@@ -910,6 +910,26 @@ pub inline fn add(
     return child;
 }
 
+pub const EntityParser = @import("EntityParser.zig");
+
+/// `append` a child entity to this panel and return the entity. Only
+/// permitted for the `panel` entity type. See also `insert`.
+pub inline fn append(
+    self: *Entity,
+    data: []const u8,
+    handler: anytype,
+    display: *Display,
+) (Error || Allocator.Error || Resources.Error)!*Entity {
+    std.debug.assert(self.type == .panel);
+    const child = try display.allocator.create(Entity);
+    child.* = try EntityParser.readEntity(data, handler, display);
+    //try child.setup(display);
+    try self.type.panel.children.append(display.allocator, child);
+    if (child.visible != .hidden and self.visible != .hidden)
+        display.need_relayout = true;
+    return child;
+}
+
 /// Use `insert` to insert a child entity in a specific location
 /// in this panel. Only permitted for the `panel` entity type. See
 /// also `add`.

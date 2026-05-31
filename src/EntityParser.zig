@@ -17,6 +17,7 @@
 pub fn readEntity(
     data: []const u8,
     handler_type: anytype,
+    display: *Display,
 ) Error!?Entity {
     const po = @TypeOf(handler_type);
     const pi = @typeInfo(po);
@@ -35,7 +36,7 @@ pub fn readEntity(
     if (token.tag == .eof) return null;
     var entity = readEntityType(&token) catch return error.UnexpectedToken;
     //entity.setup(display);
-    readAttributes(
+    try readAttributes(
         &token,
         &entity,
         handler_type,
@@ -43,7 +44,8 @@ pub fn readEntity(
         state_callbacks,
         update_callbacks,
         bool_callbacks,
-    ) catch return error.UnexpectedToken;
+        display,
+    );
     return entity;
 }
 
@@ -287,6 +289,7 @@ pub fn readAttributes(
     state_callbacks: []const StateCallbackOption,
     update_callbacks: []const UpdateCallbackOption,
     bool_callbacks: []const BoolCallbackOption,
+    display: *Display,
 ) Error!void {
     token.* = try token.next();
     while (true) {
@@ -294,7 +297,7 @@ pub fn readAttributes(
         try switch (token.tag) {
             .panel, .sprite, .rectangle, .text_input, .label, .checkbox, .expander, .progress_bar => return,
             .name => readNameAttribute(token, entity),
-            .image => readStringAttribute(token, &entity.texture_name),
+            .image => readImageAttribute(token, entity, display),
             .aria_label => readStringAttribute(token, &entity.aria_label),
             .@"align" => readAlignAttribute(token, entity),
             .rect => readRectAttribute(token, &entity.rect),
@@ -314,8 +317,6 @@ pub fn readAttributes(
             .colour => readClipAttribute(token, &entity.pad),
             .max_length => readMaxLengthAttribute(token, entity),
             .checked => readCheckedAttribute(token, entity),
-            .on => readOnAttribute(token, entity),
-            .off => readOffAttribute(token, entity),
             .checkbox_size => readCheckboxSizeAttribute(token, entity),
             .icon_size => readIconSizeAttribute(token, entity),
             .placeholder_text => readPlaceholderTextAttribute(token, entity),
@@ -340,17 +341,25 @@ pub fn readAttributes(
             },
             .eof => return,
             else => {
-                if (entity.type == .button) {
+                if (entity.type == .checkbox) {
+                    const checkbox = &entity.type.checkbox;
+                    try switch (token.tag) {
+                        .on => readCheckboxImageAttribute(token, entity, &checkbox.on_texture, display),
+                        .off => readCheckboxImageAttribute(token, entity, &checkbox.off_texture, display),
+                        else => return error.UnexpectedToken,
+                    };
+                    continue;
+                } else if (entity.type == .button) {
                     const button = &entity.type.button;
                     try switch (token.tag) {
-                        .icon_default => readStringAttribute(token, &button.icon.default_name),
-                        .icon_hover => readStringAttribute(token, &button.icon.hover_name),
-                        .icon_pressed => readStringAttribute(token, &button.icon.pressed_name),
-                        .icon_disabled => readStringAttribute(token, &button.icon.disabled_name),
-                        .button_default => readStringAttribute(token, &button.button.default_name),
-                        .button_hover => readStringAttribute(token, &button.button.hover_name),
-                        .button_pressed => readStringAttribute(token, &button.button.pressed_name),
-                        .button_disabled => readStringAttribute(token, &button.button.disabled_name),
+                        .icon_default => readButtonImageAttribute(token, entity, &entity.texture, display),
+                        .icon_hover => readButtonImageAttribute(token, entity, &button.icon.hover, display),
+                        .icon_pressed => readButtonImageAttribute(token, entity, &button.icon.pressed, display),
+                        .icon_disabled => readButtonImageAttribute(token, entity, &button.icon.disabled, display),
+                        .button_default => readButtonImageAttribute(token, entity, &entity.background.image, display),
+                        .button_hover => readButtonImageAttribute(token, entity, &button.button.hover, display),
+                        .button_pressed => readButtonImageAttribute(token, entity, &button.button.pressed, display),
+                        .button_disabled => readButtonImageAttribute(token, entity, &button.button.disabled, display),
                         else => return error.UnexpectedToken,
                     };
                     continue;
@@ -554,27 +563,20 @@ pub fn readOnPressedAttribute(
     }
 }
 
-pub fn readOnAttribute(token: *Token, entity: *Entity) Error!void {
+pub fn readCheckboxImageAttribute(
+    token: *Token,
+    entity: *Entity,
+    image: *?*engine.Texture,
+    display: *Display,
+) Error!void {
     if (entity.type != .checkbox) return error.UnexpectedToken;
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .string => {
-            entity.type.checkbox.on = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            token.* = try token.next();
-            return;
-        },
-        else => return error.UnexpectedToken,
-    }
-}
-
-pub fn readOffAttribute(token: *Token, entity: *Entity) Error!void {
-    if (entity.type != .checkbox) return error.UnexpectedToken;
-    token.* = try token.next();
-    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
-    switch (token.tag) {
-        .string => {
-            entity.type.checkbox.off = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            const image_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            image.* = display.requireImage(image_name) catch return Error.ImageNotLoaded;
+            if (image.* == null) return Error.ImageNotLoaded;
             token.* = try token.next();
             return;
         },
@@ -672,6 +674,47 @@ pub fn readStringAttribute(token: *Token, string: *?[]const u8) Error!void {
     switch (token.tag) {
         .string => {
             string.* = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readImageAttribute(token: *Token, entity: *engine.Entity, display: *Display) Error!void {
+    const image = switch (entity.type) {
+        .sprite => &entity.texture,
+        .panel => &entity.texture,
+        else => return error.UnexpectedToken,
+    };
+    //err("token={t} {s}", .{ token.tag, token.slice() });
+    token.* = try token.next();
+    //err("token={t} {s}", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const image_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            image.* = display.requireImage(image_name) catch return Error.ImageNotLoaded;
+            if (image.* == null) return Error.ImageNotLoaded;
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readButtonImageAttribute(token: *Token, entity: *engine.Entity, texture: *?*engine.Texture, display: *Display) Error!void {
+    const image = switch (entity.type) {
+        .button => texture,
+        else => return error.UnexpectedToken,
+    };
+    //err("token={t} {s}", .{ token.tag, token.slice() });
+    token.* = try token.next();
+    //err("token={t} {s}", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .string => {
+            const image_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            image.* = display.requireImage(image_name) catch return Error.ImageNotLoaded;
+            if (image.* == null) return Error.ImageNotLoaded;
             token.* = try token.next();
             return;
         },
@@ -861,6 +904,7 @@ pub const Error = error{
     MaxLineCountExceeded,
     InvalidUtf8,
     UnexpectedToken,
+    ImageNotLoaded,
 };
 
 const TestHandler = struct {
@@ -908,6 +952,11 @@ const TestHandler = struct {
 };
 
 test "panel" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
     var te: TestHandler = .{};
     const entity = try readEntity(
         \\panel name "coffee" image "cat"
@@ -915,25 +964,39 @@ test "panel" {
         \\maximum height=99 width=88
         \\horizontal
         \\style tinted
-    , &te) orelse unreachable;
+    , &te, display) orelse unreachable;
 
     try expectEqual(33, entity.minimum.width);
     try expectEqual(120, entity.minimum.height);
     try expectEqual(88, entity.maximum.width);
     try expectEqual(99, entity.maximum.height);
     try expectEqualStrings("coffee", entity.name);
-    try expectEqualStrings("cat", entity.texture_name.?);
+    try expect(entity.texture != null);
     try expectEqual(.left_to_right, entity.type.panel.direction);
     try expectEqual(.tinted, entity.style);
+
+    const entity2 = readEntity(
+        \\panel name "coffee" image "dog"
+        \\minimum width=33 height=120
+        \\maximum height=99 width=88
+        \\horizontal
+        \\style tinted
+    , &te, display);
+    try expectEqual(entity2, Error.ImageNotLoaded);
 }
 
 test "label" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
     var te: TestHandler = .{};
     const entity = try readEntity(
         \\label name "coffee" line_height 1.2
         \\minimum 33 44
         \\style emphasised text_size heading
-    , &te) orelse unreachable;
+    , &te, display) orelse unreachable;
     try expectEqual(33, entity.minimum.width);
     try expectEqual(44, entity.minimum.height);
     try expectEqual(1.2, entity.type.label.line_height);
@@ -943,6 +1006,11 @@ test "label" {
 }
 
 test "checkbox" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
     var te: TestHandler = .{};
     var entity = try readEntity(
         \\checkbox name "coffee"
@@ -951,23 +1019,18 @@ test "checkbox" {
         \\line_height 1.2 on "on" off "off"
         \\checkbox_size 25 26
         \\on_change "on_click"
-    , &te) orelse unreachable;
+    , &te, display) orelse unreachable;
 
     try expectEqual(1.2, entity.type.checkbox.line_height);
     try expectEqual(12.34, entity.minimum.width);
     try expectEqual(120, entity.minimum.height);
     try expectEqualStrings("coffee", entity.name);
-    try expectEqualStrings("on", entity.type.checkbox.on.?);
-    try expectEqualStrings("off", entity.type.checkbox.off.?);
+    try expect(entity.type.checkbox.on_texture != null);
+    try expect(entity.type.checkbox.off_texture != null);
     try expectEqual(.heading, entity.type.checkbox.text_size);
     try expectEqual(.tinted, entity.style);
     try expectEqual(25, entity.type.checkbox.checkbox_size.width);
     try expectEqual(26, entity.type.checkbox.checkbox_size.height);
-
-    const allocator = std.testing.allocator;
-    const io = std.testing.io;
-    var display = try headless_display(allocator, io, 1000, 1600, 2);
-    defer display.destroy();
 
     try expectEqual(0, te.count);
     try entity.type.checkbox.on_change.call(display, &entity, &.{});
@@ -975,13 +1038,19 @@ test "checkbox" {
 }
 
 test "text_input" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
     var te: TestHandler = .{};
     const entity = try readEntity(
         \\text_input name "coffee"
         \\minimum 100 40
         \\style normal placeholder_text "Enter your food"
         \\max_length 123
-    , &te) orelse unreachable;
+    , &te, display) orelse unreachable;
+
     try expectEqual(100, entity.minimum.width);
     try expectEqual(40, entity.minimum.height);
     try expectEqualStrings("Enter your food", entity.type.text_input.placeholder_text.?);
@@ -990,19 +1059,26 @@ test "text_input" {
 }
 
 test "expander" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
     var te: TestHandler = .{};
     const entity = try readEntity(
         \\expander name "expander 1" weight 0.4
-    , &te) orelse unreachable;
+    , &te, display) orelse unreachable;
     try expectEqual(0.4, entity.type.expander.weight);
     try expectEqualStrings("expander 1", entity.name);
 }
 
 const std = @import("std");
+const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
 const engine = @import("engine.zig");
+const Display = engine.Display;
 const err = engine.log.err;
 
 const Token = @import("Token.zig");

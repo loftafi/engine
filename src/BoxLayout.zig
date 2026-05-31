@@ -1,4 +1,4 @@
-//! Calculate the height and width a series of rects would consume
+/// Calculate the height and width a series of rects would consume
 pub const BoxLayout = @This();
 
 /// Space between each item on a line.

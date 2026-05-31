@@ -1,5 +1,7 @@
+/// Display a progress bar entity.
 pub const ProgressBar = @This();
 
+/// A number between 0 and 1 indicating progress of an activity or timer.
 progress: f32 = 0,
 
 pub inline fn draw(

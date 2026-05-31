@@ -1,3 +1,4 @@
+/// A basic single line text input boxf
 pub const TextInput = @This();
 
 pub const default_max_length: u16 = 1000;
