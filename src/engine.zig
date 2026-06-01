@@ -28,6 +28,9 @@ pub const Error = error{
     FontRequired,
     RootAcceptsPanelsOnly,
     InvalidUtf8,
+    MaxLineCountExceeded,
+    UnexpectedToken,
+    ImageNotLoaded,
 };
 
 /// Capture _all_ zig log messages for the engine log system.

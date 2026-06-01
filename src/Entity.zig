@@ -922,7 +922,7 @@ pub inline fn append(
 ) (Error || Allocator.Error || Resources.Error)!*Entity {
     std.debug.assert(self.type == .panel);
     const child = try display.allocator.create(Entity);
-    child.* = try EntityParser.readEntity(data, handler, display);
+    child.* = try EntityParser.readEntity(data, handler) orelse return Error.UnexpectedToken;
     //try child.setup(display);
     try self.type.panel.children.append(display.allocator, child);
     if (child.visible != .hidden and self.visible != .hidden)

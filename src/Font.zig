@@ -250,8 +250,7 @@ fn drawString(
 
     var dbg = if (builtin.mode == .Debug)
         std.Io.Writer.Allocating.init(allocator)
-    else
-        void;
+    else {};
     defer if (builtin.mode == .Debug) dbg.deinit();
 
     var previous_glyph: ?TrueType.GlyphIndex = null;
@@ -321,7 +320,7 @@ fn drawString(
             }
         }
 
-        if (mode == .measure) {
+        if (mode == .measure and builtin.mode == .Debug) {
             dbg.writer.print("\n  {u} bitmap.width {d} bitmap.height {d} kern {d} lsb={d} char.width {d}", .{
                 codepoint,
                 glyph_info.width,

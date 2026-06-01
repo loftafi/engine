@@ -240,7 +240,7 @@ fn find_minimum_panel_width(
                 _ = box.place(width, child.rect.height);
             }
             box.finalise();
-            return @max(box.final.width, parent.minimum.width);
+            return @max(box.needed.width, parent.minimum.width);
         },
         .centre, .top_to_bottom, .top_left, .top_right => {
             // a, centred upon b, centred upon c
@@ -775,6 +775,93 @@ inline fn place_children_left_to_right_wrap(
     const needed_height = current.y - parent.rect.y;
     parent.type.panel.scrollable.size.height = @max(needed_height, parent.rect.height);
     //const overflow_height = parent.rect.height - needed_height;
+}
+
+pub const NullHandler = struct {};
+
+test "root_panel_layout" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 200, 200, 2);
+    defer display.destroy();
+
+    //Test top to bottom, left to right, wrap and no wrap with simple boxes
+
+    var handler: NullHandler = .{};
+    const panel = try display.addPanel(.{
+        .layout = .{ .x = .grows, .y = .grows },
+        .pad = .{ .left = 1, .top = 2, .right = 3, .bottom = 4 },
+        .child_align = .{ .x = .start, .y = .start },
+        .type = .{ .panel = .{ .direction = .top_left, .spacing = 5 } },
+    });
+    const b1 = try panel.append("button size width=90 height=90", &handler, display);
+    const b2 = try panel.append("button size width=90 height=90", &handler, display);
+    const b3 = try panel.append("button size width=90 height=90", &handler, display);
+
+    panel.type.panel.direction = .top_left;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(.visible, panel.visible);
+    try eq(.visible, panel.visible);
+    try eq(1, b1.rect.x);
+    try eq(2, b1.rect.y);
+    try eq(1, b2.rect.x);
+    try eq(2, b2.rect.y);
+    try eq(1, b3.rect.x);
+    try eq(2, b3.rect.y);
+
+    panel.type.panel.direction = .top_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(.visible, panel.visible);
+    try eq(.visible, panel.visible);
+    try eq(display.root.rect.width - b1.rect.width - 3, b1.rect.x);
+    try eq(2, b1.rect.y);
+    try eq(display.root.rect.width - b2.rect.width - 3, b2.rect.x);
+    try eq(2, b2.rect.y);
+    try eq(display.root.rect.width - b3.rect.width - 3, b3.rect.x);
+    try eq(2, b3.rect.y);
+
+    panel.type.panel.direction = .centre;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(1 + ((display.root.rect.width - 1 - 3) / 2) - (b1.rect.width / 2), b1.rect.x);
+    try eq(2 + (display.root.rect.height - 2 - 4) / 2 - b1.rect.height / 2, b1.rect.y);
+    try eq(1 + (display.root.rect.width - 1 - 3) / 2 - b1.rect.width / 2, b2.rect.x);
+    try eq(2 + (display.root.rect.height - 2 - 4) / 2 - b1.rect.height / 2, b2.rect.y);
+    try eq(1 + (display.root.rect.width - 1 - 3) / 2 - b1.rect.width / 2, b3.rect.x);
+    try eq(2 + (display.root.rect.height - 2 - 4) / 2 - b1.rect.height / 2, b3.rect.y);
+
+    panel.type.panel.direction = .left_to_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(1, b1.rect.x);
+    try eq(2, b1.rect.y);
+    try eq(1 + b1.rect.width + panel.type.panel.spacing, b2.rect.x);
+    try eq(2, b2.rect.y);
+    try eq(1 + b1.rect.width * 2 + panel.type.panel.spacing * 2, b3.rect.x);
+    try eq(2, b3.rect.y);
+
+    panel.type.panel.direction = .left_to_right_wrap;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(1, b1.rect.x);
+    try eq(2, b1.rect.y);
+    try eq(1 + b1.rect.width + panel.type.panel.spacing, b2.rect.x);
+    try eq(2, b2.rect.y);
+    try eq(1, b3.rect.x);
+    try eq(2 + panel.type.panel.spacing + b1.rect.height, b3.rect.y);
+
+    panel.type.panel.direction = .top_to_bottom;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(1, b1.rect.x);
+    try eq(2, b1.rect.y);
+    try eq(1, b2.rect.x);
+    try eq(2 + panel.type.panel.spacing + b1.rect.height, b2.rect.y);
+    try eq(1, b3.rect.x);
+    try eq(2 + panel.type.panel.spacing * 2 + b1.rect.height * 2, b3.rect.y);
 }
 
 test "root_panel_alignment" {
