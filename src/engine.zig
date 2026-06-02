@@ -448,6 +448,8 @@ pub const Key = @import("keys.zig").Key;
 pub const Theme = @import("Theme.zig");
 pub const readEntity = @import("EntityParser.zig").readEntity;
 
+pub const License = @import("License.zig");
+
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
 pub const resources_sdl = @import("resources_sdl.zig");
