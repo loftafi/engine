@@ -44,6 +44,7 @@ pub fn readEntity(
         update_callbacks,
         bool_callbacks,
     ) catch return error.UnexpectedToken;
+
     return entity;
 }
 
@@ -294,6 +295,7 @@ pub fn readAttributes(
         try switch (token.tag) {
             .panel, .sprite, .rectangle, .text_input, .label, .checkbox, .expander, .progress_bar => return,
             .name => readNameAttribute(token, entity),
+            .text => readTextAttribute(token, entity),
             .image => readStringAttribute(token, &entity.texture_name),
             .aria_label => readStringAttribute(token, &entity.aria_label),
             .@"align" => readAlignAttribute(token, entity),
@@ -302,7 +304,7 @@ pub fn readAttributes(
             .minimum => readSizeAttribute(token, &entity.minimum),
             .maximum => readSizeAttribute(token, &entity.maximum),
             .pad => readClipAttribute(token, &entity.pad),
-            .layout => readClipAttribute(token, &entity.pad),
+            .layout => readLayoutAttribute(token, &entity.layout),
             .velocity => readClipAttribute(token, &entity.pad),
             .flip => readClipAttribute(token, &entity.pad),
             .text_size => readTextSizeAttribute(token, entity),
@@ -666,6 +668,26 @@ pub fn readStyleAttribute(token: *Token, style: *engine.Theme.Style) Error!void 
     return;
 }
 
+pub fn readTextAttribute(
+    token: *Token,
+    entity: *engine.Entity,
+) Error!void {
+    token.* = try token.next();
+    switch (token.tag) {
+        .string => {
+            const value = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            switch (entity.type) {
+                .label => entity.type.label.text = value,
+                .text_input => entity.type.text_input.initial_text = if (value.len > 0) value else null,
+                else => return error.UnexpectedToken,
+            }
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
 pub fn readStringAttribute(token: *Token, string: *?[]const u8) Error!void {
     //err("token={t} {s}", .{ token.tag, token.slice() });
     token.* = try token.next();
@@ -751,6 +773,64 @@ pub fn readSizeAttribute(token: *Token, size: *engine.Size) Error!void {
             },
             else => {
                 if (read_width == true or read_height == true or value_count > 0) return;
+                return error.UnexpectedToken;
+            },
+        }
+    }
+}
+
+pub fn readLayoutAttribute(token: *Token, layout: *engine.Entity.Layout) Error!void {
+    token.* = try token.next();
+    var value_count: u8 = 0;
+    var read_x = false;
+    var read_y = false;
+    while (true) {
+        switch (token.tag) {
+            .x => {
+                if (read_x == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                if (token.tag == .equals) token.* = try token.next();
+                layout.x = switch (token.tag) {
+                    .shrinks => .shrinks,
+                    .grows => .grows,
+                    .fixed => .fixed,
+                    else => return error.UnexpectedToken,
+                };
+                token.* = try token.next();
+                read_x = true;
+            },
+            .y => {
+                if (read_y == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                if (token.tag == .equals) token.* = try token.next();
+                layout.y = switch (token.tag) {
+                    .shrinks => .shrinks,
+                    .grows => .grows,
+                    .fixed => .fixed,
+                    else => return error.UnexpectedToken,
+                };
+                token.* = try token.next();
+                read_y = true;
+            },
+            .shrinks, .grows, .fixed => {
+                if (value_count == 2) return error.UnexpectedToken;
+                if (value_count == 0) layout.x = switch (token.tag) {
+                    .shrinks => .shrinks,
+                    .grows => .grows,
+                    .fixed => .fixed,
+                    else => return error.UnexpectedToken,
+                };
+                if (value_count == 1) layout.y = switch (token.tag) {
+                    .shrinks => .shrinks,
+                    .grows => .grows,
+                    .fixed => .fixed,
+                    else => return error.UnexpectedToken,
+                };
+                value_count += 1;
+                token.* = try token.next();
+            },
+            else => {
+                if (read_x == true or read_y == true or value_count > 0) return;
                 return error.UnexpectedToken;
             },
         }
@@ -883,12 +963,51 @@ pub fn readTextSizeAttribute(token: *Token, entity: *engine.Entity) Error!void {
 
 pub fn readClipAttribute(token: *Token, clip: *engine.Clip) Error!void {
     token.* = try token.next();
-    switch (token.tag) {
-        .string => {
-            clip.left = 0;
-            return;
-        },
-        else => return error.UnexpectedToken,
+    var value_count: u8 = 0;
+    var read_left = false;
+    var read_top = false;
+    var read_right = false;
+    var read_bottom = false;
+    while (true) {
+        switch (token.tag) {
+            .left => {
+                if (read_left == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                clip.left = try readFloatValue(token);
+                read_left = true;
+            },
+            .top => {
+                if (read_top == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                clip.top = try readFloatValue(token);
+                read_top = true;
+            },
+            .right => {
+                if (read_right == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                clip.right = try readFloatValue(token);
+                read_right = true;
+            },
+            .bottom => {
+                if (read_bottom == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                clip.bottom = try readFloatValue(token);
+                read_bottom = true;
+            },
+            .number => {
+                if (value_count == 4) return error.UnexpectedToken;
+                if (value_count == 0) clip.left = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                if (value_count == 1) clip.top = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                if (value_count == 2) clip.right = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                if (value_count == 3) clip.bottom = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                value_count += 1;
+                token.* = try token.next();
+            },
+            else => {
+                if (read_left == true or read_right == true or read_top == true or read_bottom == true or value_count > 0) return;
+                return error.UnexpectedToken;
+            },
+        }
     }
 }
 
@@ -942,6 +1061,30 @@ const TestHandler = struct {
     }
 };
 
+test "layout" {
+    var layout: engine.Entity.Layout = .{};
+    var token = try Token.init("layout fixed grows");
+    try readLayoutAttribute(&token, &layout);
+    try expectEqual(.fixed, layout.x);
+    try expectEqual(.grows, layout.y);
+}
+
+test "layout_equals" {
+    var layout: engine.Entity.Layout = .{};
+    var token = try Token.init("layout x=fixed y=grows");
+    try readLayoutAttribute(&token, &layout);
+    try expectEqual(.fixed, layout.x);
+    try expectEqual(.grows, layout.y);
+}
+
+test "layout_equals2" {
+    var layout: engine.Entity.Layout = .{};
+    var token = try Token.init("layout y=fixed x=grows");
+    try readLayoutAttribute(&token, &layout);
+    try expectEqual(.grows, layout.x);
+    try expectEqual(.fixed, layout.y);
+}
+
 test "panel" {
     var te: TestHandler = .{};
     const entity = try readEntity(
@@ -984,6 +1127,7 @@ test "checkbox" {
         \\minimum width=12.34 height=120
         \\style tinted text_size heading
         \\line_height 1.2 on "on" off "off"
+        \\layout y=shrinks x=fixed
         \\checkbox_size 25 26
         \\on_change "on_click"
     , &te) orelse unreachable;
@@ -998,6 +1142,8 @@ test "checkbox" {
     try expectEqual(.tinted, entity.style);
     try expectEqual(25, entity.type.checkbox.checkbox_size.width);
     try expectEqual(26, entity.type.checkbox.checkbox_size.height);
+    try expectEqual(.shrinks, entity.layout.y);
+    try expectEqual(.fixed, entity.layout.x);
 
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -1015,6 +1161,7 @@ test "text_input" {
         \\text_input name "coffee"
         \\minimum 100 40
         \\style normal placeholder_text "Enter your food"
+        \\layout grows shrinks
         \\max_length 123
     , &te) orelse unreachable;
     try expectEqual(100, entity.minimum.width);
@@ -1022,6 +1169,8 @@ test "text_input" {
     try expectEqualStrings("Enter your food", entity.type.text_input.placeholder_text.?);
     try expectEqual(.normal, entity.style);
     try expectEqual(123, entity.type.text_input.max_length);
+    try expectEqual(.grows, entity.layout.x);
+    try expectEqual(.shrinks, entity.layout.y);
 }
 
 test "expander" {

@@ -137,6 +137,10 @@ pub const Tag = enum(u8) {
     footnote,
     weight,
     progress,
+    left,
+    right,
+    top,
+    bottom,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does

@@ -751,6 +751,18 @@ pub inline fn setFont(
     warn("requested unknown font {s} on entity {t} {s}", .{ name, self.type, self.name });
 }
 
+pub inline fn getText(
+    self: *Entity,
+) error{OutOfMemory}!?[]const u8 {
+    return switch (self.type) {
+        .text_input => self.type.text_input.initial_text,
+        .checkbox => self.type.checkbox.text,
+        .label => self.type.label.text,
+        .button => self.type.button.text,
+        else => null,
+    };
+}
+
 /// Update the `text` and corresponding`translation` field of a label,
 /// checkbox, text input, or button. The backing image texture for
 /// each word is regenerated if the text was changed. The memory
@@ -923,7 +935,11 @@ pub inline fn append(
     std.debug.assert(self.type == .panel);
     const child = try display.allocator.create(Entity);
     child.* = try EntityParser.readEntity(data, handler) orelse return Error.UnexpectedToken;
-    //try child.setup(display);
+
+    if (try child.getText()) |text| {
+        try child.setText(display, text);
+    }
+
     try self.type.panel.children.append(display.allocator, child);
     if (child.visible != .hidden and self.visible != .hidden)
         display.need_relayout = true;

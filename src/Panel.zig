@@ -779,7 +779,7 @@ inline fn place_children_left_to_right_wrap(
 
 pub const NullHandler = struct {};
 
-test "root_panel_layout" {
+test "panel_button_layout" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
@@ -862,6 +862,45 @@ test "root_panel_layout" {
     try eq(2 + panel.type.panel.spacing + b1.rect.height, b2.rect.y);
     try eq(1, b3.rect.x);
     try eq(2 + panel.type.panel.spacing * 2 + b1.rect.height * 2, b3.rect.y);
+}
+
+test "panel_label_layout" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 200, 200, 2);
+    defer display.destroy();
+
+    //Test top to bottom, left to right, wrap and no wrap with simple boxes
+
+    const spacing = 5;
+    var handler: NullHandler = .{};
+    const panel = try display.addPanel(.{
+        .layout = .{ .x = .grows, .y = .grows },
+        .pad = .{ .left = 1, .top = 2, .right = 3, .bottom = 4 },
+        .child_align = .{ .x = .start, .y = .start },
+        .type = .{ .panel = .{ .direction = .top_left, .spacing = spacing } },
+    });
+    const b1 = try panel.append("label text \"This\" layout shrinks shrinks", &handler, display);
+    const b2 = try panel.append("label text \"word\" layout shrinks shrinks", &handler, display);
+    const b3 = try panel.append("label text \"fish\" layout shrinks shrinks", &handler, display);
+
+    panel.type.panel.direction = .left_to_right;
+    display.need_relayout = true;
+    display.relayout();
+    try eq(1, b1.rect.x);
+    try eq(2, b1.rect.y);
+    try std.testing.expectEqualStrings("This", b1.type.label.text);
+    try eq(76, b1.rect.width);
+
+    try eq(1 + b1.rect.width + panel.type.panel.spacing, b2.rect.x);
+    try eq(2, b2.rect.y);
+    try eq(1 + b1.rect.width + spacing, b2.rect.x);
+    try eq(84, b2.rect.width);
+
+    try eq(1 + b1.rect.width + b2.rect.width + spacing * 2, b3.rect.x);
+    try eq(2, b3.rect.y);
+    try eq(66, b3.rect.width);
 }
 
 test "root_panel_alignment" {
