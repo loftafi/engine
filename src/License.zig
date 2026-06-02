@@ -6,7 +6,7 @@ pub const License = @This();
 library: []const u8,
 
 /// Short one line copyright line.
-line: []const u8,
+copyright: []const u8,
 
 /// Abbreviated string describing the license, i.e. "zlib", "bsd", etc...
 contents: []const u8,
@@ -14,11 +14,12 @@ contents: []const u8,
 /// Full text of relevant license
 license: []const u8,
 
-pub const licenses: []License = &.{
+pub const licenses: []const License = &.{
     .{
-        "sdl",
-        "Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>",
-        "zlib",
+        .library = "sdl",
+        .copyright = "Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>",
+        .contents = "zlib",
+        .license =
         \\Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
         \\
         \\This software is provided 'as-is', without any express or implied
@@ -39,9 +40,10 @@ pub const licenses: []License = &.{
         ,
     },
     .{
-        "sdl mixer",
-        "Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>",
-        "zlib",
+        .library = "sdl mixer",
+        .copyright = "Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>",
+        .contents = "zlib",
+        .license =
         \\Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
         \\
         \\This software is provided 'as-is', without any express or implied
@@ -62,8 +64,10 @@ pub const licenses: []License = &.{
         ,
     },
     .{
-        "ogg",
-        "Copyright (c) 2002-2020 Xiph.org Foundation",
+        .library = "ogg",
+        .copyright = "Copyright (c) 2002-2020 Xiph.org Foundation",
+        .contents = "BSD3",
+        .license =
         \\https://gitlab.xiph.org/xiph/ogg
         \\----
         \\Copyright (c) 2002, Xiph.org Foundation
@@ -97,8 +101,10 @@ pub const licenses: []License = &.{
         ,
     },
     .{
-        "vorbis",
-        "Copyright (c) 2002-2020 Xiph.org Foundation",
+        .library = "vorbis",
+        .copyright = "Copyright (c) 2002-2020 Xiph.org Foundation",
+        .contents = "BSD3",
+        .license =
         \\https://gitlab.xiph.org/xiph/vorbis
         \\-------
         \\Copyright (c) 2002-2020 Xiph.org Foundation
@@ -132,9 +138,10 @@ pub const licenses: []License = &.{
         ,
     },
     .{
-        "libm",
-        "Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.",
-        "",
+        .library = "libm",
+        .copyright = "Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.",
+        .contents = "",
+        .license =
         \\Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
         \\
         \\Developed at SunPro, a Sun Microsystems, Inc. business.
@@ -144,9 +151,10 @@ pub const licenses: []License = &.{
         ,
     },
     .{
-        "hidapi",
-        "Copyright (c) 2010, Alan Ott, Signal 11 Software",
-        "BSD",
+        .library = "hidapi",
+        .copyright = "Copyright (c) 2010, Alan Ott, Signal 11 Software",
+        .contents = "BSD",
+        .license =
         \\Copyright (c) 2010, Alan Ott, Signal 11 Software
         \\All rights reserved.
         \\
@@ -173,11 +181,13 @@ pub const licenses: []License = &.{
         \\CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
         \\ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
         \\POSSIBILITY OF SUCH DAMAGE.
+        ,
     },
     .{
-        "vulkan",
-        "Copyright 2015-2023 The Khronos Group Inc.",
-        "MIT or Apache 2.0",
+        .library = "vulkan",
+        .copyright = "Copyright 2015-2023 The Khronos Group Inc.",
+        .contents = "MIT or Apache 2.0",
+        .license =
         \\Copyright 2015-2023 The Khronos Group Inc.
         \\
         \\Licensed under the Apache License, Version 2.0 (the "License");
@@ -191,11 +201,13 @@ pub const licenses: []License = &.{
         \\WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
         \\See the License for the specific language governing permissions and
         \\limitations under the License.
+        ,
     },
     .{
-        "zeit",
-        "Copyright (c) 2024 Tim Culverhouse",
-        "MIT",
+        .library = "zeit",
+        .copyright = "Copyright (c) 2024 Tim Culverhouse",
+        .contents = "MIT",
+        .license =
         \\Copyright (c) 2024 Tim Culverhouse
         \\
         \\Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -218,9 +230,10 @@ pub const licenses: []License = &.{
         ,
     },
     .{
-        "zg",
-        "Copyright (c) 2021 Jose Colon Rodriguez",
-        "MIT",
+        .library = "zg",
+        .copyright = "Copyright (c) 2021 Jose Colon Rodriguez",
+        .contents = "MIT",
+        .license =
         \\MIT License
         \\
         \\Copyright (c) 2021 Jose Colon Rodriguez
@@ -243,25 +256,29 @@ pub const licenses: []License = &.{
         \\LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
         \\OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
         \\SOFTWARE.
+        ,
     },
     .{
-        "stb_image",
-        "Public Domain",
-        "Public Domain",
+        .library = "stb_image",
+        .copyright = "Public Domain",
+        .contents = "Public Domain",
+        .license =
         \\stb_image - v2.28 - public domain image loader - http://nothings.org/stb
-        \\                          no warranty implied; use at your own risk
+        \\                    no warranty implied; use at your own risk
+        \\
         \\stb_image_resize - v0.97 - public domain image resizing
-        \\  by Jorge L Rodriguez (@VinoBS) - 2014
-        \\ http://github.com/nothings/stb
+        \\  by Jorge L Rodriguez (@VinoBS) - 2014 http://github.com/nothings/stb
+        \\
         \\stb_image_write - v1.16 - public domain - http://nothings.org/stb
         \\writes out PNG/BMP/TGA/JPEG/HDR images to C stdio - Sean Barrett 2010-2015
         \\                             no warranty implied; use at your own risk
         ,
     },
     .{
-        "zstbi",
-        "Copyright (c) 2021 Michal Ziulek",
-        "MIT",
+        .library = "zstbi",
+        .copyright = "Copyright (c) 2021 Michal Ziulek",
+        .contents = "MIT",
+        .license =
         \\MIT License
         \\
         \\Copyright (c) 2021 Michal Ziulek
@@ -284,11 +301,13 @@ pub const licenses: []License = &.{
         \\LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
         \\OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
         \\SOFTWARE.
+        ,
     },
     .{
-        "andrewk/TrueType",
-        "The MIT License (Expat)",
-        "MIT",
+        .library = "andrewk/TrueType",
+        .copyright = "The MIT License (Expat)",
+        .contents = "MIT",
+        .license =
         \\The MIT License (Expat)
         \\
         \\Copyright (c) contributors
@@ -315,15 +334,15 @@ pub const licenses: []License = &.{
     .{
         // This font is included in the test folder and used in tests, and
         // is not normally distributed in binary form.
-        "Roboto font family",
-        "Copyright 2011 The Roboto Project Authors",
-        "OFL 1.1",
+        .library = "Roboto font family",
+        .copyright = "Copyright 2011 The Roboto Project Authors",
+        .contents = "OFL 1.1",
+        .license =
         \\Copyright 2011 The Roboto Project Authors (https://github.com/googlefonts/roboto-classic)
         \\
         \\This Font Software is licensed under the SIL Open Font License, Version 1.1.
         \\This license is copied below, and is also available with a FAQ at:
         \\https://openfontlicense.org
-        \\
         \\
         \\-----------------------------------------------------------
         \\SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
@@ -414,3 +433,9 @@ pub const licenses: []License = &.{
         ,
     },
 };
+
+test "licence" {
+    try std.testing.expect(licenses.len > 1);
+}
+
+pub const std = @import("std");

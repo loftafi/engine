@@ -265,17 +265,18 @@ fn findMatchingBoolCallback(name: []const u8, options: []const BoolCallbackOptio
     return Error.UnexpectedToken;
 }
 
+/// Read Entity type and initialise the entity with default values.
 pub fn readEntityType(token: *Token) Error!Entity {
     return switch (token.tag) {
-        .button => .{ .type = .{ .button = .{} } },
-        .checkbox => .{ .type = .{ .checkbox = .{} } },
-        .expander => .{ .type = .{ .expander = .{} } },
-        .label => .{ .type = .{ .label = .{} } },
+        .button => .{ .focus = .can_focus, .type = .{ .button = .{ .text_size = .normal } } },
+        .checkbox => .{ .focus = .can_focus, .type = .{ .checkbox = .{ .text_size = .normal } } },
+        .expander => .{ .focus = .never_focus, .type = .{ .expander = .{} } },
+        .label => .{ .focus = .accessibility_focus, .type = .{ .label = .{ .text_size = .normal } } },
         .panel => .{ .type = .{ .panel = .{} } },
         .progress_bar => .{ .type = .{ .progress_bar = .{} } },
         .rectangle => .{ .type = .{ .rectangle = .{} } },
         .sprite => .{ .type = .{ .sprite = .{} } },
-        .text_input => .{ .type = .{ .text_input = .{} } },
+        .text_input => .{ .focus = .can_focus, .type = .{ .text_input = .{ .text_size = .normal } } },
         else => error.UnexpectedToken,
     };
 }
