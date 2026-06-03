@@ -91,6 +91,7 @@ pub inline fn draw(
             },
             display.theme.text_colour,
             self.text_size,
+            1,
         ) catch {
             // Text should be valid utf8 at this point, and OutOfMemory
             // should not occur if measureText(); was first
@@ -108,6 +109,7 @@ pub inline fn draw(
                     },
                     display.theme.placeholder_text_colour,
                     self.text_size,
+                    1,
                 ) catch {
                     // Text should be valid utf8 at this point, and OutOfMemory
                     // should not occur if measureText(); was first

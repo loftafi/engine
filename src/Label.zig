@@ -286,6 +286,7 @@ pub fn drawTextElements(
             if (clip.isClipped(pos)) continue;
             clip.applyEdgeClipping(&pos);
         }
+        const x_scale = pos.height / word.location.height;
 
         word.font.drawText(
             display,
@@ -293,6 +294,7 @@ pub fn drawTextElements(
             pos.location(),
             current_colour,
             text_size,
+            x_scale,
         ) catch {
             // OutOfMemory should never occur, unless the developer has forgotten
             // to measureText(...);

@@ -198,6 +198,7 @@ pub fn measureText(
         .WHITE,
         .normal,
         1,
+        1,
         .measure,
     );
 }
@@ -212,6 +213,7 @@ pub fn drawText(
     pos: engine.Vector,
     colour: engine.Colour,
     size: engine.TextSize,
+    x_scale: f32,
 ) Allocator.Error!void {
     _ = try self.drawString(
         display.allocator,
@@ -221,6 +223,7 @@ pub fn drawText(
         colour,
         size,
         display.scale,
+        x_scale,
         .draw,
     );
 }
@@ -236,6 +239,7 @@ fn drawString(
     colour: engine.Colour,
     size: engine.TextSize,
     scale: f32,
+    x_scale: f32,
     comptime mode: enum { draw, measure },
 ) Allocator.Error!f32 {
     // Scale factor is the physical pixel density * user scale * text scale
@@ -311,6 +315,11 @@ fn drawString(
 
         if (mode == .draw) {
             if (glyph_info.height > 0 and glyph_info.width > 0) {
+                if (x_scale != 1) {
+                    const new_height = dest.height * x_scale;
+                    //dest.y += (dest.height - new_height) * x_scale;
+                    dest.height = new_height;
+                }
                 _ = sdl.SDL_SetTextureAlphaMod(glyph_info.texture, colour.a);
                 _ = sdl.SDL_SetTextureColorMod(glyph_info.texture, colour.r, colour.g, colour.b);
                 _ = sdl.SDL_RenderTexture(renderer, glyph_info.texture, null, @ptrCast(&dest));

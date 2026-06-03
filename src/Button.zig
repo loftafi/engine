@@ -47,20 +47,28 @@ pub inline fn draw(
     entity: *Entity,
     display: *Display,
     _: Vector,
-    _: ?Clip, // parent_clip
+    parent_clip: ?Clip,
     scroll_offset: Vector,
 ) void {
+    var x_scale: f32 = 1;
+    var dest = entity.rect.move(scroll_offset);
+    if (entity.flip.x) {
+        dest.x += dest.width;
+        dest.width = 0 - dest.width;
+    }
+    if (entity.flip.y) {
+        dest.y += dest.height;
+        dest.height = 0 - dest.height;
+    }
+    if (parent_clip) |clip| {
+        // Individual inner elemements may still need clipping.
+        //if (clip.isClipped(dest)) continue;
+        clip.applyEdgeClipping(&dest);
+        x_scale = dest.height / entity.rect.height;
+    }
+
     // Draw the background matching the current button state
     if (self.current_background(entity)) |background_image| {
-        var dest = entity.rect.move(scroll_offset);
-        if (entity.flip.x) {
-            dest.x += dest.width;
-            dest.width = 0 - dest.width;
-        }
-        if (entity.flip.y) {
-            dest.y += dest.height;
-            dest.height = 0 - dest.height;
-        }
         entity.applyBackgroundTint(display, background_image);
         if (entity.background.image_corner_radius == 0) {
             _ = sdl.SDL_RenderTexture(display.renderer, background_image, null, @ptrCast(&dest));
@@ -99,29 +107,31 @@ pub inline fn draw(
     // Place the icon
     if (self.current_icon(entity)) |icon_image| {
         has_icon = true;
-        var dest: Rect = .{
+        var icon_rect: Rect = .{
             .x = entity.rect.x + entity.pad.left + content_x_offset,
             .y = entity.rect.y + icon_y_offset,
             .width = self.icon.size.width,
             .height = self.icon.size.height,
         };
-        dest = dest.move(scroll_offset);
+        icon_rect = icon_rect.move(scroll_offset);
         if (entity.flip.x) {
-            dest.x += dest.width;
-            dest.width = 0 - dest.width;
+            icon_rect.x += icon_rect.width;
+            icon_rect.width = 0 - icon_rect.width;
         }
         if (entity.flip.y) {
-            dest.y += dest.height;
-            dest.height = 0 - dest.height;
+            icon_rect.y += icon_rect.height;
+            icon_rect.height = 0 - icon_rect.height;
         }
+        icon_rect.height *= x_scale;
         _ = sdl.SDL_SetTextureAlphaMod(icon_image, text_colour.a);
         _ = sdl.SDL_SetTextureColorMod(icon_image, text_colour.r, text_colour.g, text_colour.b);
-        _ = sdl.SDL_RenderTexture(display.renderer, icon_image, null, @ptrCast(&dest));
+        _ = sdl.SDL_RenderTexture(display.renderer, icon_image, null, @ptrCast(&icon_rect));
     }
 
     // Place the text
     if (self.text.len > 0) {
         const height = self.text_size.pixel_height(display.scale);
+
         var pos: Vector = .{
             .x = entity.rect.x + entity.type.button.icon.size.width + entity.pad.left + content_x_offset,
             .y = entity.rect.y + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2.0) - (height / 2) + entity.pad.top,
@@ -132,7 +142,9 @@ pub inline fn draw(
         if (has_icon or entity.type.button.icon.size.width > 0) {
             pos.x += entity.type.button.spacing;
         }
-        _ = self.font.drawText(display, self.translated, pos.add(scroll_offset), text_colour, self.text_size) catch {
+
+        pos = pos.add(scroll_offset);
+        _ = self.font.drawText(display, self.translated, pos, text_colour, self.text_size, x_scale) catch {
             // Memory allocations should not be occuring during drawText.
             // If OutOfMemory is thrown it is because drawText(.., measure)
             // was not yet called on this string.
@@ -357,7 +369,8 @@ const expectEqual = std.testing.expectEqual;
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;
-const err = engine.err;
+const err = engine.log.err;
+const info = engine.log.info;
 const Display = engine.Display;
 const Colour = engine.Colour;
 const Error = engine.Error;

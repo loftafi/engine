@@ -2362,14 +2362,14 @@ pub const Clip = struct {
     }
 
     /// Shrink the bounding box if its crossing the clip boundary.
-    pub fn applyEdgeClipping(clip: Clip, pos: *engine.Rect) void {
+    pub fn applyEdgeClipping(clip: Clip, rect: *engine.Rect) void {
         // Is text crossing over scroll box boundary?
-        if (pos.y + pos.height > clip.bottom) {
-            pos.height = @max(0, clip.bottom - pos.y);
-        } else if (pos.y < clip.top) {
-            const cut_amount = clip.top - pos.y;
-            pos.height = @max(0, pos.height - cut_amount);
-            pos.y += cut_amount;
+        if (rect.y + rect.height > clip.bottom) {
+            rect.height = @max(0, clip.bottom - rect.y);
+        } else if (rect.y < clip.top) {
+            const cut_amount = clip.top - rect.y;
+            rect.height = @max(0, rect.height - cut_amount);
+            rect.y += cut_amount;
         }
     }
 };
