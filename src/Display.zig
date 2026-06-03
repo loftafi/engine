@@ -644,6 +644,13 @@ pub fn choosePanel(
 /// Get the name of the currently visible top panel that isn't
 /// the background or menu panel.
 pub fn currentPanel(self: *Self) ?*Entity {
+    if (builtin.mode == .Debug) {
+        if (self.root.type != .panel) {
+            err("root panel is {t}, which is not a panel", .{self.root.type});
+            return null;
+        }
+    }
+
     for (self.root.type.panel.children.items) |item| {
         if (item.type != .panel) {
             err("root panel contains {t} which is not a panel", .{item.type});

@@ -14,11 +14,11 @@ pub fn TextSize(text_height: comptime_float) type {
         /// text height for this display.
         pub fn height(self: @This()) f32 {
             return switch (self) {
-                .small => 0.75,
+                .small => 0.8,
                 .normal => 1.0,
                 .heading => 1.5,
                 .subheading => 1.25,
-                .footnote => 0.75,
+                .footnote => 0.70,
             };
         }
 
