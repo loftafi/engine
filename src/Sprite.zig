@@ -30,12 +30,14 @@ pub inline fn draw(
 ) void {
     if (entity.texture) |texture| {
         var dest = entity.rect.removePadding(entity.pad);
+        const original_height = dest.height;
         dest = dest.move(scroll_offset);
 
         if (parent_clip) |clip|
             clip.applyEdgeClipping(&dest);
 
         if (dest.height <= 0 or dest.width <= 0) return;
+        const x_scale = dest.height / original_height;
 
         if (entity.flip.x) {
             dest.x += dest.width;
@@ -124,6 +126,7 @@ pub inline fn draw(
         if (entity.style == .custom)
             tint_texture(texture.texture, entity.colour);
 
+        dest.height *= x_scale;
         _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, @ptrCast(&source), @ptrCast(&dest));
     }
 }

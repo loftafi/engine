@@ -309,7 +309,7 @@ fn drawString(
 
         dest.x += kern * scale_factor;
         dest.x += glyph_info.left_side_bearing * scale_factor;
-        dest.y = pos.y + ((self.ascent - glyph_info.height - glyph_info.y_offset) * scale_factor);
+        dest.y = pos.y + (((self.ascent - glyph_info.height - glyph_info.y_offset) * scale_factor) * x_scale);
         dest.height = glyph_info.height * scale_factor;
         dest.width = glyph_info.width * scale_factor;
 
