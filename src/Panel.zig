@@ -81,9 +81,9 @@ pub inline fn draw(
 }
 
 pub inline fn minimumNeededHeight(
-    self: *Panel,
+    self: *const Panel,
     display: *Display,
-    entity: *Entity,
+    entity: *const Entity,
     _: f32, //parent_inner_width
 ) f32 {
     return @max(entity.minimum.height, self.find_minimum_panel_height(entity, display));
@@ -96,7 +96,7 @@ pub inline fn minimumNeededHeight(
 ///
 /// If parent stacks children top-to-bottom, we must add the heights.
 /// If parent stacks children left-to-right simply find the tallest item.
-fn find_minimum_panel_height(_: *Panel, parent: *Entity, display: *Display) f32 {
+fn find_minimum_panel_height(_: *const Panel, parent: *const Entity, display: *Display) f32 {
     std.debug.assert(parent.type == .panel);
     if (parent.visible == .hidden) return 0;
     if (parent.layout.position == .float) return 0;
@@ -172,9 +172,9 @@ fn find_minimum_panel_height(_: *Panel, parent: *Entity, display: *Display) f32 
 }
 
 pub inline fn minimumNeededWidth(
-    self: *Panel,
+    self: *const Panel,
     display: *Display,
-    entity: *Entity,
+    entity: *const Entity,
     _: f32, //parent_inner_width
 ) f32 {
     return @max(entity.minimum.width, self.find_minimum_panel_width(entity, display));
@@ -188,7 +188,7 @@ pub inline fn minimumNeededWidth(
 /// If parent fills children left-to-right, we must add the heights.
 /// If parent fills children top-to-bottom simply find the widest item.
 fn find_minimum_panel_width(
-    panel: *Panel,
+    panel: *const Panel,
     parent: *const Entity,
     display: *Display,
 ) f32 {
@@ -327,8 +327,8 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     self.scrollable.size.width = parent.minimum.width;
     self.scrollable.size.height = parent.minimum.height;
     switch (self.direction) {
-        .left_to_right => self.place_children_left_to_right(parent, expanders.slice(), expander_weights),
-        .left_to_right_wrap => self.place_children_left_to_right_wrap(parent),
+        .left_to_right => self.placeChildrenLeftToRight(parent, expanders.slice(), expander_weights),
+        .left_to_right_wrap => self.placeChildrenLeftToRightWrap(parent),
         .top_to_bottom => self.place_children_top_to_bottom(parent, expanders.slice(), expander_weights),
         .centre => self.place_children_centred(parent),
         .top_left => self.place_children_top_left(parent),
@@ -598,7 +598,7 @@ inline fn place_children_top_to_bottom(
 /// Draw panel children from top left corner of the panel
 /// assuming no scrolling of the child entities. Offsets
 /// applied at runtime.
-inline fn place_children_left_to_right(
+inline fn placeChildrenLeftToRight(
     _: *Panel,
     parent: *Entity,
     expanders: []*Entity,
@@ -725,7 +725,7 @@ inline fn place_children_left_to_right(
 // assuming no scrolling of the child entities. Offsets
 // applied at runtime. Track the height of each entity
 // so wrapping can occur down to the next line.
-inline fn place_children_left_to_right_wrap(
+inline fn placeChildrenLeftToRightWrap(
     _: *Panel,
     parent: *Entity,
 ) void {
@@ -735,7 +735,7 @@ inline fn place_children_left_to_right_wrap(
     };
 
     var box: engine.BoxLayout = .init(
-        parent.rect.width,
+        parent.rect.width - parent.pad.left - parent.pad.right,
         parent.type.panel.spacing,
         parent.type.panel.spacing,
     );
