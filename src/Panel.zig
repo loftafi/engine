@@ -80,15 +80,6 @@ pub inline fn draw(
     }
 }
 
-pub inline fn minimumNeededHeight(
-    self: *const Panel,
-    display: *Display,
-    entity: *const Entity,
-    _: f32, //parent_inner_width
-) f32 {
-    return @max(entity.minimum.height, self.find_minimum_panel_height(entity, display));
-}
-
 /// Discover the minimum needed for a particular object.
 ///
 /// If the object has children, a `parent` object must check
@@ -96,49 +87,62 @@ pub inline fn minimumNeededHeight(
 ///
 /// If parent stacks children top-to-bottom, we must add the heights.
 /// If parent stacks children left-to-right simply find the tallest item.
-fn find_minimum_panel_height(_: *const Panel, parent: *const Entity, display: *Display) f32 {
-    std.debug.assert(parent.type == .panel);
-    if (parent.visible == .hidden) return 0;
-    if (parent.layout.position == .float) return 0;
+pub inline fn minimumNeededHeight(
+    self: *const Panel,
+    display: *Display,
+    entity: *const Entity,
+    _: f32, //parent_inner_width
+) f32 {
+    return @max(entity.minimum.height, self.calculateMinimumNeededHeight(entity, display));
+}
 
-    const available_width = parent.inner_width();
+fn calculateMinimumNeededHeight(
+    _: *const Panel,
+    entity: *const Entity,
+    display: *Display,
+) f32 {
+    std.debug.assert(entity.type == .panel);
+    if (entity.visible == .hidden) return 0;
+    if (entity.layout.position == .float) return 0;
 
-    switch (parent.type.panel.direction) {
+    const available_width = entity.inner_width();
+
+    switch (entity.type.panel.direction) {
         .top_to_bottom => {
             // a, above b, above c. (top to bottom)
-            var minimum_needed: f32 = parent.pad.top + parent.pad.bottom;
+            var minimum_needed: f32 = entity.pad.top + entity.pad.bottom;
             // Add the size needed for each inline child.
             var first = true;
-            for (parent.type.panel.children.items) |entity| {
-                if (entity.layout.position == .float) continue;
-                if (entity.visible == .hidden) continue;
-                if (entity.type == .expander) continue;
+            for (entity.type.panel.children.items) |child| {
+                if (child.layout.position == .float) continue;
+                if (child.visible == .hidden) continue;
+                if (child.type == .expander) continue;
                 if (first) {
                     first = false;
                 } else {
                     // Add spacing before next entity, if needed
-                    minimum_needed += parent.type.panel.spacing;
+                    minimum_needed += entity.type.panel.spacing;
                 }
-                const height = entity.minimumNeededHeight(display, available_width);
+                const height = child.minimumNeededHeight(display, available_width);
                 minimum_needed += height;
             }
             // Bound to the minimum/maximum height
             var result = minimum_needed;
-            if (parent.maximum.height > 0 and parent.maximum.height < minimum_needed) {
-                result = parent.maximum.height;
+            if (entity.maximum.height > 0 and entity.maximum.height < minimum_needed) {
+                result = entity.maximum.height;
             }
-            result = @max(result, parent.minimum.height);
+            result = @max(result, entity.minimum.height);
             return result;
         },
 
         .left_to_right_wrap => {
             var box: engine.BoxLayout = .init(
                 available_width,
-                parent.type.panel.spacing,
-                parent.type.panel.spacing,
+                entity.type.panel.spacing,
+                entity.type.panel.spacing,
             );
 
-            for (parent.type.panel.children.items) |child| {
+            for (entity.type.panel.children.items) |child| {
                 if (child.layout.position == .float) continue;
                 if (child.visible == .hidden) continue;
                 if (child.type == .expander) continue;
@@ -148,8 +152,8 @@ fn find_minimum_panel_height(_: *const Panel, parent: *const Entity, display: *D
             }
             box.finalise();
             return @max(
-                box.final.height + parent.pad.top + parent.pad.bottom,
-                parent.minimum.height,
+                box.final.height + entity.pad.top + entity.pad.bottom,
+                entity.minimum.height,
             );
         },
 
@@ -159,25 +163,16 @@ fn find_minimum_panel_height(_: *const Panel, parent: *const Entity, display: *D
             //
             // Just need to know the highest/tallest child.
             var minimum_needed: f32 = 0;
-            for (parent.type.panel.children.items) |entity| {
-                if (entity.layout.position == .float) continue;
+            for (entity.type.panel.children.items) |child| {
+                if (child.layout.position == .float) continue;
 
-                const height = entity.minimumNeededHeight(display, available_width);
+                const height = child.minimumNeededHeight(display, available_width);
                 if (height > minimum_needed)
                     minimum_needed = height;
             }
-            return minimum_needed + (parent.pad.top + parent.pad.bottom);
+            return minimum_needed + (entity.pad.top + entity.pad.bottom);
         },
     }
-}
-
-pub inline fn minimumNeededWidth(
-    self: *const Panel,
-    display: *Display,
-    entity: *const Entity,
-    _: f32, //parent_inner_width
-) f32 {
-    return @max(entity.minimum.width, self.find_minimum_panel_width(entity, display));
 }
 
 /// Discover the minimum needed for a particular object.
@@ -187,16 +182,25 @@ pub inline fn minimumNeededWidth(
 ///
 /// If parent fills children left-to-right, we must add the heights.
 /// If parent fills children top-to-bottom simply find the widest item.
-fn find_minimum_panel_width(
+pub inline fn minimumNeededWidth(
+    self: *const Panel,
+    display: *Display,
+    entity: *const Entity,
+    _: f32, //parent_inner_width
+) f32 {
+    return @max(entity.minimum.width, self.calculateMinimumNeededWidth(entity, display));
+}
+
+fn calculateMinimumNeededWidth(
     panel: *const Panel,
-    parent: *const Entity,
+    entity: *const Entity,
     display: *Display,
 ) f32 {
-    std.debug.assert(parent.type == .panel);
-    if (parent.visible == .hidden) return 0;
+    std.debug.assert(entity.type == .panel);
+    if (entity.visible == .hidden) return 0;
     //if (parent.layout.position == .float) return 0;
 
-    const available_width = parent.inner_width();
+    const available_width = entity.inner_width();
 
     switch (panel.direction) {
         .left_to_right, .left_to_right_wrap => {
@@ -204,8 +208,8 @@ fn find_minimum_panel_width(
             // inner spacing and possible wrapping.
             var box: engine.BoxLayout = .init(
                 if (panel.direction == .left_to_right_wrap) available_width else std.math.floatMax(f32),
-                parent.type.panel.spacing,
-                parent.type.panel.spacing,
+                entity.type.panel.spacing,
+                entity.type.panel.spacing,
             );
 
             for (panel.children.items) |child| {
@@ -218,8 +222,8 @@ fn find_minimum_panel_width(
             }
             box.finalise();
             return @max(
-                box.final.width + parent.pad.left + parent.pad.right,
-                parent.minimum.width,
+                box.final.width + entity.pad.left + entity.pad.right,
+                entity.minimum.width,
             );
         },
         .centre, .top_to_bottom, .top_left, .top_right => {
@@ -227,7 +231,7 @@ fn find_minimum_panel_width(
             // a, then b underneath, thn c underneath...
             //
             // Need to just find maximum width item
-            var minimum_needed: f32 = parent.pad.left + parent.pad.right;
+            var minimum_needed: f32 = entity.pad.left + entity.pad.right;
             for (panel.children.items) |child| {
                 if (child.layout.position == .float) continue;
                 if (child.visible == .hidden) continue;
@@ -235,7 +239,7 @@ fn find_minimum_panel_width(
                 const child_width = child.minimumNeededWidth(display, available_width);
                 if (false) {
                     trace("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
-                        parent.name,
+                        entity.name,
                         child.name,
                         child.type,
                         minimum_needed,
@@ -245,7 +249,7 @@ fn find_minimum_panel_width(
                 }
                 minimum_needed = @max(minimum_needed, child_width);
             }
-            return @max(parent.minimum.width, minimum_needed + (parent.pad.left + parent.pad.right));
+            return @max(entity.minimum.width, minimum_needed + (entity.pad.left + entity.pad.right));
         },
     }
 }
