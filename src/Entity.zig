@@ -1148,18 +1148,18 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
 
             if (entity.flip.x) {
                 dest.x += dest.width;
-                dest.width = 0 - dest.width;
+                dest.width = -dest.width;
             }
             if (entity.flip.y) {
                 dest.y += dest.height;
-                dest.height = 0 - dest.height;
+                dest.height = -dest.height;
             }
             entity.applyBackgroundTint(display, texture.texture);
             if (entity.background.image_corner_radius == 0) {
                 _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
             } else {
                 var corner: f32 = entity.background.corner_radius;
-                if (corner * 2 > dest.height) corner = dest.height / 2;
+                if (corner * 2 > @abs(dest.height)) corner = @abs(dest.height) / 2;
                 _ = sdl.SDL_RenderTexture9Grid(
                     display.renderer,
                     texture.texture,

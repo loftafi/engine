@@ -199,34 +199,11 @@ fn find_minimum_panel_width(
     const available_width = parent.inner_width();
 
     switch (panel.direction) {
-        .left_to_right => {
-            // a, next to b, next to c. (left to right)
-            //
-            // Need to add up the min width of all items
-            var minimum_needed: f32 = parent.pad.left + parent.pad.right;
-            var first = true;
-            for (panel.children.items) |entity| {
-                if (entity.layout.position == .float) continue;
-                if (entity.visible == .hidden) continue;
-
-                // Add space between each entity.
-                if (first)
-                    first = false
-                else
-                    minimum_needed += panel.spacing;
-
-                const width = entity.minimumNeededWidth(display, available_width);
-                minimum_needed += width;
-            }
-            // Bound to the minimum/maximum width
-            if (parent.maximum.width > 0)
-                minimum_needed = @min(parent.maximum.width, minimum_needed);
-
-            return @max(minimum_needed, parent.minimum.width);
-        },
-        .left_to_right_wrap => {
+        .left_to_right, .left_to_right_wrap => {
+            // Place each element left to right with possible
+            // inner spacing and possible wrapping.
             var box: engine.BoxLayout = .init(
-                available_width,
+                if (panel.direction == .left_to_right_wrap) available_width else std.math.floatMax(f32),
                 parent.type.panel.spacing,
                 parent.type.panel.spacing,
             );
@@ -240,7 +217,10 @@ fn find_minimum_panel_width(
                 _ = box.place(width, child.rect.height);
             }
             box.finalise();
-            return @max(box.needed.width, parent.minimum.width);
+            return @max(
+                box.final.width + parent.pad.left + parent.pad.right,
+                parent.minimum.width,
+            );
         },
         .centre, .top_to_bottom, .top_left, .top_right => {
             // a, centred upon b, centred upon c
