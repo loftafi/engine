@@ -1,4 +1,4 @@
-/// An entity that displays a simple image texture.
+/// A simple image entity.
 pub const Sprite = @This();
 
 /// Request a callback every iteration of the main app loop.

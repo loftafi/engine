@@ -202,6 +202,8 @@ fn formatted_log_output(
         if (level == .debug and engine.dev_mode == false) return;
     }
 
+    if (builtin.is_test) return;
+
     var buffer: [max_log_message_size]u8 = undefined;
     const message = std.fmt.bufPrintZ(&buffer, format, args) catch format;
 
