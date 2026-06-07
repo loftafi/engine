@@ -10,6 +10,10 @@ pub fn TextSize(text_height: comptime_float) type {
 
         pub const pixels: f32 = text_height;
 
+        pub fn size(self: @This()) f32 {
+            return text_height * self.height();
+        }
+
         /// Return the height of the text relative to the `normal`
         /// text height for this display.
         pub fn height(self: @This()) f32 {

@@ -1,3 +1,5 @@
+const max_callbacks = 20;
+
 /// Add or update the fields of an Entity by parsing the contents of a
 /// string describing the contents to apply to that entity.
 ///
@@ -15,35 +17,66 @@
 ///       comptime HandlerType: type, handler: *HandleType, data: []const u8
 ///    ) Error!?Entity {
 pub fn readEntity(
+    allocator: Allocator,
     data: []const u8,
-    handler_type: anytype,
-) Error!?Entity {
-    const po = @TypeOf(handler_type);
-    const pi = @typeInfo(po);
-    if (pi != .pointer) @compileError("callback parameter must be a pointer to a struct.");
-    const so = @typeInfo(pi.pointer.child);
-    if (so != .@"struct") @compileError("callback parameter must be a pointer to a struct");
-    const callbacks = comptime callbackFunctionList(pi.pointer.child);
-    const state_callbacks = comptime callbackStateFunctionList(pi.pointer.child);
-    const update_callbacks = comptime callbackUpdateFunctionList(pi.pointer.child);
-    const bool_callbacks = comptime callbackBoolFunctionList(pi.pointer.child);
-
+    comptime HandlerType: type,
+    handler: *HandlerType,
+) (Error || Allocator.Error)!?Entity {
     var token: Token = try .init(data);
+    return try readEntityTokens(allocator, &token, HandlerType, handler) orelse return null;
+}
+
+pub fn readEntityTokens(
+    allocator: Allocator,
+    token: *Token,
+    comptime HandlerType: type,
+    handler: *HandlerType,
+) (Error || Allocator.Error)!?Entity {
+    var buffer1: [max_callbacks]CallbackOption = undefined;
+    var buffer2: [max_callbacks]StateCallbackOption = undefined;
+    var buffer3: [max_callbacks]UpdateCallbackOption = undefined;
+    var buffer4: [max_callbacks]BoolCallbackOption = undefined;
+
+    const callbacks = callbackFunctionList(HandlerType, &buffer1);
+    const state_callbacks = callbackStateFunctionList(HandlerType, &buffer2);
+    const update_callbacks = callbackUpdateFunctionList(HandlerType, &buffer3);
+    const bool_callbacks = callbackBoolFunctionList(HandlerType, &buffer4);
+
     errdefer {
-        err("Unexpected token {t} at {d}.{d}", .{ token.tag, token.begins.line, token.begins.column });
+        err("Unexpected token {t} at {d}.{d}: {s}", .{
+            token.tag,
+            token.begins.line,
+            token.begins.column,
+            token.slice(),
+        });
     }
     if (token.tag == .eof) return null;
-    var entity = readEntityType(&token) catch return error.UnexpectedToken;
+    var entity = readEntityType(token) catch return error.UnexpectedToken;
     //entity.setup(display);
     readAttributes(
-        &token,
+        token,
         &entity,
-        handler_type,
+        HandlerType,
+        handler,
         callbacks,
         state_callbacks,
         update_callbacks,
         bool_callbacks,
     ) catch return error.UnexpectedToken;
+
+    if (entity.type == .panel) {
+        if (token.tag != .open_bracket) return entity;
+        token.* = try token.next();
+        while (token.tag != .close_bracket and token.tag != .eof) {
+            const child = try readEntityTokens(allocator, token, HandlerType, handler);
+            if (child == null) break;
+            const c = try allocator.create(Entity);
+            errdefer allocator.destroy(c);
+            c.* = child.?;
+            try entity.type.panel.children.append(allocator, c);
+        }
+        token.* = try token.next();
+    }
 
     return entity;
 }
@@ -56,8 +89,8 @@ pub const CallbackOption = struct {
 
 /// Return the name and pointer to all functions matching the Callback
 /// function definition.
-pub fn callbackFunctionList(comptime t: type) []const CallbackOption {
-    var list: []const CallbackOption = &.{};
+pub fn callbackFunctionList(t: type, list: []CallbackOption) []const CallbackOption {
+    var count: usize = 0;
     inline for (@typeInfo(t).@"struct".decls) |decl| {
         const f = @field(t, decl.name);
         const info = @typeInfo(@TypeOf(f));
@@ -95,9 +128,11 @@ pub fn callbackFunctionList(comptime t: type) []const CallbackOption {
         if (t3i != .@"struct") continue;
         if (t3.pointer.child != engine.Event) continue;
 
-        list = list ++ .{CallbackOption{ .name = decl.name, .f = @ptrCast(&f) }};
+        list[count] = CallbackOption{ .name = decl.name, .f = @ptrCast(&f) };
+        count += 1;
+        if (count == max_callbacks) break;
     }
-    return list;
+    return list[0..count];
 }
 
 fn findMatchingCallback(name: []const u8, options: []const CallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event) error{OutOfMemory}!void {
@@ -116,8 +151,8 @@ pub const UpdateCallbackOption = struct {
 
 /// Return the name and pointer to all functions matching the Callback
 /// function definition.
-pub fn callbackUpdateFunctionList(comptime t: type) []const UpdateCallbackOption {
-    var list: []const UpdateCallbackOption = &.{};
+pub fn callbackUpdateFunctionList(t: type, list: []UpdateCallbackOption) []const UpdateCallbackOption {
+    var count: usize = 0;
     inline for (@typeInfo(t).@"struct".decls) |decl| {
         const f = @field(t, decl.name);
         const info = @typeInfo(@TypeOf(f));
@@ -146,9 +181,11 @@ pub fn callbackUpdateFunctionList(comptime t: type) []const UpdateCallbackOption
         if (t2i != .@"struct") continue;
         if (t2.pointer.child != engine.Entity) continue;
 
-        list = list ++ .{UpdateCallbackOption{ .name = decl.name, .f = @ptrCast(&f) }};
+        list[count] = UpdateCallbackOption{ .name = decl.name, .f = @ptrCast(&f) };
+        count += 1;
+        if (count == max_callbacks) break;
     }
-    return list;
+    return list[0..count];
 }
 
 fn findMatchingUpdateCallback(name: []const u8, options: []const UpdateCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) void {
@@ -167,8 +204,8 @@ pub const StateCallbackOption = struct {
 
 /// Return the name and pointer to all functions matching the Callback
 /// function definition.
-pub fn callbackStateFunctionList(comptime t: type) []const StateCallbackOption {
-    var list: []const StateCallbackOption = &.{};
+pub fn callbackStateFunctionList(t: type, list: []StateCallbackOption) []const StateCallbackOption {
+    var count: usize = 0;
     inline for (@typeInfo(t).@"struct".decls) |decl| {
         const f = @field(t, decl.name);
         const info = @typeInfo(@TypeOf(f));
@@ -199,9 +236,11 @@ pub fn callbackStateFunctionList(comptime t: type) []const StateCallbackOption {
         if (t2i != .@"struct") continue;
         if (t2.pointer.child != engine.Entity) continue;
 
-        list = list ++ .{StateCallbackOption{ .name = decl.name, .f = @ptrCast(&f) }};
+        list[count] = StateCallbackOption{ .name = decl.name, .f = @ptrCast(&f) };
+        count += 1;
+        if (count == max_callbacks) break;
     }
-    return list;
+    return list[0..count];
 }
 
 fn findMatchingStateCallback(name: []const u8, options: []const StateCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) error{OutOfMemory}!void {
@@ -220,8 +259,8 @@ pub const BoolCallbackOption = struct {
 
 /// Return the name and pointer to all functions matching the Callback
 /// function definition.
-pub fn callbackBoolFunctionList(comptime t: type) []const BoolCallbackOption {
-    var list: []const BoolCallbackOption = &.{};
+pub fn callbackBoolFunctionList(t: type, list: []BoolCallbackOption) []const BoolCallbackOption {
+    var count: usize = 0;
     inline for (@typeInfo(t).@"struct".decls) |decl| {
         const f = @field(t, decl.name);
         const info = @typeInfo(@TypeOf(f));
@@ -252,9 +291,11 @@ pub fn callbackBoolFunctionList(comptime t: type) []const BoolCallbackOption {
         if (t2i != .@"struct") continue;
         if (t2.pointer.child != engine.Entity) continue;
 
-        list = list ++ .{BoolCallbackOption{ .name = decl.name, .f = @ptrCast(&f) }};
+        list[count] = BoolCallbackOption{ .name = decl.name, .f = @ptrCast(&f) };
+        count += 1;
+        if (count == max_callbacks) break;
     }
-    return list;
+    return list[0..count];
 }
 
 fn findMatchingBoolCallback(name: []const u8, options: []const BoolCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) bool {
@@ -272,11 +313,25 @@ pub fn readEntityType(token: *Token) Error!Entity {
         .checkbox => .{ .focus = .can_focus, .type = .{ .checkbox = .{ .text_size = .normal } } },
         .expander => .{ .focus = .never_focus, .type = .{ .expander = .{} } },
         .label => .{ .focus = .accessibility_focus, .type = .{ .label = .{ .text_size = .normal } } },
-        .panel => .{ .type = .{ .panel = .{} } },
+        .panel => .{
+            .texture = null,
+            .background = .{ .image = null },
+            .type = .{ .panel = .{ .children = .empty } },
+        },
         .progress_bar => .{ .type = .{ .progress_bar = .{} } },
         .rectangle => .{ .type = .{ .rectangle = .{} } },
         .sprite => .{ .type = .{ .sprite = .{} } },
-        .text_input => .{ .focus = .can_focus, .type = .{ .text_input = .{ .text_size = .normal } } },
+        .text_input => .{
+            .minimum = .{ .height = TextSize.normal.size() },
+            .focus = .can_focus,
+            .type = .{ .text_input = .{
+                .text_size = .normal,
+                .text = .empty,
+                .runes = .empty,
+                .initial_text = null,
+                .placeholder_text = null,
+            } },
+        },
         else => error.UnexpectedToken,
     };
 }
@@ -284,7 +339,8 @@ pub fn readEntityType(token: *Token) Error!Entity {
 pub fn readAttributes(
     token: *Token,
     entity: *Entity,
-    handler: *anyopaque,
+    HandlerType: type,
+    handler: *HandlerType,
     callbacks: []const CallbackOption,
     state_callbacks: []const StateCallbackOption,
     update_callbacks: []const UpdateCallbackOption,
@@ -294,7 +350,7 @@ pub fn readAttributes(
     while (true) {
         //err("reading attribute {t}", .{token.tag});
         try switch (token.tag) {
-            .panel, .sprite, .rectangle, .text_input, .label, .checkbox, .expander, .progress_bar => return,
+            .panel, .button, .sprite, .rectangle, .text_input, .label, .checkbox, .expander, .progress_bar, .open_bracket, .close_bracket => return,
             .name => readNameAttribute(token, entity),
             .text => readTextAttribute(token, entity),
             .image => readStringAttribute(token, &entity.texture_name),
@@ -679,6 +735,7 @@ pub fn readTextAttribute(
             const value = token.data[token.loc.start + 1 .. token.loc.end - 1];
             switch (entity.type) {
                 .label => entity.type.label.text = value,
+                .button => entity.type.button.text = value,
                 .text_input => entity.type.text_input.initial_text = if (value.len > 0) value else null,
                 else => return error.UnexpectedToken,
             }
@@ -721,12 +778,55 @@ pub fn readFloatValue(token: *Token) Error!f32 {
 
 pub fn readAlignAttribute(token: *Token, entity: *Entity) Error!void {
     token.* = try token.next();
-    switch (token.tag) {
-        .string => {
-            entity.layout.x = .fixed;
-            return;
-        },
-        else => return error.UnexpectedToken,
+    var value_count: u8 = 0;
+    var read_x = false;
+    var read_y = false;
+    while (true) {
+        switch (token.tag) {
+            .x => {
+                if (read_x == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                entity.child_align.x = switch (token.tag) {
+                    .start => .start,
+                    .centre => .centre,
+                    .end => .end,
+                    else => return error.UnexpectedToken,
+                };
+                read_x = true;
+            },
+            .y => {
+                if (read_y == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                entity.child_align.y = switch (token.tag) {
+                    .start => .start,
+                    .centre => .centre,
+                    .end => .end,
+                    else => return error.UnexpectedToken,
+                };
+                read_y = true;
+            },
+            .start, .end, .centre => {
+                if (value_count == 2) return error.UnexpectedToken;
+                if (value_count == 0) entity.child_align.x = switch (token.tag) {
+                    .start => .start,
+                    .centre => .centre,
+                    .end => .end,
+                    else => return error.UnexpectedToken,
+                };
+                if (value_count == 1) entity.child_align.y = switch (token.tag) {
+                    .start => .start,
+                    .centre => .centre,
+                    .end => .end,
+                    else => return error.UnexpectedToken,
+                };
+                value_count += 1;
+                token.* = try token.next();
+            },
+            else => {
+                if (read_x == true or read_y == true or value_count > 0) return;
+                return error.UnexpectedToken;
+            },
+        }
     }
 }
 
@@ -1088,13 +1188,13 @@ test "layout_equals2" {
 
 test "panel" {
     var te: TestHandler = .{};
-    const entity = try readEntity(
+    const entity = try readEntity(std.testing.allocator,
         \\panel name "coffee" image "cat"
         \\minimum width=33 height=120
         \\maximum height=99 width=88
         \\horizontal
         \\style tinted
-    , &te) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
 
     try expectEqual(33, entity.minimum.width);
     try expectEqual(120, entity.minimum.height);
@@ -1106,13 +1206,30 @@ test "panel" {
     try expectEqual(.tinted, entity.style);
 }
 
+test "panel_children" {
+    var te: TestHandler = .{};
+    const entity = try readEntity(std.testing.allocator,
+        \\panel name "coffee" image "cat"
+        \\{
+        \\  label text "hello"
+        \\  label text "hello2"
+        \\  button text "save"
+        \\}
+    , TestHandler, &te) orelse unreachable;
+
+    try expectEqual(3, entity.type.panel.children.items.len);
+    try expect(.label == entity.type.panel.children.items[0].type);
+    try expect(.label == entity.type.panel.children.items[1].type);
+    try expect(.button == entity.type.panel.children.items[2].type);
+}
+
 test "label" {
     var te: TestHandler = .{};
-    const entity = try readEntity(
+    const entity = try readEntity(std.testing.allocator,
         \\label name "coffee" line_height 1.2
         \\minimum 33 44
         \\style emphasised text_size heading
-    , &te) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
     try expectEqual(33, entity.minimum.width);
     try expectEqual(44, entity.minimum.height);
     try expectEqual(1.2, entity.type.label.line_height);
@@ -1123,7 +1240,7 @@ test "label" {
 
 test "checkbox" {
     var te: TestHandler = .{};
-    var entity = try readEntity(
+    var entity = try readEntity(std.testing.allocator,
         \\checkbox name "coffee"
         \\minimum width=12.34 height=120
         \\style tinted text_size heading
@@ -1131,7 +1248,7 @@ test "checkbox" {
         \\layout y=shrinks x=fixed
         \\checkbox_size 25 26
         \\on_change "on_click"
-    , &te) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
 
     try expectEqual(1.2, entity.type.checkbox.line_height);
     try expectEqual(12.34, entity.minimum.width);
@@ -1158,13 +1275,13 @@ test "checkbox" {
 
 test "text_input" {
     var te: TestHandler = .{};
-    const entity = try readEntity(
+    const entity = try readEntity(std.testing.allocator,
         \\text_input name "coffee"
         \\minimum 100 40
         \\style normal placeholder_text "Enter your food"
         \\layout grows shrinks
         \\max_length 123
-    , &te) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
     try expectEqual(100, entity.minimum.width);
     try expectEqual(40, entity.minimum.height);
     try expectEqualStrings("Enter your food", entity.type.text_input.placeholder_text.?);
@@ -1176,14 +1293,16 @@ test "text_input" {
 
 test "expander" {
     var te: TestHandler = .{};
-    const entity = try readEntity(
+    const entity = try readEntity(std.testing.allocator,
         \\expander name "expander 1" weight 0.4
-    , &te) orelse unreachable;
+    , TestHandler, &te) orelse unreachable;
     try expectEqual(0.4, entity.type.expander.weight);
     try expectEqualStrings("expander 1", entity.name);
 }
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
@@ -1192,5 +1311,6 @@ const err = engine.log.err;
 
 const Token = @import("Token.zig");
 const Entity = @import("Entity.zig");
+const TextSize = engine.TextSize;
 
 const headless_display = @import("test.zig").headless_display;

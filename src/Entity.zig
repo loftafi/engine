@@ -929,21 +929,38 @@ pub const EntityParser = @import("EntityParser.zig");
 pub inline fn append(
     self: *Entity,
     data: []const u8,
-    handler: anytype,
+    HandlerType: type,
+    handler: *HandlerType,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!*Entity {
+) (Error || Allocator.Error || Resources.Error)!void {
     std.debug.assert(self.type == .panel);
-    const child = try display.allocator.create(Entity);
-    child.* = try EntityParser.readEntity(data, handler) orelse return Error.UnexpectedToken;
 
-    if (try child.getText()) |text| {
-        try child.setText(display, text);
+    var token: Token = try .init(data);
+
+    if (token.tag == .eof) return Error.UnexpectedToken;
+
+    while (token.tag != .eof) {
+        const child = try display.allocator.create(Entity);
+        errdefer display.allocator.destroy(child);
+        child.* = try EntityParser.readEntityTokens(display.allocator, &token, HandlerType, handler) orelse return Error.UnexpectedToken;
+
+        try postAppend(display, child);
+
+        try self.type.panel.children.append(display.allocator, child);
+        if (child.visible != .hidden and self.visible != .hidden)
+            display.need_relayout = true;
     }
+}
 
-    try self.type.panel.children.append(display.allocator, child);
-    if (child.visible != .hidden and self.visible != .hidden)
-        display.need_relayout = true;
-    return child;
+fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error || Resources.Error)!void {
+    if (try entity.getText()) |text| {
+        try entity.setText(display, text);
+    }
+    if (entity.type == .panel) {
+        for (entity.type.panel.children.items) |child| {
+            try postAppend(display, child);
+        }
+    }
 }
 
 /// Use `insert` to insert a child entity in a specific location
@@ -2531,3 +2548,4 @@ pub const Sprite = @import("Sprite.zig");
 pub const Label = @import("Label.zig");
 pub const Rectangle = @import("Rectangle.zig");
 pub const TextInput = @import("TextInput.zig");
+pub const Token = @import("Token.zig");

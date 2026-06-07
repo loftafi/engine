@@ -779,9 +779,9 @@ test "panel_button_layout" {
         .child_align = .{ .x = .start, .y = .start },
         .type = .{ .panel = .{ .direction = .top_left, .spacing = 5 } },
     });
-    const b1 = try panel.append("button size width=90 height=90", &handler, display);
-    const b2 = try panel.append("button size width=90 height=90", &handler, display);
-    const b3 = try panel.append("button size width=90 height=90", &handler, display);
+    const b1 = try panel.append("button size width=90 height=90", NullHandler, &handler, display);
+    const b2 = try panel.append("button size width=90 height=90", NullHandler, &handler, display);
+    const b3 = try panel.append("button size width=90 height=90", NullHandler, &handler, display);
 
     panel.type.panel.direction = .top_left;
     display.need_relayout = true;
@@ -865,9 +865,9 @@ test "panel_label_layout" {
         .child_align = .{ .x = .start, .y = .start },
         .type = .{ .panel = .{ .direction = .top_left, .spacing = spacing } },
     });
-    const b1 = try panel.append("label text \"This\" layout shrinks shrinks", &handler, display);
-    const b2 = try panel.append("label text \"word\" layout shrinks shrinks", &handler, display);
-    const b3 = try panel.append("label text \"fish\" layout shrinks shrinks", &handler, display);
+    const b1 = try panel.append("label text \"This\" layout shrinks shrinks", NullHandler, &handler, display);
+    const b2 = try panel.append("label text \"word\" layout shrinks shrinks", NullHandler, &handler, display);
+    const b3 = try panel.append("label text \"fish\" layout shrinks shrinks", NullHandler, &handler, display);
 
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
