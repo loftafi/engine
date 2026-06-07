@@ -813,7 +813,7 @@ pub inline fn setText(
             if (new_text.len > 0) {
                 ti.font = Chunker.guess_language(new_text, &display.font);
                 try ti.text.appendSlice(display.allocator, new_text);
-                self.text_data_to_runes(display.allocator);
+                ti.text_data_to_runes(display.allocator);
                 ti.cursor_character = ti.runes.items.len;
                 ti.cursor_pixels = try ti.font.measureText(
                     display,
@@ -1349,65 +1349,9 @@ pub fn keypress(
     slice: []const u8,
     event: *const Event,
 ) Allocator.Error!void {
-    var text_input = switch (self.type) {
-        .text_input => self.type.text_input,
-        else => {
-            err("keypress captured for {t}. {s} {t}", .{ self.type, slice, event.type });
-            return;
-        },
-    };
-
-    // Update the text line
-    trace("{t} recieved {t} {s}", .{ self.type, event.type, slice });
-    switch (key) {
-        @intFromEnum(Key.line_feed), @intFromEnum(Key.@"return") => {
-            _ = sdl.SDL_StopTextInput(display.window);
-            if (text_input.on_submit.func != null) {
-                try text_input.on_submit.call(display, self, event);
-            }
-            return;
-        },
-        @intFromEnum(Key.backspace) => {
-            if (text_input.runes.items.len == 0) {
-                return;
-            }
-            _ = text_input.runes.pop();
-            self.text_runes_to_data(display.allocator);
-            text_input.cursor_character -= 1;
-        },
-        else => {
-            const max_chars = @as(usize, text_input.max_length orelse TextInput.default_max_length);
-            if (text_input.runes.items.len >= max_chars) {
-                debug("Ignoring {u} {t}. {t} limited to {d} characters", .{
-                    key,
-                    event.type,
-                    self.type,
-                    max_chars,
-                });
-                return;
-            }
-            text_input.text.appendSlice(display.allocator, slice) catch {};
-            text_input.runes.append(display.allocator, key) catch {};
-            text_input.cursor_character += 1;
-        },
-    }
-    self.text_data_to_runes(display.allocator);
-
-    if (self.type.text_input.text.items.len > 0) {
-        // For now, the cursor position is simply the end of the text.
-        text_input.cursor_pixels = try text_input.font.measureText(
-            display,
-            text_input.text.items,
-        );
-    } else {
-        text_input.cursor_pixels = 0;
-    }
-
-    // Optionally, a text_input may have an `on_change` callback function.
-    if (text_input.on_change.func != null) {
-        trace("text_input calling on_change", .{});
-        try text_input.on_change.call(display, self, event);
-        trace("text_input called on_change", .{});
+    switch (self.type) {
+        .text_input => try self.type.text_input.keypress(self, display, key, slice, event),
+        else => err("keypress ignored for {t}. {s} {t}", .{ self.type, slice, event.type }),
     }
 }
 
@@ -1655,47 +1599,6 @@ pub fn deselected(self: *Entity, display: *Display, event: *const Event) void {
     }
     display.keyboard_activity = event.isKeyboardEvent();
     display.selected = null;
-}
-
-fn text_runes_to_data(self: *Entity, allocator: Allocator) void {
-    std.debug.assert(self.type == .text_input);
-    self.type.text_input.text.clearRetainingCapacity();
-    for (self.type.text_input.runes.items) |rune| {
-        var buff: [4]u8 = undefined;
-        const len = std.unicode.utf8Encode(rune, &buff) catch {
-            return;
-        };
-        self.type.text_input.text.appendSlice(allocator, buff[0..len]) catch {
-            return;
-        };
-    }
-}
-
-fn text_data_to_runes(self: *Entity, allocator: Allocator) void {
-    std.debug.assert(self.type == .text_input);
-    self.type.text_input.runes.clearRetainingCapacity();
-    var v = std.unicode.Utf8View.init(self.type.text_input.text.items) catch {
-        return;
-    };
-    var i = v.iterator();
-    var cursor_slice: usize = 0; // utf8 index of cursor position
-    var count: usize = 0;
-    while (i.nextCodepoint()) |rune| {
-        if (count == self.type.text_input.cursor_character) {
-            cursor_slice = i.i;
-        }
-        self.type.text_input.runes.append(allocator, rune) catch {
-            return;
-        };
-        count += 1;
-    }
-    if (count == self.type.text_input.cursor_character) {
-        cursor_slice = i.i;
-    }
-    if (self.type.text_input.cursor_character > self.type.text_input.runes.items.len) {
-        self.type.text_input.cursor_character = self.type.text_input.runes.items.len;
-        cursor_slice = self.type.text_input.text.items.len;
-    }
 }
 
 /// Calculate how many pixels of text we can draw until we must wrap to

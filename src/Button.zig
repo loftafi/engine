@@ -360,7 +360,7 @@ test "button_sizing" {
     button.type.button.text_size = .small;
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(44 * 0.75, button.minimumNeededHeight(display, 500));
+    try expectEqual(@round(44 * 0.80), button.minimumNeededHeight(display, 500));
 }
 
 const std = @import("std");

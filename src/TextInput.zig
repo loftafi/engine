@@ -20,6 +20,100 @@ placeholder_texture: ?*sdl.SDL_Texture = null,
 placeholder_text: ?[]const u8 = "",
 placeholder_translate: []const u8 = "",
 
+pub fn keypress(
+    self: *TextInput,
+    entity: *Entity,
+    display: *Display,
+    key: u21,
+    slice: []const u8,
+    event: *const Event,
+) Allocator.Error!void {
+
+    // Update the text line
+    trace("text_input recieved {t} {s}", .{ event.type, slice });
+    switch (key) {
+        @intFromEnum(Key.line_feed), @intFromEnum(Key.@"return") => {
+            _ = sdl.SDL_StopTextInput(display.window);
+            if (self.on_submit.func != null) {
+                try self.on_submit.call(display, entity, event);
+            }
+            return;
+        },
+        @intFromEnum(Key.backspace) => {
+            if (self.runes.items.len == 0) {
+                return;
+            }
+            _ = self.runes.pop();
+            self.text_runes_to_data(display.allocator);
+            self.cursor_character -= 1;
+        },
+        else => {
+            const max_chars = @as(usize, self.max_length orelse TextInput.default_max_length);
+            if (self.runes.items.len >= max_chars) {
+                debug("Ignoring {u} {t}. {s} limited to {d} characters", .{
+                    key,
+                    event.type,
+                    entity.name,
+                    max_chars,
+                });
+                return;
+            }
+            self.text.appendSlice(display.allocator, slice) catch {};
+            self.runes.append(display.allocator, key) catch {};
+            self.cursor_character += 1;
+        },
+    }
+    self.text_data_to_runes(display.allocator);
+
+    if (self.text.items.len > 0) {
+        // For now, the cursor position is simply the end of the text.
+        self.cursor_pixels = try self.font.measureText(
+            display,
+            self.text.items,
+        );
+    } else {
+        self.cursor_pixels = 0;
+    }
+
+    // Optionally, a text_input may have an `on_change` callback function.
+    if (self.on_change.func != null) {
+        trace("text_input calling on_change", .{});
+        try self.on_change.call(display, entity, event);
+        trace("text_input called on_change", .{});
+    }
+}
+
+fn text_runes_to_data(self: *TextInput, allocator: Allocator) void {
+    self.text.clearRetainingCapacity();
+    for (self.runes.items) |rune| {
+        var buff: [4]u8 = undefined;
+        const len = std.unicode.utf8Encode(rune, &buff) catch return;
+        self.text.appendSlice(allocator, buff[0..len]) catch return;
+    }
+}
+
+pub fn text_data_to_runes(self: *TextInput, allocator: Allocator) void {
+    self.runes.clearRetainingCapacity();
+    var v = std.unicode.Utf8View.init(self.text.items) catch {
+        return;
+    };
+    var i = v.iterator();
+    var cursor_slice: usize = 0; // utf8 index of cursor position
+    var count: usize = 0;
+    while (i.nextCodepoint()) |rune| {
+        if (count == self.cursor_character)
+            cursor_slice = i.i;
+        self.runes.append(allocator, rune) catch return;
+        count += 1;
+    }
+    if (count == self.cursor_character)
+        cursor_slice = i.i;
+    if (self.cursor_character > self.runes.items.len) {
+        self.cursor_character = self.runes.items.len;
+        cursor_slice = self.text.items.len;
+    }
+}
+
 /// Draw a text input box along with any text or cursor that
 /// may appear inside the text input box.
 pub inline fn draw(
@@ -147,21 +241,24 @@ pub inline fn minimumNeededWidth(
 }
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;
-const err = engine.err;
-const warn = engine.warn;
-const info = engine.info;
-const debug = engine.debug;
-const trace = engine.trace;
+const err = engine.log.err;
+const warn = engine.log.warn;
+const info = engine.log.info;
+const debug = engine.log.debug;
+const trace = engine.log.trace;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
+const Key = engine.Key;
 const Texture = engine.Texture;
 const TextSize = engine.TextSize;
+const Event = @import("Event.zig");
 
 const Clip = Entity.Clip;
 const Rect = Entity.Rect;
