@@ -1207,8 +1207,13 @@ test "panel" {
 }
 
 test "panel_children" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
     var te: TestHandler = .{};
-    const entity = try readEntity(std.testing.allocator,
+    var entity = try readEntity(allocator,
         \\panel name "coffee" image "cat"
         \\{
         \\  label text "hello"
@@ -1216,6 +1221,7 @@ test "panel_children" {
         \\  button text "save"
         \\}
     , TestHandler, &te) orelse unreachable;
+    defer entity.deinit(allocator, display);
 
     try expectEqual(3, entity.type.panel.children.items.len);
     try expect(.label == entity.type.panel.children.items[0].type);
@@ -1230,6 +1236,7 @@ test "label" {
         \\minimum 33 44
         \\style emphasised text_size heading
     , TestHandler, &te) orelse unreachable;
+
     try expectEqual(33, entity.minimum.width);
     try expectEqual(44, entity.minimum.height);
     try expectEqual(1.2, entity.type.label.line_height);

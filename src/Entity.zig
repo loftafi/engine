@@ -932,6 +932,30 @@ pub inline fn append(
     HandlerType: type,
     handler: *HandlerType,
     display: *Display,
+) (Error || Allocator.Error || Resources.Error)!*Entity {
+    std.debug.assert(self.type == .panel);
+
+    var token: Token = try .init(data);
+
+    if (token.tag == .eof) return Error.UnexpectedToken;
+
+    const child = try display.allocator.create(Entity);
+    errdefer display.allocator.destroy(child);
+    child.* = try EntityParser.readEntityTokens(display.allocator, &token, HandlerType, handler) orelse return Error.UnexpectedToken;
+    try postAppend(display, child);
+    try self.type.panel.children.append(display.allocator, child);
+
+    return child;
+}
+
+/// `append` a child entity to this panel and return the entity. Only
+/// permitted for the `panel` entity type. See also `insert`.
+pub inline fn appendMultiple(
+    self: *Entity,
+    data: []const u8,
+    HandlerType: type,
+    handler: *HandlerType,
+    display: *Display,
 ) (Error || Allocator.Error || Resources.Error)!void {
     std.debug.assert(self.type == .panel);
 
