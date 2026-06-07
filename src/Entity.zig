@@ -1679,12 +1679,14 @@ pub fn setup_panel(
     entity.background.image = null;
 
     if (entity.focus == .unspecified) {
-        if (entity.type.panel.clickable()) {
-            entity.focus = .can_focus;
-        } else {
-            entity.focus = .never_focus;
-        }
+        entity.focus = if (entity.type.panel.clickable())
+            .can_focus
+        else
+            .never_focus;
     }
+
+    if (entity.type.panel.safe_area == .unspecified)
+        entity.type.panel.safe_area = .avoid_safe_area;
 
     if (entity.background.image_name) |name| {
         if (try display.requireImage(name)) |texture| {

@@ -426,7 +426,7 @@ pub fn create(
     try display.setKeybinding(.f3, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
     try display.setKeybinding(.f9, .{ .func = @ptrCast(&dumpFonts), .ptr = display });
 
-    display.update_system_theme();
+    display.updateSystemTheme();
     display.updateScreenMetrics(true);
 
     return display;
@@ -568,7 +568,7 @@ pub fn setTheme(self: *Self, name: []const u8) bool {
 
 /// On initialisation, the display reads the users OS light/dark
 /// theme preference.
-pub fn update_system_theme(self: *Self) void {
+pub fn updateSystemTheme(self: *Self) void {
     switch (sdl.SDL_GetSystemTheme()) {
         sdl.SDL_SYSTEM_THEME_DARK => self.theme = self.themes[0],
         sdl.SDL_SYSTEM_THEME_LIGHT => self.theme = self.themes[3],
@@ -577,8 +577,7 @@ pub fn update_system_theme(self: *Self) void {
     }
 }
 
-/// Return pointer to a top level panel if it exists. Can be used
-/// to update the contents of a top level panel.
+/// Return the top level panel with the requested name.
 pub fn getPanel(self: *Self, name: []const u8) ?*Entity {
     for (self.root.type.panel.children.items) |item| {
         if (item.type != .panel) {
@@ -591,9 +590,9 @@ pub fn getPanel(self: *Self, name: []const u8) ?*Entity {
     return null;
 }
 
-/// Mark a top level panel as visible, and all other
-/// top level panels as not visible. The visibility of the
-/// _background_ and _menu_ panel is not altered.
+/// Swtich which "choosable" panel is the currently visible panel.
+/// `not_choosable` panels can not be chosen because they are always visible
+/// and not part of the choosable set.
 pub fn choosePanel(
     self: *Self,
     name: []const u8,
@@ -604,9 +603,8 @@ pub fn choosePanel(
     var found = false;
     self.updateScreenMetrics(false);
     for (self.root.type.panel.children.items) |item| {
-        if (item.type != .panel) continue;
-        if (std.mem.eql(u8, "background", item.name)) continue;
-        if (std.mem.eql(u8, "menu", item.name)) continue;
+        const panel = if (item.type == .panel) item.type.panel else continue;
+        if (panel.choosable == .not_choosable) continue;
 
         if (std.mem.eql(u8, name, item.name)) {
             if (item.visible != .visible) {
@@ -641,8 +639,9 @@ pub fn choosePanel(
     }
 }
 
-/// Get the name of the currently visible top panel that isn't
-/// the background or menu panel.
+/// Get the name of the currently visible panel also has the `choosable` flag.
+/// `not_choosable` panels are not selectable and thus cant become the
+/// "current" panel.
 pub fn currentPanel(self: *Self) ?*Entity {
     if (builtin.mode == .Debug) {
         if (self.root.type != .panel) {
@@ -656,8 +655,7 @@ pub fn currentPanel(self: *Self) ?*Entity {
             err("root panel contains {t} which is not a panel", .{item.type});
             continue;
         }
-        if (std.mem.eql(u8, "background", item.name)) continue;
-        if (std.mem.eql(u8, "menu", item.name)) continue;
+        if (item.type.panel.choosable != .not_choosable) continue;
         if (item.visible == .visible) return item;
     }
     trace("currentPanel() did not find panel.", .{});
@@ -2375,7 +2373,7 @@ pub fn handleEvent(
         sdl.SDL_EVENT_MOUSE_BUTTON_UP => try self.handleMouseUpEvent(e),
         sdl.SDL_EVENT_MOUSE_MOTION => try self.handleMouseMotionEvent(e),
 
-        sdl.SDL_EVENT_SYSTEM_THEME_CHANGED => self.update_system_theme(),
+        sdl.SDL_EVENT_SYSTEM_THEME_CHANGED => self.updateSystemTheme(),
         sdl.SDL_EVENT_WINDOW_RESIZED,
         sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED,
         sdl.SDL_EVENT_DISPLAY_ORIENTATION,

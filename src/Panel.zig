@@ -1,8 +1,18 @@
 /// An entity that holds other entities and may become scrollable.
 pub const Panel = @This();
 
+/// Entities to draw inside this panel.
 children: ArrayListUnmanaged(*Entity) = .empty,
+
+/// Vertical or horizontal alignment
 direction: LayoutDirection = .centre,
+
+/// Inficate if a panel can grow into the safe area or not.
+safe_area: SafeArea = .unspecified,
+
+/// Indicate if a panel is part of the `choosePanel` set.
+choosable: Choosable = .unspecified,
+
 /// Empty space to place between entities.
 spacing: f32 = 0,
 
@@ -760,6 +770,12 @@ inline fn placeChildrenLeftToRightWrap(
     parent.type.panel.scrollable.size.height = @max(needed_height, parent.rect.height);
     //const overflow_height = parent.rect.height - needed_height;
 }
+
+/// Inficate if a panel can grow into the safe area or not.
+pub const SafeArea = enum { unspecified, ignore_safe_area, avoid_safe_area };
+
+/// Indicate if a panel is part of the `choosePanel` set.
+pub const Choosable = enum { unspecified, choosable, not_choosable };
 
 pub const NullHandler = struct {};
 
