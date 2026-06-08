@@ -293,14 +293,32 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     // - `.grows` entities take the width and height provided by the parent `rect`.
     // - `.shrinks` entities shrink to the `minimum` space they need.
     //
+
     const available_width = parent.inner_width();
-    // TODO: Support growing by height to allow vertical alignment
-    //const available_height = parent.inner_height();
+    const available_height = parent.inner_height();
+    const in_root = parent == &display.root;
 
     for (self.children.items) |entity| {
         if (entity.visible == .hidden) continue;
 
-        const child_resized = self.calculate_child_size(display, entity, parent, available_width);
+        const ignore_safe_area = entity.type == .panel and entity.type.panel.safe_area == .ignore_safe_area;
+
+        // Top level panels may have safe area avoidance
+        var height = available_height;
+        var width = available_width;
+        if (in_root and !ignore_safe_area) {
+            width -= (display.safe_area.left + display.safe_area.right);
+            height -= (display.safe_area.top + display.safe_area.bottom);
+            if (width < 0) width = 0;
+            if (height < 0) height = 0;
+        }
+
+        const child_resized = self.updateChildSize(
+            display,
+            entity,
+            width,
+            height,
+        );
 
         if (child_resized) {
             resized = true;
@@ -343,10 +361,10 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     switch (self.direction) {
         .left_to_right => self.placeChildrenLeftToRight(parent, expanders.slice(), expander_weights),
         .left_to_right_wrap => self.placeChildrenLeftToRightWrap(parent),
-        .top_to_bottom => self.place_children_top_to_bottom(parent, expanders.slice(), expander_weights),
-        .centre => self.place_children_centred(parent),
-        .top_left => self.place_children_top_left(parent),
-        .top_right => self.place_children_top_right(parent),
+        .top_to_bottom => self.placeChildrenTopToBottom(parent, expanders.slice(), expander_weights),
+        .centre => self.placeChildrenCentred(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
+        .top_left => self.placeChildrenTopLeft(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
+        .top_right => self.placeChildrenTopRight(parent, if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null),
     }
 
     // Descend into child entities to allow child panels to also resize.
@@ -364,12 +382,12 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 
 /// Set the width and height of an entity. Check for invalid
 /// entity configurations that cause confusing on screen effects.
-inline fn calculate_child_size(
+inline fn updateChildSize(
     _: *Panel,
     display: *Display,
     entity: *Entity,
-    parent: *Entity,
     available_width: f32,
+    available_height: f32,
 ) bool {
     var child_resized = false;
 
@@ -377,7 +395,7 @@ inline fn calculate_child_size(
         .grows => {
             //trace("do grow {s}. parent width={d}", .{ entity.name, parent.rect.width });
             // Grow to the parent width, not including padding.
-            var new_width = parent.inner_width();
+            var new_width = available_width;
             if (entity.maximum.width > 0)
                 new_width = @min(new_width, entity.maximum.width);
 
@@ -388,7 +406,8 @@ inline fn calculate_child_size(
         },
         .shrinks => {
             // Shrink to the smallest the children will allow.
-            const new_width = entity.minimumNeededWidth(display, available_width);
+            var new_width = entity.minimumNeededWidth(display, available_width);
+            if (new_width > available_width) new_width = available_width;
             if (entity.rect.width != new_width) {
                 entity.rect.width = new_width;
                 child_resized = true;
@@ -402,7 +421,7 @@ inline fn calculate_child_size(
     switch (entity.layout.y) {
         .grows => {
             // Grow to the parent height, not including padding.
-            var new_height = parent.inner_height();
+            var new_height = available_height;
             if (entity.maximum.height > 0)
                 new_height = @min(new_height, entity.maximum.height);
 
@@ -413,7 +432,8 @@ inline fn calculate_child_size(
         },
         .shrinks => {
             // Shrink to the smallest the children will allow
-            const new_height = entity.minimumNeededHeight(display, available_width);
+            var new_height = entity.minimumNeededHeight(display, available_width);
+            if (new_height > available_height) new_height = available_height;
             if (entity.rect.height != new_height) {
                 entity.rect.height = new_height;
                 child_resized = true;
@@ -427,24 +447,33 @@ inline fn calculate_child_size(
     return child_resized;
 }
 
-inline fn place_children_centred(
+inline fn placeChildrenCentred(
     panel: *Panel,
-    entity: *Entity,
+    parent: *Entity,
+    safe_offset: ?Vector,
 ) void {
-    const inner_width = entity.inner_width();
-    const inner_height = entity.inner_height();
+    const corner: Vector = .{
+        .x = parent.rect.x + parent.pad.left,
+        .y = parent.rect.y + parent.pad.top,
+    };
+    const inner_width = parent.inner_width();
+    const inner_height = parent.inner_height();
 
     // Place every child entity in the centre of this panel.
     for (panel.children.items) |child| {
         if (child.layout.position == .float) continue;
         if (child.visible == .hidden) continue;
         if (child.type == .expander) {
-            warn("expander panel '{s}' ignored due to centre layout.", .{entity.name});
+            warn("expander panel '{s}' ignored due to centre layout.", .{parent.name});
             continue;
         }
-
-        child.rect.x = entity.rect.x + entity.pad.left + @round(inner_width / 2 - child.rect.width / 2);
-        child.rect.y = entity.rect.y + entity.pad.top + @round(inner_height / 2 - child.rect.height / 2);
+        child.rect.x = corner.x + @round(inner_width / 2 - child.rect.width / 2);
+        child.rect.y = corner.y + @round(inner_height / 2 - child.rect.height / 2);
+        if (safe_offset) |offset| {
+            if (child.type == .panel and child.type.panel.safe_area != .ignore_safe_area) {
+                child.rect = child.rect.move(offset);
+            }
+        }
     }
     //TODO: Im not sure scroller detection is needed here or not
 
@@ -453,10 +482,15 @@ inline fn place_children_centred(
     //parent.type.panel.scrollable.size.height = @max(needed_height, parent.height);
 }
 
-inline fn place_children_top_left(
+inline fn placeChildrenTopLeft(
     _: *Panel,
     parent: *Entity,
+    safe_offset: ?Vector,
 ) void {
+    const corner: Vector = .{
+        .x = parent.rect.x + parent.pad.left,
+        .y = parent.rect.y + parent.pad.top,
+    };
     for (parent.type.panel.children.items) |child| {
         if (child.layout.position == .float) continue;
         if (child.visible == .hidden) continue;
@@ -464,16 +498,25 @@ inline fn place_children_top_left(
             warn("expander panel '{s}' ignored due to top_left layout.", .{parent.name});
             continue;
         }
-
-        child.rect.x = parent.rect.x + parent.pad.left;
-        child.rect.y = parent.rect.y + parent.pad.top;
+        child.rect.x = corner.x;
+        child.rect.y = corner.y;
+        if (safe_offset) |offset| {
+            if (child.type == .panel and child.type.panel.safe_area != .ignore_safe_area) {
+                child.rect = child.rect.move(offset);
+            }
+        }
     }
 }
 
-inline fn place_children_top_right(
+inline fn placeChildrenTopRight(
     _: *Panel,
     parent: *Entity,
+    safe_offset: ?Vector,
 ) void {
+    const corner: Vector = .{
+        .x = parent.rect.x + parent.rect.width - parent.pad.right,
+        .y = parent.rect.y + parent.pad.top,
+    };
     for (parent.type.panel.children.items) |child| {
         if (child.layout.position == .float) continue;
         if (child.visible == .hidden) continue;
@@ -482,12 +525,17 @@ inline fn place_children_top_right(
             continue;
         }
 
-        child.rect.x = parent.rect.x + parent.rect.width - parent.pad.right - child.rect.width;
-        child.rect.y = parent.rect.y + parent.pad.top;
+        child.rect.x = corner.x - child.rect.width;
+        child.rect.y = corner.y;
+        if (safe_offset) |offset| {
+            if (child.type == .panel and child.type.panel.safe_area != .ignore_safe_area) {
+                child.rect = child.rect.move(offset);
+            }
+        }
     }
 }
 
-inline fn place_children_top_to_bottom(
+inline fn placeChildrenTopToBottom(
     _: *Panel,
     parent: *Entity,
     expanders: []*Entity,
@@ -778,6 +826,41 @@ pub const SafeArea = enum { unspecified, ignore_safe_area, avoid_safe_area };
 pub const Choosable = enum { unspecified, choosable, not_choosable };
 
 pub const NullHandler = struct {};
+
+test "safe_area" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 200, 300, 2);
+    defer display.destroy();
+
+    const panel = try display.addPanel(.{
+        .layout = .{ .x = .grows, .y = .grows },
+        .pad = .{ .left = 1, .top = 2, .right = 3, .bottom = 4 },
+        .child_align = .{ .x = .start, .y = .start },
+        .type = .{ .panel = .{
+            .direction = .top_left,
+            .spacing = 5,
+            .safe_area = .ignore_safe_area,
+        } },
+    });
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(200, panel.rect.width);
+    try eq(300, panel.rect.height);
+
+    panel.type.panel.safe_area = .avoid_safe_area;
+    display.safe_area.top = 6;
+    display.safe_area.bottom = 7;
+    display.safe_area.left = 8;
+    display.safe_area.right = 9;
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(200 - 8 - 9, panel.rect.width);
+    try eq(300 - 6 - 7, panel.rect.height);
+}
 
 test "panel_button_layout" {
     const allocator = std.testing.allocator;

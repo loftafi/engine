@@ -20,10 +20,6 @@ state: enum { running, paused, ending } = .running,
 /// to be called before the next `draw()` is requested.
 need_relayout: bool = true,
 
-/// Deduplicate safe area change updates by remembering the
-/// old safe area information.
-old_safe_area: sdl.SDL_Rect = undefined,
-
 /// Normally it is only possible to navigate to, focus, hover,
 /// or tap on `can_focus` items. In `accessibility` mode,
 /// extra entities such as titles or guidance text entities
@@ -85,6 +81,10 @@ scroll_initial_offset: Vector = .{ .x = 0, .y = 0 },
 
 /// Some devices have screen notches and cutouts.
 safe_area: Clip = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 },
+
+/// Deduplicate safe area change updates by remembering the
+/// old safe area information.
+old_safe_area: sdl.SDL_Rect = undefined,
 
 /// One user interface entity may be marked as selected to recieve
 /// keyboard input
@@ -206,8 +206,11 @@ pub fn create(
         sdl.SDL_SetLogOutputFunction(log.sdl_log_callback, null);
     }
 
-    // LandscapeLeft LandscapeRight Portrait PortraitUpsideDown
-    _ = sdl.SDL_SetHint(sdl.SDL_HINT_ORIENTATIONS, "Portrait PortraitUpsideDown");
+    _ = switch (config.orientation) {
+        .any => sdl.SDL_SetHint(sdl.SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight Portrait PortraitUpsideDown"),
+        .vertical => sdl.SDL_SetHint(sdl.SDL_HINT_ORIENTATIONS, "Portrait PortraitUpsideDown"),
+        .horizontal => sdl.SDL_SetHint(sdl.SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight"),
+    };
 
     //if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO | sdl.SDL_INIT_GAMEPAD | sdl.SDL_INIT_JOYSTICK)) {
     if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO | sdl.SDL_INIT_HAPTIC)) {
@@ -427,7 +430,7 @@ pub fn create(
     try display.setKeybinding(.f9, .{ .func = @ptrCast(&dumpFonts), .ptr = display });
 
     display.updateSystemTheme();
-    display.updateScreenMetrics(true);
+    display.updateScreenMetrics();
 
     return display;
 }
@@ -601,7 +604,7 @@ pub fn choosePanel(
     const old_panel = self.currentPanel();
 
     var found = false;
-    self.updateScreenMetrics(false);
+
     for (self.root.type.panel.children.items) |item| {
         const panel = if (item.type == .panel) item.type.panel else continue;
         if (panel.choosable == .not_choosable) continue;
@@ -633,7 +636,7 @@ pub fn choosePanel(
     if (self.selected) |selected| {
         selected.deselected(self, event);
     }
-    self.updateScreenMetrics(true);
+    self.updateScreenMetrics();
     if (!found and name.len > 0) {
         warn("choosePanel() did not find panel. name={s}", .{name});
     }
@@ -1934,7 +1937,8 @@ inline fn handleKeyDownEvent(_: *Self, _: *sdl.SDL_Event) !void {
 
 /// Refresh the window size information, then refresh the
 /// safe area information.
-pub inline fn updateScreenMetrics(display: *Self, forced: bool) void {
+pub inline fn updateScreenMetrics(display: *Self) void {
+    info("updateScreenMetrics requested", .{});
     var updated = false;
 
     var rwidth: c_int = 0;
@@ -1949,16 +1953,17 @@ pub inline fn updateScreenMetrics(display: *Self, forced: bool) void {
     if (display.root.minimum.height != @as(f32, @floatFromInt(rheight)))
         updated = true;
 
-    if (!updated) return;
-
     if (updated or engine.dev_build or engine.dev_mode) {
-        debug("current display size {d}x{d} -=> new display size {d}x{d}", .{
+        info("current display size {d}x{d} -=> new display size {d}x{d}", .{
             display.root.rect.width,
             display.root.rect.height,
             @as(f32, @floatFromInt(rwidth)),
             @as(f32, @floatFromInt(rheight)),
         });
     }
+    if (updated)
+        display.need_relayout = true;
+
     display.root.rect.width = @as(f32, @floatFromInt(rwidth));
     display.root.rect.height = @as(f32, @floatFromInt(rheight));
     display.root.minimum.width = display.root.rect.width;
@@ -1966,13 +1971,7 @@ pub inline fn updateScreenMetrics(display: *Self, forced: bool) void {
     display.root.minimum.height = display.root.rect.height;
     display.root.maximum.height = display.root.rect.height;
 
-    if (display.recalculate_safe_area()) {
-        updated = true;
-    }
-
-    if (updated or forced) {
-        display.need_relayout = true;
-    }
+    display.calculateSafeArea();
 }
 
 /// Trigger `on_resized` events on each node in the tree.
@@ -1992,12 +1991,12 @@ fn propagate_resize_event(self: *Self, entity: *Entity) bool {
     return updated;
 }
 
-/// Handle events that impact the usable area of the screen.
-fn recalculate_safe_area(self: *Self) bool {
+/// Update the safe area metrics and flag if relayout is required.
+fn calculateSafeArea(self: *Self) void {
     var area: sdl.SDL_Rect = undefined;
     if (!sdl.SDL_GetRenderSafeArea(self.renderer, &area)) {
         err("SDL_GetRenderSafeArea() failed", .{});
-        return false;
+        return;
     }
 
     if (self.old_safe_area.x != area.x or
@@ -2017,8 +2016,8 @@ fn recalculate_safe_area(self: *Self) bool {
 
     // SDL_GetRenderSafeArea returns physical display pixels, not
     // window pretend pixels.
-    const left_pad = @as(f32, @floatFromInt(area.x));
-    const right_pad = self.root.rect.width - left_pad - @as(f32, @floatFromInt(area.w));
+    var left_pad = @as(f32, @floatFromInt(area.x));
+    var right_pad = self.root.rect.width - left_pad - @as(f32, @floatFromInt(area.w));
     var top_pad = @as(f32, @floatFromInt(area.y));
     var bottom_pad = self.root.rect.height - top_pad - @as(f32, @floatFromInt(area.h));
 
@@ -2039,12 +2038,23 @@ fn recalculate_safe_area(self: *Self) bool {
             }
         }
     }
+    if (builtin.os.tag == .ios) {
+        const id = sdl.SDL_GetDisplayForWindow(self.window);
+        const orientation = sdl.SDL_GetCurrentDisplayOrientation(id);
+        switch (orientation) {
+            sdl.SDL_ORIENTATION_PORTRAIT => bottom_pad = 0,
+            sdl.SDL_ORIENTATION_PORTRAIT_FLIPPED => top_pad = 0,
+            sdl.SDL_ORIENTATION_LANDSCAPE => right_pad = 0,
+            sdl.SDL_ORIENTATION_LANDSCAPE_FLIPPED => left_pad = 0,
+            else => bottom_pad = 0,
+        }
+    }
 
     var updated = false;
-    if (!std.math.approxEqAbs(f32, self.safe_area.left, left_pad, 0.01)) updated = true;
-    if (!std.math.approxEqAbs(f32, self.safe_area.top, top_pad, 0.01)) updated = true;
-    if (!std.math.approxEqAbs(f32, self.safe_area.right, right_pad, 0.01)) updated = true;
-    if (!std.math.approxEqAbs(f32, self.safe_area.bottom, bottom_pad, 0.01)) updated = true;
+    if (!approxEqAbs(f32, self.safe_area.left, left_pad, 0.01)) updated = true;
+    if (!approxEqAbs(f32, self.safe_area.top, top_pad, 0.01)) updated = true;
+    if (!approxEqAbs(f32, self.safe_area.right, right_pad, 0.01)) updated = true;
+    if (!approxEqAbs(f32, self.safe_area.bottom, bottom_pad, 0.01)) updated = true;
 
     if (updated) {
         info("safe area changed: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
@@ -2057,19 +2067,8 @@ fn recalculate_safe_area(self: *Self) bool {
         self.safe_area.right = right_pad;
         self.safe_area.top = top_pad;
         self.safe_area.bottom = bottom_pad;
-    } else if (engine.dev_build and engine.dev_mode) {
-        info("current safe area: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
-            self.safe_area.left,  self.safe_area.top,
-            self.safe_area.right, self.safe_area.bottom,
-            left_pad,             top_pad,
-            right_pad,            bottom_pad,
-        });
-        self.safe_area.left = left_pad;
-        self.safe_area.right = right_pad;
-        self.safe_area.top = top_pad;
-        self.safe_area.bottom = bottom_pad;
+        self.need_relayout = true;
     }
-    return updated;
 }
 
 /// The mouse up event idicates a mouse click, or the end of a mouse
@@ -2378,7 +2377,7 @@ pub fn handleEvent(
         sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED,
         sdl.SDL_EVENT_DISPLAY_ORIENTATION,
         sdl.SDL_EVENT_WINDOW_SAFE_AREA_CHANGED,
-        => self.updateScreenMetrics(false),
+        => self.updateScreenMetrics(),
 
         sdl.SDL_EVENT_QUIT => self.end_main_loop(),
 
@@ -3166,6 +3165,7 @@ test "font_loading" {
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
+const approxEqAbs = std.math.approxEqAbs;
 const expectEqual = std.testing.expectEqual;
 const assert = std.debug.assert;
 const builtin = @import("builtin");

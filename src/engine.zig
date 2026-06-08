@@ -55,6 +55,10 @@ pub const Config = struct {
     full_screen: bool = false,
     width: usize = 0,
     height: usize = 0,
+
+    /// Request that only vertical or horizontal layout is allowed. Note that
+    /// devices don't allow "upside down" and some do.
+    orientation: enum { any, vertical, horizontal } = .any,
 };
 
 pub const BundleInfo = struct {
