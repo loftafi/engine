@@ -145,6 +145,9 @@ pub const Tag = enum(u8) {
     avoid_safe_area,
     choosable,
     not_choosable,
+    never_focus,
+    accessibility_focus,
+    can_focus,
     field,
 };
 

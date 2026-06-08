@@ -166,8 +166,14 @@ pub fn readAttributes(
             .line_height => readLineHeightAttribute(token, entity),
             .weight => readWeightAttribute(token, entity),
             .progress => readProgressAttribute(token, entity),
-            .visible => entity.visible = .visible,
-            .hidden => entity.visible = .hidden,
+            .visible => {
+                entity.visible = .visible;
+                token.* = try token.next();
+            },
+            .hidden => {
+                entity.visible = .hidden;
+                token.* = try token.next();
+            },
             .style => readStyleAttribute(token, &entity.style),
             .colour => readClipAttribute(token, &entity.pad),
             .max_length => readMaxLengthAttribute(token, entity),
@@ -184,6 +190,18 @@ pub fn readAttributes(
             .on_update => readOnUpdateAttribute(token, entity, handler, update_callbacks),
             .on_submit => readOnSubmitAttribute(token, entity, handler, callbacks),
             .on_ui_event => readOnUiEventAttribute(token, entity, handler, callbacks),
+            .never_focus => {
+                entity.focus = .never_focus;
+                token.* = try token.next();
+            },
+            .accessibility_focus => {
+                entity.focus = .accessibility_focus;
+                token.* = try token.next();
+            },
+            .can_focus => {
+                entity.focus = .can_focus;
+                token.* = try token.next();
+            },
             .vertical => {
                 if (entity.type != .panel)
                     return error.UnexpectedToken;
@@ -1062,6 +1080,7 @@ pub const CallbackSet = struct {
             if (std.ascii.eqlIgnoreCase(name, option.name))
                 return option.f;
         }
+        engine.log.warn("callback function {s} not found.", .{name});
         return Error.UnexpectedToken;
     }
 };
@@ -1126,6 +1145,7 @@ pub const StateCallbackSet = struct {
             if (std.ascii.eqlIgnoreCase(name, option.name))
                 return option.f;
         }
+        engine.log.warn("state callback function {s} not found.", .{name});
         return Error.UnexpectedToken;
     }
 };
@@ -1321,7 +1341,7 @@ const TestHandler = struct {
         return;
     }
 
-    pub fn on_click(self: *TestHandler, two: *engine.Display, three: *engine.Entity, four: *engine.Event) error{OutOfMemory}!void {
+    pub fn on_click(self: *TestHandler, two: *engine.Display, three: *engine.Entity, four: *const engine.Event) error{OutOfMemory}!void {
         _ = two;
         _ = three;
         _ = four;
@@ -1329,7 +1349,7 @@ const TestHandler = struct {
         return;
     }
 
-    pub fn on_move(_: *TestHandler, two: *engine.Display, three: *engine.Entity, four: *engine.Event) void {
+    pub fn on_move(_: *TestHandler, two: *engine.Display, three: *engine.Entity, four: *const engine.Event) void {
         _ = two;
         _ = three;
         _ = four;
