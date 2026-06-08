@@ -514,6 +514,11 @@ pub fn readNameAttribute(token: *Token, entity: *Entity) Error!void {
             token.* = try token.next();
             return;
         },
+        .field => {
+            entity.name = token.slice();
+            token.* = try token.next();
+            return;
+        },
         else => return error.UnexpectedToken,
     }
 }
@@ -548,6 +553,13 @@ pub fn readOnResizedAttribute(
             token.* = try token.next();
             return;
         },
+        .field => {
+            const callback_name = token.slice();
+            entity.on_resized.func = try findMatchingBoolCallback(callback_name, callbacks);
+            entity.on_resized.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
         else => return error.UnexpectedToken,
     }
 }
@@ -563,6 +575,13 @@ pub fn readOnVisibilityAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            entity.on_visibility.func = try findMatchingStateCallback(callback_name, callbacks);
+            entity.on_visibility.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        .field => {
+            const callback_name = token.slice();
             entity.on_visibility.func = try findMatchingStateCallback(callback_name, callbacks);
             entity.on_visibility.ptr = handler;
             token.* = try token.next();
@@ -592,6 +611,13 @@ pub fn readOnUpdateAttribute(
             token.* = try token.next();
             return;
         },
+        .field => {
+            const callback_name = token.slice();
+            f.func = try findMatchingUpdateCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
         else => return error.UnexpectedToken,
     }
 }
@@ -611,6 +637,13 @@ pub fn readOnSubmitAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        .field => {
+            const callback_name = token.slice();
             f.func = try findMatchingCallback(callback_name, callbacks);
             f.ptr = handler;
             token.* = try token.next();
@@ -643,6 +676,13 @@ pub fn readOnUiEventAttribute(
             token.* = try token.next();
             return;
         },
+        .field => {
+            const callback_name = token.slice();
+            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
         else => return error.UnexpectedToken,
     }
 }
@@ -662,6 +702,13 @@ pub fn readOnChangeAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        .field => {
+            const callback_name = token.slice();
             f.func = try findMatchingCallback(callback_name, callbacks);
             f.ptr = handler;
             token.* = try token.next();
@@ -689,6 +736,13 @@ pub fn readOnPressedAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.ptr = handler;
+            token.* = try token.next();
+            return;
+        },
+        .field => {
+            const callback_name = token.slice();
             f.func = try findMatchingCallback(callback_name, callbacks);
             f.ptr = handler;
             token.* = try token.next();
@@ -1309,7 +1363,7 @@ test "panel_children" {
         \\{
         \\  label text "hello"
         \\  label text "hello2"
-        \\  button text "save"
+        \\  button:jai text "save" on_pressed on_click
         \\}
     , TestHandler, &te) orelse unreachable;
     defer entity.destroy(display);
@@ -1321,6 +1375,10 @@ test "panel_children" {
     try expect(.label == entity.type.panel.children.items[0].type);
     try expect(.label == entity.type.panel.children.items[1].type);
     try expect(.button == entity.type.panel.children.items[2].type);
+
+    try expectEqual(0, te.count);
+    try te.jai.type.button.on_pressed.call(display, te.pie, &.{});
+    try expectEqual(1, te.count);
 }
 
 test "label" {
