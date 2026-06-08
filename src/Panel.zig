@@ -16,14 +16,14 @@ choosable: Choosable = .unspecified,
 /// Empty space to place between entities.
 spacing: f32 = 0,
 
-/// Called every iteration of the main app loop.
-update: Entity.UpdateCallback = .empty,
-
 /// Indicates if vertical or horizontal scrolling is allowed.
 scrollable: Scroller = .{
     .scroll = .{ .x = false, .y = false },
     .size = .{ .width = 0, .height = 0 },
 },
+
+/// Called every iteration of the main app loop.
+on_update: Entity.UpdateCallback = .empty,
 
 /// Handle User triggered events. Keyboard, Mouse, Game controller
 on_ui_event: Entity.Callback = .empty,

@@ -1079,7 +1079,7 @@ fn clearDisplayPointers(self: *Entity, display: *Display) void {
 /// update function. This is called prior to the `draw` function.
 pub fn update(self: *Entity, display: *Display) void {
     if (self.type == .sprite) {
-        self.type.sprite.update.call(display, self);
+        self.type.sprite.on_update.call(display, self);
 
         if (self.velocity.x > 0)
             self.rect.x += self.velocity.x;
@@ -1092,7 +1092,7 @@ pub fn update(self: *Entity, display: *Display) void {
         display.relayout();
 
     if (self.type == .panel) {
-        self.type.panel.update.call(display, self);
+        self.type.panel.on_update.call(display, self);
         for (self.type.panel.children.items) |child|
             child.update(display);
     }

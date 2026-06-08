@@ -1,9 +1,10 @@
 /// A simple image entity.
 pub const Sprite = @This();
 
-/// Request a callback every iteration of the main app loop.
-update: Entity.UpdateCallback = .empty,
 scale: Fit = .stretch,
+
+/// Request a callback every iteration of the main app loop.
+on_update: Entity.UpdateCallback = .empty,
 
 /// A callback when the user triggers an event using a Keyboard, Mouse, or
 /// Game controller

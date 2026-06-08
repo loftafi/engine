@@ -48,6 +48,7 @@ pub fn readEntityTokens(
     }
     if (token.tag == .eof) return null;
     var entity = readEntityType(allocator, token) catch return error.UnexpectedToken;
+    errdefer allocator.destroy(entity);
     //entity.setup(display);
     readAttributes(
         token,
@@ -335,7 +336,8 @@ pub fn readOnUpdateAttribute(
     callbacks: *const UpdateCallbackSet,
 ) Error!void {
     const f: *engine.Entity.UpdateCallback = switch (entity.type) {
-        .sprite => &entity.type.sprite.update,
+        .sprite => &entity.type.sprite.on_update,
+        .panel => &entity.type.panel.on_update,
         else => return Error.UnexpectedToken,
     };
     token.* = try token.next();
@@ -1148,7 +1150,7 @@ pub const UpdateCallbackSet = struct {
             const f = @field(t, decl.name);
             const info = @typeInfo(@TypeOf(f));
             if (info != .@"fn") continue;
-            if (info.@"fn".params.len != 4) continue;
+            if (info.@"fn".params.len != 3) continue;
             if (info.@"fn".return_type == null) continue;
             if (@typeInfo(info.@"fn".return_type.?) != .void) continue;
 
@@ -1187,6 +1189,7 @@ pub const UpdateCallbackSet = struct {
             if (std.ascii.eqlIgnoreCase(name, option.name))
                 return option.f;
         }
+        engine.log.warn("update function {s} not found.", .{name});
         return Error.UnexpectedToken;
     }
 };
@@ -1341,6 +1344,13 @@ const TestHandler = struct {
         return;
     }
 
+    pub fn updateEntity(self: *TestHandler, two: *engine.Display, three: *engine.Entity) void {
+        _ = two;
+        _ = three;
+        self.count += 1;
+        return;
+    }
+
     pub fn save(_: *TestHandler, name: []const u8) void {
         _ = name;
     }
@@ -1378,6 +1388,7 @@ test "panel" {
         \\maximum height=99 width=88
         \\horizontal avoid_safe_area choosable
         \\style tinted
+        \\on_update updateEntity
     , TestHandler, &te) orelse unreachable;
     defer std.testing.allocator.destroy(entity);
 
@@ -1402,7 +1413,9 @@ test "panel_children" {
 
     var te: TestHandler = .{};
     var entity = try readEntity(allocator,
-        \\panel:pie name "coffee" image "cat" ignore_safe_area not_choosable
+        \\panel:pie
+        \\name "coffee" image "cat" ignore_safe_area not_choosable
+        \\on_update updateEntity
         \\{
         \\  label text "hello"
         \\  label text "hello2"
@@ -1422,6 +1435,9 @@ test "panel_children" {
     try expectEqual(0, te.count);
     try te.jai.type.button.on_pressed.call(display, te.pie, &.{});
     try expectEqual(1, te.count);
+
+    te.pie.update(display);
+    try expectEqual(2, te.count);
 }
 
 test "label" {
