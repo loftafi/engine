@@ -7,7 +7,7 @@ const max_callbacks = 20;
 ///        \\panel name "coffee" image "cat"
 ///        \\minimum width=33 height=120
 ///        \\horizontal style tinted
-///        \\on_resized "recalculate_speed"
+///        \\on_resized recalculateSpeed
 ///    )
 ///
 /// Developer note: A three parameter option that declares the type
@@ -1213,11 +1213,9 @@ pub const BoolCallbackSet = struct {
             const f = @field(t, decl.name);
             const info = @typeInfo(@TypeOf(f));
             if (info != .@"fn") continue;
-            if (info.@"fn".params.len != 4) continue;
+            if (info.@"fn".params.len != 3) continue;
             if (info.@"fn".return_type == null) continue;
-            if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
-            if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
-            if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
+            if (@typeInfo(info.@"fn".return_type.?) != .bool) continue;
 
             if (info.@"fn".params[0].type == null) continue;
             const t0 = @typeInfo(info.@"fn".params[0].type.?);
@@ -1254,6 +1252,7 @@ pub const BoolCallbackSet = struct {
             if (std.ascii.eqlIgnoreCase(name, option.name))
                 return option.f;
         }
+        engine.log.warn("bool function {s} not found.", .{name});
         return Error.UnexpectedToken;
     }
 };
@@ -1349,6 +1348,13 @@ const TestHandler = struct {
         _ = three;
         self.count += 1;
         return;
+    }
+
+    pub fn resizeBox(self: *TestHandler, two: *engine.Display, three: *engine.Entity) bool {
+        _ = two;
+        _ = three;
+        self.count += 1;
+        return true;
     }
 
     pub fn save(_: *TestHandler, name: []const u8) void {
@@ -1501,6 +1507,7 @@ test "text_input" {
         \\style normal placeholder_text "Enter your food"
         \\layout grows shrinks
         \\max_length 123
+        \\on_resized resizeBox
     , TestHandler, &te) orelse unreachable;
     defer std.testing.allocator.destroy(entity);
 
@@ -1511,6 +1518,16 @@ test "text_input" {
     try expectEqual(123, entity.type.text_input.max_length);
     try expectEqual(.grows, entity.layout.x);
     try expectEqual(.shrinks, entity.layout.y);
+
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
+    try expectEqual(0, te.count);
+    const value = entity.on_resized.call(display, entity);
+    try expectEqual(1, te.count);
+    try expectEqual(true, value);
 }
 
 test "expander" {
