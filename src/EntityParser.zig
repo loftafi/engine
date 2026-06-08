@@ -32,17 +32,11 @@ pub fn readEntityTokens(
     comptime HandlerType: type,
     handler: *HandlerType,
 ) (Error || Allocator.Error)!?*Entity {
-    var buffer1: [max_callbacks]CallbackOption = undefined;
-    var buffer2: [max_callbacks]StateCallbackOption = undefined;
-    var buffer3: [max_callbacks]UpdateCallbackOption = undefined;
-    var buffer4: [max_callbacks]BoolCallbackOption = undefined;
-    var buffer5: [max_callbacks]EntityPointer = undefined;
-
-    const callbacks = callbackFunctionList(HandlerType, &buffer1);
-    const state_callbacks = callbackStateFunctionList(HandlerType, &buffer2);
-    const update_callbacks = callbackUpdateFunctionList(HandlerType, &buffer3);
-    const bool_callbacks = callbackBoolFunctionList(HandlerType, &buffer4);
-    const entity_pointers = entityPointerList(HandlerType, &buffer5);
+    const entity_pointers: FieldSet = .init(HandlerType);
+    const callbacks: CallbackSet = .init(HandlerType);
+    const state_callbacks: StateCallbackSet = .init(HandlerType);
+    const update_callbacks: UpdateCallbackSet = .init(HandlerType);
+    const bool_callbacks: BoolCallbackSet = .init(HandlerType);
 
     errdefer {
         err("Unexpected token {t} at {d}.{d}: {s}", .{
@@ -60,11 +54,11 @@ pub fn readEntityTokens(
         entity,
         HandlerType,
         handler,
-        callbacks,
-        state_callbacks,
-        update_callbacks,
-        bool_callbacks,
-        entity_pointers,
+        &callbacks,
+        &state_callbacks,
+        &update_callbacks,
+        &bool_callbacks,
+        &entity_pointers,
     ) catch return error.UnexpectedToken;
 
     if (entity.type == .panel) {
@@ -79,263 +73,6 @@ pub fn readEntityTokens(
     }
 
     return entity;
-}
-
-/// Describes a function exposed to a UI at runtime
-pub const EntityPointer = struct {
-    name: []const u8,
-    offset: usize,
-};
-
-/// Return the name and pointer to all functions matching the Callback
-/// function definition.
-pub fn entityPointerList(t: type, list: []EntityPointer) []const EntityPointer {
-    var count: usize = 0;
-    inline for (@typeInfo(t).@"struct".fields) |field| {
-        const info = @typeInfo(field.type);
-        if (info != .pointer) continue;
-        if (info.pointer.child != Entity) continue;
-        list[count] = EntityPointer{ .name = field.name, .offset = @offsetOf(t, field.name) };
-        count += 1;
-        if (count == max_callbacks) break;
-    }
-    return list[0..count];
-}
-
-pub fn findEntityPointer(entity_pointers: []const EntityPointer, handler: anytype, name: []const u8) ?**Entity {
-    for (entity_pointers) |field| {
-        if (std.mem.eql(u8, name, field.name)) {
-            const t: [*]u8 = @ptrCast(handler);
-            const ptr: **Entity = @as(**Entity, @ptrCast(@alignCast(t + field.offset)));
-            return ptr;
-        }
-    }
-    return null;
-}
-
-/// Describes a function exposed to a UI at runtime
-pub const CallbackOption = struct {
-    f: *const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event) error{OutOfMemory}!void,
-    name: []const u8,
-};
-
-/// Return the name and pointer to all functions matching the Callback
-/// function definition.
-pub fn callbackFunctionList(t: type, list: []CallbackOption) []const CallbackOption {
-    var count: usize = 0;
-    inline for (@typeInfo(t).@"struct".decls) |decl| {
-        const f = @field(t, decl.name);
-        const info = @typeInfo(@TypeOf(f));
-        if (info != .@"fn") continue;
-        if (info.@"fn".params.len != 4) continue;
-        if (info.@"fn".return_type == null) continue;
-        if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
-        if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
-        if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
-
-        if (info.@"fn".params[0].type == null) continue;
-        const t0 = @typeInfo(info.@"fn".params[0].type.?);
-        if (t0 != .pointer) continue;
-        const t0i = @typeInfo(t0.pointer.child);
-        if (t0i != .@"struct") continue;
-
-        if (info.@"fn".params[1].type == null) continue;
-        const t1 = @typeInfo(info.@"fn".params[1].type.?);
-        if (t1 != .pointer) continue;
-        const t1i = @typeInfo(t1.pointer.child);
-        if (t1i != .@"struct") continue;
-        if (t1.pointer.child != engine.Display) continue;
-
-        if (info.@"fn".params[2].type == null) continue;
-        const t2 = @typeInfo(info.@"fn".params[2].type.?);
-        if (t2 != .pointer) continue;
-        const t2i = @typeInfo(t2.pointer.child);
-        if (t2i != .@"struct") continue;
-        if (t2.pointer.child != engine.Entity) continue;
-
-        if (info.@"fn".params[3].type == null) continue;
-        const t3 = @typeInfo(info.@"fn".params[3].type.?);
-        if (t3 != .pointer) continue;
-        const t3i = @typeInfo(t3.pointer.child);
-        if (t3i != .@"struct") continue;
-        if (t3.pointer.child != engine.Event) continue;
-
-        list[count] = CallbackOption{ .name = decl.name, .f = @ptrCast(&f) };
-        count += 1;
-        if (count == max_callbacks) break;
-    }
-    return list[0..count];
-}
-
-fn findMatchingCallback(name: []const u8, options: []const CallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event) error{OutOfMemory}!void {
-    for (options) |option| {
-        if (std.ascii.eqlIgnoreCase(name, option.name))
-            return option.f;
-    }
-    return Error.UnexpectedToken;
-}
-
-/// Describes a function exposed to a UI at runtime
-pub const UpdateCallbackOption = struct {
-    f: *const fn (*anyopaque, *engine.Display, *Entity) void,
-    name: []const u8,
-};
-
-/// Return the name and pointer to all functions matching the Callback
-/// function definition.
-pub fn callbackUpdateFunctionList(t: type, list: []UpdateCallbackOption) []const UpdateCallbackOption {
-    var count: usize = 0;
-    inline for (@typeInfo(t).@"struct".decls) |decl| {
-        const f = @field(t, decl.name);
-        const info = @typeInfo(@TypeOf(f));
-        if (info != .@"fn") continue;
-        if (info.@"fn".params.len != 4) continue;
-        if (info.@"fn".return_type == null) continue;
-        if (@typeInfo(info.@"fn".return_type.?) != .void) continue;
-
-        if (info.@"fn".params[0].type == null) continue;
-        const t0 = @typeInfo(info.@"fn".params[0].type.?);
-        if (t0 != .pointer) continue;
-        const t0i = @typeInfo(t0.pointer.child);
-        if (t0i != .@"struct") continue;
-
-        if (info.@"fn".params[1].type == null) continue;
-        const t1 = @typeInfo(info.@"fn".params[1].type.?);
-        if (t1 != .pointer) continue;
-        const t1i = @typeInfo(t1.pointer.child);
-        if (t1i != .@"struct") continue;
-        if (t1.pointer.child != engine.Display) continue;
-
-        if (info.@"fn".params[2].type == null) continue;
-        const t2 = @typeInfo(info.@"fn".params[2].type.?);
-        if (t2 != .pointer) continue;
-        const t2i = @typeInfo(t2.pointer.child);
-        if (t2i != .@"struct") continue;
-        if (t2.pointer.child != engine.Entity) continue;
-
-        list[count] = UpdateCallbackOption{ .name = decl.name, .f = @ptrCast(&f) };
-        count += 1;
-        if (count == max_callbacks) break;
-    }
-    return list[0..count];
-}
-
-fn findMatchingUpdateCallback(name: []const u8, options: []const UpdateCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) void {
-    for (options) |option| {
-        if (std.ascii.eqlIgnoreCase(name, option.name))
-            return option.f;
-    }
-    return Error.UnexpectedToken;
-}
-
-/// Describes a function exposed to a UI at runtime
-pub const StateCallbackOption = struct {
-    f: *const fn (*anyopaque, *engine.Display, *Entity) error{OutOfMemory}!void,
-    name: []const u8,
-};
-
-/// Return the name and pointer to all functions matching the Callback
-/// function definition.
-pub fn callbackStateFunctionList(t: type, list: []StateCallbackOption) []const StateCallbackOption {
-    var count: usize = 0;
-    inline for (@typeInfo(t).@"struct".decls) |decl| {
-        const f = @field(t, decl.name);
-        const info = @typeInfo(@TypeOf(f));
-        if (info != .@"fn") continue;
-        if (info.@"fn".params.len != 4) continue;
-        if (info.@"fn".return_type == null) continue;
-        if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
-        if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
-        if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
-
-        if (info.@"fn".params[0].type == null) continue;
-        const t0 = @typeInfo(info.@"fn".params[0].type.?);
-        if (t0 != .pointer) continue;
-        const t0i = @typeInfo(t0.pointer.child);
-        if (t0i != .@"struct") continue;
-
-        if (info.@"fn".params[1].type == null) continue;
-        const t1 = @typeInfo(info.@"fn".params[1].type.?);
-        if (t1 != .pointer) continue;
-        const t1i = @typeInfo(t1.pointer.child);
-        if (t1i != .@"struct") continue;
-        if (t1.pointer.child != engine.Display) continue;
-
-        if (info.@"fn".params[2].type == null) continue;
-        const t2 = @typeInfo(info.@"fn".params[2].type.?);
-        if (t2 != .pointer) continue;
-        const t2i = @typeInfo(t2.pointer.child);
-        if (t2i != .@"struct") continue;
-        if (t2.pointer.child != engine.Entity) continue;
-
-        list[count] = StateCallbackOption{ .name = decl.name, .f = @ptrCast(&f) };
-        count += 1;
-        if (count == max_callbacks) break;
-    }
-    return list[0..count];
-}
-
-fn findMatchingStateCallback(name: []const u8, options: []const StateCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) error{OutOfMemory}!void {
-    for (options) |option| {
-        if (std.ascii.eqlIgnoreCase(name, option.name))
-            return option.f;
-    }
-    return Error.UnexpectedToken;
-}
-
-/// Describes a function exposed to a UI at runtime
-pub const BoolCallbackOption = struct {
-    f: *const fn (*anyopaque, *engine.Display, *Entity) bool,
-    name: []const u8,
-};
-
-/// Return the name and pointer to all functions matching the Callback
-/// function definition.
-pub fn callbackBoolFunctionList(t: type, list: []BoolCallbackOption) []const BoolCallbackOption {
-    var count: usize = 0;
-    inline for (@typeInfo(t).@"struct".decls) |decl| {
-        const f = @field(t, decl.name);
-        const info = @typeInfo(@TypeOf(f));
-        if (info != .@"fn") continue;
-        if (info.@"fn".params.len != 4) continue;
-        if (info.@"fn".return_type == null) continue;
-        if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
-        if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
-        if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
-
-        if (info.@"fn".params[0].type == null) continue;
-        const t0 = @typeInfo(info.@"fn".params[0].type.?);
-        if (t0 != .pointer) continue;
-        const t0i = @typeInfo(t0.pointer.child);
-        if (t0i != .@"struct") continue;
-
-        if (info.@"fn".params[1].type == null) continue;
-        const t1 = @typeInfo(info.@"fn".params[1].type.?);
-        if (t1 != .pointer) continue;
-        const t1i = @typeInfo(t1.pointer.child);
-        if (t1i != .@"struct") continue;
-        if (t1.pointer.child != engine.Display) continue;
-
-        if (info.@"fn".params[2].type == null) continue;
-        const t2 = @typeInfo(info.@"fn".params[2].type.?);
-        if (t2 != .pointer) continue;
-        const t2i = @typeInfo(t2.pointer.child);
-        if (t2i != .@"struct") continue;
-        if (t2.pointer.child != engine.Entity) continue;
-
-        list[count] = BoolCallbackOption{ .name = decl.name, .f = @ptrCast(&f) };
-        count += 1;
-        if (count == max_callbacks) break;
-    }
-    return list[0..count];
-}
-
-fn findMatchingBoolCallback(name: []const u8, options: []const BoolCallbackOption) Error!*const fn (*anyopaque, *engine.Display, *Entity) bool {
-    for (options) |option| {
-        if (std.ascii.eqlIgnoreCase(name, option.name))
-            return option.f;
-    }
-    return Error.UnexpectedToken;
 }
 
 /// Read Entity type and initialise the entity with default values.
@@ -376,11 +113,11 @@ pub fn readAttributes(
     entity: *Entity,
     HandlerType: type,
     handler: *HandlerType,
-    callbacks: []const CallbackOption,
-    state_callbacks: []const StateCallbackOption,
-    update_callbacks: []const UpdateCallbackOption,
-    bool_callbacks: []const BoolCallbackOption,
-    entity_pointers: []const EntityPointer,
+    callbacks: *const CallbackSet,
+    state_callbacks: *const StateCallbackSet,
+    update_callbacks: *const UpdateCallbackSet,
+    bool_callbacks: *const BoolCallbackSet,
+    entity_pointers: *const FieldSet,
 ) Error!void {
     token.* = try token.next();
 
@@ -388,7 +125,7 @@ pub fn readAttributes(
         token.* = try token.next();
         if (token.tag == .string) {
             const name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            if (findEntityPointer(entity_pointers, handler, name)) |e| {
+            if (entity_pointers.find(handler, name)) |e| {
                 e.* = entity;
             } else {
                 engine.log.err("field {s} not found in {any}.", .{ name, HandlerType });
@@ -396,7 +133,7 @@ pub fn readAttributes(
             token.* = try token.next();
         } else if (token.tag == .field) {
             const name = token.slice();
-            if (findEntityPointer(entity_pointers, handler, name)) |e| {
+            if (entity_pointers.find(handler, name)) |e| {
                 e.* = entity;
             } else {
                 engine.log.err("field {s} not found in {any}.", .{ name, HandlerType });
@@ -541,21 +278,21 @@ pub fn readOnResizedAttribute(
     token: *Token,
     entity: *Entity,
     handler: *anyopaque,
-    callbacks: []const BoolCallbackOption,
+    callbacks: *const BoolCallbackSet,
 ) Error!void {
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            entity.on_resized.func = try findMatchingBoolCallback(callback_name, callbacks);
+            entity.on_resized.func = try callbacks.find(callback_name);
             entity.on_resized.ptr = handler;
             token.* = try token.next();
             return;
         },
         .field => {
             const callback_name = token.slice();
-            entity.on_resized.func = try findMatchingBoolCallback(callback_name, callbacks);
+            entity.on_resized.func = try callbacks.find(callback_name);
             entity.on_resized.ptr = handler;
             token.* = try token.next();
             return;
@@ -568,21 +305,21 @@ pub fn readOnVisibilityAttribute(
     token: *Token,
     entity: *Entity,
     handler: *anyopaque,
-    callbacks: []const StateCallbackOption,
+    callbacks: *const StateCallbackSet,
 ) Error!void {
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            entity.on_visibility.func = try findMatchingStateCallback(callback_name, callbacks);
+            entity.on_visibility.func = try callbacks.find(callback_name);
             entity.on_visibility.ptr = handler;
             token.* = try token.next();
             return;
         },
         .field => {
             const callback_name = token.slice();
-            entity.on_visibility.func = try findMatchingStateCallback(callback_name, callbacks);
+            entity.on_visibility.func = try callbacks.find(callback_name);
             entity.on_visibility.ptr = handler;
             token.* = try token.next();
             return;
@@ -595,7 +332,7 @@ pub fn readOnUpdateAttribute(
     token: *Token,
     entity: *Entity,
     handler: *anyopaque,
-    callbacks: []const UpdateCallbackOption,
+    callbacks: *const UpdateCallbackSet,
 ) Error!void {
     const f: *engine.Entity.UpdateCallback = switch (entity.type) {
         .sprite => &entity.type.sprite.update,
@@ -606,14 +343,14 @@ pub fn readOnUpdateAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            f.func = try findMatchingUpdateCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
         },
         .field => {
             const callback_name = token.slice();
-            f.func = try findMatchingUpdateCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
@@ -626,7 +363,7 @@ pub fn readOnSubmitAttribute(
     token: *Token,
     entity: *Entity,
     handler: *anyopaque,
-    callbacks: []const CallbackOption,
+    callbacks: *const CallbackSet,
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
         .text_input => &entity.type.text_input.on_submit,
@@ -637,14 +374,14 @@ pub fn readOnSubmitAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
         },
         .field => {
             const callback_name = token.slice();
-            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
@@ -657,7 +394,7 @@ pub fn readOnUiEventAttribute(
     token: *Token,
     entity: *Entity,
     handler: *anyopaque,
-    callbacks: []const CallbackOption,
+    callbacks: *const CallbackSet,
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
         .button => &entity.type.button.on_ui_event,
@@ -671,14 +408,14 @@ pub fn readOnUiEventAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
         },
         .field => {
             const callback_name = token.slice();
-            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
@@ -691,7 +428,7 @@ pub fn readOnChangeAttribute(
     token: *Token,
     entity: *Entity,
     handler: *anyopaque,
-    callbacks: []const CallbackOption,
+    callbacks: *const CallbackSet,
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
         .checkbox => &entity.type.checkbox.on_change,
@@ -702,14 +439,14 @@ pub fn readOnChangeAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
         },
         .field => {
             const callback_name = token.slice();
-            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
@@ -722,7 +459,7 @@ pub fn readOnPressedAttribute(
     token: *Token,
     entity: *Entity,
     handler: *anyopaque,
-    callbacks: []const CallbackOption,
+    callbacks: *const CallbackSet,
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
         .button => &entity.type.button.on_pressed,
@@ -736,14 +473,14 @@ pub fn readOnPressedAttribute(
     switch (token.tag) {
         .string => {
             const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
         },
         .field => {
             const callback_name = token.slice();
-            f.func = try findMatchingCallback(callback_name, callbacks);
+            f.func = try callbacks.find(callback_name);
             f.ptr = handler;
             token.* = try token.next();
             return;
@@ -1254,6 +991,312 @@ pub const Error = error{
     MaxLineCountExceeded,
     InvalidUtf8,
     UnexpectedToken,
+};
+
+pub const CallbackSet = struct {
+    callbacks: [max_callbacks]Callback,
+    count: usize,
+
+    /// Describes a function exposed to a UI at runtime
+    pub const Callback = struct {
+        f: *const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event) error{OutOfMemory}!void,
+        name: []const u8,
+    };
+
+    /// Return the name and pointer to all functions matching the Callback
+    /// function definition.
+    pub fn init(t: type) CallbackSet {
+        var callbacks: [max_callbacks]Callback = undefined;
+        var count: usize = 0;
+        inline for (@typeInfo(t).@"struct".decls) |decl| {
+            const f = @field(t, decl.name);
+            const info = @typeInfo(@TypeOf(f));
+            if (info != .@"fn") continue;
+            if (info.@"fn".params.len != 4) continue;
+            if (info.@"fn".return_type == null) continue;
+            if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
+            if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
+            if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
+
+            if (info.@"fn".params[0].type == null) continue;
+            const t0 = @typeInfo(info.@"fn".params[0].type.?);
+            if (t0 != .pointer) continue;
+            const t0i = @typeInfo(t0.pointer.child);
+            if (t0i != .@"struct") continue;
+
+            if (info.@"fn".params[1].type == null) continue;
+            const t1 = @typeInfo(info.@"fn".params[1].type.?);
+            if (t1 != .pointer) continue;
+            const t1i = @typeInfo(t1.pointer.child);
+            if (t1i != .@"struct") continue;
+            if (t1.pointer.child != engine.Display) continue;
+
+            if (info.@"fn".params[2].type == null) continue;
+            const t2 = @typeInfo(info.@"fn".params[2].type.?);
+            if (t2 != .pointer) continue;
+            const t2i = @typeInfo(t2.pointer.child);
+            if (t2i != .@"struct") continue;
+            if (t2.pointer.child != engine.Entity) continue;
+
+            if (info.@"fn".params[3].type == null) continue;
+            const t3 = @typeInfo(info.@"fn".params[3].type.?);
+            if (t3 != .pointer) continue;
+            const t3i = @typeInfo(t3.pointer.child);
+            if (t3i != .@"struct") continue;
+            if (t3.pointer.child != engine.Event) continue;
+
+            callbacks[count] = Callback{ .name = decl.name, .f = @ptrCast(&f) };
+            count += 1;
+            if (count == max_callbacks) break;
+        }
+        return .{
+            .callbacks = callbacks,
+            .count = count,
+        };
+    }
+
+    fn find(self: *const CallbackSet, name: []const u8) Error!*const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event) error{OutOfMemory}!void {
+        for (self.callbacks[0..self.count]) |option| {
+            if (std.ascii.eqlIgnoreCase(name, option.name))
+                return option.f;
+        }
+        return Error.UnexpectedToken;
+    }
+};
+
+pub const StateCallbackSet = struct {
+    callbacks: [max_callbacks]Callback,
+    count: usize,
+
+    /// Describes a function exposed to a UI at runtime
+    pub const Callback = struct {
+        f: *const fn (*anyopaque, *engine.Display, *Entity) error{OutOfMemory}!void,
+        name: []const u8,
+    };
+
+    /// Return the name and pointer to all functions matching the Callback
+    /// function definition.
+    pub fn init(t: type) StateCallbackSet {
+        var callbacks: [max_callbacks]Callback = undefined;
+        var count: usize = 0;
+        inline for (@typeInfo(t).@"struct".decls) |decl| {
+            const f = @field(t, decl.name);
+            const info = @typeInfo(@TypeOf(f));
+            if (info != .@"fn") continue;
+            if (info.@"fn".params.len != 4) continue;
+            if (info.@"fn".return_type == null) continue;
+            if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
+            if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
+            if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
+
+            if (info.@"fn".params[0].type == null) continue;
+            const t0 = @typeInfo(info.@"fn".params[0].type.?);
+            if (t0 != .pointer) continue;
+            const t0i = @typeInfo(t0.pointer.child);
+            if (t0i != .@"struct") continue;
+
+            if (info.@"fn".params[1].type == null) continue;
+            const t1 = @typeInfo(info.@"fn".params[1].type.?);
+            if (t1 != .pointer) continue;
+            const t1i = @typeInfo(t1.pointer.child);
+            if (t1i != .@"struct") continue;
+            if (t1.pointer.child != engine.Display) continue;
+
+            if (info.@"fn".params[2].type == null) continue;
+            const t2 = @typeInfo(info.@"fn".params[2].type.?);
+            if (t2 != .pointer) continue;
+            const t2i = @typeInfo(t2.pointer.child);
+            if (t2i != .@"struct") continue;
+            if (t2.pointer.child != engine.Entity) continue;
+
+            callbacks[count] = Callback{ .name = decl.name, .f = @ptrCast(&f) };
+            count += 1;
+            if (count == max_callbacks) break;
+        }
+        return .{
+            .callbacks = callbacks,
+            .count = count,
+        };
+    }
+
+    fn find(self: *const StateCallbackSet, name: []const u8) Error!*const fn (*anyopaque, *engine.Display, *Entity) error{OutOfMemory}!void {
+        for (self.callbacks[0..self.count]) |option| {
+            if (std.ascii.eqlIgnoreCase(name, option.name))
+                return option.f;
+        }
+        return Error.UnexpectedToken;
+    }
+};
+
+pub const UpdateCallbackSet = struct {
+    callbacks: [max_callbacks]Callback,
+    count: usize,
+
+    /// Describes a function exposed to a UI at runtime
+    pub const Callback = struct {
+        f: *const fn (*anyopaque, *engine.Display, *Entity) void,
+        name: []const u8,
+    };
+
+    /// Return the name and pointer to all functions matching the Callback
+    /// function definition.
+    pub fn init(t: type) UpdateCallbackSet {
+        var callbacks: [max_callbacks]Callback = undefined;
+        var count: usize = 0;
+
+        inline for (@typeInfo(t).@"struct".decls) |decl| {
+            const f = @field(t, decl.name);
+            const info = @typeInfo(@TypeOf(f));
+            if (info != .@"fn") continue;
+            if (info.@"fn".params.len != 4) continue;
+            if (info.@"fn".return_type == null) continue;
+            if (@typeInfo(info.@"fn".return_type.?) != .void) continue;
+
+            if (info.@"fn".params[0].type == null) continue;
+            const t0 = @typeInfo(info.@"fn".params[0].type.?);
+            if (t0 != .pointer) continue;
+            const t0i = @typeInfo(t0.pointer.child);
+            if (t0i != .@"struct") continue;
+
+            if (info.@"fn".params[1].type == null) continue;
+            const t1 = @typeInfo(info.@"fn".params[1].type.?);
+            if (t1 != .pointer) continue;
+            const t1i = @typeInfo(t1.pointer.child);
+            if (t1i != .@"struct") continue;
+            if (t1.pointer.child != engine.Display) continue;
+
+            if (info.@"fn".params[2].type == null) continue;
+            const t2 = @typeInfo(info.@"fn".params[2].type.?);
+            if (t2 != .pointer) continue;
+            const t2i = @typeInfo(t2.pointer.child);
+            if (t2i != .@"struct") continue;
+            if (t2.pointer.child != engine.Entity) continue;
+
+            callbacks[count] = Callback{ .name = decl.name, .f = @ptrCast(&f) };
+            count += 1;
+            if (count == max_callbacks) break;
+        }
+        return .{
+            .callbacks = callbacks,
+            .count = count,
+        };
+    }
+
+    fn find(self: *const UpdateCallbackSet, name: []const u8) Error!*const fn (*anyopaque, *engine.Display, *Entity) void {
+        for (self.callbacks) |option| {
+            if (std.ascii.eqlIgnoreCase(name, option.name))
+                return option.f;
+        }
+        return Error.UnexpectedToken;
+    }
+};
+
+pub const BoolCallbackSet = struct {
+    callbacks: [max_callbacks]Callback,
+    count: usize,
+
+    /// Describes a function exposed to a UI at runtime
+    pub const Callback = struct {
+        f: *const fn (*anyopaque, *engine.Display, *Entity) bool,
+        name: []const u8,
+    };
+
+    /// Return the name and pointer to all functions matching the Callback
+    /// function definition.
+    pub fn init(t: type) BoolCallbackSet {
+        var callbacks: [max_callbacks]Callback = undefined;
+        var count: usize = 0;
+        inline for (@typeInfo(t).@"struct".decls) |decl| {
+            const f = @field(t, decl.name);
+            const info = @typeInfo(@TypeOf(f));
+            if (info != .@"fn") continue;
+            if (info.@"fn".params.len != 4) continue;
+            if (info.@"fn".return_type == null) continue;
+            if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
+            if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
+            if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
+
+            if (info.@"fn".params[0].type == null) continue;
+            const t0 = @typeInfo(info.@"fn".params[0].type.?);
+            if (t0 != .pointer) continue;
+            const t0i = @typeInfo(t0.pointer.child);
+            if (t0i != .@"struct") continue;
+
+            if (info.@"fn".params[1].type == null) continue;
+            const t1 = @typeInfo(info.@"fn".params[1].type.?);
+            if (t1 != .pointer) continue;
+            const t1i = @typeInfo(t1.pointer.child);
+            if (t1i != .@"struct") continue;
+            if (t1.pointer.child != engine.Display) continue;
+
+            if (info.@"fn".params[2].type == null) continue;
+            const t2 = @typeInfo(info.@"fn".params[2].type.?);
+            if (t2 != .pointer) continue;
+            const t2i = @typeInfo(t2.pointer.child);
+            if (t2i != .@"struct") continue;
+            if (t2.pointer.child != engine.Entity) continue;
+
+            callbacks[count] = Callback{ .name = decl.name, .f = @ptrCast(&f) };
+            count += 1;
+            if (count == max_callbacks) break;
+        }
+        return .{
+            .callbacks = callbacks,
+            .count = count,
+        };
+    }
+
+    fn find(self: *const BoolCallbackSet, name: []const u8) Error!*const fn (*anyopaque, *engine.Display, *Entity) bool {
+        for (self.callbacks[0..self.count]) |option| {
+            if (std.ascii.eqlIgnoreCase(name, option.name))
+                return option.f;
+        }
+        return Error.UnexpectedToken;
+    }
+};
+
+/// Holds a list of each field in struct t that matches *Entity.
+pub const FieldSet = struct {
+    buffer: [max_callbacks]Field = undefined,
+    count: usize = 0,
+
+    /// Describes a function exposed to a UI at runtime
+    pub const Field = struct {
+        name: []const u8,
+        offset: usize,
+    };
+
+    /// Build a list of each field in struct t that matches *Entity.
+    pub fn init(t: type) FieldSet {
+        var buffer: [max_callbacks]Field = undefined;
+        var count: usize = 0;
+        inline for (@typeInfo(t).@"struct".fields) |field| {
+            const info = @typeInfo(field.type);
+            if (info != .pointer) continue;
+            if (info.pointer.child != Entity) continue;
+            buffer[count] = Field{
+                .name = field.name,
+                .offset = @offsetOf(t, field.name),
+            };
+            count += 1;
+            if (count == max_callbacks) break;
+        }
+        return .{
+            .buffer = buffer,
+            .count = count,
+        };
+    }
+
+    pub fn find(self: *const FieldSet, handler: anytype, name: []const u8) ?**Entity {
+        for (self.buffer[0..self.count]) |field| {
+            if (std.mem.eql(u8, name, field.name)) {
+                const t: [*]u8 = @ptrCast(handler);
+                const ptr: **Entity = @as(**Entity, @ptrCast(@alignCast(t + field.offset)));
+                return ptr;
+            }
+        }
+        return null;
+    }
 };
 
 const TestHandler = struct {
