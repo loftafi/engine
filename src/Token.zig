@@ -141,6 +141,11 @@ pub const Tag = enum(u8) {
     right,
     top,
     bottom,
+    ignore_safe_area,
+    avoid_safe_area,
+    choosable,
+    not_choosable,
+    field,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does
@@ -314,7 +319,7 @@ pub fn next(self: *const Token) Error!Token {
                 }
             }
             return .{
-                .tag = .unexpected,
+                .tag = .field,
                 .begins = begins,
                 .ends = current,
                 .loc = loc,
@@ -411,7 +416,7 @@ test "tokenise_whitespace" {
 
 test "tokenise_word" {
     var token = try Token.init("cloth");
-    try expectEqual(.unexpected, token.tag);
+    try expectEqual(.field, token.tag);
     try expectEqualStrings("cloth", token.slice());
     try expectEqual(Cursor{ .line = 0, .column = 0 }, token.begins);
     try expectEqual(Cursor{ .line = 0, .column = 5 }, token.ends);
@@ -422,7 +427,7 @@ test "tokenise_word" {
 
 test "tokenise_word_boundary" {
     var token = try Token.init("cloth=");
-    try expectEqual(.unexpected, token.tag);
+    try expectEqual(.field, token.tag);
     try expectEqualStrings("cloth", token.slice());
     try expectEqual(Cursor{ .line = 0, .column = 0 }, token.begins);
     try expectEqual(Cursor{ .line = 0, .column = 5 }, token.ends);

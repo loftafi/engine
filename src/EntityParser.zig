@@ -394,6 +394,14 @@ pub fn readAttributes(
                 engine.log.err("field {s} not found in {any}.", .{ name, HandlerType });
             }
             token.* = try token.next();
+        } else if (token.tag == .field) {
+            const name = token.slice();
+            if (findEntityPointer(entity_pointers, handler, name)) |e| {
+                e.* = entity;
+            } else {
+                engine.log.err("field {s} not found in {any}.", .{ name, HandlerType });
+            }
+            token.* = try token.next();
         } else {
             return error.UnexpectedToken;
         }
@@ -448,6 +456,30 @@ pub fn readAttributes(
                 if (entity.type != .panel)
                     return error.UnexpectedToken;
                 entity.type.panel.direction = .left_to_right;
+                token.* = try token.next();
+            },
+            .choosable => {
+                if (entity.type != .panel)
+                    return error.UnexpectedToken;
+                entity.type.panel.choosable = .choosable;
+                token.* = try token.next();
+            },
+            .not_choosable => {
+                if (entity.type != .panel)
+                    return error.UnexpectedToken;
+                entity.type.panel.choosable = .not_choosable;
+                token.* = try token.next();
+            },
+            .avoid_safe_area => {
+                if (entity.type != .panel)
+                    return error.UnexpectedToken;
+                entity.type.panel.safe_area = .avoid_safe_area;
+                token.* = try token.next();
+            },
+            .ignore_safe_area => {
+                if (entity.type != .panel)
+                    return error.UnexpectedToken;
+                entity.type.panel.safe_area = .ignore_safe_area;
                 token.* = try token.next();
             },
             .eof => return,
@@ -1173,6 +1205,9 @@ pub const Error = error{
 const TestHandler = struct {
     count: u8 = 0,
 
+    jai: *Entity = undefined,
+    pie: *Entity = undefined,
+
     pub fn on_jump(_: *TestHandler, two: bool, three: bool, four: bool) void {
         _ = two;
         _ = three;
@@ -1241,13 +1276,17 @@ test "layout_equals2" {
 test "panel" {
     var te: TestHandler = .{};
     const entity = try readEntity(std.testing.allocator,
-        \\panel name "coffee" image "cat"
+        \\panel:"jai" name "coffee" image "cat"
         \\minimum width=33 height=120
         \\maximum height=99 width=88
-        \\horizontal
+        \\horizontal avoid_safe_area choosable
         \\style tinted
     , TestHandler, &te) orelse unreachable;
+    defer std.testing.allocator.destroy(entity);
 
+    try expectEqual(te.jai, entity);
+    try expectEqual(.avoid_safe_area, entity.type.panel.safe_area);
+    try expectEqual(.choosable, entity.type.panel.choosable);
     try expectEqual(33, entity.minimum.width);
     try expectEqual(120, entity.minimum.height);
     try expectEqual(88, entity.maximum.width);
@@ -1266,15 +1305,18 @@ test "panel_children" {
 
     var te: TestHandler = .{};
     var entity = try readEntity(allocator,
-        \\panel name "coffee" image "cat"
+        \\panel:pie name "coffee" image "cat" ignore_safe_area not_choosable
         \\{
         \\  label text "hello"
         \\  label text "hello2"
         \\  button text "save"
         \\}
     , TestHandler, &te) orelse unreachable;
-    defer entity.deinit(allocator, display);
+    defer entity.destroy(display);
 
+    try expectEqual(te.pie, entity);
+    try expectEqual(.ignore_safe_area, entity.type.panel.safe_area);
+    try expectEqual(.not_choosable, entity.type.panel.choosable);
     try expectEqual(3, entity.type.panel.children.items.len);
     try expect(.label == entity.type.panel.children.items[0].type);
     try expect(.label == entity.type.panel.children.items[1].type);
@@ -1288,6 +1330,7 @@ test "label" {
         \\minimum 33 44
         \\style emphasised text_size heading
     , TestHandler, &te) orelse unreachable;
+    defer std.testing.allocator.destroy(entity);
 
     try expectEqual(33, entity.minimum.width);
     try expectEqual(44, entity.minimum.height);
@@ -1308,6 +1351,7 @@ test "checkbox" {
         \\checkbox_size 25 26
         \\on_change "on_click"
     , TestHandler, &te) orelse unreachable;
+    defer std.testing.allocator.destroy(entity);
 
     try expectEqual(1.2, entity.type.checkbox.line_height);
     try expectEqual(12.34, entity.minimum.width);
@@ -1328,7 +1372,7 @@ test "checkbox" {
     defer display.destroy();
 
     try expectEqual(0, te.count);
-    try entity.type.checkbox.on_change.call(display, &entity, &.{});
+    try entity.type.checkbox.on_change.call(display, entity, &.{});
     try expectEqual(1, te.count);
 }
 
@@ -1341,6 +1385,8 @@ test "text_input" {
         \\layout grows shrinks
         \\max_length 123
     , TestHandler, &te) orelse unreachable;
+    defer std.testing.allocator.destroy(entity);
+
     try expectEqual(100, entity.minimum.width);
     try expectEqual(40, entity.minimum.height);
     try expectEqualStrings("Enter your food", entity.type.text_input.placeholder_text.?);
@@ -1355,6 +1401,7 @@ test "expander" {
     const entity = try readEntity(std.testing.allocator,
         \\expander name "expander 1" weight 0.4
     , TestHandler, &te) orelse unreachable;
+    defer std.testing.allocator.destroy(entity);
     try expectEqual(0.4, entity.type.expander.weight);
     try expectEqualStrings("expander 1", entity.name);
 }
