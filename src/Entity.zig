@@ -753,7 +753,7 @@ pub inline fn setFont(
 
 pub inline fn getText(
     self: *Entity,
-) error{OutOfMemory}!?[]const u8 {
+) ?[]const u8 {
     return switch (self.type) {
         .text_input => self.type.text_input.initial_text,
         .checkbox => self.type.checkbox.text,
@@ -939,9 +939,8 @@ pub inline fn append(
 
     if (token.tag == .eof) return Error.UnexpectedToken;
 
-    const child = try display.allocator.create(Entity);
-    errdefer display.allocator.destroy(child);
-    child.* = try EntityParser.readEntityTokens(display.allocator, &token, HandlerType, handler) orelse return Error.UnexpectedToken;
+    const child = try EntityParser.readEntityTokens(display.allocator, &token, HandlerType, handler) orelse return Error.UnexpectedToken;
+
     try postAppend(display, child);
     try self.type.panel.children.append(display.allocator, child);
 
@@ -977,7 +976,7 @@ pub inline fn appendMultiple(
 }
 
 fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error || Resources.Error)!void {
-    if (try entity.getText()) |text| {
+    if (entity.getText()) |text| {
         try entity.setText(display, text);
     }
     if (entity.type == .panel) {

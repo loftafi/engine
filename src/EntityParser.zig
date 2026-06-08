@@ -21,7 +21,7 @@ pub fn readEntity(
     data: []const u8,
     comptime HandlerType: type,
     handler: *HandlerType,
-) (Error || Allocator.Error)!?Entity {
+) (Error || Allocator.Error)!?*Entity {
     var token: Token = try .init(data);
     return try readEntityTokens(allocator, &token, HandlerType, handler) orelse return null;
 }
@@ -31,16 +31,18 @@ pub fn readEntityTokens(
     token: *Token,
     comptime HandlerType: type,
     handler: *HandlerType,
-) (Error || Allocator.Error)!?Entity {
+) (Error || Allocator.Error)!?*Entity {
     var buffer1: [max_callbacks]CallbackOption = undefined;
     var buffer2: [max_callbacks]StateCallbackOption = undefined;
     var buffer3: [max_callbacks]UpdateCallbackOption = undefined;
     var buffer4: [max_callbacks]BoolCallbackOption = undefined;
+    var buffer5: [max_callbacks]EntityPointer = undefined;
 
     const callbacks = callbackFunctionList(HandlerType, &buffer1);
     const state_callbacks = callbackStateFunctionList(HandlerType, &buffer2);
     const update_callbacks = callbackUpdateFunctionList(HandlerType, &buffer3);
     const bool_callbacks = callbackBoolFunctionList(HandlerType, &buffer4);
+    const entity_pointers = entityPointerList(HandlerType, &buffer5);
 
     errdefer {
         err("Unexpected token {t} at {d}.{d}: {s}", .{
@@ -51,17 +53,18 @@ pub fn readEntityTokens(
         });
     }
     if (token.tag == .eof) return null;
-    var entity = readEntityType(token) catch return error.UnexpectedToken;
+    var entity = readEntityType(allocator, token) catch return error.UnexpectedToken;
     //entity.setup(display);
     readAttributes(
         token,
-        &entity,
+        entity,
         HandlerType,
         handler,
         callbacks,
         state_callbacks,
         update_callbacks,
         bool_callbacks,
+        entity_pointers,
     ) catch return error.UnexpectedToken;
 
     if (entity.type == .panel) {
@@ -70,15 +73,44 @@ pub fn readEntityTokens(
         while (token.tag != .close_bracket and token.tag != .eof) {
             const child = try readEntityTokens(allocator, token, HandlerType, handler);
             if (child == null) break;
-            const c = try allocator.create(Entity);
-            errdefer allocator.destroy(c);
-            c.* = child.?;
-            try entity.type.panel.children.append(allocator, c);
+            try entity.type.panel.children.append(allocator, child.?);
         }
         token.* = try token.next();
     }
 
     return entity;
+}
+
+/// Describes a function exposed to a UI at runtime
+pub const EntityPointer = struct {
+    name: []const u8,
+    offset: usize,
+};
+
+/// Return the name and pointer to all functions matching the Callback
+/// function definition.
+pub fn entityPointerList(t: type, list: []EntityPointer) []const EntityPointer {
+    var count: usize = 0;
+    inline for (@typeInfo(t).@"struct".fields) |field| {
+        const info = @typeInfo(field.type);
+        if (info != .pointer) continue;
+        if (info.pointer.child != Entity) continue;
+        list[count] = EntityPointer{ .name = field.name, .offset = @offsetOf(t, field.name) };
+        count += 1;
+        if (count == max_callbacks) break;
+    }
+    return list[0..count];
+}
+
+pub fn findEntityPointer(entity_pointers: []const EntityPointer, handler: anytype, name: []const u8) ?**Entity {
+    for (entity_pointers) |field| {
+        if (std.mem.eql(u8, name, field.name)) {
+            const t: [*]u8 = @ptrCast(handler);
+            const ptr: **Entity = @as(**Entity, @ptrCast(@alignCast(t + field.offset)));
+            return ptr;
+        }
+    }
+    return null;
 }
 
 /// Describes a function exposed to a UI at runtime
@@ -307,8 +339,8 @@ fn findMatchingBoolCallback(name: []const u8, options: []const BoolCallbackOptio
 }
 
 /// Read Entity type and initialise the entity with default values.
-pub fn readEntityType(token: *Token) Error!Entity {
-    return switch (token.tag) {
+pub fn readEntityType(allocator: Allocator, token: *Token) (Allocator.Error || Error)!*Entity {
+    const entity: Entity = switch (token.tag) {
         .button => .{ .focus = .can_focus, .type = .{ .button = .{ .text_size = .normal } } },
         .checkbox => .{ .focus = .can_focus, .type = .{ .checkbox = .{ .text_size = .normal } } },
         .expander => .{ .focus = .never_focus, .type = .{ .expander = .{} } },
@@ -332,8 +364,11 @@ pub fn readEntityType(token: *Token) Error!Entity {
                 .placeholder_text = null,
             } },
         },
-        else => error.UnexpectedToken,
+        else => return error.UnexpectedToken,
     };
+    const result = try allocator.create(Entity);
+    result.* = entity;
+    return result;
 }
 
 pub fn readAttributes(
@@ -345,8 +380,25 @@ pub fn readAttributes(
     state_callbacks: []const StateCallbackOption,
     update_callbacks: []const UpdateCallbackOption,
     bool_callbacks: []const BoolCallbackOption,
+    entity_pointers: []const EntityPointer,
 ) Error!void {
     token.* = try token.next();
+
+    if (token.tag == .colon) {
+        token.* = try token.next();
+        if (token.tag == .string) {
+            const name = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            if (findEntityPointer(entity_pointers, handler, name)) |e| {
+                e.* = entity;
+            } else {
+                engine.log.err("field {s} not found in {any}.", .{ name, HandlerType });
+            }
+            token.* = try token.next();
+        } else {
+            return error.UnexpectedToken;
+        }
+    }
+
     while (true) {
         //err("reading attribute {t}", .{token.tag});
         try switch (token.tag) {
