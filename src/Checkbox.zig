@@ -61,7 +61,6 @@ pub inline fn draw(
 
 pub inline fn minimumNeededWidth(
     _: *Checkbox,
-    display: *Display,
     entity: *Entity,
     max_width: f32,
 ) f32 {
@@ -79,7 +78,7 @@ pub inline fn minimumNeededWidth(
 
     switch (entity.layout.x) {
         .shrinks, .grows => return @max(
-            Label.layout(entity, display.scale, allowed_width).width +
+            Label.layout(entity, allowed_width).width +
                 margins +
                 entity.type.checkbox.checkbox_size.width,
             entity.minimum.width,
@@ -91,7 +90,6 @@ pub inline fn minimumNeededWidth(
 
 pub inline fn minimumNeededHeight(
     _: *Checkbox,
-    display: *Display,
     entity: *Entity,
     parent_inner_width: f32,
 ) f32 {
@@ -100,7 +98,7 @@ pub inline fn minimumNeededHeight(
     // needs to be done here as the width of the label may have changed.
     switch (entity.layout.y) {
         .shrinks, .grows => {
-            _ = Label.layout(entity, display.scale, parent_inner_width);
+            _ = Label.layout(entity, parent_inner_width);
             return entity.rect.height;
         },
         .fixed => {

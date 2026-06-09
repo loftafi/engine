@@ -376,6 +376,7 @@ pub inline fn setPlaceholderText(
             text_input.placeholder_text = text;
             _ = try text_input.font.measureText(
                 display,
+                text_input.text_size,
                 text_input.placeholder_text.?,
             );
         },
@@ -559,11 +560,11 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
 }
 
 /// Changing the alignment requires reflowing the text in a label
-pub inline fn setAlign(self: *Entity, display: *Display, x: LayoutAlign, y: LayoutAlign) void {
+pub inline fn setAlign(self: *Entity, x: LayoutAlign, y: LayoutAlign) void {
     self.child_align.x = x;
     self.child_align.y = y;
     switch (self.type) {
-        .label, .checkbox => _ = Label.layout(self, display.scale, self.rect.width),
+        .label, .checkbox => _ = Label.layout(self, self.rect.width),
         else => {},
     }
 }
@@ -817,6 +818,7 @@ pub inline fn setText(
                 ti.cursor_character = ti.runes.items.len;
                 ti.cursor_pixels = try ti.font.measureText(
                     display,
+                    ti.text_size,
                     ti.text.items,
                 );
             } else {
@@ -835,6 +837,7 @@ pub inline fn setText(
                     // Store width as a placeholder until layout function is run.
                     const width = try word.font.measureText(
                         display,
+                        label.text_size,
                         word.text,
                     );
                     try label.elements.append(display.allocator, .{
@@ -857,6 +860,7 @@ pub inline fn setText(
                     // Store width as a placeholder until layout function is run.
                     const width = try text.font.measureText(
                         display,
+                        checkbox.text_size,
                         text.text,
                     );
                     try self.type.checkbox.elements.append(display.allocator, .{
@@ -879,6 +883,7 @@ pub inline fn setText(
 
                 button.translated_text_width = try button.font.measureText(
                     display,
+                    button.text_size,
                     button.translated,
                 );
             }
@@ -897,7 +902,7 @@ pub inline fn setText(
         else
             @min(self.maximum.width, width);
 
-        const size = Label.layout(self, display.scale, allowed_width);
+        const size = Label.layout(self, allowed_width);
         if (self.layout.x != .fixed) self.rect.width = size.width;
         if (self.layout.y != .fixed) self.rect.height = size.height;
     }
@@ -1100,19 +1105,19 @@ pub fn update(self: *Entity, display: *Display) void {
 /// shrink to based on the children. If children wrap according
 /// to the width of the parent, then the parent width is needed
 /// to calculate the height
-pub fn minimumNeededHeight(self: *Entity, display: *Display, parent_width: f32) f32 {
+pub fn minimumNeededHeight(self: *Entity, parent_width: f32) f32 {
     if (self.visible == .hidden)
         return 0;
     if (self.layout.y == .fixed)
         return @max(self.minimum.height, self.rect.height);
 
     const height = switch (self.type) {
-        .button => return self.type.button.minimumNeededHeight(display, self, parent_width),
-        .checkbox => return self.type.checkbox.minimumNeededHeight(display, self, parent_width),
+        .button => return self.type.button.minimumNeededHeight(self, parent_width),
+        .checkbox => return self.type.checkbox.minimumNeededHeight(self, parent_width),
         .expander => return self.minimum.height,
-        .label => return self.type.label.minimumNeededHeight(display, self, parent_width),
-        .panel => return self.type.panel.minimumNeededHeight(display, self, parent_width),
-        .text_input => return self.type.text_input.minimumNeededHeight(display, self, parent_width),
+        .label => return self.type.label.minimumNeededHeight(self, parent_width),
+        .panel => return self.type.panel.minimumNeededHeight(self, parent_width),
+        .text_input => return self.type.text_input.minimumNeededHeight(self, parent_width),
         else => self.rect.height,
     };
     return @max(self.minimum.height, height);
@@ -1122,7 +1127,7 @@ pub fn minimumNeededHeight(self: *Entity, display: *Display, parent_width: f32) 
 /// .
 /// Some entities grow to the `parent_width`, which is usually the
 /// `parent.rect.width` minus any internal padding.
-pub fn minimumNeededWidth(self: *Entity, display: *Display, parent_inner_width: f32) f32 {
+pub fn minimumNeededWidth(self: *Entity, parent_inner_width: f32) f32 {
     if (self.visible == .hidden)
         return 0;
 
@@ -1130,12 +1135,12 @@ pub fn minimumNeededWidth(self: *Entity, display: *Display, parent_inner_width: 
         return @max(self.minimum.width, self.rect.width);
 
     return switch (self.type) {
-        .panel => self.type.panel.minimumNeededWidth(display, self, parent_inner_width),
-        .button => self.type.button.minimumNeededWidth(display, self, parent_inner_width),
-        .expander => self.type.expander.minimumNeededWidth(display, self, parent_inner_width),
-        .label => self.type.label.minimumNeededWidth(display, self, parent_inner_width),
-        .checkbox => self.type.checkbox.minimumNeededWidth(display, self, parent_inner_width),
-        .text_input => self.type.text_input.minimumNeededWidth(display, self, parent_inner_width),
+        .panel => self.type.panel.minimumNeededWidth(self, parent_inner_width),
+        .button => self.type.button.minimumNeededWidth(self, parent_inner_width),
+        .expander => self.type.expander.minimumNeededWidth(self, parent_inner_width),
+        .label => self.type.label.minimumNeededWidth(self, parent_inner_width),
+        .checkbox => self.type.checkbox.minimumNeededWidth(self, parent_inner_width),
+        .text_input => self.type.text_input.minimumNeededWidth(self, parent_inner_width),
         else => @max(self.minimum.width, self.rect.width),
     };
 }
@@ -1748,8 +1753,8 @@ pub fn setup_checkbox(
     }
 
     if (entity.type.checkbox.checkbox_size.width == 0 or entity.type.checkbox.checkbox_size.height == 0) {
-        entity.type.checkbox.checkbox_size.width = entity.type.checkbox.text_size.pixel_height(display.pixel_scale);
-        entity.type.checkbox.checkbox_size.height = entity.type.checkbox.text_size.pixel_height(display.pixel_scale);
+        entity.type.checkbox.checkbox_size.width = entity.type.checkbox.text_size.pixel_height();
+        entity.type.checkbox.checkbox_size.height = entity.type.checkbox.text_size.pixel_height();
     }
 
     const size = entity.type.checkbox.checkbox_size;
@@ -1798,15 +1803,8 @@ pub fn setup_text_input(
         }
     }
 
-    if (entity.pad.top == 0 and entity.pad.bottom == 0) {
-        entity.pad.left = TextSize.normal.pixel_height(display.scale * 0.6);
-        entity.pad.right = TextSize.normal.pixel_height(display.scale * 0.6);
-        entity.pad.top = TextSize.normal.pixel_height(display.scale * 0.5);
-        entity.pad.bottom = TextSize.normal.pixel_height(display.scale * 0.5);
-    }
-
     entity.focus = .can_focus;
-    entity.rect.height = (TextSize.normal.pixel_height(display.scale)) + (entity.pad.top + entity.pad.bottom);
+    entity.rect.height = (TextSize.normal.pixel_height()) + (entity.pad.top + entity.pad.bottom);
 
     entity.type.text_input.text = .empty;
     entity.type.text_input.runes = .empty;

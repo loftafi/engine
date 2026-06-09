@@ -193,8 +193,8 @@ test "text input sizing" {
             .layout = .{ .x = .fixed, .y = .grows },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(500, l.minimumNeededWidth(display, 500));
-        try eq(50, l.minimumNeededHeight(display, 500));
+        try eq(500, l.minimumNeededWidth(500));
+        try eq(50, l.minimumNeededHeight(500));
         panel.removeEntities(display);
     }
 
@@ -209,8 +209,8 @@ test "text input sizing" {
             .layout = .{ .x = .fixed, .y = .fixed },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(500, l.minimumNeededWidth(display, 500));
-        try eq(60, l.minimumNeededHeight(display, 500));
+        try eq(500, l.minimumNeededWidth(500));
+        try eq(60, l.minimumNeededHeight(500));
         panel.removeEntities(display);
     }
 
@@ -225,8 +225,8 @@ test "text input sizing" {
             .layout = .{ .x = .grows, .y = .shrinks },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(401, l.minimumNeededWidth(display, 500)); // grows to maximum
-        try eq(TextSize.normal.pixel_height(display.scale), l.minimumNeededHeight(display, 500));
+        try eq(401, l.minimumNeededWidth(500)); // grows to maximum
+        try eq(TextSize.normal.pixel_height(), l.minimumNeededHeight(500));
         panel.removeEntities(display);
     }
 
@@ -242,8 +242,8 @@ test "text input sizing" {
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         // Minimum is the smallest the label wants to be given the parent width provided
-        try eq(401, @round(l.minimumNeededWidth(display, 500)));
-        try eq(TextSize.normal.pixel_height(display.pixel_scale), l.minimumNeededHeight(display, 500));
+        try eq(401, @round(l.minimumNeededWidth(500)));
+        try eq(TextSize.normal.pixel_height(), l.minimumNeededHeight(500));
         panel.removeEntities(display);
     }
 
@@ -270,20 +270,20 @@ test "text input sizing" {
         try eq(0, @round(l.type.label.elements.items[0].location.x));
         try eq(0, @round(l.type.label.elements.items[0].location.y));
 
-        try eq(103, @round(l.type.label.elements.items[1].location.x));
+        try eq(51, @round(l.type.label.elements.items[1].location.x));
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(199, @round(l.minimumNeededWidth(display, 500)));
+        try eq(99, @round(l.minimumNeededWidth(500)));
 
         try eq(
-            2 * TextSize.normal.pixel_height(display.pixel_scale),
-            l.minimumNeededHeight(display, 500),
+            2 * TextSize.normal.pixel_height(),
+            l.minimumNeededHeight(500),
         );
         // Display width on physical display with word wrap
         try eq(
-            2 * TextSize.normal.pixel_height(display.pixel_scale),
-            l.minimumNeededHeight(display, 40 * display.pixel_scale),
+            2 * TextSize.normal.pixel_height(),
+            l.minimumNeededHeight(40 * display.pixel_scale),
         );
         panel.removeEntities(display);
     }
@@ -294,8 +294,8 @@ test "text input sizing" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try eq(5, panel.minimumNeededWidth(display, 500));
-    try eq(8, panel.minimumNeededHeight(display, 500));
+    try eq(5, panel.minimumNeededWidth(500));
+    try eq(8, panel.minimumNeededHeight(500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
@@ -308,8 +308,8 @@ test "text input sizing" {
         .layout = .{ .x = .fixed, .y = .fixed },
     }, display);
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-    try eq(500, label.minimumNeededWidth(display, 500));
-    try eq(60, label.minimumNeededHeight(display, 500));
+    try eq(500, label.minimumNeededWidth(500));
+    try eq(60, label.minimumNeededHeight(500));
 
     // Fixed width and height cant be shrunk or grown, except if minimum
     // or maximum override it.
@@ -322,14 +322,14 @@ test "text input sizing" {
         .layout = .{ .x = .fixed, .y = .fixed },
     }, display);
     label.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-    try eq(300, label.minimumNeededWidth(display, 500));
-    try eq(100, label.minimumNeededHeight(display, 500));
+    try eq(300, label.minimumNeededWidth(500));
+    try eq(100, label.minimumNeededHeight(500));
 
-    label.minimum.width = TextSize.normal.pixel_height(1);
-    label.minimum.height = TextSize.normal.pixel_height(1);
+    label.minimum.width = TextSize.normal.pixel_height();
+    label.minimum.height = TextSize.normal.pixel_height();
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(100, @ceil(label.minimumNeededWidth(display, 500) / display.pixel_scale));
+    try eq(50, @ceil(label.minimumNeededWidth(500) / display.pixel_scale));
 }
 
 test "test_init" {

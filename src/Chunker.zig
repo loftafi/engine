@@ -309,8 +309,8 @@ test "guess_fail" {
         .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
-    try expectEqual(5, panel.minimumNeededWidth(display, 500));
-    try expectEqual(8, panel.minimumNeededHeight(display, 500));
+    try expectEqual(5, panel.minimumNeededWidth(500));
+    try expectEqual(8, panel.minimumNeededHeight(500));
 
     {
         var data = Chunker.init("fish");

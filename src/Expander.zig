@@ -16,14 +16,13 @@ pub inline fn draw(
     _: ?Clip, //parent_clip
     _: Vector, // scroll_offset
 ) void {
-    if (TextSize.normal.pixel_height(1) == 0) {
+    if (TextSize.normal.pixel_height() == 0) {
         //
     }
 }
 
 pub inline fn minimumNeededWidth(
     _: *const Expander,
-    _: *Display,
     entity: *const Entity,
     _: f32, //parent_inner_width
 ) f32 {
@@ -44,7 +43,7 @@ test "init" {
     };
     try std.testing.expectEqual(
         100.0,
-        entity.type.expander.minimumNeededWidth(display, &entity, 1000),
+        entity.type.expander.minimumNeededWidth(&entity, 1000),
     );
 }
 

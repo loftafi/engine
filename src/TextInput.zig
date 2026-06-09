@@ -69,6 +69,7 @@ pub fn keypress(
         // For now, the cursor position is simply the end of the text.
         self.cursor_pixels = try self.font.measureText(
             display,
+            self.text_size,
             self.text.items,
         );
     } else {
@@ -124,15 +125,15 @@ pub inline fn draw(
     _: ?Clip, // parent_clip
     _: Vector, // scroll offset
 ) void {
-    const word_spacing = self.text_size.word_spacing(display.scale);
-    const text_height = self.text_size.pixel_height(display.scale);
+    const word_spacing = self.text_size.word_spacing();
+    const text_height = self.text_size.pixel_height();
 
     // Draw cursor around the text input if it is selected.
     if (display.selected != null and entity == display.selected.?) {
         var cursor_box: Rect = .{
             .x = @round(entity.rect.x + entity.pad.left + self.cursor_pixels),
             .y = @round(entity.rect.y + entity.pad.top),
-            .width = self.text_size.pixel_height(display.scale / 8.0),
+            .width = self.text_size.pixel_height() / 8.0,
             .height = text_height,
         };
         if (entity.texture) |_| {
@@ -170,9 +171,6 @@ pub inline fn draw(
         );
         _ = sdl.SDL_RenderTexture(display.renderer, icon_texture.texture, null, @ptrCast(&dest));
     }
-
-    // Font baseline offset
-    //y -= self.text_size * display.scale / 3.5;
 
     // Draw either the user text or the placeholder text if set.
     if (self.text.items.len > 0) {
@@ -215,12 +213,11 @@ pub inline fn draw(
 }
 pub inline fn minimumNeededHeight(
     self: *TextInput,
-    display: *Display,
     entity: *Entity,
     parent_inner_width: f32,
 ) f32 {
     _ = parent_inner_width;
-    const height = (self.text_size.pixel_height(display.scale)) + (entity.pad.top + entity.pad.bottom);
+    const height = (self.text_size.pixel_height()) + (entity.pad.top + entity.pad.bottom);
     return height;
 }
 
@@ -232,7 +229,6 @@ pub inline fn minimumNeededHeight(
 // theoretically grow to. Text might wrap if wider than this.
 pub inline fn minimumNeededWidth(
     _: *const TextInput,
-    _: *const Display,
     entity: *const Entity,
     _: f32,
 ) f32 {

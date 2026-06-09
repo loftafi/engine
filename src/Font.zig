@@ -188,6 +188,7 @@ pub fn cleanup(self: *Font, allocator: Allocator) void {
 pub fn measureText(
     self: *Font,
     display: *engine.Display,
+    size: engine.TextSize,
     string: []const u8,
 ) (Allocator.Error)!f32 {
     return self.drawString(
@@ -196,8 +197,7 @@ pub fn measureText(
         string,
         .{},
         .WHITE,
-        .normal,
-        1,
+        size,
         1,
         .measure,
     );
@@ -222,7 +222,6 @@ pub fn drawText(
         pos,
         colour,
         size,
-        display.scale,
         x_scale,
         .draw,
     );
@@ -238,12 +237,10 @@ fn drawString(
     pos: engine.Vector,
     colour: engine.Colour,
     size: engine.TextSize,
-    scale: f32,
     x_scale: f32,
     comptime mode: enum { draw, measure },
 ) Allocator.Error!f32 {
-    // Scale factor is the physical pixel density * user scale * text scale
-    const scale_factor = scale * size.height();
+    const scale_factor = size.scale();
     var dest: engine.Rect = .{
         .x = @round(pos.x),
         .y = @round(pos.y),
@@ -346,9 +343,11 @@ fn drawString(
     }
 
     if (builtin.mode == .Debug and mode == .measure) {
-        trace("draw '{s}': ", .{string});
-        trace("{s}", .{dbg.written()});
-        trace("width={d}", .{dest.x - start_x});
+        trace("draw string='{s}': written={s} width={d}", .{
+            string,
+            dbg.written(),
+            dest.x - start_x,
+        });
     }
 
     return @ceil(dest.x - start_x);

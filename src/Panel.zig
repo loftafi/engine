@@ -99,17 +99,15 @@ pub inline fn draw(
 /// If parent stacks children left-to-right simply find the tallest item.
 pub inline fn minimumNeededHeight(
     self: *const Panel,
-    display: *Display,
     entity: *const Entity,
     _: f32, //parent_inner_width
 ) f32 {
-    return @max(entity.minimum.height, self.calculateMinimumNeededHeight(entity, display));
+    return @max(entity.minimum.height, self.calculateMinimumNeededHeight(entity));
 }
 
 fn calculateMinimumNeededHeight(
     _: *const Panel,
     entity: *const Entity,
-    display: *Display,
 ) f32 {
     std.debug.assert(entity.type == .panel);
     if (entity.visible == .hidden) return 0;
@@ -133,7 +131,7 @@ fn calculateMinimumNeededHeight(
                     // Add spacing before next entity, if needed
                     minimum_needed += entity.type.panel.spacing;
                 }
-                const height = child.minimumNeededHeight(display, available_width);
+                const height = child.minimumNeededHeight(available_width);
                 minimum_needed += height;
             }
             // Bound to the minimum/maximum height
@@ -157,7 +155,7 @@ fn calculateMinimumNeededHeight(
                 if (child.visible == .hidden) continue;
                 if (child.type == .expander) continue;
 
-                const width = child.minimumNeededWidth(display, available_width);
+                const width = child.minimumNeededWidth(available_width);
                 _ = box.place(width, child.rect.height);
             }
             box.finalise();
@@ -176,7 +174,7 @@ fn calculateMinimumNeededHeight(
             for (entity.type.panel.children.items) |child| {
                 if (child.layout.position == .float) continue;
 
-                const height = child.minimumNeededHeight(display, available_width);
+                const height = child.minimumNeededHeight(available_width);
                 if (height > minimum_needed)
                     minimum_needed = height;
             }
@@ -194,17 +192,15 @@ fn calculateMinimumNeededHeight(
 /// If parent fills children top-to-bottom simply find the widest item.
 pub inline fn minimumNeededWidth(
     self: *const Panel,
-    display: *Display,
     entity: *const Entity,
     _: f32, //parent_inner_width
 ) f32 {
-    return @max(entity.minimum.width, self.calculateMinimumNeededWidth(entity, display));
+    return @max(entity.minimum.width, self.calculateMinimumNeededWidth(entity));
 }
 
 fn calculateMinimumNeededWidth(
     panel: *const Panel,
     entity: *const Entity,
-    display: *Display,
 ) f32 {
     std.debug.assert(entity.type == .panel);
     if (entity.visible == .hidden) return 0;
@@ -227,7 +223,7 @@ fn calculateMinimumNeededWidth(
                 if (child.visible == .hidden) continue;
                 if (child.type == .expander) continue;
 
-                const width = child.minimumNeededWidth(display, available_width);
+                const width = child.minimumNeededWidth(available_width);
                 _ = box.place(width, child.rect.height);
             }
             box.finalise();
@@ -246,7 +242,7 @@ fn calculateMinimumNeededWidth(
                 if (child.layout.position == .float) continue;
                 if (child.visible == .hidden) continue;
 
-                const child_width = child.minimumNeededWidth(display, available_width);
+                const child_width = child.minimumNeededWidth(available_width);
                 if (false) {
                     trace("seek min width {s}->{s}/{t} curent_min={d} child_min={d} parent_inner={d}", .{
                         entity.name,
@@ -314,7 +310,6 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
         }
 
         const child_resized = self.updateChildSize(
-            display,
             entity,
             width,
             height,
@@ -344,7 +339,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
         if (entity.visible == .hidden) continue;
         if (entity.type != .label) continue;
 
-        const size = Label.layout(entity, display.scale, available_width);
+        const size = Label.layout(entity, available_width);
         if (entity.layout.x != .fixed) entity.rect.width = size.width;
         if (entity.layout.y != .fixed) entity.rect.height = size.height;
     }
@@ -384,7 +379,6 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 /// entity configurations that cause confusing on screen effects.
 inline fn updateChildSize(
     _: *Panel,
-    display: *Display,
     entity: *Entity,
     available_width: f32,
     available_height: f32,
@@ -406,7 +400,7 @@ inline fn updateChildSize(
         },
         .shrinks => {
             // Shrink to the smallest the children will allow.
-            var new_width = entity.minimumNeededWidth(display, available_width);
+            var new_width = entity.minimumNeededWidth(available_width);
             if (new_width > available_width) new_width = available_width;
             if (entity.rect.width != new_width) {
                 entity.rect.width = new_width;
@@ -432,7 +426,7 @@ inline fn updateChildSize(
         },
         .shrinks => {
             // Shrink to the smallest the children will allow
-            var new_height = entity.minimumNeededHeight(display, available_width);
+            var new_height = entity.minimumNeededHeight(available_width);
             if (new_height > available_height) new_height = available_height;
             if (entity.rect.height != new_height) {
                 entity.rect.height = new_height;
@@ -974,16 +968,16 @@ test "panel_label_layout" {
     try eq(1, b1.rect.x);
     try eq(2, b1.rect.y);
     try std.testing.expectEqualStrings("This", b1.type.label.text);
-    try eq(76, b1.rect.width);
+    try eq(38, b1.rect.width);
 
     try eq(1 + b1.rect.width + panel.type.panel.spacing, b2.rect.x);
     try eq(2, b2.rect.y);
     try eq(1 + b1.rect.width + spacing, b2.rect.x);
-    try eq(84, b2.rect.width);
+    try eq(42, b2.rect.width);
 
     try eq(1 + b1.rect.width + b2.rect.width + spacing * 2, b3.rect.x);
     try eq(2, b3.rect.y);
-    try eq(66, b3.rect.width);
+    try eq(33, b3.rect.width);
 }
 
 test "root_panel_alignment" {
@@ -1214,11 +1208,11 @@ test "centre_text_bug" {
             panel.child_align.x = .start;
             display.need_relayout = true;
             display.relayout();
-            try eq(250, label.minimumNeededWidth(display, 1000));
-            try eq(250, Label.layout(label, display.scale, 1000).minimum_width);
-            try eq(250, Label.layout(label, display.scale, 1000).width);
+            try eq(250, label.minimumNeededWidth(1000));
+            try eq(250, Label.layout(label, 1000).minimum_width);
+            try eq(250, Label.layout(label, 1000).width);
             try eq(250, label.rect.width); // text smaller than minimum
-            try eq(44, label.rect.height);
+            try eq(22, label.rect.height);
             try eq(full_width, footer.rect.width);
             try eq(icon.rect.x, footer.rect.x + footer.pad.left);
             try eq(icon.rect.y, footer.rect.y + footer.pad.top);
@@ -1227,13 +1221,13 @@ test "centre_text_bug" {
             const word1 = &label.type.label.elements.items[0];
             const word2 = &label.type.label.elements.items[1];
             const word3 = &label.type.label.elements.items[2];
-            const space = label.type.label.text_size.word_spacing(display.scale);
+            const space = label.type.label.text_size.word_spacing();
             const text_width = word1.location.width + space + word2.location.width + space + word3.location.width;
             // Text is centred, so it doesnt start at the start
-            try eq(31, word1.location.x);
+            try eq(78, word1.location.x);
             try eq(0, word1.location.y);
             // Text is left aligned, so does start at the start
-            label.setAlign(display, .start, .start);
+            label.setAlign(.start, .start);
             display.need_relayout = true;
             display.relayout();
             try eq(0, word1.location.x);

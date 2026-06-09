@@ -86,12 +86,11 @@ pub inline fn draw(
 // theoretically grow to. Text might wrap if wider than this.
 pub inline fn minimumNeededWidth(
     _: *const Label,
-    display: *const Display,
     entity: *const Entity,
     parent_inner_width: f32,
 ) f32 {
     const min = @max(
-        layout(entity, display.scale, parent_inner_width).minimum_width,
+        layout(entity, parent_inner_width).minimum_width,
         entity.minimum.width,
     );
     if (entity.maximum.width == 0) return min;
@@ -110,7 +109,6 @@ pub inline fn minimumNeededWidth(
 /// padding.
 pub inline fn layout(
     entity: *const Entity,
-    display_scale: f32,
     parent_inner_width: f32,
 ) SizeInfo {
     std.debug.assert(entity.type == .label or entity.type == .checkbox);
@@ -135,7 +133,7 @@ pub inline fn layout(
         else => unreachable,
     };
 
-    const word_spacing = text_height.word_spacing(display_scale);
+    const word_spacing = text_height.word_spacing();
     const maximum_total_width = clamp(entity.minimum.width, parent_inner_width, entity.maximum.width);
     const maximum_text_width = @max(0, maximum_total_width - (entity.pad.left + entity.pad.right));
 
@@ -150,8 +148,8 @@ pub inline fn layout(
             continue;
         }
 
-        const height = text_height.pixel_height(display_scale);
-        const width = word.width * display_scale * text_height.height();
+        const height = text_height.pixel_height();
+        const width = word.width;
 
         const location = box.place(width, height);
 
@@ -249,7 +247,6 @@ inline fn applyLineJustification(
 // theoretically grow to. Text might wrap if wider than this.
 pub inline fn minimumNeededHeight(
     _: *const Label,
-    display: *const Display,
     entity: *const Entity,
     parent_inner_width: f32,
 ) f32 {
@@ -264,7 +261,7 @@ pub inline fn minimumNeededHeight(
     // How high does the label text get when laying it out.
     return switch (entity.layout.y) {
         .shrinks, .grows => @max(
-            layout(entity, display.scale, allowed_width).height + entity.pad.top + entity.pad.bottom,
+            layout(entity, allowed_width).height + entity.pad.top + entity.pad.bottom,
             entity.minimum.height,
         ),
         .fixed => entity.rect.height,
@@ -342,32 +339,32 @@ test "label_panel_placement" {
     panel.type.panel.direction = .top_to_bottom;
     display.need_relayout = true;
     display.relayout();
-    try eq(120, child.rect.width);
-    try eq(44, child.rect.height);
+    try eq(60, child.rect.width);
+    try eq(22, child.rect.height);
     try eq(0, child.rect.x);
     try eq(0, child.rect.y);
 
     panel.type.panel.direction = .top_left;
     display.need_relayout = true;
     display.relayout();
-    try eq(120, child.rect.width);
-    try eq(44, child.rect.height);
+    try eq(60, child.rect.width);
+    try eq(22, child.rect.height);
     try eq(0, child.rect.x);
     try eq(0, child.rect.y);
 
     panel.type.panel.direction = .top_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(120, child.rect.width);
-    try eq(44, child.rect.height);
+    try eq(60, child.rect.width);
+    try eq(22, child.rect.height);
     try eq(panel.rect.width - child.rect.width, child.rect.x);
     try eq(0, child.rect.y);
 
     panel.type.panel.direction = .centre;
     display.need_relayout = true;
     display.relayout();
-    try eq(120, child.rect.width);
-    try eq(44, child.rect.height);
+    try eq(60, child.rect.width);
+    try eq(22, child.rect.height);
     try eq(@round(panel.rect.width / 2 - child.rect.width / 2), child.rect.x);
     try eq(@round(panel.rect.height / 2 - child.rect.height / 2), child.rect.y);
 }
@@ -403,7 +400,7 @@ test "label_single_word_alignment" {
     display.need_relayout = true;
     display.relayout();
     try eq(300, child.rect.width);
-    try eq(44, child.rect.height);
+    try eq(22, child.rect.height);
     //try eq(52, child.rect.width);
     //try eq(20, child.rect.height);
     try eq(0, child.rect.x);
@@ -415,8 +412,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(120, element.location.width);
-        try eq(44, element.location.height);
+        try eq(60, element.location.width);
+        try eq(22, element.location.height);
         try eq(0, element.location.x);
         try eq(0, element.location.y);
     }
@@ -426,8 +423,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(120, element.location.width);
-        try eq(44, element.location.height);
+        try eq(60, element.location.width);
+        try eq(22, element.location.height);
         try eq(panel.rect.width - element.location.width, element.location.x);
         try eq(0, element.location.y);
     }
@@ -437,8 +434,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(120, element.location.width);
-        try eq(44, element.location.height);
+        try eq(60, element.location.width);
+        try eq(22, element.location.height);
         try eq(@round(panel.rect.width / 2 - element.location.width / 2), element.location.x);
         try eq(0, element.location.y);
     }
@@ -451,8 +448,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(120, element.location.width);
-        try eq(44, element.location.height);
+        try eq(60, element.location.width);
+        try eq(22, element.location.height);
         try eq(0, element.location.x);
         try eq(0, element.location.y);
     }
@@ -466,8 +463,8 @@ test "label_single_word_alignment" {
         try eq(panel.rect.width - child.pad.left - child.pad.right, child.inner_width());
         try eq(300 - 8 - 4, child.inner_width());
         const element = child.type.label.elements.items[0];
-        try eq(120, element.location.width);
-        try eq(44, element.location.height);
+        try eq(60, element.location.width);
+        try eq(22, element.location.height);
         // `element.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
         // 300 - 51 - 8 - 4
@@ -480,8 +477,8 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(120, element.location.width);
-        try eq(44, element.location.height);
+        try eq(60, element.location.width);
+        try eq(22, element.location.height);
         // `entity.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
         try eq(@round((panel.rect.width - child.pad.left - child.pad.right) / 2 - (element.location.width / 2)), element.location.x);
@@ -493,8 +490,7 @@ test "label_multiword_align" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    // TODO: 10->22
-    var display = try headless_display(allocator, io, 300, 200, 2);
+    var display = try headless_display(allocator, io, 150, 200, 2);
     defer display.destroy();
 
     const panel = try display.addPanel(.{
@@ -505,7 +501,7 @@ test "label_multiword_align" {
     display.need_relayout = true;
     display.relayout();
 
-    try eq(300, panel.rect.width);
+    try eq(150, panel.rect.width);
     try eq(200, panel.rect.height);
 
     const text_size = TextSize.normal;
@@ -522,8 +518,8 @@ test "label_multiword_align" {
     // Test alignment without padding
     display.need_relayout = true;
     display.relayout();
-    try eq(300, child.rect.width);
-    try eq(88, child.rect.height);
+    try eq(150, child.rect.width);
+    try eq(22 + 22, child.rect.height); // Two lines wrapped
     //try eq(52, child.rect.width);
     //try eq(20, child.rect.height);
     try eq(0, child.rect.x);
@@ -537,21 +533,21 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(154, element1.location.width);
-        try eq(44, element1.location.height);
+        try eq(77, element1.location.width);
+        try eq(22, element1.location.height);
         try eq(0, element1.location.x);
         try eq(0, element1.location.y);
 
-        try eq(120, element2.location.width);
-        try eq(44, element2.location.height);
-        try eq(154 + text_size.word_spacing(display.scale), element2.location.x);
+        try eq(60, element2.location.width);
+        try eq(22, element2.location.height);
+        try eq(77 + text_size.word_spacing(), element2.location.x);
         try eq(0, element2.location.y);
 
         // Wrap to next line
-        try eq(234, element3.location.width);
-        try eq(44, element3.location.height);
+        try eq(117, element3.location.width);
+        try eq(22, element3.location.height);
         try eq(0, element3.location.x);
-        try eq(44, element3.location.y);
+        try eq(22, element3.location.y);
     }
 
     {
@@ -562,12 +558,12 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(154, element1.location.width);
-        try eq(44, element1.location.height);
+        try eq(77, element1.location.width);
+        try eq(22, element1.location.height);
         try eq(panel.rect.width - element2.location.width, element2.location.x);
         try eq(0, element1.location.y);
         try eq(panel.rect.width - element3.location.width, element3.location.x);
-        try eq(44, element3.location.y);
+        try eq(22, element3.location.y);
     }
 
     {
@@ -577,13 +573,13 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(154, element1.location.width);
-        try eq(44, element1.location.height);
-        const space = text_size.word_spacing(display.scale);
+        try eq(77, element1.location.width);
+        try eq(22, element1.location.height);
+        const space = text_size.word_spacing();
         try eq(@round((panel.rect.width - element2.location.width - element1.location.width - space) / 2), element1.location.x);
         try eq(0, element1.location.y);
         try eq(@round((panel.rect.width - element3.location.width) / 2), element3.location.x);
-        try eq(44, element3.location.y);
+        try eq(22, element3.location.y);
     }
 }
 
@@ -616,8 +612,8 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(120, child.rect.width);
-    try eq(44, child.rect.height);
+    try eq(60, child.rect.width);
+    try eq(22, child.rect.height);
     try eq(4, child.rect.x);
     try eq(2, child.rect.y);
 
@@ -625,8 +621,8 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(120, child.rect.width);
-    try eq(44, child.rect.height);
+    try eq(60, child.rect.width);
+    try eq(22, child.rect.height);
     try eq(panel.rect.width - panel.pad.right - child.rect.width, child.rect.x);
     try eq(2, child.rect.y);
 
@@ -634,8 +630,8 @@ test "shrunk_label_in_panel" {
     panel.type.panel.direction = .left_to_right;
     display.need_relayout = true;
     display.relayout();
-    try eq(120, child.rect.width);
-    try eq(44, child.rect.height);
+    try eq(60, child.rect.width);
+    try eq(22, child.rect.height);
     // Check child is centred. Accommodate all padding.
     try eq(@round((panel.rect.width - panel.pad.left - panel.pad.right) / 2 - (child.rect.width / 2)) + panel.pad.left, child.rect.x);
     try eq(2, child.rect.y);
