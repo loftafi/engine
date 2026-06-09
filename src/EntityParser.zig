@@ -1377,6 +1377,19 @@ const TestHandler = struct {
         return true;
     }
 
+    pub fn tapReviseWords(
+        self: *TestHandler,
+        display: *engine.Display,
+        entity: *engine.Entity,
+        event: *const engine.Event,
+    ) error{OutOfMemory}!void {
+        _ = self;
+        _ = display;
+        _ = entity;
+        _ = event;
+        return;
+    }
+
     pub fn save(_: *TestHandler, name: []const u8) void {
         _ = name;
     }
@@ -1415,6 +1428,7 @@ test "panel" {
         \\horizontal avoid_safe_area choosable
         \\style tinted
         \\on_update updateEntity
+        \\on_pressed tapReviseWords
     , TestHandler, &te) orelse unreachable;
     defer std.testing.allocator.destroy(entity);
 
