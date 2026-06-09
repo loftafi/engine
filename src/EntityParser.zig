@@ -238,6 +238,7 @@ pub fn readAttributes(
                 entity.type.panel.safe_area = .ignore_safe_area;
                 token.* = try token.next();
             },
+            .spacing => readSpacingAttribute(token, entity),
             .eof => return,
             else => {
                 if (entity.type == .button) {
@@ -530,6 +531,22 @@ pub fn readOffAttribute(token: *Token, entity: *Entity) Error!void {
     switch (token.tag) {
         .string => {
             entity.type.checkbox.off = token.data[token.loc.start + 1 .. token.loc.end - 1];
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
+pub fn readSpacingAttribute(token: *Token, entity: *Entity) Error!void {
+    const spacing = switch (entity.type) {
+        .panel => &entity.type.panel.spacing,
+        else => return error.UnexpectedToken,
+    };
+    token.* = try token.next();
+    switch (token.tag) {
+        .number => {
+            spacing.* = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
             token.* = try token.next();
             return;
         },

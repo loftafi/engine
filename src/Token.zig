@@ -148,6 +148,7 @@ pub const Tag = enum(u8) {
     never_focus,
     accessibility_focus,
     can_focus,
+    spacing,
     field,
 };
 
