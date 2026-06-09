@@ -130,7 +130,7 @@ pub inline fn draw(
 
     // Place the text
     if (self.text.len > 0) {
-        const height = self.text_size.pixel_height();
+        const height = self.text_size.size();
 
         var pos: Vector = .{
             .x = entity.rect.x + entity.type.button.icon.size.width + entity.pad.left + content_x_offset,
@@ -235,7 +235,7 @@ pub inline fn minimumNeededHeight(
 ) f32 {
     var height: f32 = 0;
     if (button.text.len > 0) {
-        height = button.text_size.pixel_height();
+        height = button.text_size.size();
     }
     height = @max(button.icon.size.height, height);
     height += (entity.pad.top + entity.pad.bottom);
@@ -257,8 +257,8 @@ test "normal_use" {
     try expectEqual(5, panel.minimumNeededWidth(500));
     try expectEqual(8, panel.minimumNeededHeight(500));
 
-    const not_quite_one_line = TextSize.normal.pixel_height() - 5;
-    const not_quite_two_lines = TextSize.normal.pixel_height() * 2 - 5;
+    const not_quite_one_line = TextSize.normal.size() - 5;
+    const not_quite_two_lines = TextSize.normal.size() * 2 - 5;
 
     var button = try panel.add(.{
         .visible = .visible,
@@ -312,19 +312,19 @@ test "normal_use" {
     // Does the width grow more than 10 (minimum) because of the button size.
     try expectEqual(2 + 45 + 3, @round(panel.rect.width));
     // Minimum height was not_quite_one_line, expect it grew to font height.
-    try expectEqual(TextSize.normal.pixel_height(), button.rect.height);
-    try expectEqual(TextSize.normal.pixel_height() + 4 + 5, panel.rect.height);
+    try expectEqual(TextSize.normal.size(), button.rect.height);
+    try expectEqual(TextSize.normal.size() + 4 + 5, panel.rect.height);
 
     // Buttons cant wrap, hight will only change with padding.
     button.maximum.height = 500;
     try button.setText(display, "Hello Defragment");
     display.relayout();
-    try expectEqual(TextSize.normal.pixel_height(), button.rect.height);
+    try expectEqual(TextSize.normal.size(), button.rect.height);
     button.pad.top = 4;
     button.pad.bottom = 5;
     display.need_relayout = true;
     display.relayout();
-    try expectEqual(TextSize.normal.pixel_height(), (button.rect.height - 4 - 5));
+    try expectEqual(TextSize.normal.size(), (button.rect.height - 4 - 5));
 }
 
 test "button_sizing" {

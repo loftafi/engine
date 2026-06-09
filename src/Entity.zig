@@ -944,7 +944,13 @@ pub inline fn append(
 
     if (token.tag == .eof) return Error.UnexpectedToken;
 
-    const child = try EntityParser.readEntityTokens(display.allocator, &token, HandlerType, handler) orelse return Error.UnexpectedToken;
+    const child = try EntityParser.readEntityTokens(
+        display.allocator,
+        &token,
+        HandlerType,
+        handler,
+        TextSize.pixels,
+    ) orelse return Error.UnexpectedToken;
 
     try postAppend(display, child);
     try self.type.panel.children.append(display.allocator, child);
@@ -1753,8 +1759,8 @@ pub fn setup_checkbox(
     }
 
     if (entity.type.checkbox.checkbox_size.width == 0 or entity.type.checkbox.checkbox_size.height == 0) {
-        entity.type.checkbox.checkbox_size.width = entity.type.checkbox.text_size.pixel_height();
-        entity.type.checkbox.checkbox_size.height = entity.type.checkbox.text_size.pixel_height();
+        entity.type.checkbox.checkbox_size.width = entity.type.checkbox.text_size.size();
+        entity.type.checkbox.checkbox_size.height = entity.type.checkbox.text_size.size();
     }
 
     const size = entity.type.checkbox.checkbox_size;
@@ -1804,7 +1810,7 @@ pub fn setup_text_input(
     }
 
     entity.focus = .can_focus;
-    entity.rect.height = (TextSize.normal.pixel_height()) + (entity.pad.top + entity.pad.bottom);
+    entity.rect.height = (TextSize.normal.size()) + (entity.pad.top + entity.pad.bottom);
 
     entity.type.text_input.text = .empty;
     entity.type.text_input.runes = .empty;

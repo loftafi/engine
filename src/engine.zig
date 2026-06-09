@@ -226,7 +226,7 @@ test "text input sizing" {
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         try eq(401, l.minimumNeededWidth(500)); // grows to maximum
-        try eq(TextSize.normal.pixel_height(), l.minimumNeededHeight(500));
+        try eq(TextSize.normal.size(), l.minimumNeededHeight(500));
         panel.removeEntities(display);
     }
 
@@ -243,7 +243,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         // Minimum is the smallest the label wants to be given the parent width provided
         try eq(401, @round(l.minimumNeededWidth(500)));
-        try eq(TextSize.normal.pixel_height(), l.minimumNeededHeight(500));
+        try eq(TextSize.normal.size(), l.minimumNeededHeight(500));
         panel.removeEntities(display);
     }
 
@@ -277,12 +277,12 @@ test "text input sizing" {
         try eq(99, @round(l.minimumNeededWidth(500)));
 
         try eq(
-            2 * TextSize.normal.pixel_height(),
+            2 * TextSize.normal.size(),
             l.minimumNeededHeight(500),
         );
         // Display width on physical display with word wrap
         try eq(
-            2 * TextSize.normal.pixel_height(),
+            2 * TextSize.normal.size(),
             l.minimumNeededHeight(40 * display.pixel_scale),
         );
         panel.removeEntities(display);
@@ -325,8 +325,8 @@ test "text input sizing" {
     try eq(300, label.minimumNeededWidth(500));
     try eq(100, label.minimumNeededHeight(500));
 
-    label.minimum.width = TextSize.normal.pixel_height();
-    label.minimum.height = TextSize.normal.pixel_height();
+    label.minimum.width = TextSize.normal.size();
+    label.minimum.height = TextSize.normal.size();
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
     try eq(50, @ceil(label.minimumNeededWidth(500) / display.pixel_scale));

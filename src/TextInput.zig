@@ -126,14 +126,14 @@ pub inline fn draw(
     _: Vector, // scroll offset
 ) void {
     const word_spacing = self.text_size.word_spacing();
-    const text_height = self.text_size.pixel_height();
+    const text_height = self.text_size.size();
 
     // Draw cursor around the text input if it is selected.
     if (display.selected != null and entity == display.selected.?) {
         var cursor_box: Rect = .{
             .x = @round(entity.rect.x + entity.pad.left + self.cursor_pixels),
             .y = @round(entity.rect.y + entity.pad.top),
-            .width = self.text_size.pixel_height() / 8.0,
+            .width = self.text_size.size() / 8.0,
             .height = text_height,
         };
         if (entity.texture) |_| {
@@ -217,7 +217,7 @@ pub inline fn minimumNeededHeight(
     parent_inner_width: f32,
 ) f32 {
     _ = parent_inner_width;
-    const height = (self.text_size.pixel_height()) + (entity.pad.top + entity.pad.bottom);
+    const height = (self.text_size.size()) + (entity.pad.top + entity.pad.bottom);
     return height;
 }
 

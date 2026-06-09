@@ -148,7 +148,7 @@ pub inline fn layout(
             continue;
         }
 
-        const height = text_height.pixel_height();
+        const height = text_height.size();
         const width = word.width;
 
         const location = box.place(width, height);

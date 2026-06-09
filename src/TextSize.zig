@@ -14,11 +14,6 @@ pub fn TextSize(text_height: comptime_float) type {
             return @round(text_height * self.scale());
         }
 
-        /// Return the on screen height of a word in pixels.
-        pub fn pixel_height(self: @This()) f32 {
-            return @round(text_height * self.scale());
-        }
-
         /// Return the height of the text relative to the `normal`
         /// text height for this display.
         pub fn scale(self: @This()) f32 {

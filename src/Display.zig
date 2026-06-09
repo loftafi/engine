@@ -875,7 +875,7 @@ pub fn loadFontResource(
         name,
         font_buffer,
         resource,
-        @as(u8, @intFromFloat(TextSize.normal.pixel_height())),
+        @as(u8, @intFromFloat(TextSize.normal.size())),
         config,
     );
     errdefer _ = font.release(self.allocator);
@@ -2955,7 +2955,7 @@ test "text input sizing" {
         display.relayout();
         try eq(300, panel.rect.width);
         try eq(300, l.rect.width);
-        try eq(TextSize.normal.pixel_height(), l.minimumNeededHeight(500));
+        try eq(TextSize.normal.size(), l.minimumNeededHeight(500));
         panel.removeEntities(display);
         panel.layout.x = .grows;
         display.need_relayout = true;
@@ -2985,7 +2985,7 @@ test "text input sizing" {
         try eq(350, Label.layout(l, 350).minimum_width);
         try eq(401, Label.layout(l, 450).minimum_width);
         try eq(401, l.minimumNeededWidth(500));
-        try eq(TextSize.normal.pixel_height(), l.minimumNeededHeight(500));
+        try eq(TextSize.normal.size(), l.minimumNeededHeight(500));
         panel.removeEntities(display);
         panel.layout.x = .grows;
         display.need_relayout = true;
@@ -3024,12 +3024,12 @@ test "text input sizing" {
 
         // TODO: Is this correct? Why is it * 2 ?
         try eq(
-            2 * TextSize.normal.pixel_height(),
+            2 * TextSize.normal.size(),
             l.minimumNeededHeight(500),
         );
         // Display width on physical display with word wrap
         try eq(
-            2 * TextSize.normal.pixel_height(),
+            2 * TextSize.normal.size(),
             l.minimumNeededHeight(40 * display.pixel_scale),
         );
         panel.removeEntities(display);
@@ -3073,11 +3073,11 @@ test "text input sizing" {
     try eq(300, label.minimumNeededWidth(500));
     try eq(100, label.minimumNeededHeight(500));
 
-    try eq(22, TextSize.normal.pixel_height());
-    try eq(33, TextSize.heading.pixel_height());
-    label.minimum.height = TextSize.normal.pixel_height();
+    try eq(22, TextSize.normal.size());
+    try eq(33, TextSize.heading.size());
+    label.minimum.height = TextSize.normal.size();
     try eq(22, label.minimum.height);
-    label.minimum.width = TextSize.normal.pixel_height();
+    label.minimum.width = TextSize.normal.size();
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
 

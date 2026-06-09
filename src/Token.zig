@@ -150,6 +150,7 @@ pub const Tag = enum(u8) {
     can_focus,
     spacing,
     field,
+    em,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does
@@ -425,6 +426,24 @@ test "tokenise_word" {
     try expectEqual(Cursor{ .line = 0, .column = 0 }, token.begins);
     try expectEqual(Cursor{ .line = 0, .column = 5 }, token.ends);
     try expectEqual(Loc{ .start = 0, .end = 5 }, token.loc);
+    token = try token.next();
+    try expectEqual(.eof, token.tag);
+}
+
+test "tokenize_em" {
+    var token = try Token.init("1 em");
+    try expectEqual(.number, token.tag);
+    try expectEqualStrings("1", token.slice());
+    token = try token.next();
+    try expectEqual(.em, token.tag);
+    token = try token.next();
+    try expectEqual(.eof, token.tag);
+
+    token = try Token.init("1em");
+    try expectEqual(.number, token.tag);
+    try expectEqualStrings("1", token.slice());
+    token = try token.next();
+    try expectEqual(.em, token.tag);
     token = try token.next();
     try expectEqual(.eof, token.tag);
 }

@@ -16,7 +16,7 @@ pub inline fn draw(
     _: ?Clip, //parent_clip
     _: Vector, // scroll_offset
 ) void {
-    if (TextSize.normal.pixel_height() == 0) {
+    if (TextSize.normal.size() == 0) {
         //
     }
 }
