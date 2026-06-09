@@ -52,6 +52,7 @@ pub const Tag = enum(u8) {
     string,
     number,
     colour,
+    background_colour,
     text,
     size,
     line_height,

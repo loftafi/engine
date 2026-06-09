@@ -974,7 +974,13 @@ pub inline fn appendMultiple(
     if (token.tag == .eof) return Error.UnexpectedToken;
 
     while (token.tag != .eof) {
-        const child = try EntityParser.readEntityTokens(display.allocator, &token, HandlerType, handler) orelse return Error.UnexpectedToken;
+        const child = try EntityParser.readEntityTokens(
+            display.allocator,
+            &token,
+            HandlerType,
+            handler,
+            TextSize.pixels,
+        ) orelse return Error.UnexpectedToken;
 
         try postAppend(display, child);
 

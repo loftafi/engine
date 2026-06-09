@@ -158,7 +158,7 @@ pub fn readAttributes(
             .image => readStringAttribute(token, &entity.texture_name),
             .aria_label => readStringAttribute(token, &entity.aria_label),
             .@"align" => readAlignAttribute(token, entity),
-            .rect => readRectAttribute(token, &entity.rect),
+            .rect => readRectAttribute(token, &entity.rect, font_size),
             .size => readEntitySizeAttribute(token, entity, font_size),
             .minimum => readSizeAttribute(token, &entity.minimum, font_size),
             .maximum => readSizeAttribute(token, &entity.maximum, font_size),
@@ -180,6 +180,7 @@ pub fn readAttributes(
             },
             .style => readStyleAttribute(token, &entity.style),
             .colour => readColourAttribute(token, entity),
+            .background_colour => readBackgroundColourAttribute(token, entity),
             .max_length => readMaxLengthAttribute(token, entity),
             .checked => readCheckedAttribute(token, entity),
             .on => readOnAttribute(token, entity),
@@ -240,6 +241,24 @@ pub fn readAttributes(
                 if (entity.type != .panel)
                     return error.UnexpectedToken;
                 entity.type.panel.safe_area = .ignore_safe_area;
+                token.* = try token.next();
+            },
+            .fit => {
+                if (entity.type != .sprite)
+                    return error.UnexpectedToken;
+                entity.type.sprite.scale = .fit;
+                token.* = try token.next();
+            },
+            .fill => {
+                if (entity.type != .sprite)
+                    return error.UnexpectedToken;
+                entity.type.sprite.scale = .fill;
+                token.* = try token.next();
+            },
+            .stretch => {
+                if (entity.type != .sprite)
+                    return error.UnexpectedToken;
+                entity.type.sprite.scale = .stretch;
                 token.* = try token.next();
             },
             .spacing => readSpacingAttribute(token, entity, font_size),
@@ -651,20 +670,55 @@ pub fn readColourAttribute(
     entity: *engine.Entity,
 ) Error!void {
     token.* = try token.next();
-    switch (token.tag) {
-        .string => {
-            const value = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            switch (entity.type) {
-                .label => entity.type.label.text = value,
-                .button => entity.type.button.text = value,
-                .text_input => entity.type.text_input.initial_text = if (value.len > 0) value else null,
-                else => return error.UnexpectedToken,
-            }
-            token.* = try token.next();
-            return;
+    const field = switch (token.tag) {
+        .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
+        .field => token.slice(),
+        else => return error.UnexpectedToken,
+    };
+    const colour = try readColour(field);
+
+    switch (entity.type) {
+        .label, .checkbox => {
+            entity.style = .custom;
+            entity.colour = colour;
         },
         else => return error.UnexpectedToken,
     }
+
+    token.* = try token.next();
+}
+
+inline fn readColour(value: []const u8) Error!engine.Colour {
+    return if (std.ascii.eqlIgnoreCase(value, "white"))
+        .{ .r = 255, .g = 255, .b = 255, .a = 255 }
+    else if (std.ascii.eqlIgnoreCase(value, "black"))
+        .{ .r = 0, .g = 0, .b = 0, .a = 255 }
+    else if (std.ascii.eqlIgnoreCase(value, "transparent"))
+        .{ .r = 0, .g = 0, .b = 0, .a = 0 }
+    else
+        return error.UnexpectedToken;
+}
+
+pub fn readBackgroundColourAttribute(
+    token: *Token,
+    entity: *engine.Entity,
+) Error!void {
+    token.* = try token.next();
+    const field = switch (token.tag) {
+        .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
+        .field => token.slice(),
+        else => return error.UnexpectedToken,
+    };
+    const colour = try readColour(field);
+
+    switch (entity.type) {
+        .sprite => {
+            entity.background.colour = colour;
+        },
+        else => return error.UnexpectedToken,
+    }
+
+    token.* = try token.next();
 }
 
 pub fn readStringAttribute(token: *Token, string: *?[]const u8) Error!void {
@@ -765,14 +819,48 @@ pub fn readCheckedAttribute(token: *Token, entity: *Entity) Error!void {
     entity.type.checkbox.checked = true;
 }
 
-pub fn readRectAttribute(token: *Token, rect: *engine.Rect) Error!void {
+pub fn readRectAttribute(token: *Token, rect: *engine.Rect, font_size: f32) Error!void {
     token.* = try token.next();
-    switch (token.tag) {
-        .string => {
-            rect.x = 0;
-            return;
-        },
-        else => return error.UnexpectedToken,
+    var value_count: u8 = 0;
+    var read_x = false;
+    var read_y = false;
+    var read_width = false;
+    var read_height = false;
+    while (true) {
+        switch (token.tag) {
+            .x => {
+                if (read_x == true) return error.UnexpectedToken;
+                rect.x = try readFloatValue(token, font_size);
+                read_x = true;
+            },
+            .y => {
+                if (read_y == true) return error.UnexpectedToken;
+                rect.y = try readFloatValue(token, font_size);
+                read_y = true;
+            },
+            .width => {
+                if (read_width == true) return error.UnexpectedToken;
+                rect.width = try readFloatValue(token, font_size);
+                read_width = true;
+            },
+            .height => {
+                if (read_height == true) return error.UnexpectedToken;
+                rect.height = try readFloatValue(token, font_size);
+                read_height = true;
+            },
+            .number => {
+                if (value_count == 4) return error.UnexpectedToken;
+                if (value_count == 0) rect.x = try readThisFloatValue(token, font_size);
+                if (value_count == 1) rect.y = try readThisFloatValue(token, font_size);
+                if (value_count == 2) rect.width = try readThisFloatValue(token, font_size);
+                if (value_count == 3) rect.height = try readThisFloatValue(token, font_size);
+                value_count += 1;
+            },
+            else => {
+                if (read_x == true or read_y == true or read_width == true or read_height == true or value_count > 0) return;
+                return error.UnexpectedToken;
+            },
+        }
     }
 }
 
@@ -1508,12 +1596,42 @@ const TestHandler = struct {
     }
 };
 
+test "rect" {
+    var token = try Token.init("rect 1 5 7 4");
+    var rect: engine.Rect = .{};
+    try readRectAttribute(&token, &rect, 22);
+    try expectEqual(1, rect.x);
+    try expectEqual(5, rect.y);
+    try expectEqual(7, rect.width);
+    try expectEqual(4, rect.height);
+    try expectEqual(.eof, token.tag);
+
+    token = try Token.init("rect x=6 y=4 width=2 height=1");
+    try readRectAttribute(&token, &rect, 22);
+    try expectEqual(6, rect.x);
+    try expectEqual(4, rect.y);
+    try expectEqual(2, rect.width);
+    try expectEqual(1, rect.height);
+    try expectEqual(.eof, token.tag);
+}
+
 test "spacing" {
     var token = try Token.init("spacing 5");
     var entity: Entity = .{ .type = .{ .panel = .{ .spacing = 0 } } };
     try readSpacingAttribute(&token, &entity, 22);
     try expectEqual(5, entity.type.panel.spacing);
     try expectEqual(.eof, token.tag);
+}
+
+test "sprite" {
+    var te: TestHandler = .{};
+    const entity = try readEntity(std.testing.allocator,
+        \\sprite background_colour black fit
+    , TestHandler, &te, TextSize.pixels) orelse unreachable;
+    defer std.testing.allocator.destroy(entity);
+
+    try expectEqual(engine.Colour.BLACK, entity.background.colour);
+    try expectEqual(.fit, entity.type.sprite.scale);
 }
 
 test "line_height" {
@@ -1642,6 +1760,15 @@ test "label" {
     try expectEqualStrings("coffee", entity.name);
     try expectEqual(.heading, entity.type.label.text_size);
     try expectEqual(.emphasised, entity.style);
+
+    const entity2 = try readEntity(std.testing.allocator,
+        \\label
+        \\colour white
+        \\text_size heading
+    , TestHandler, &te, TextSize.pixels) orelse unreachable;
+    defer std.testing.allocator.destroy(entity2);
+    try expectEqual(.custom, entity2.style);
+    try expectEqual(engine.Colour.WHITE, entity2.colour);
 }
 
 test "checkbox" {
