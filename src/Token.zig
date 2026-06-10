@@ -94,6 +94,7 @@ pub const Tag = enum(u8) {
     false,
     image,
     background,
+    background_image,
     corner_radius,
     image_corner_radius,
     border,

@@ -697,10 +697,10 @@ pub inline fn setBackgroundImage(
 ) (Allocator.Error || Resources.Error || engine.Error)!?*Texture {
     const texture = try display.loadBundleTexture(repository, name);
     if (texture == null) {
-        info("setImage failed to find image resource named \"{s}\"", .{name});
+        warn("setBackgroundImage failed to find image resource named \"{s}\"", .{name});
         return null;
     }
-    debug("setBackgroundImage loaded image named \"{s}\"", .{name});
+    debug("setBackgroundImage loaded \"{s}\"", .{name});
 
     if (self.background.image != null) {
         display.releaseTextureResource(self.background.image.?);
@@ -1012,6 +1012,22 @@ pub fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error 
         }
         if (entity.type.button.button.pressed_name) |value| {
             entity.type.button.button.pressed = try display.loadBundleTexture(&display.resources, value);
+        }
+        if (entity.type.button.icon.default_name) |value| {
+            entity.texture = try display.loadBundleTexture(&display.resources, value);
+        }
+        if (entity.type.button.icon.hover_name) |value| {
+            entity.type.button.icon.hover = try display.loadBundleTexture(&display.resources, value);
+        }
+        if (entity.type.button.icon.disabled_name) |value| {
+            entity.type.button.icon.disabled = try display.loadBundleTexture(&display.resources, value);
+        }
+        if (entity.type.button.icon.pressed_name) |value| {
+            entity.type.button.icon.pressed = try display.loadBundleTexture(&display.resources, value);
+        }
+    } else {
+        if (entity.background.image_name) |value| {
+            entity.background.image = try display.loadBundleTexture(&display.resources, value);
         }
     }
     if (entity.type == .panel) {

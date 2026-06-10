@@ -170,6 +170,14 @@ pub fn readAttributes(
             .line_height => readLineHeightAttribute(token, entity, font_size),
             .weight => readWeightAttribute(token, entity),
             .progress => readProgressAttribute(token, entity),
+            .@"inline" => {
+                entity.layout.position = .@"inline";
+                token.* = try token.next();
+            },
+            .float => {
+                entity.layout.position = .float;
+                token.* = try token.next();
+            },
             .corner_radius => entity.background.corner_radius = try readFloatValue(token, font_size),
             .image_corner_radius => entity.background.image_corner_radius = try readFloatValue(token, font_size),
             .visible => {
@@ -264,6 +272,7 @@ pub fn readAttributes(
                 token.* = try token.next();
             },
             .spacing => readSpacingAttribute(token, entity, font_size),
+            .background_image => if (entity.type != .button) readStringAttribute(token, &entity.background.image_name) else return error.UnexpectedToken,
             .eof => return,
             else => {
                 if (entity.type == .button) {
@@ -1106,7 +1115,7 @@ pub fn readIconSizeAttribute(
     font_size: f32,
 ) Error!void {
     if (entity.type != .button) return error.UnexpectedToken;
-    const size = &entity.type.checkbox.checkbox_size;
+    const size = &entity.type.button.icon.size;
     token.* = try token.next();
     var value_count: u8 = 0;
     var read_width = false;
@@ -1685,6 +1694,11 @@ test "layout_equals2" {
 }
 
 test "panel" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
     var te: TestHandler = .{};
     const entity = try readEntity(std.testing.allocator,
         \\panel:"jai" name "coffee" image "cat"
@@ -1695,8 +1709,10 @@ test "panel" {
         \\style tinted
         \\on_update updateEntity
         \\on_pressed tapReviseWords
+        \\background_image "bh"
     , TestHandler, &te, TextSize.pixels) orelse unreachable;
     defer std.testing.allocator.destroy(entity);
+    try Entity.postAppend(display, entity);
 
     try expectEqual(te.jai, entity);
     try expectEqual(.avoid_safe_area, entity.type.panel.safe_area);
@@ -1709,6 +1725,8 @@ test "panel" {
     try expectEqual(TextSize.pixels * 0.5, entity.pad.right);
     try expectEqualStrings("coffee", entity.name);
     try expectEqualStrings("cat", entity.texture_name.?);
+    try expectEqualStrings("bh", entity.background.image_name.?);
+    try expect(entity.background.image != null);
     try expectEqual(.left_to_right, entity.type.panel.direction);
     try expectEqual(.tinted, entity.style);
 }
