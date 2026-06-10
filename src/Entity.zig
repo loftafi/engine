@@ -479,6 +479,12 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             _ = try out.write(@tagName(self.type.panel.direction));
         }
     }
+    if (self.type == .sprite) {
+        if (self.name.len > 0) {
+            _ = try out.write(" stretch=");
+            _ = try out.write(@tagName(self.type.sprite.scale));
+        }
+    }
     if (self.type == .label) {
         if (self.type.label.text.len > 0) {
             _ = try out.write(" text=");
@@ -609,7 +615,7 @@ pub inline fn setTexture(
     display: *Display,
     name: []const u8,
 ) error{OutOfMemory}!void {
-    const texture = display.load_bundle_texture(display.allocator, display.resources, name) catch |f| {
+    const texture = display.loadBundleTexture(&display.resources, name) catch |f| {
         err("setTexture({s}) error loading texture. {any}", .{ name, f });
         return;
     };
@@ -990,9 +996,23 @@ pub inline fn appendMultiple(
     }
 }
 
-fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error || Resources.Error)!void {
+pub fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error || Resources.Error)!void {
     if (entity.getText()) |text| {
         try entity.setText(display, text);
+    }
+    if (entity.type == .button) {
+        if (entity.type.button.button.default_name) |value| {
+            entity.background.image = try display.loadBundleTexture(&display.resources, value);
+        }
+        if (entity.type.button.button.hover_name) |value| {
+            entity.type.button.button.hover = try display.loadBundleTexture(&display.resources, value);
+        }
+        if (entity.type.button.button.disabled_name) |value| {
+            entity.type.button.button.disabled = try display.loadBundleTexture(&display.resources, value);
+        }
+        if (entity.type.button.button.pressed_name) |value| {
+            entity.type.button.button.pressed = try display.loadBundleTexture(&display.resources, value);
+        }
     }
     if (entity.type == .panel) {
         for (entity.type.panel.children.items) |child| {

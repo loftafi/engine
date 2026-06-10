@@ -170,6 +170,8 @@ pub fn readAttributes(
             .line_height => readLineHeightAttribute(token, entity, font_size),
             .weight => readWeightAttribute(token, entity),
             .progress => readProgressAttribute(token, entity),
+            .corner_radius => entity.background.corner_radius = try readFloatValue(token, font_size),
+            .image_corner_radius => entity.background.image_corner_radius = try readFloatValue(token, font_size),
             .visible => {
                 entity.visible = .visible;
                 token.* = try token.next();
@@ -275,7 +277,10 @@ pub fn readAttributes(
                         .button_hover => readStringAttribute(token, &button.button.hover_name),
                         .button_pressed => readStringAttribute(token, &button.button.pressed_name),
                         .button_disabled => readStringAttribute(token, &button.button.disabled_name),
-                        else => return error.UnexpectedToken,
+                        else => {
+                            err("unexpected token {t}={s}", .{ token.tag, token.slice() });
+                            return error.UnexpectedToken;
+                        },
                     };
                     continue;
                 }
@@ -889,10 +894,9 @@ pub fn readSizeAttribute(
             },
             .number => {
                 if (value_count == 2) return error.UnexpectedToken;
-                if (value_count == 0) size.width = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
-                if (value_count == 1) size.height = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                if (value_count == 0) size.width = @ceil(try readThisFloatValue(token, font_size));
+                if (value_count == 1) size.height = @ceil(try readThisFloatValue(token, font_size));
                 value_count += 1;
-                token.* = try token.next();
             },
             else => {
                 if (read_width == true or read_height == true or value_count > 0) return;
@@ -1198,7 +1202,6 @@ pub fn readClipAttribute(
                 if (value_count == 2) clip.right = @ceil(try readThisFloatValue(token, font_size));
                 if (value_count == 3) clip.bottom = @ceil(try readThisFloatValue(token, font_size));
                 value_count += 1;
-                token.* = try token.next();
             },
             else => {
                 if (read_left == true or read_right == true or read_top == true or read_bottom == true or value_count > 0) return;
@@ -1743,6 +1746,43 @@ test "panel_children" {
 
     te.pie.update(display);
     try expectEqual(2, te.count);
+}
+
+test "button" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
+    var te: TestHandler = .{};
+    const entity = try readEntity(std.testing.allocator,
+        \\button name "coffee" text "hello"
+        \\minimum width=20em height=2em
+        \\corner_radius 0.25em
+        \\image_corner_radius 24
+        \\button_default "bd"
+        \\button_pressed "bp"
+        \\button_hover "bh"
+        \\button_disabled "bh"
+    , TestHandler, &te, TextSize.pixels) orelse unreachable;
+    defer std.testing.allocator.destroy(entity);
+    try Entity.postAppend(display, entity);
+
+    try expectEqual(TextSize.pixels * 20, entity.minimum.width);
+    try expectEqual(TextSize.pixels * 2, entity.minimum.height);
+    try expectEqualStrings("coffee", entity.name);
+    try expectEqual(TextSize.pixels * 0.25, entity.background.corner_radius);
+    try expectEqual(24, entity.background.image_corner_radius);
+    try expectEqualStrings("hello", entity.type.button.text);
+    try expectEqualStrings("hello", entity.type.button.translated);
+    try expectEqualStrings("bd", entity.type.button.button.default_name.?);
+    try expectEqualStrings("bp", entity.type.button.button.pressed_name.?);
+    try expectEqualStrings("bh", entity.type.button.button.hover_name.?);
+    try expectEqualStrings("bh", entity.type.button.button.disabled_name.?);
+    try expect(entity.type.button.button.pressed != null);
+    try expect(entity.type.button.button.hover != null);
+    try expect(entity.type.button.button.disabled != null);
+    try expect(entity.background.image != null);
 }
 
 test "label" {
