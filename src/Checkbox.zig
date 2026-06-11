@@ -50,11 +50,11 @@ pub inline fn draw(
     dest = dest.move(scroll_offset);
     if (self.checked) {
         if (self.on_texture) |texture| {
-            _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+            display.renderTexture(texture.texture, null, &dest);
         }
     } else {
         if (self.off_texture) |texture| {
-            _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+            display.renderTexture(texture.texture, null, &dest);
         }
     }
 }

@@ -71,20 +71,13 @@ pub inline fn draw(
     if (self.current_background(entity)) |background_image| {
         entity.applyBackgroundTint(display, background_image);
         if (entity.background.image_corner_radius == 0) {
-            _ = sdl.SDL_RenderTexture(display.renderer, background_image, null, @ptrCast(&dest));
+            display.renderTexture(background_image, null, &dest);
         } else {
-            var corner: f32 = entity.background.corner_radius;
-            if (corner * 2 > dest.height) corner = dest.height / 2;
-            _ = sdl.SDL_RenderTexture9Grid(
-                display.renderer,
+            display.render9GridTexture(
                 background_image,
-                null,
                 entity.background.image_corner_radius,
-                entity.background.image_corner_radius,
-                entity.background.image_corner_radius,
-                entity.background.image_corner_radius,
-                corner / entity.background.image_corner_radius,
-                @ptrCast(&dest),
+                &dest,
+                entity.background.corner_radius,
             );
         }
     }
@@ -125,7 +118,7 @@ pub inline fn draw(
         icon_rect.height *= x_scale;
         _ = sdl.SDL_SetTextureAlphaMod(icon_image, text_colour.a);
         _ = sdl.SDL_SetTextureColorMod(icon_image, text_colour.r, text_colour.g, text_colour.b);
-        _ = sdl.SDL_RenderTexture(display.renderer, icon_image, null, @ptrCast(&icon_rect));
+        display.renderTexture(icon_image, null, &icon_rect);
     }
 
     // Place the text

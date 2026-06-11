@@ -41,7 +41,6 @@ pub inline fn draw(
         const x_scale = dest.height / original_height;
 
         // TODO: Sprites might have frames
-
         // Stretch the full image onto the drawing area
         var source: engine.Rect = .{
             .x = 0,
@@ -65,7 +64,7 @@ pub inline fn draw(
             dest.height = 0 - dest.height;
         }
 
-        _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, @ptrCast(&source), @ptrCast(&dest));
+        display.renderTexture(texture.texture, &source, &dest);
     }
 }
 

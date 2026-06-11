@@ -1943,7 +1943,9 @@ pub inline fn updateScreenMetrics(display: *Self) void {
 
     var rwidth: c_int = 0;
     var rheight: c_int = 0;
+    //_ = sdl.SDL_GetWindowSize(display.window, &rwidth, &rheight);
     _ = sdl.SDL_GetRenderOutputSize(display.renderer, &rwidth, &rheight);
+    //_ = sdl.SDL_GetCurrentRenderOutputSize(display.renderer, &rwidth, &rheight);
     if (display.root.rect.width != @as(f32, @floatFromInt(rwidth)))
         updated = true;
     if (display.root.rect.height != @as(f32, @floatFromInt(rheight)))
@@ -2418,6 +2420,59 @@ pub fn setUserScale(display: *Self, scale: Scale) void {
 /// Lookoup the user preferred screen scale.
 pub fn user_scale_setting(display: *Self) Scale {
     return Scale.from_float(display.user_scale);
+}
+
+pub inline fn renderTexture(
+    self: *Display,
+    texture: *sdl.SDL_Texture,
+    source: ?*const Rect,
+    dest: *const Rect,
+) void {
+    const rect: sdl.SDL_FRect = .{
+        .x = dest.x, // * self.scale,
+        .y = dest.y, // * self.scale,
+        .w = dest.width, // * self.scale,
+        .h = dest.height, // * self.scale,
+    };
+
+    _ = sdl.SDL_RenderTexture(
+        self.renderer,
+        texture,
+        if (source) |from| @ptrCast(from) else null,
+        &rect,
+    );
+}
+
+pub inline fn render9GridTexture(
+    self: *Display,
+    texture: *sdl.SDL_Texture,
+    image_corner_radius: f32,
+    dest: *const Rect,
+    corner_radius: f32,
+) void {
+    const rect: sdl.SDL_FRect = .{
+        .x = dest.x, // * self.scale,
+        .y = dest.y, // * self.scale,
+        .w = dest.width, // * self.scale,
+        .h = dest.height, // * self.scale,
+    };
+
+    const corner = if (corner_radius * 2 > @abs(dest.height))
+        @abs(dest.height) / 2
+    else
+        corner_radius;
+
+    _ = sdl.SDL_RenderTexture9Grid(
+        self.renderer,
+        texture,
+        null,
+        image_corner_radius,
+        image_corner_radius,
+        image_corner_radius,
+        image_corner_radius,
+        corner / image_corner_radius,
+        &rect,
+    );
 }
 
 /// Handle request to increase UI size.

@@ -17,8 +17,6 @@ pub inline fn draw(
     if (entity.texture) |texture| {
         var dest = entity.rect.removePadding(entity.pad);
         dest = dest.move(scroll_offset);
-        var corner: f32 = entity.background.corner_radius;
-        if (corner * 2 > dest.height) corner = dest.height / 2;
 
         // Progress bar background
         var tint = display.theme.progress_bar_background;
@@ -26,18 +24,13 @@ pub inline fn draw(
         _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
         _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
         if (entity.background.image_corner_radius == 0) {
-            _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+            display.renderTexture(texture.texture, null, &dest);
         } else {
-            _ = sdl.SDL_RenderTexture9Grid(
-                display.renderer,
+            display.render9GridTexture(
                 texture.texture,
-                null,
                 entity.background.image_corner_radius,
-                entity.background.image_corner_radius,
-                entity.background.image_corner_radius,
-                entity.background.image_corner_radius,
-                corner / entity.background.image_corner_radius,
-                @ptrCast(&dest),
+                &dest,
+                entity.background.corner_radius,
             );
         }
 
@@ -50,18 +43,13 @@ pub inline fn draw(
             _ = sdl.SDL_SetTextureAlphaMod(texture.texture, tint.a);
             _ = sdl.SDL_SetTextureColorMod(texture.texture, tint.r, tint.g, tint.b);
             if (entity.background.image_corner_radius == 0) {
-                _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+                display.renderTexture(texture.texture, null, &dest);
             } else {
-                _ = sdl.SDL_RenderTexture9Grid(
-                    display.renderer,
+                display.render9GridTexture(
                     texture.texture,
-                    null,
                     entity.background.image_corner_radius,
-                    entity.background.image_corner_radius,
-                    entity.background.image_corner_radius,
-                    entity.background.image_corner_radius,
-                    corner / entity.background.image_corner_radius,
-                    @ptrCast(&dest),
+                    &dest,
+                    entity.background.corner_radius,
                 );
             }
         }

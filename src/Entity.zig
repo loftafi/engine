@@ -1256,20 +1256,13 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             }
             entity.applyBackgroundTint(display, texture.texture);
             if (entity.background.image_corner_radius == 0) {
-                _ = sdl.SDL_RenderTexture(display.renderer, texture.texture, null, @ptrCast(&dest));
+                display.renderTexture(texture.texture, null, &dest);
             } else {
-                var corner: f32 = entity.background.corner_radius;
-                if (corner * 2 > @abs(dest.height)) corner = @abs(dest.height) / 2;
-                _ = sdl.SDL_RenderTexture9Grid(
-                    display.renderer,
+                display.render9GridTexture(
                     texture.texture,
-                    null,
                     entity.background.image_corner_radius,
-                    entity.background.image_corner_radius,
-                    entity.background.image_corner_radius,
-                    entity.background.image_corner_radius,
-                    corner / entity.background.image_corner_radius,
-                    @ptrCast(&dest),
+                    &dest,
+                    entity.background.corner_radius,
                 );
             }
         }

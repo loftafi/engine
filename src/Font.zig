@@ -320,6 +320,7 @@ fn drawString(
                 _ = sdl.SDL_SetTextureAlphaMod(glyph_info.texture, colour.a);
                 _ = sdl.SDL_SetTextureColorMod(glyph_info.texture, colour.r, colour.g, colour.b);
                 _ = sdl.SDL_RenderTexture(renderer, glyph_info.texture, null, @ptrCast(&dest));
+                //display.renderTexture(glyph_info.texture, null, &dest);
             } else {
                 if (glyph_info.codepoint != ' ')
                     debug("    '{u}' {d} cant draw.", .{ codepoint, codepoint });

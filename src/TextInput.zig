@@ -156,7 +156,7 @@ pub inline fn draw(
     if (entity.texture) |icon_texture| {
         const icon_size = text_height;
         icon_offset = icon_size + word_spacing;
-        var dest: Rect = .{
+        const dest: Rect = .{
             .x = @round(entity.rect.x + entity.pad.left),
             .y = @round(entity.rect.y + entity.pad.top),
             .width = icon_size,
@@ -169,7 +169,7 @@ pub inline fn draw(
             display.theme.placeholder_text_colour.b,
             display.theme.placeholder_text_colour.a,
         );
-        _ = sdl.SDL_RenderTexture(display.renderer, icon_texture.texture, null, @ptrCast(&dest));
+        display.renderTexture(icon_texture.texture, null, &dest);
     }
 
     // Draw either the user text or the placeholder text if set.
