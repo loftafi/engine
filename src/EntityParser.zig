@@ -136,7 +136,7 @@ pub fn readAttributes(
                 engine.log.err("field {s} not found in {any}.", .{ name, HandlerType });
             }
             token.* = try token.next();
-        } else if (token.tag == .field) {
+        } else if (token.tag != .number) {
             const name = token.slice();
             if (entity_pointers.find(handler, name)) |e| {
                 e.* = entity;

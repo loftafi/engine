@@ -1030,6 +1030,15 @@ pub fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error 
             entity.background.image = try display.loadBundleTexture(&display.resources, value);
         }
     }
+    if (entity.type == .progress_bar) {
+        if (entity.texture == null) {
+            if (try display.requireImage("rounded progress bar")) |texture| {
+                entity.texture = texture;
+            } else {
+                err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
+            }
+        }
+    }
     if (entity.type == .panel) {
         for (entity.type.panel.children.items) |child| {
             try postAppend(display, child);
