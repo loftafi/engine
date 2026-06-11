@@ -2574,51 +2574,6 @@ fn makeBundle(
     };
 }
 
-/// Provides a standardised way to place a back button in the top left
-/// corner of the screen.
-pub fn addBackButton(
-    display: *Self,
-    parent: *Entity,
-    close_fn: Entity.Callback,
-) (Error || Allocator.Error || Resources.Error)!*Entity {
-    return try parent.add(.{
-        .name = "back",
-        .focus = .can_focus,
-        .rect = .{ .x = 20, .y = 20, .width = 120, .height = 120 },
-        .pad = .{ .left = 20, .right = 20, .top = 20, .bottom = 20 },
-        .layout = .{ .x = .fixed, .y = .fixed, .position = .float },
-        .type = .{ .button = .{
-            .icon = .{
-                .size = .{ .width = 70, .height = 70 },
-                .default_name = "icon-back",
-                .pressed_name = "icon-back",
-                .hover_name = "icon-back",
-            },
-            .on_pressed = close_fn,
-        } },
-        .on_resized = .{ .func = @ptrCast(&back_button_resize), .ptr = display },
-    }, display);
-}
-
-/// This event handler repositions a back button into the top left corner
-/// when the screen is resized or rotated.
-pub fn back_button_resize(
-    _: *Display,
-    display: *Display,
-    entity: *Entity,
-) bool {
-    var updated = false;
-    if (entity.rect.x != display.safe_area.left) {
-        entity.rect.x = display.safe_area.left;
-        updated = true;
-    }
-    if (entity.rect.y != display.safe_area.top) {
-        entity.rect.y = display.safe_area.top;
-        updated = true;
-    }
-    return updated;
-}
-
 /// Add an empty panel that keeps a space open in a list of entities.
 pub fn add_spacer(
     display: *Self,

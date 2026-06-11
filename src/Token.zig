@@ -153,6 +153,7 @@ pub const Tag = enum(u8) {
     spacing,
     field,
     em,
+    scroll,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does

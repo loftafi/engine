@@ -189,6 +189,7 @@ pub fn readAttributes(
                 token.* = try token.next();
             },
             .style => readStyleAttribute(token, &entity.style),
+            .scroll => readScrollAttribute(token, entity),
             .colour => readColourAttribute(token, entity),
             .background_colour => readBackgroundColourAttribute(token, entity),
             .max_length => readMaxLengthAttribute(token, entity),
@@ -655,6 +656,30 @@ pub fn readStyleAttribute(token: *Token, style: *engine.Theme.Style) Error!void 
         else => return error.UnexpectedToken,
     }
     token.* = try token.next();
+    return;
+}
+
+pub fn readScrollAttribute(token: *Token, entity: *engine.Entity) Error!void {
+    token.* = try token.next();
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+
+    switch (token.tag) {
+        .vertical => entity.type.panel.scrollable.scroll.y = true,
+        .horizontal => entity.type.panel.scrollable.scroll.x = true,
+        else => return error.UnexpectedToken,
+    }
+    const previous = token.tag;
+    token.* = try token.next();
+
+    if (previous != token.tag) {
+        switch (token.tag) {
+            .vertical => entity.type.panel.scrollable.scroll.y = true,
+            .horizontal => entity.type.panel.scrollable.scroll.x = true,
+            else => return,
+        }
+        token.* = try token.next();
+    }
+
     return;
 }
 
@@ -1706,10 +1731,10 @@ test "panel" {
         \\maximum height=99 width=88
         \\horizontal avoid_safe_area choosable
         \\pad left=5 right=0.5em
-        \\style tinted
         \\on_update updateEntity
         \\on_pressed tapReviseWords
-        \\background_image "bh"
+        \\background_image "bh" scroll vertical horizontal
+        \\style tinted
     , TestHandler, &te, TextSize.pixels) orelse unreachable;
     defer std.testing.allocator.destroy(entity);
     try Entity.postAppend(display, entity);
@@ -1722,6 +1747,8 @@ test "panel" {
     try expectEqual(88, entity.maximum.width);
     try expectEqual(99, entity.maximum.height);
     try expectEqual(5, entity.pad.left);
+    try expectEqual(true, entity.type.panel.scrollable.scroll.x);
+    try expectEqual(true, entity.type.panel.scrollable.scroll.y);
     try expectEqual(TextSize.pixels * 0.5, entity.pad.right);
     try expectEqualStrings("coffee", entity.name);
     try expectEqualStrings("cat", entity.texture_name.?);
@@ -1741,7 +1768,7 @@ test "panel_children" {
     var entity = try readEntity(allocator,
         \\panel:pie
         \\name "coffee" image "cat" ignore_safe_area not_choosable
-        \\on_update updateEntity
+        \\on_update updateEntity scroll vertical
         \\{
         \\  label text "hello"
         \\  label text "hello2"
@@ -1753,6 +1780,7 @@ test "panel_children" {
     try expectEqual(te.pie, entity);
     try expectEqual(.ignore_safe_area, entity.type.panel.safe_area);
     try expectEqual(.not_choosable, entity.type.panel.choosable);
+    try expectEqual(true, entity.type.panel.scrollable.scroll.y);
     try expectEqual(3, entity.type.panel.children.items.len);
     try expect(.label == entity.type.panel.children.items[0].type);
     try expect(.label == entity.type.panel.children.items[1].type);
