@@ -132,18 +132,18 @@ pub fn setup(
     var float_error = false;
     switch (entity.layout.x) {
         .grows => if (entity.layout.position == .float) {
-            entity.layout.x = .fixed;
+            //entity.layout.x = .fixed;
             float_error = true;
         },
         .shrinks => if (entity.layout.position == .float) {
-            entity.layout.x = .fixed;
+            //entity.layout.x = .fixed;
             float_error = true;
         },
         .fixed => {},
     }
     switch (entity.layout.y) {
         .grows => if (entity.layout.position == .float) {
-            entity.layout.y = .fixed;
+            //entity.layout.y = .fixed;
             float_error = true;
         },
         .shrinks => if (entity.layout.position == .float) {

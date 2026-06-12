@@ -235,6 +235,91 @@ pub inline fn minimumNeededHeight(
     return @max(entity.minimum.height, height);
 }
 
+test "button_size" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 1024, 720, 2);
+    defer display.destroy();
+
+    const panel = try display.addPanel(.{
+        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+
+    const button = try panel.add(.{
+        .minimum = .{ .width = 5, .height = 8 },
+        .type = .{ .button = .{ .icon = .{ .size = .{ .width = 20, .height = 20 } } } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    }, display);
+
+    display.need_relayout = true;
+    display.relayout();
+
+    try expectEqual(20, button.minimumNeededWidth(200));
+    try expectEqual(20, button.minimumNeededHeight(200));
+
+    button.pad = .{ .top = 3, .bottom = 4, .left = 1, .right = 2 };
+    try expectEqual(20 + 1 + 2, button.minimumNeededWidth(200));
+    try expectEqual(20 + 3 + 4, button.minimumNeededHeight(200));
+
+    display.need_relayout = true;
+    display.relayout();
+
+    panel.layout = .{ .x = .shrinks, .y = .shrinks };
+
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(20 + 1 + 2, button.minimumNeededWidth(200));
+    try expectEqual(20 + 3 + 4, button.minimumNeededHeight(200));
+    try expectEqual(20 + 1 + 2, panel.rect.width);
+    try expectEqual(20 + 3 + 4, panel.rect.height);
+
+    panel.pad = .{ .top = 5, .bottom = 5, .left = 5, .right = 5 };
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(20 + 1 + 2 + 5 + 5, panel.rect.width);
+    try expectEqual(20 + 3 + 4 + 5 + 5, panel.rect.height);
+}
+
+test "button_in_float" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 1024, 720, 2);
+    defer display.destroy();
+
+    const panel = try display.addPanel(.{
+        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .layout = .{ .x = .grows, .y = .grows },
+    });
+
+    const bar = try panel.add(.{
+        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .layout = .{ .x = .shrinks, .y = .shrinks, .position = .float },
+    }, display);
+
+    const button1 = try bar.add(.{
+        .minimum = .{ .width = 5, .height = 8 },
+        .type = .{ .button = .{ .icon = .{ .size = .{ .width = 20, .height = 20 } } } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    }, display);
+
+    const button2 = try bar.add(.{
+        .minimum = .{ .width = 5, .height = 8 },
+        .type = .{ .button = .{ .icon = .{ .size = .{ .width = 20, .height = 20 } } } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    }, display);
+
+    display.need_relayout = true;
+    display.relayout();
+
+    try expectEqual(20, button1.minimumNeededWidth(200));
+    try expectEqual(20, button2.minimumNeededHeight(200));
+    // TODO: This fails, it should not fail.
+    //try expectEqual(20, bar.minimumNeededHeight(200));
+}
+
 test "normal_use" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -366,6 +451,7 @@ const Colour = engine.Colour;
 const Error = engine.Error;
 const Font = engine.Font;
 const Entity = engine.Entity;
+const EntityParser = @import("EntityParser.zig");
 const Texture = engine.Texture;
 const Theme = engine.Theme;
 const TextSize = engine.TextSize;

@@ -192,8 +192,7 @@ pub fn measureText(
     string: []const u8,
 ) (Allocator.Error)!f32 {
     return self.drawString(
-        display.allocator,
-        display.renderer,
+        display,
         string,
         .{},
         .WHITE,
@@ -216,8 +215,7 @@ pub fn drawText(
     x_scale: f32,
 ) Allocator.Error!void {
     _ = try self.drawString(
-        display.allocator,
-        display.renderer,
+        display,
         string,
         pos,
         colour,
@@ -231,8 +229,7 @@ pub fn drawText(
 /// UTF8 text.
 fn drawString(
     self: *Font,
-    allocator: Allocator,
-    renderer: *sdl.SDL_Renderer,
+    display: *engine.Display,
     string: []const u8,
     pos: engine.Vector,
     colour: engine.Colour,
@@ -250,7 +247,7 @@ fn drawString(
     const start_x = dest.x;
 
     var dbg = if (builtin.mode == .Debug)
-        std.Io.Writer.Allocating.init(allocator)
+        std.Io.Writer.Allocating.init(display.allocator)
     else {};
     defer if (builtin.mode == .Debug) dbg.deinit();
 
@@ -275,11 +272,11 @@ fn drawString(
         const entry = try self.cache.getOrPut(glyph);
         if (!entry.found_existing) {
             self.createGlyphTexture(
-                allocator,
+                display.allocator,
                 codepoint,
                 glyph,
                 entry.value_ptr,
-                renderer,
+                display.renderer,
             ) catch |e| {
                 warn("failed to generate glyph '{u}'. ({t}) {t}", .{ codepoint, mode, e });
                 entry.value_ptr.* = .{
@@ -319,8 +316,7 @@ fn drawString(
                 }
                 _ = sdl.SDL_SetTextureAlphaMod(glyph_info.texture, colour.a);
                 _ = sdl.SDL_SetTextureColorMod(glyph_info.texture, colour.r, colour.g, colour.b);
-                _ = sdl.SDL_RenderTexture(renderer, glyph_info.texture, null, @ptrCast(&dest));
-                //display.renderTexture(glyph_info.texture, null, &dest);
+                display.renderTexture(glyph_info.texture, null, &dest);
             } else {
                 if (glyph_info.codepoint != ' ')
                     debug("    '{u}' {d} cant draw.", .{ codepoint, codepoint });
