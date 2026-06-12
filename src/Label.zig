@@ -320,7 +320,10 @@ test "label_panel_placement" {
     display.root.maximum.height = 200;
 
     const panel = try display.addPanel(.{
-        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .type = .{ .panel = .{
+            .direction = .top_to_bottom,
+            .safe_area = .ignore_safe_area,
+        } },
         .layout = .{ .x = .grows, .y = .grows },
     });
     display.need_relayout = true;
@@ -380,7 +383,10 @@ test "label_single_word_alignment" {
 
     const panel = try display.addPanel(.{
         .name = "parent",
-        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .type = .{ .panel = .{
+            .direction = .top_to_bottom,
+            .safe_area = .ignore_safe_area,
+        } },
         .layout = .{ .x = .grows, .y = .grows },
     });
     display.need_relayout = true;
@@ -495,7 +501,10 @@ test "label_multiword_align" {
 
     const panel = try display.addPanel(.{
         .name = "parent",
-        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .type = .{ .panel = .{
+            .direction = .top_to_bottom,
+            .safe_area = .ignore_safe_area,
+        } },
         .layout = .{ .x = .grows, .y = .grows },
     });
     display.need_relayout = true;
@@ -593,7 +602,10 @@ test "shrunk_label_in_panel" {
 
     const panel = try display.addPanel(.{
         .layout = .{ .x = .grows, .y = .grows },
-        .type = .{ .panel = .{ .direction = .centre } },
+        .type = .{ .panel = .{
+            .direction = .centre,
+            .safe_area = .ignore_safe_area,
+        } },
         .pad = .{ .left = 4, .right = 6, .top = 2, .bottom = 8 },
     });
     display.need_relayout = true;

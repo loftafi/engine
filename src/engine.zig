@@ -283,7 +283,7 @@ test "text input sizing" {
         // Display width on physical display with word wrap
         try eq(
             2 * TextSize.normal.size(),
-            l.minimumNeededHeight(40 * display.pixel_scale),
+            l.minimumNeededHeight(40 * display.display_scale),
         );
         panel.removeEntities(display);
     }
@@ -329,7 +329,7 @@ test "text input sizing" {
     label.minimum.height = TextSize.normal.size();
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(50, @ceil(label.minimumNeededWidth(500) / display.pixel_scale));
+    try eq(50, @ceil(label.minimumNeededWidth(500) / display.display_scale));
 }
 
 test "test_init" {

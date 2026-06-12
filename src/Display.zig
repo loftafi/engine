@@ -84,7 +84,7 @@ safe_area: Clip = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 },
 
 /// Deduplicate safe area change updates by remembering the
 /// old safe area information.
-old_safe_area: sdl.SDL_Rect = undefined,
+old_safe_area: sdl.SDL_Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
 
 /// One user interface entity may be marked as selected to recieve
 /// keyboard input
@@ -335,6 +335,13 @@ pub fn create(
         .display_scale = display_scale,
         .user_scale = 1,
         .scale = display_scale * 1, // display_scale * user_scale
+
+        .safe_area = .{
+            .top = 0,
+            .bottom = 0,
+            .left = 0,
+            .right = 0,
+        },
 
         .root = .{
             .name = "root",
@@ -961,6 +968,46 @@ pub inline fn addPanel(
     }
 
     return self.root.add(item, self);
+}
+
+/// Attach a child entity to the main display panel (root) entity. The
+/// main display panel should only contain panels as children
+pub inline fn appendPanel(
+    self: *Self,
+    data: []const u8,
+    HandlerType: type,
+    handler: *HandlerType,
+) (Allocator.Error || Resources.Error || Error)!*Entity {
+    var token: engine.Token = try .init(data);
+
+    if (token.tag == .eof) return Error.UnexpectedToken;
+
+    const child = try engine.EntityParser.readEntityTokens(
+        self.allocator,
+        &token,
+        HandlerType,
+        handler,
+        TextSize.pixels,
+    ) orelse return Error.UnexpectedToken;
+    errdefer child.destroy(self);
+
+    if (child.type != .panel) {
+        warn("addPanel requires a panel entity, not {s} {s}", .{
+            @tagName(child.type),
+            child.name,
+        });
+        return Error.RootAcceptsPanelsOnly;
+    }
+
+    try Entity.postAppend(self, child);
+    try self.root.append(self.allocator, child);
+
+    if (child.visible != .hidden and self.visible != .hidden)
+        self.need_relayout = true;
+
+    if (self.fonts.items.len == 0) {
+        warn("addPanel called before setDefaultFont.", .{});
+    }
 }
 
 /// A texture resource may be referenced by multiple on screen

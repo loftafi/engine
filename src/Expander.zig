@@ -52,7 +52,7 @@ test "padding" {
 
     const panel = try display.addPanel(.{
         .layout = .{ .x = .grows, .y = .grows },
-        .type = .{ .panel = .{} },
+        .type = .{ .panel = .{ .safe_area = .ignore_safe_area } },
     });
 
     display.need_relayout = true;

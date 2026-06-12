@@ -20,13 +20,13 @@ pub fn headless_display(
     io: std.Io,
     width: f32,
     height: f32,
-    pixel_scale: f32,
+    display_scale: f32,
 ) !*Display {
     var display = try Display.create(allocator, io, test_config);
 
-    display.pixel_scale = pixel_scale;
+    display.display_scale = display_scale;
     display.user_scale = 1;
-    display.scale = display.pixel_scale * display.user_scale;
+    display.scale = display.display_scale * display.user_scale;
 
     try display.setDefaultFont("Roboto-Light", .unknown, .{});
     try display.setDefaultFont("Roboto-Black", .greek, .{});
@@ -40,6 +40,14 @@ pub fn headless_display(
     display.root.maximum.height = height;
     display.root.minimum.width = width;
     display.root.minimum.height = height;
+    display.safe_area.top = @round(height * 0.1);
+    display.safe_area.bottom = 0;
+    display.safe_area.left = 0;
+    display.safe_area.right = 0;
+    display.old_safe_area.x = 0;
+    display.old_safe_area.y = 0;
+    display.old_safe_area.w = @intFromFloat(width);
+    display.old_safe_area.h = @intFromFloat(height);
 
     display.root.name = "root";
 

@@ -873,7 +873,11 @@ test "panel_button_layout" {
         .layout = .{ .x = .grows, .y = .grows },
         .pad = .{ .left = 1, .top = 2, .right = 3, .bottom = 4 },
         .child_align = .{ .x = .start, .y = .start },
-        .type = .{ .panel = .{ .direction = .top_left, .spacing = 5 } },
+        .type = .{ .panel = .{
+            .direction = .top_left,
+            .spacing = 5,
+            .safe_area = .ignore_safe_area,
+        } },
     });
     const b1 = try panel.append("button size width=90 height=90", NullHandler, &handler, display);
     const b2 = try panel.append("button size width=90 height=90", NullHandler, &handler, display);
@@ -959,7 +963,11 @@ test "panel_label_layout" {
         .layout = .{ .x = .grows, .y = .grows },
         .pad = .{ .left = 1, .top = 2, .right = 3, .bottom = 4 },
         .child_align = .{ .x = .start, .y = .start },
-        .type = .{ .panel = .{ .direction = .top_left, .spacing = spacing } },
+        .type = .{ .panel = .{
+            .direction = .top_left,
+            .spacing = spacing,
+            .safe_area = .ignore_safe_area,
+        } },
     });
     const b1 = try panel.append("label text \"This\" layout shrinks shrinks", NullHandler, &handler, display);
     const b2 = try panel.append("label text \"word\" layout shrinks shrinks", NullHandler, &handler, display);
@@ -1059,7 +1067,11 @@ test "panel_padding" {
     display.root.maximum.height = 200;
 
     const panel = try display.addPanel(.{
-        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .type = .{ .panel = .{
+            .direction = .top_to_bottom,
+            .choosable = .choosable,
+            .safe_area = .ignore_safe_area,
+        } },
         .layout = .{ .x = .grows, .y = .grows },
     });
     display.need_relayout = true;
@@ -1141,17 +1153,29 @@ test "centre_text_bug" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    // TODO: 10->22
     var display = try headless_display(allocator, io, 600, 800, 2);
     defer display.destroy();
 
     const panel = try display.addPanel(.{
-        .type = .{ .panel = .{ .direction = .left_to_right, .spacing = 5 } },
+        .type = .{
+            .panel = .{
+                .direction = .left_to_right,
+                .spacing = 5,
+                .safe_area = .ignore_safe_area,
+                .choosable = .choosable,
+            },
+        },
         .layout = .{ .x = .grows, .y = .grows },
     });
     display.need_relayout = true;
     display.relayout();
 
+    try eq(80, display.safe_area.top);
+    try eq(0, display.safe_area.left);
+    try eq(0, display.safe_area.right);
+    try eq(0, display.safe_area.bottom);
+    try eq(600, display.root.rect.width);
+    try eq(600, display.root.inner_width());
     try eq(600, panel.rect.width);
     try eq(800, panel.rect.height);
 
