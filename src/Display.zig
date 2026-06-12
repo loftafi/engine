@@ -96,8 +96,8 @@ keyboard_activity: bool = false,
 draw_cursor: ?*const fn (
     renderer: *sdl.SDL_Renderer,
     entity_type: Entity.Type,
+    theme: *Theme,
     rect: Rect,
-    user_scale: f32,
 ) void = null,
 
 /// One user interface entity may be rendered differently

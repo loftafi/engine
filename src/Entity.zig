@@ -1323,10 +1323,10 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             // inner padding line
             colour = display.theme.tinted_text_colour;
             draw_rectangle(display.renderer, 2, colour, .{
-                .x = entity.rect.x + scroll_offset.x + entity.pad.left,
-                .y = entity.rect.y + scroll_offset.y + entity.pad.top,
-                .width = entity.rect.width - (entity.pad.left + entity.pad.right),
-                .height = entity.rect.height - (entity.pad.top + entity.pad.bottom),
+                .x = entity.rect.x + scroll_offset.x, // + entity.pad.left,
+                .y = entity.rect.y + scroll_offset.y, // + entity.pad.top,
+                .width = entity.rect.width, // - (entity.pad.left + entity.pad.right),
+                .height = entity.rect.height, // - (entity.pad.top + entity.pad.bottom),
             }, .{});
             entity.markCorners(display, scroll_offset);
         }
@@ -1350,8 +1350,8 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             f(
                 display.renderer,
                 entity.type,
+                display.theme,
                 entity.rect.move(scroll_offset),
-                display.user_scale,
             )
         else
             drawCursor(
@@ -1359,7 +1359,6 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
                 entity.type,
                 display.theme,
                 entity.rect.move(scroll_offset),
-                display.user_scale,
             );
     }
 }
@@ -1406,11 +1405,10 @@ pub fn drawCursor(
     entity_type: Type,
     theme: *Theme,
     rect: Rect,
-    user_scale: f32,
 ) void {
     if (entity_type == .text_input) return;
     const colour = theme.cursor_colour;
-    const border_width = 4 * user_scale;
+    const border_width = 4;
     if (border_width > 0 and colour.a > 0) {
         var dest: Rect = .{
             .x = rect.x,
@@ -1418,7 +1416,7 @@ pub fn drawCursor(
             .width = rect.width,
             .height = border_width,
         };
-        dest = dest.move(.{ .x = border_width * 4, .y = 0 - border_width * 4 });
+        dest = dest.move(.{ .x = border_width * 4, .y = -border_width * 4 });
         dest.width = @max(border_width * 8, rect.width - border_width * 8);
         //if (rect.width > border_width * 16) {
         //    dest.width -= border_width * 8;
