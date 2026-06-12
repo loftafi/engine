@@ -1823,6 +1823,8 @@ pub fn setup_expander(
     entity.texture = null;
     entity.background.image = null;
     entity.focus = .never_focus;
+    entity.layout.x = .grows;
+    entity.layout.y = .grows;
 }
 
 /// Internal function to initialise text input entity.
