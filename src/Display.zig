@@ -129,7 +129,7 @@ scale: f32 = 0,
 /// to traditional dimensions (i.e. 1920x1080) rather than actual
 /// pixels (i.e. 3840x2160). A mouse/tap at 100x100, must be
 /// translated to the physical pixel/entity position of 200x200.
-pixel_density: f32 = 1,
+controller_scale: f32 = 1,
 
 root: Entity = .{
     .name = "root",
@@ -275,7 +275,8 @@ pub fn create(
     // What adjustment is needed for text to appear "normal"
     const display_scale = sdl.SDL_GetWindowDisplayScale(window);
 
-    const density = sdl.SDL_GetWindowPixelDensity(window);
+    const display_id = sdl.SDL_GetDisplayForWindow(window);
+    const controller_scale = sdl.SDL_GetDisplayContentScale(display_id);
     info("window_size={d}x{d} window_pixels={d}x{d} display_scale={d}", .{
         window_width,
         window_height,
@@ -330,7 +331,7 @@ pub fn create(
         .last_draw = now,
         .last_delta = now,
 
-        .pixel_density = density,
+        .controller_scale = controller_scale,
         .display_scale = display_scale,
         .user_scale = 1,
         .scale = display_scale * 1, // display_scale * user_scale
@@ -1934,45 +1935,57 @@ pub inline fn updateScreenMetrics(display: *Self) void {
     info("updateScreenMetrics requested", .{});
     var updated = false;
 
-    var rwidth: c_int = 0;
-    var rheight: c_int = 0;
-    _ = sdl.SDL_GetWindowSizeInPixels(display.window, &rwidth, &rheight);
+    var width: c_int = 0;
+    var height: c_int = 0;
+    _ = sdl.SDL_GetWindowSizeInPixels(display.window, &width, &height);
 
     const old_display_scale = display.display_scale;
     display.display_scale = sdl.SDL_GetWindowDisplayScale(display.window);
-
     display.scale = display.display_scale * display.user_scale;
 
-    if (display.root.rect.width != @as(f32, @floatFromInt(rwidth)))
-        updated = true;
-    if (display.root.rect.height != @as(f32, @floatFromInt(rheight)))
-        updated = true;
-    if (display.root.minimum.width != @as(f32, @floatFromInt(rwidth)))
-        updated = true;
-    if (display.root.minimum.height != @as(f32, @floatFromInt(rheight)))
-        updated = true;
-    if (old_display_scale != display.scale)
-        updated = true;
+    // Physical window pixel width and hight must be translated to
+    // logical width and height
+    const logical_width: f32 = @ceil(@as(f32, @floatFromInt(width)) / display.scale);
+    const logical_height: f32 = @ceil(@as(f32, @floatFromInt(height)) / display.scale);
+
+    if (display.root.rect.width != logical_width) updated = true;
+    if (display.root.rect.height != logical_height) updated = true;
+    if (display.root.minimum.width != logical_width) updated = true;
+    if (display.root.minimum.height != logical_height) updated = true;
+    if (old_display_scale != display.scale) updated = true;
 
     if (updated or engine.dev_build or engine.dev_mode) {
-        info("window pixels {d}x{d} ({d}) => {d}x{d} ({d})", .{
+        info("window update {d}x{d} ({d}) => {d}x{d} ({d}) scale={d} (mouse_scale={d})", .{
             display.root.rect.width,
             display.root.rect.height,
             old_display_scale,
-            @as(f32, @floatFromInt(rwidth)),
-            @as(f32, @floatFromInt(rheight)),
+            logical_width,
+            logical_height,
             display.display_scale,
+            display.scale,
+            display.controller_scale,
         });
     }
-    if (updated)
-        display.need_relayout = true;
 
-    display.root.rect.width = @as(f32, @floatFromInt(rwidth));
-    display.root.rect.height = @as(f32, @floatFromInt(rheight));
-    display.root.minimum.width = display.root.rect.width;
-    display.root.maximum.width = display.root.rect.width;
-    display.root.minimum.height = display.root.rect.height;
-    display.root.maximum.height = display.root.rect.height;
+    if (updated) {
+        display.need_relayout = true;
+        const old_controller_scale = display.controller_scale;
+        const display_id = sdl.SDL_GetDisplayForWindow(display.window);
+        display.controller_scale = sdl.SDL_GetDisplayContentScale(display_id);
+        if (display.controller_scale != old_controller_scale) {
+            info("mouse/controller scale {d} => {d}", .{
+                old_controller_scale,
+                display.controller_scale,
+            });
+        }
+    }
+
+    display.root.rect.width = logical_width;
+    display.root.rect.height = logical_height;
+    display.root.minimum.width = logical_width;
+    display.root.maximum.width = logical_width;
+    display.root.minimum.height = logical_height;
+    display.root.maximum.height = logical_height;
 
     display.calculateSafeArea();
 }
@@ -2082,7 +2095,7 @@ inline fn handleMouseUpEvent(
 ) !void {
     var cursor: Vector = undefined;
     _ = sdl.SDL_GetMouseState(&cursor.x, &cursor.y);
-    cursor = cursor.multiply(display.pixel_density);
+    cursor = cursor.divide(display.controller_scale * display.user_scale);
 
     if (display.scrolling != null) {
         trace("end scrolling {s} at {any}", .{
@@ -2155,7 +2168,7 @@ inline fn handleMouseDownEvent(
 ) !void {
     var cursor: Vector = undefined;
     _ = sdl.SDL_GetMouseState(&cursor.x, &cursor.y);
-    cursor = cursor.multiply(display.pixel_density);
+    cursor = cursor.divide(display.controller_scale * display.user_scale);
 
     if (display.find_under_cursor(
         display.root.type.panel.children.items,
@@ -2210,7 +2223,7 @@ inline fn handleMouseMotionEvent(
     var cursor: Vector = undefined;
     _ = sdl.SDL_GetMouseState(&cursor.x, &cursor.y);
     // Translate cursor position to pixel position
-    cursor = cursor.multiply(display.pixel_density);
+    cursor = cursor.divide(display.controller_scale * display.user_scale);
 
     if (display.scrolling) |entity| {
         // If mouse is down while movement is detected, and mouse was
@@ -2444,6 +2457,92 @@ pub inline fn renderTexture(
     );
 }
 
+/// Draw an outline of a rectangle. Used in debug mode to highlight where
+/// items appear on the screen.
+pub fn renderRectangle(
+    self: *Display,
+    border_width: f32,
+    colour: Colour,
+    rect: Rect,
+) void {
+    if (border_width > 0 and colour.a > 0) {
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 255, 255, 255);
+        var dest: Rect = .{
+            .x = rect.x * self.scale,
+            .y = rect.y * self.scale,
+            .width = rect.width * self.scale,
+            .height = border_width * self.scale,
+        };
+        _ = sdl.SDL_SetRenderDrawColor(
+            self.renderer,
+            colour.r,
+            colour.g,
+            colour.b,
+            colour.a,
+        );
+        _ = sdl.SDL_RenderFillRect(self.renderer, @ptrCast(&dest));
+        dest.y = (rect.y + rect.height - border_width) * self.scale;
+        _ = sdl.SDL_RenderFillRect(self.renderer, @ptrCast(&dest));
+        var dest2: Rect = .{
+            .x = rect.x * self.scale,
+            .y = rect.y * self.scale,
+            .width = border_width * self.scale,
+            .height = rect.height * self.scale,
+        };
+        _ = sdl.SDL_RenderFillRect(self.renderer, @ptrCast(&dest2));
+        dest2.x = (rect.x + rect.width - border_width) * self.scale;
+        _ = sdl.SDL_RenderFillRect(self.renderer, @ptrCast(&dest2));
+    }
+}
+
+/// Draw a solid filled rectangle.
+pub fn renderSolidRectangle(
+    self: *Display,
+    colour: Colour,
+    rect: *Rect,
+) void {
+    const dest: sdl.SDL_FRect = .{
+        .x = rect.x * self.scale,
+        .y = rect.y * self.scale,
+        .w = rect.width * self.scale,
+        .h = rect.height * self.scale,
+    };
+    _ = sdl.SDL_SetRenderDrawColor(self.renderer, colour.r, colour.g, colour.b, colour.a);
+    _ = sdl.SDL_RenderFillRect(self.renderer, &dest);
+}
+
+/// Draw a simple line.
+pub fn renderLine(
+    self: *Display,
+    border_width: f32,
+    colour: Colour,
+    start: Vector,
+    end: Vector,
+) void {
+    if (border_width > 0 and colour.a > 0) {
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 255, 255, 255);
+        var dest: Rect = .{
+            .x = (if (start.x < end.x) start.x else end.x) * self.scale,
+            .y = (if (start.y < end.y) start.y else end.y) * self.scale,
+            .width = @abs(end.x - start.x) * self.scale,
+            .height = @abs(end.y - start.y) * self.scale,
+        };
+        if (dest.width == 0) dest.width = border_width;
+        if (dest.height == 0) dest.height = border_width;
+        // Try to centre the line
+        dest.x -= border_width / 2;
+        dest.y -= border_width / 2;
+        _ = sdl.SDL_SetRenderDrawColor(
+            self.renderer,
+            colour.r,
+            colour.g,
+            colour.b,
+            colour.a,
+        );
+        _ = sdl.SDL_RenderFillRect(self.renderer, @ptrCast(&dest));
+    }
+}
+
 pub inline fn render9GridTexture(
     self: *Display,
     texture: *sdl.SDL_Texture,
@@ -2478,7 +2577,7 @@ pub inline fn render9GridTexture(
 
 /// Handle request to increase UI size.
 pub fn increaseSize(
-    _: *Self,
+    self: *Self,
     display: *Self,
     _: *Entity,
     _: *const Event,
@@ -2492,8 +2591,8 @@ pub fn increaseSize(
     else if (display.user_scale == 1.25)
         if (engine.dev_build or engine.dev_mode) 1.5 else 1.25
     else if (engine.dev_build or engine.dev_mode) 1.5 else 1.25;
-    display.scale = display.display_scale * display.user_scale;
-    display.need_relayout = true;
+
+    self.updateScreenMetrics();
     debug("Increase size. {d}*{d} = {d}", .{
         display.display_scale,
         display.user_scale,
@@ -2503,8 +2602,8 @@ pub fn increaseSize(
 
 /// Handle request to decrease UI size.
 pub fn decreaseSize(
+    self: *Self,
     display: *Self,
-    _: *Self,
     _: *Entity,
     _: *const Event,
 ) void {
@@ -2518,8 +2617,7 @@ pub fn decreaseSize(
     else if (display.user_scale == 1.5)
         1.25
     else if (engine.dev_build or engine.dev_mode) 0.5 else 0.75;
-    display.scale = display.display_scale * display.user_scale;
-    display.need_relayout = true;
+    self.updateScreenMetrics();
     debug("Decrease size. {d}*{d} = {d}", .{
         display.display_scale,
         display.user_scale,

@@ -1297,20 +1297,16 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
         if (entity.type == .panel) {
             colour = display.theme.tinted_text_colour;
         }
-        draw_rectangle(
-            display.renderer,
+        display.renderRectangle(
             2,
             colour,
             entity.rect.move(scroll_offset),
-            .{},
         );
         if (entity.type == .panel and (entity.type.panel.scrollable.scroll.x or entity.type.panel.scrollable.scroll.y)) {
-            draw_rectangle(
-                display.renderer,
+            display.renderRectangle(
                 2,
                 display.theme.success_panel_colour,
                 entity.rect,
-                .{},
             );
         } else if (entity.type == .label) {
             var pad_line = entity.rect.move(scroll_offset);
@@ -1322,21 +1318,19 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
         } else if (entity.type == .button) {
             // inner padding line
             colour = display.theme.tinted_text_colour;
-            draw_rectangle(display.renderer, 2, colour, .{
+            display.renderRectangle(2, colour, .{
                 .x = entity.rect.x + scroll_offset.x, // + entity.pad.left,
                 .y = entity.rect.y + scroll_offset.y, // + entity.pad.top,
                 .width = entity.rect.width, // - (entity.pad.left + entity.pad.right),
                 .height = entity.rect.height, // - (entity.pad.top + entity.pad.bottom),
-            }, .{});
+            });
             entity.markCorners(display, scroll_offset);
         }
     } else if (entity.border_width > 0 and entity.border_colour.a > 0) {
-        draw_rectangle(
-            display.renderer,
+        display.renderRectangle(
             entity.border_width,
             entity.border_colour,
             entity.rect.move(scroll_offset),
-            .{},
         );
     }
 
@@ -1355,7 +1349,7 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             )
         else
             drawCursor(
-                display.renderer,
+                display,
                 entity.type,
                 display.theme,
                 entity.rect.move(scroll_offset),
@@ -1365,50 +1359,42 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
 
 fn markCorners(entity: *Entity, display: *Display, scroll_offset: Vector) void {
     const length = 20;
-    draw_line(
-        display.renderer,
+    display.renderLine(
         3,
         Colour.RED,
-        entity.rect.location().move(entity.pad.left, entity.pad.top),
-        entity.rect.location().move(entity.pad.left + length, entity.pad.top),
-        scroll_offset,
+        entity.rect.location().move(entity.pad.left, entity.pad.top).add(scroll_offset),
+        entity.rect.location().move(entity.pad.left + length, entity.pad.top).add(scroll_offset),
     );
-    draw_line(
-        display.renderer,
+    display.renderLine(
         3,
         Colour.RED,
-        entity.rect.location().move(entity.pad.left, entity.pad.top),
-        entity.rect.location().move(entity.pad.left, entity.pad.top + length),
-        scroll_offset,
+        entity.rect.location().move(entity.pad.left, entity.pad.top).add(scroll_offset),
+        entity.rect.location().move(entity.pad.left, entity.pad.top + length).add(scroll_offset),
     );
-    draw_line(
-        display.renderer,
+    display.renderLine(
         3,
         Colour.RED,
-        entity.rect.location().move(entity.rect.width - entity.pad.right - length, entity.rect.height - entity.pad.bottom),
-        entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom),
-        scroll_offset,
+        entity.rect.location().move(entity.rect.width - entity.pad.right - length, entity.rect.height - entity.pad.bottom).add(scroll_offset),
+        entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom).add(scroll_offset),
     );
-    draw_line(
-        display.renderer,
+    display.renderLine(
         3,
         Colour.RED,
-        entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom),
-        entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom - length),
-        scroll_offset,
+        entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom).add(scroll_offset),
+        entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom - length).add(scroll_offset),
     );
 }
 
 /// Draw a visual indication that an entity is currently selected.
 pub fn drawCursor(
-    renderer: *sdl.SDL_Renderer,
+    display: *Display,
     entity_type: Type,
     theme: *Theme,
     rect: Rect,
 ) void {
     if (entity_type == .text_input) return;
     const colour = theme.cursor_colour;
-    const border_width = 4;
+    const border_width = 2;
     if (border_width > 0 and colour.a > 0) {
         var dest: Rect = .{
             .x = rect.x,
@@ -1418,18 +1404,7 @@ pub fn drawCursor(
         };
         dest = dest.move(.{ .x = border_width * 4, .y = -border_width * 4 });
         dest.width = @max(border_width * 8, rect.width - border_width * 8);
-        //if (rect.width > border_width * 16) {
-        //    dest.width -= border_width * 8;
-        //    dest.x += border_width * 4;
-        //}
-        _ = sdl.SDL_SetRenderDrawColor(
-            renderer,
-            colour.r,
-            colour.g,
-            colour.b,
-            colour.a,
-        );
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
+        display.renderSolidRectangle(colour, &dest);
     }
 }
 
@@ -2140,82 +2115,6 @@ pub const BoolCallback = struct {
     }
 };
 
-/// Draw an outline of a rectangle. Used in debug mode to highlight where
-/// items appear on the screen.
-fn draw_rectangle(
-    renderer: *sdl.SDL_Renderer,
-    border_width: f32,
-    colour: Colour,
-    rect: Rect,
-    scroll_offset: Vector,
-) void {
-    if (border_width > 0 and colour.a > 0) {
-        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        var dest: Rect = .{
-            .x = rect.x,
-            .y = rect.y,
-            .width = rect.width,
-            .height = border_width,
-        };
-        dest.x += scroll_offset.x;
-        dest.y += scroll_offset.y;
-        _ = sdl.SDL_SetRenderDrawColor(
-            renderer,
-            colour.r,
-            colour.g,
-            colour.b,
-            colour.a,
-        );
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-        dest.y = rect.y + rect.height - border_width;
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-        var dest2: Rect = .{
-            .x = rect.x,
-            .y = rect.y,
-            .width = border_width,
-            .height = rect.height,
-        };
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
-        dest2.x = rect.x + rect.width - border_width;
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest2));
-    }
-}
-
-/// Draw a simple line.
-fn draw_line(
-    renderer: *sdl.SDL_Renderer,
-    border_width: f32,
-    colour: Colour,
-    start: Vector,
-    end: Vector,
-    scroll_offset: Vector,
-) void {
-    if (border_width > 0 and colour.a > 0) {
-        _ = sdl.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        var dest: Rect = .{
-            .x = if (start.x < end.x) start.x else end.x,
-            .y = if (start.y < end.y) start.y else end.y,
-            .width = @abs(end.x - start.x),
-            .height = @abs(end.y - start.y),
-        };
-        if (dest.width == 0) dest.width = border_width;
-        if (dest.height == 0) dest.height = border_width;
-        // Try to centre the line
-        dest.x -= border_width / 2;
-        dest.y -= border_width / 2;
-        dest.x += scroll_offset.x;
-        dest.y += scroll_offset.y;
-        _ = sdl.SDL_SetRenderDrawColor(
-            renderer,
-            colour.r,
-            colour.g,
-            colour.b,
-            colour.a,
-        );
-        _ = sdl.SDL_RenderFillRect(renderer, @ptrCast(&dest));
-    }
-}
-
 pub inline fn tint_texture(texture: *sdl.SDL_Texture, colour: Colour) void {
     _ = sdl.SDL_SetTextureAlphaMod(texture, colour.a);
     _ = sdl.SDL_SetTextureColorMod(texture, colour.r, colour.g, colour.b);
@@ -2295,6 +2194,14 @@ pub const Vector = struct {
         return Vector{
             .x = self.x * value,
             .y = self.y * value,
+        };
+    }
+
+    /// Divide the x and y value from the `other` vector to this vector.
+    pub fn divide(self: Vector, value: f32) Vector {
+        return Vector{
+            .x = self.x / value,
+            .y = self.y / value,
         };
     }
 
