@@ -112,24 +112,17 @@ hovered: ?*Entity = null,
 // double or triple pixel density, then Font entities are multiplied
 // by two or three, to become 32 (double) or 48 (triple) pixels.
 
-/// On some devices, the reported screen size and physical
-/// pixel size may be different. The scale variable is used
-/// to convert between OS reported size, and physical
-/// pixel size. i.e.
-///
-/// 1.0 = Non retina display, width = 1920, pixel width = 1920.
-/// 2.0 = Retina display,     width = 1920, pixel width = 3840.
-/// 3.0 = iPhone 16 display,  width =  393, pixel width = 1179.
-///
-/// If the text height is 16 pixels, but the device has a
-/// retina display the actual text height will be
-/// `text_height` * `pixel_scale`.
-pixel_scale: f32 = 0,
+/// A normal density screen has a display scale of 1, and a retina
+/// screen has a display scale of 2. For text to appear normal
+/// It must be enlarged by the display scale. i.e. On a retina
+/// screen, a text height of 16 must be multiplied by 2 on a
+/// retnia screen so it is 32 pixels high.
+display_scale: f32 = 0,
 
 /// Used when user adjusts the global size of the interface
 user_scale: f32 = 1,
 
-/// The actual scale is the pixel_scale * user_scale
+/// The actual scale is the display_scale * user_scale
 scale: f32 = 0,
 
 /// iOS and retina mac displays report the mouse position according
@@ -271,8 +264,6 @@ pub fn create(
     }
     info("Renderer:{s}", .{renderer_info.items});
 
-    const pixel_scale = sdl.SDL_GetWindowDisplayScale(window);
-
     var pixel_width: c_int = 0;
     var pixel_height: c_int = 0;
     _ = sdl.SDL_GetWindowSizeInPixels(window, &pixel_width, &pixel_height);
@@ -281,14 +272,16 @@ pub fn create(
     var window_height: c_int = 0;
     _ = sdl.SDL_GetWindowSize(window, &window_width, &window_height);
 
+    // What adjustment is needed for text to appear "normal"
+    const display_scale = sdl.SDL_GetWindowDisplayScale(window);
+
     const density = sdl.SDL_GetWindowPixelDensity(window);
-    info("display_scale={d} window_size_pixels={d}x{d} pixel_density={d} window_size={d}x{d}", .{
-        pixel_scale,
-        pixel_width,
-        pixel_height,
-        density,
+    info("window_size={d}x{d} window_pixels={d}x{d} display_scale={d}", .{
         window_width,
         window_height,
+        pixel_width,
+        pixel_height,
+        display_scale,
     });
 
     const now = std.Io.Timestamp.now(io, .real).toMilliseconds();
@@ -338,27 +331,27 @@ pub fn create(
         .last_delta = now,
 
         .pixel_density = density,
-        .pixel_scale = pixel_scale,
+        .display_scale = display_scale,
         .user_scale = 1,
-        .scale = pixel_scale / 1, // pixel_scale / user_scale
+        .scale = display_scale * 1, // display_scale * user_scale
 
         .root = .{
             .name = "root",
             .rect = .{
                 .x = 0,
                 .y = 0,
-                .width = @as(f32, @floatFromInt(window_width)) * density,
-                .height = @as(f32, @floatFromInt(window_height)) * density,
+                .width = @as(f32, @floatFromInt(pixel_width)),
+                .height = @as(f32, @floatFromInt(pixel_width)),
             },
             .texture = null,
             .pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 },
             .minimum = .{
-                .width = @as(f32, @floatFromInt(window_width)) * density,
-                .height = @as(f32, @floatFromInt(window_height)) * density,
+                .width = @as(f32, @floatFromInt(pixel_width)),
+                .height = @as(f32, @floatFromInt(pixel_height)),
             },
             .maximum = .{
-                .width = @as(f32, @floatFromInt(window_width)) * density,
-                .height = @as(f32, @floatFromInt(window_height)) * density,
+                .width = @as(f32, @floatFromInt(pixel_width)),
+                .height = @as(f32, @floatFromInt(pixel_height)),
             },
             .layout = .{ .x = .grows, .y = .grows },
             .child_align = .{ .x = .centre, .y = .start },
@@ -860,7 +853,7 @@ pub fn loadFontResource(
     name: []const u8,
     config: Font.Config,
 ) (Error || Allocator.Error || Resources.Error)!*Font {
-    assert(self.pixel_scale > 0);
+    assert(self.display_scale > 0);
 
     for (self.fonts.items) |font| {
         if (std.mem.eql(u8, name, font.name))
@@ -1943,9 +1936,13 @@ pub inline fn updateScreenMetrics(display: *Self) void {
 
     var rwidth: c_int = 0;
     var rheight: c_int = 0;
-    //_ = sdl.SDL_GetWindowSize(display.window, &rwidth, &rheight);
-    _ = sdl.SDL_GetRenderOutputSize(display.renderer, &rwidth, &rheight);
-    //_ = sdl.SDL_GetCurrentRenderOutputSize(display.renderer, &rwidth, &rheight);
+    _ = sdl.SDL_GetWindowSizeInPixels(display.window, &rwidth, &rheight);
+
+    const old_display_scale = display.display_scale;
+    display.display_scale = sdl.SDL_GetWindowDisplayScale(display.window);
+
+    display.scale = display.display_scale * display.user_scale;
+
     if (display.root.rect.width != @as(f32, @floatFromInt(rwidth)))
         updated = true;
     if (display.root.rect.height != @as(f32, @floatFromInt(rheight)))
@@ -1954,13 +1951,17 @@ pub inline fn updateScreenMetrics(display: *Self) void {
         updated = true;
     if (display.root.minimum.height != @as(f32, @floatFromInt(rheight)))
         updated = true;
+    if (old_display_scale != display.scale)
+        updated = true;
 
     if (updated or engine.dev_build or engine.dev_mode) {
-        info("current display size {d}x{d} -=> new display size {d}x{d}", .{
+        info("window pixels {d}x{d} ({d}) => {d}x{d} ({d})", .{
             display.root.rect.width,
             display.root.rect.height,
+            old_display_scale,
             @as(f32, @floatFromInt(rwidth)),
             @as(f32, @floatFromInt(rheight)),
+            display.display_scale,
         });
     }
     if (updated)
@@ -2413,7 +2414,7 @@ pub fn setUserScale(display: *Self, scale: Scale) void {
         display.user_scale = 1
     else
         display.user_scale = scale.float();
-    display.scale = display.pixel_scale * display.user_scale;
+    display.scale = display.display_scale * display.user_scale;
     display.need_relayout = true;
 }
 
@@ -2429,10 +2430,10 @@ pub inline fn renderTexture(
     dest: *const Rect,
 ) void {
     const rect: sdl.SDL_FRect = .{
-        .x = dest.x, // * self.scale,
-        .y = dest.y, // * self.scale,
-        .w = dest.width, // * self.scale,
-        .h = dest.height, // * self.scale,
+        .x = dest.x * self.scale,
+        .y = dest.y * self.scale,
+        .w = dest.width * self.scale,
+        .h = dest.height * self.scale,
     };
 
     _ = sdl.SDL_RenderTexture(
@@ -2451,10 +2452,10 @@ pub inline fn render9GridTexture(
     corner_radius: f32,
 ) void {
     const rect: sdl.SDL_FRect = .{
-        .x = dest.x, // * self.scale,
-        .y = dest.y, // * self.scale,
-        .w = dest.width, // * self.scale,
-        .h = dest.height, // * self.scale,
+        .x = dest.x * self.scale,
+        .y = dest.y * self.scale,
+        .w = dest.width * self.scale,
+        .h = dest.height * self.scale,
     };
 
     const corner = if (corner_radius * 2 > @abs(dest.height))
@@ -2491,10 +2492,10 @@ pub fn increaseSize(
     else if (display.user_scale == 1.25)
         if (engine.dev_build or engine.dev_mode) 1.5 else 1.25
     else if (engine.dev_build or engine.dev_mode) 1.5 else 1.25;
-    display.scale = display.pixel_scale * display.user_scale;
+    display.scale = display.display_scale * display.user_scale;
     display.need_relayout = true;
     debug("Increase size. {d}*{d} = {d}", .{
-        display.pixel_scale,
+        display.display_scale,
         display.user_scale,
         display.scale,
     });
@@ -2517,10 +2518,10 @@ pub fn decreaseSize(
     else if (display.user_scale == 1.5)
         1.25
     else if (engine.dev_build or engine.dev_mode) 0.5 else 0.75;
-    display.scale = display.pixel_scale * display.user_scale;
+    display.scale = display.display_scale * display.user_scale;
     display.need_relayout = true;
     debug("Decrease size. {d}*{d} = {d}", .{
-        display.pixel_scale,
+        display.display_scale,
         display.user_scale,
         display.scale,
     });
@@ -3040,7 +3041,7 @@ test "text input sizing" {
         // Display width on physical display with word wrap
         try eq(
             2 * TextSize.normal.size(),
-            l.minimumNeededHeight(40 * display.pixel_scale),
+            l.minimumNeededHeight(40 * display.display_scale),
         );
         panel.removeEntities(display);
     }
