@@ -328,6 +328,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
         }
 
         if (entity.type == .expander) {
+            if (entity.type.expander.weight <= 0) continue;
             expanders.appendAssumeCapacity(entity);
             expander_weights += entity.type.expander.weight;
         }
@@ -575,9 +576,10 @@ inline fn placeChildrenTopToBottom(
             needed_height,
             parent.rect.height,
         });
-        if (parent.rect.height > needed_height) {
+        const needed_space = needed_height + parent.pad.top + parent.pad.bottom;
+        if (parent.rect.height > needed_space) {
             // Give each expander a percentage of the spare height area
-            const spare_height = parent.rect.height - needed_height;
+            const spare_height = parent.rect.height - needed_space;
             for (expanders) |expander| {
                 if (expander.type.expander.weight <= 0) continue;
 
@@ -705,9 +707,10 @@ inline fn placeChildrenLeftToRight(
             needed_width,
             parent.rect.width,
         });
+        const needed_space = needed_width + parent.pad.left + parent.pad.right;
         if (parent.rect.width > needed_width) {
             // Give each expander a percentage of the spare width area
-            const spare_width = parent.rect.width - needed_width;
+            const spare_width = parent.rect.width - needed_space;
             for (expanders) |expander| {
                 if (expander.type.expander.weight <= 0) continue;
 

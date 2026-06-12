@@ -84,7 +84,7 @@ pub fn readEntityType(allocator: Allocator, token: *Token) (Allocator.Error || E
     const entity: Entity = switch (token.tag) {
         .button => .{ .focus = .can_focus, .type = .{ .button = .{ .text_size = .normal } } },
         .checkbox => .{ .focus = .can_focus, .type = .{ .checkbox = .{ .text_size = .normal } } },
-        .expander => .{ .focus = .never_focus, .type = .{ .expander = .{} } },
+        .expander => .{ .focus = .never_focus, .layout = .{ .x = .grows, .y = .grows }, .type = .{ .expander = .{} } },
         .label => .{ .focus = .accessibility_focus, .type = .{ .label = .{ .text_size = .normal } } },
         .panel => .{
             .texture = null,
@@ -717,11 +717,17 @@ pub fn readColourAttribute(
     const colour = try readColour(field);
 
     switch (entity.type) {
-        .label, .checkbox => {
+        .expander => return error.UnexpectedToken,
+        else => {
+            warn("Entity {t} has style {t} and colour {s}", .{
+                entity.type,
+                entity.style,
+                field,
+            });
             entity.style = .custom;
             entity.colour = colour;
         },
-        else => return error.UnexpectedToken,
+        //else => return error.UnexpectedToken,
     }
 
     token.* = try token.next();
@@ -734,27 +740,41 @@ inline fn readColour(value: []const u8) Error!engine.Colour {
         .{ .r = 0, .g = 0, .b = 0, .a = 255 }
     else if (std.ascii.eqlIgnoreCase(value, "transparent"))
         .{ .r = 0, .g = 0, .b = 0, .a = 0 }
-    else
+    else {
+        if (engine.Colour.parse(value)) |colour| {
+            return colour;
+        }
         return error.UnexpectedToken;
+    };
 }
 
 pub fn readBackgroundColourAttribute(
     token: *Token,
     entity: *engine.Entity,
 ) Error!void {
+    if (entity.type == .expander) {
+        err("{t} does not support colour attribute.", .{entity.type});
+        return error.UnexpectedToken;
+    }
     token.* = try token.next();
     const field = switch (token.tag) {
         .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
         .field => token.slice(),
-        else => return error.UnexpectedToken,
+        else => {
+            err("Expected background_colour value, found {t}", .{token.tag});
+            return error.UnexpectedToken;
+        },
     };
     const colour = try readColour(field);
 
     switch (entity.type) {
-        .sprite => {
+        .expander => {
+            err("{t} does not have colour attribute.", .{entity.type});
+            return error.UnexpectedToken;
+        },
+        else => {
             entity.background.colour = colour;
         },
-        else => return error.UnexpectedToken,
     }
 
     token.* = try token.next();
@@ -1942,6 +1962,7 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 
 const engine = @import("engine.zig");
 const err = engine.log.err;
+const warn = engine.log.warn;
 
 const Token = @import("Token.zig");
 const Entity = @import("Entity.zig");
