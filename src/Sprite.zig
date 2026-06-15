@@ -50,8 +50,16 @@ pub inline fn draw(
         };
         applyContentScale(self.scale, &source, &dest, entity.child_align);
 
-        if (entity.style == .custom)
-            tint_texture(texture.texture, entity.colour);
+        switch (entity.style) {
+            .normal => tint_texture(texture.texture, engine.Colour.WHITE),
+            .custom => tint_texture(texture.texture, entity.colour),
+            .emphasised => tint_texture(texture.texture, display.theme.emphasised_text_colour),
+            .success => tint_texture(texture.texture, display.theme.success_text_colour),
+            .failed => tint_texture(texture.texture, display.theme.failed_text_colour),
+            .faded => tint_texture(texture.texture, display.theme.faded_text_colour),
+            .tinted => tint_texture(texture.texture, display.theme.tinted_text_colour),
+            .background => tint_texture(texture.texture, engine.Colour.WHITE),
+        }
 
         dest.height *= x_scale;
 

@@ -358,23 +358,14 @@ pub fn readOnVisibilityAttribute(
 ) Error!void {
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
-    switch (token.tag) {
-        .string => {
-            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            entity.on_visibility.func = try callbacks.find(callback_name);
-            entity.on_visibility.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
-        .field => {
-            const callback_name = token.slice();
-            entity.on_visibility.func = try callbacks.find(callback_name);
-            entity.on_visibility.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
+    const callback = switch (token.tag) {
+        .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
+        .field => token.slice(),
         else => return error.UnexpectedToken,
-    }
+    };
+    entity.on_visibility.func = try callbacks.find(callback);
+    entity.on_visibility.ptr = handler;
+    token.* = try token.next();
 }
 
 pub fn readOnUpdateAttribute(
@@ -1320,7 +1311,7 @@ pub const StateCallbackSet = struct {
             const f = @field(t, decl.name);
             const info = @typeInfo(@TypeOf(f));
             if (info != .@"fn") continue;
-            if (info.@"fn".params.len != 4) continue;
+            if (info.@"fn".params.len != 3) continue;
             if (info.@"fn".return_type == null) continue;
             if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
             if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;

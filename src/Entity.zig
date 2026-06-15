@@ -342,10 +342,15 @@ pub inline fn applyBackgroundTint(
     }
 
     if (self.type == .sprite) {
-        if (self.background.colour.a != 0) {
-            tint_texture(texture, self.background.colour);
-        } else {
-            tint_texture(texture, Colour.WHITE);
+        switch (self.style) {
+            .custom => tint_texture(texture, self.background.colour),
+            .normal => tint_texture(texture, Colour.WHITE),
+            .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
+            .success => tint_texture(texture, display.theme.success_panel_colour),
+            .failed => tint_texture(texture, display.theme.failed_panel_colour),
+            .faded => tint_texture(texture, display.theme.faded_panel_colour),
+            .tinted => tint_texture(texture, display.theme.label_background_colour),
+            .background => tint_texture(texture, display.theme.background_colour),
         }
         return;
     }
