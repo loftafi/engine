@@ -1026,6 +1026,9 @@ pub fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error 
             entity.type.button.icon.pressed = try display.loadBundleTexture(&display.resources, value);
         }
     } else {
+        if (entity.texture_name) |value| {
+            entity.texture = try display.loadBundleTexture(&display.resources, value);
+        }
         if (entity.background.image_name) |value| {
             entity.background.image = try display.loadBundleTexture(&display.resources, value);
         }
@@ -1245,6 +1248,17 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             var dest = entity.rect.move(scroll_offset);
             if (parent_clip) |clip|
                 clip.applyEdgeClipping(&dest);
+
+            // Stretch the full image onto the drawing area
+            var source: engine.Rect = .{
+                .x = 0,
+                .y = 0,
+                .width = @as(f32, @floatFromInt(texture.texture.w)),
+                .height = @as(f32, @floatFromInt(texture.texture.h)),
+            };
+            if (entity.type == .sprite) {
+                Sprite.applyContentScale(entity.type.sprite.scale, &source, &dest, entity.child_align);
+            }
 
             if (entity.flip.x) {
                 dest.x += dest.width;

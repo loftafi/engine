@@ -978,11 +978,11 @@ pub inline fn appendPanel(
     HandlerType: type,
     handler: *HandlerType,
 ) (Allocator.Error || Resources.Error || Error)!*Entity {
-    var token: engine.Token = try .init(data);
+    var token: Token = try .init(data);
 
     if (token.tag == .eof) return Error.UnexpectedToken;
 
-    const child = try engine.EntityParser.readEntityTokens(
+    const child = try EntityParser.readEntityTokens(
         self.allocator,
         &token,
         HandlerType,
@@ -1000,14 +1000,16 @@ pub inline fn appendPanel(
     }
 
     try Entity.postAppend(self, child);
-    try self.root.append(self.allocator, child);
+    try self.root.type.panel.children.append(self.allocator, child);
 
-    if (child.visible != .hidden and self.visible != .hidden)
+    if (child.visible != .hidden)
         self.need_relayout = true;
 
     if (self.fonts.items.len == 0) {
         warn("addPanel called before setDefaultFont.", .{});
     }
+
+    return child;
 }
 
 /// A texture resource may be referenced by multiple on screen
@@ -3389,6 +3391,8 @@ const notice = log.notice;
 
 const test_config = @import("test.zig").test_config;
 const headless_display = @import("test.zig").headless_display;
+const Token = @import("Token.zig");
+const EntityParser = @import("EntityParser.zig");
 const resources_sdl = @import("resources_sdl.zig");
 const initResourcesSdl = resources_sdl.initResourcesSdl;
 const loadBundleSdl = resources_sdl.loadBundleSdl;

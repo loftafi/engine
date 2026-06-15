@@ -340,23 +340,14 @@ pub fn readOnResizedAttribute(
 ) Error!void {
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
-    switch (token.tag) {
-        .string => {
-            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            entity.on_resized.func = try callbacks.find(callback_name);
-            entity.on_resized.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
-        .field => {
-            const callback_name = token.slice();
-            entity.on_resized.func = try callbacks.find(callback_name);
-            entity.on_resized.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
+    const callback = switch (token.tag) {
+        .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
+        .field => token.slice(),
         else => return error.UnexpectedToken,
-    }
+    };
+    entity.on_resized.func = try callbacks.find(callback);
+    entity.on_resized.ptr = handler;
+    token.* = try token.next();
 }
 
 pub fn readOnVisibilityAttribute(
@@ -397,25 +388,17 @@ pub fn readOnUpdateAttribute(
         .panel => &entity.type.panel.on_update,
         else => return Error.UnexpectedToken,
     };
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     token.* = try token.next();
-    err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
-    switch (token.tag) {
-        .string => {
-            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            f.func = try callbacks.find(callback_name);
-            f.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
-        .field => {
-            const callback_name = token.slice();
-            f.func = try callbacks.find(callback_name);
-            f.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    const callback = switch (token.tag) {
+        .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
+        .field => token.slice(),
         else => return error.UnexpectedToken,
-    }
+    };
+    f.func = try callbacks.find(callback);
+    f.ptr = handler;
+    token.* = try token.next();
 }
 
 pub fn readOnSubmitAttribute(
@@ -525,7 +508,10 @@ pub fn readOnPressedAttribute(
         .label => &entity.type.label.on_pressed,
         .panel => &entity.type.panel.on_pressed,
         .sprite => &entity.type.sprite.on_pressed,
-        else => return Error.UnexpectedToken,
+        else => {
+            warn("on_pressed expected button, label, panel, or sprite. Found {t}", .{entity.type});
+            return Error.UnexpectedToken;
+        },
     };
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
@@ -965,54 +951,26 @@ pub fn readFlipAttribute(
     entity: *engine.Entity,
 ) Error!void {
     token.* = try token.next();
-    var value_count: u8 = 0;
-    var read_x = false;
-    var read_y = false;
-    while (true) {
-        switch (token.tag) {
-            .x => {
-                if (read_x == true) return error.UnexpectedToken;
-                token.* = try token.next();
-                entity.flip.x = switch (token.tag) {
-                    .true => true,
-                    .false => false,
-                    else => return error.UnexpectedToken,
-                };
-                token.* = try token.next();
-                read_x = true;
-            },
-            .y => {
-                if (read_y == true) return error.UnexpectedToken;
-                token.* = try token.next();
-                entity.flip.y = switch (token.tag) {
-                    .true => true,
-                    .false => false,
-                    else => return error.UnexpectedToken,
-                };
-                token.* = try token.next();
-                read_y = true;
-            },
-            .true, .false => {
-                if (value_count == 2) return error.UnexpectedToken;
-                if (value_count == 0) entity.flip.x = switch (token.tag) {
-                    .true => true,
-                    .false => false,
-                    else => return error.UnexpectedToken,
-                };
-                if (value_count == 1) entity.flip.y = switch (token.tag) {
-                    .true => true,
-                    .false => false,
-                    else => return error.UnexpectedToken,
-                };
-                value_count += 1;
-                token.* = try token.next();
-            },
-            else => {
-                if (read_x == true or read_y == true or value_count > 0) return;
-                return error.UnexpectedToken;
-            },
-        }
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+
+    switch (token.tag) {
+        .vertical => entity.flip.y = true,
+        .horizontal => entity.flip.x = true,
+        else => return error.UnexpectedToken,
     }
+    const previous = token.tag;
+    token.* = try token.next();
+
+    if (previous != token.tag) {
+        switch (token.tag) {
+            .vertical => entity.flip.y = true,
+            .horizontal => entity.flip.x = true,
+            else => return,
+        }
+        token.* = try token.next();
+    }
+
+    return;
 }
 
 pub fn readLayoutAttribute(

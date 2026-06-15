@@ -70,7 +70,7 @@ pub inline fn draw(
 
 /// Calculate the slice of the source image and the slice of the target drawing
 /// area based on the scaling and alignment setting.
-fn applyContentScale(
+pub fn applyContentScale(
     scale: Fit,
     source: *Rect,
     dest: *Rect,
