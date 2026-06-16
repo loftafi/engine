@@ -243,6 +243,11 @@ pub fn create(
         err("No Window created. {s}", .{sdl.SDL_GetError()});
         return error.WindowCreationFailed;
     };
+    _ = sdl.SDL_SetWindowMinimumSize(
+        window,
+        if (config.min_width == 0) 200 else @intCast(config.min_width),
+        if (config.min_height == 0) 200 else @intCast(config.min_height),
+    );
 
     const renderer = sdl.SDL_CreateRenderer(window, null) orelse {
         err("No Renderer initialised. {s}", .{sdl.SDL_GetError()});
@@ -609,6 +614,12 @@ pub fn choosePanel(
     for (self.root.type.panel.children.items) |item| {
         const panel = if (item.type == .panel) item.type.panel else continue;
         if (panel.choosable == .not_choosable) continue;
+        if (panel.choosable == .unspecified)
+            warn("Top level panel '{s}' is neither {t} nor {t}", .{
+                item.name,
+                Entity.Panel.Choosable.choosable,
+                Entity.Panel.Choosable.not_choosable,
+            });
 
         if (std.mem.eql(u8, name, item.name)) {
             if (item.visible != .visible) {
@@ -659,7 +670,7 @@ pub fn currentPanel(self: *Self) ?*Entity {
             err("root panel contains {t} which is not a panel", .{item.type});
             continue;
         }
-        if (item.type.panel.choosable != .not_choosable) continue;
+        if (item.type.panel.choosable != .choosable) continue;
         if (item.visible == .visible) return item;
     }
     trace("currentPanel() did not find panel.", .{});
@@ -998,6 +1009,12 @@ pub inline fn appendPanel(
         });
         return Error.RootAcceptsPanelsOnly;
     }
+    if (child.type.panel.choosable == .unspecified)
+        warn("Top level panel '{s}' is neither {t} nor {t}", .{
+            child.name,
+            Entity.Panel.Choosable.choosable,
+            Entity.Panel.Choosable.not_choosable,
+        });
 
     try Entity.postAppend(self, child);
     try self.root.type.panel.children.append(self.allocator, child);
@@ -2801,15 +2818,11 @@ pub fn add_paragraph(
     name: []const u8,
     text: []const u8,
 ) (Error || Allocator.Error || Resources.Error)!void {
+    _ = name;
     _ = try parent.add(.{
-        .name = name,
-        .focus = .accessibility_focus,
-        .rect = .{ .x = 250, .y = 50, .width = 500, .height = 80 },
         .layout = .{ .y = .shrinks, .x = .grows },
-        .child_align = .{ .x = .start, .y = .start },
         .type = .{ .label = .{
             .text = text,
-            .translated = "",
             .text_size = size,
         } },
     }, display);

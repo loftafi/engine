@@ -479,6 +479,14 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
     _ = try out.write("/");
     _ = try out.write(@tagName(self.layout.y));
     if (self.type == .panel) {
+        if (self.type.panel.choosable != .unspecified) {
+            _ = try out.write(" ");
+            _ = try out.write(@tagName(self.type.panel.choosable));
+        }
+        if (self.type.panel.safe_area != .unspecified) {
+            _ = try out.write(" ");
+            _ = try out.write(@tagName(self.type.panel.safe_area));
+        }
         if (self.name.len > 0) {
             _ = try out.write(" direction=");
             _ = try out.write(@tagName(self.type.panel.direction));
