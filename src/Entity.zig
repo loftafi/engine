@@ -491,6 +491,10 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             _ = try out.write(" direction=");
             _ = try out.write(@tagName(self.type.panel.direction));
         }
+        if (self.type.panel.scrollable.scroll.x or self.type.panel.scrollable.scroll.y) {
+            _ = try out.print(" offset={d}x{d}", .{ self.offset.x, self.offset.y });
+            _ = try out.print(" inner={d}x{d}", .{ self.type.panel.scrollable.size.width, self.type.panel.scrollable.size.height });
+        }
     }
     if (self.type == .sprite) {
         if (self.name.len > 0) {
@@ -1137,6 +1141,10 @@ pub inline fn removeEntities(
         item.destroy(display);
     }
     self.type.panel.children.clearRetainingCapacity();
+    self.offset.x = 0;
+    self.offset.y = 0;
+    self.type.panel.scrollable.size.width = 0;
+    self.type.panel.scrollable.size.height = 0;
 }
 
 /// Make sure nothing is holding a reference to an entity that

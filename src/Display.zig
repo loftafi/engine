@@ -609,7 +609,7 @@ pub fn choosePanel(
 ) Allocator.Error!void {
     const old_panel = self.currentPanel();
 
-    var found = false;
+    var found: ?*Entity = null;
 
     for (self.root.type.panel.children.items) |item| {
         const panel = if (item.type == .panel) item.type.panel else continue;
@@ -643,14 +643,45 @@ pub fn choosePanel(
                 try item.setVisibility(self, .hidden);
             }
         }
-        found = true;
+        found = item;
     }
     if (self.selected) |selected| {
         selected.deselected(self, event);
     }
     self.updateScreenMetrics();
-    if (!found and name.len > 0) {
+    if (found == null) {
         warn("choosePanel() did not find panel. name={s}", .{name});
+    } else {
+        boundScrollerPanels(found.?);
+    }
+}
+
+fn boundScrollerPanels(entity: *Entity) void {
+    if (entity.type != .panel) return;
+    const panel = &entity.type.panel;
+    if (panel.scrollable.scroll.x) {
+        const max_x = -panel.scrollable.size.width + entity.rect.width;
+        if (entity.offset.x < max_x) {
+            warn("patched {s} x offset {d} => {d}", .{ entity.name, entity.offset.x, max_x });
+            entity.offset.x = max_x;
+        } else {
+            debug("scroller {s} x offset {d} is in {d}", .{ entity.name, entity.offset.x, max_x });
+        }
+    }
+    if (panel.scrollable.scroll.y) {
+        const max_y = -panel.scrollable.size.height + entity.rect.height;
+        if (entity.offset.y < max_y) {
+            warn("patched {s} y offset {d} => {d}", .{ entity.name, entity.offset.y, max_y });
+            entity.offset.y = max_y;
+        } else {
+            debug("scroller {s} y offset {d} is in {d}", .{ entity.name, entity.offset.y, max_y });
+        }
+    }
+
+    for (entity.type.panel.children.items) |child| {
+        if (child.type == .panel) {
+            boundScrollerPanels(child);
+        }
     }
 }
 
