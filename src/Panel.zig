@@ -111,7 +111,9 @@ fn calculateMinimumNeededHeight(
 ) f32 {
     std.debug.assert(entity.type == .panel);
     if (entity.visible == .hidden) return 0;
-    if (entity.layout.position == .float) return 0;
+
+    // Even floating objects need to know their neededHeight.
+    //if (entity.layout.position == .float) return 0;
 
     const available_width = entity.inner_width();
 
@@ -173,6 +175,8 @@ fn calculateMinimumNeededHeight(
             var minimum_needed: f32 = 0;
             for (entity.type.panel.children.items) |child| {
                 if (child.layout.position == .float) continue;
+                if (child.visible == .hidden) continue;
+                if (child.type == .expander) continue;
 
                 const height = child.minimumNeededHeight(available_width);
                 if (height > minimum_needed)

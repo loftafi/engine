@@ -60,8 +60,8 @@ pub inline fn draw(
 }
 
 pub inline fn minimumNeededWidth(
-    _: *Checkbox,
-    entity: *Entity,
+    _: *const Checkbox,
+    entity: *const Entity,
     max_width: f32,
 ) f32 {
     const margins = entity.pad.left + entity.pad.right + entity.type.checkbox.checkbox_size.width;

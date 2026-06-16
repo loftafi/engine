@@ -235,7 +235,80 @@ pub inline fn minimumNeededHeight(
     return @max(entity.minimum.height, height);
 }
 
-test "button_size" {
+test "button_text_size" {
+    //button name=cloze.button rect=156x420/70x0
+    //  pad=12l5t5b layout=shrinks/shrinks text=Μαρία
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 1024, 720, 2);
+    defer display.destroy();
+
+    const panel = try display.addPanel(.{
+        .type = .{ .panel = .{ .direction = .centre } },
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+    });
+
+    const button = try panel.add(.{
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+        .pad = .{ .left = 12, .top = 5, .bottom = 5 },
+        .type = .{ .button = .{} },
+    }, display);
+
+    display.need_relayout = true;
+    display.relayout();
+
+    try expectEqual(12, button.minimumNeededWidth(200));
+    try expectEqual(10, button.minimumNeededHeight(200));
+    try expectEqual(12, panel.minimumNeededWidth(200));
+    try expectEqual(10, panel.minimumNeededHeight(200));
+    try expectEqual(12, button.rect.width);
+    try expectEqual(10, button.rect.height);
+    try expectEqual(12, panel.rect.width);
+    try expectEqual(10, panel.rect.height);
+
+    try button.setText(display, "Μαρία");
+    display.need_relayout = true;
+    display.relayout();
+
+    try expectEqual(67, button.minimumNeededWidth(200));
+    try expectEqual(32, button.minimumNeededHeight(200));
+    try expectEqual(67, panel.minimumNeededWidth(200));
+    try expectEqual(32, panel.minimumNeededHeight(200));
+    try expectEqual(67, button.rect.width);
+    try expectEqual(32, button.rect.height);
+    try expectEqual(67, panel.rect.width);
+    try expectEqual(32, panel.rect.height);
+
+    panel.type.panel.direction = .left_to_right;
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(67, button.minimumNeededWidth(200));
+    try expectEqual(32, button.minimumNeededHeight(200));
+    try expectEqual(67, panel.minimumNeededWidth(200));
+    try expectEqual(32, panel.minimumNeededHeight(200));
+    try expectEqual(67, button.rect.width);
+    try expectEqual(32, button.rect.height);
+    try expectEqual(67, panel.rect.width);
+    try expectEqual(32, panel.rect.height);
+
+    panel.type.panel.direction = .left_to_right_wrap;
+    panel.layout.x = .grows;
+    display.need_relayout = true;
+    display.relayout();
+    display.need_relayout = true;
+    display.relayout();
+    try expectEqual(67, button.minimumNeededWidth(200));
+    try expectEqual(32, button.minimumNeededHeight(200));
+    try expectEqual(67, panel.minimumNeededWidth(200));
+    try expectEqual(32, panel.minimumNeededHeight(200));
+    try expectEqual(67, button.rect.width);
+    try expectEqual(32, button.rect.height);
+    try expectEqual(1024, panel.rect.width);
+    try expectEqual(32, panel.rect.height);
+}
+
+test "button_icon_size" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
@@ -300,12 +373,14 @@ test "button_in_float" {
     }, display);
 
     const button1 = try bar.add(.{
+        .name = "button1",
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .button = .{ .icon = .{ .size = .{ .width = 20, .height = 20 } } } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     }, display);
 
     const button2 = try bar.add(.{
+        .name = "button2",
         .minimum = .{ .width = 5, .height = 8 },
         .type = .{ .button = .{ .icon = .{ .size = .{ .width = 20, .height = 20 } } } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
@@ -315,9 +390,10 @@ test "button_in_float" {
     display.relayout();
 
     try expectEqual(20, button1.minimumNeededWidth(200));
+    try expectEqual(20, button1.rect.width);
     try expectEqual(20, button2.minimumNeededHeight(200));
-    // TODO: This fails, it should not fail.
-    //try expectEqual(20, bar.minimumNeededHeight(200));
+    try expectEqual(20, button2.rect.height);
+    try expectEqual(20, bar.minimumNeededHeight(200));
 }
 
 test "normal_use" {

@@ -135,25 +135,17 @@ pub fn setup(
             //entity.layout.x = .fixed;
             float_error = true;
         },
-        .shrinks => if (entity.layout.position == .float) {
-            //entity.layout.x = .fixed;
-            float_error = true;
-        },
-        .fixed => {},
+        .fixed, .shrinks => {},
     }
     switch (entity.layout.y) {
         .grows => if (entity.layout.position == .float) {
             //entity.layout.y = .fixed;
             float_error = true;
         },
-        .shrinks => if (entity.layout.position == .float) {
-            entity.layout.y = .fixed;
-            float_error = true;
-        },
-        .fixed => {},
+        .fixed, .shrinks => {},
     }
     if (float_error)
-        err("floating items cant grow or shrink. {s} {s}", .{
+        err("floating items cant grow. {s} {s}", .{
             entity.name,
             @tagName(entity.type),
         });
@@ -1182,10 +1174,10 @@ pub fn update(self: *Entity, display: *Display) void {
     }
 }
 
-/// Shrink to the smallest height this object is allowed to
-/// shrink to based on the children. If children wrap according
-/// to the width of the parent, then the parent width is needed
-/// to calculate the height
+/// Calculate the minimum height this `Entity` would like to consume if
+/// it is `shrunk`. If the item is floating. For entities that `wrap`
+/// the minimum height may depend on the width this Entity is permitted
+/// to use.
 pub fn minimumNeededHeight(self: *Entity, parent_width: f32) f32 {
     if (self.visible == .hidden)
         return 0;
@@ -1208,7 +1200,7 @@ pub fn minimumNeededHeight(self: *Entity, parent_width: f32) f32 {
 /// .
 /// Some entities grow to the `parent_width`, which is usually the
 /// `parent.rect.width` minus any internal padding.
-pub fn minimumNeededWidth(self: *Entity, parent_inner_width: f32) f32 {
+pub fn minimumNeededWidth(self: *const Entity, parent_inner_width: f32) f32 {
     if (self.visible == .hidden)
         return 0;
 
@@ -1953,6 +1945,20 @@ pub fn setup_button(
         });
 
     try entity.setText(display, entity.type.button.text);
+
+    if (entity.layout.y == .fixed and entity.rect.height == 0) {
+        if (entity.type.button.icon.size.height > 0 or entity.type.button.text.len > 0)
+            warn("button `{s}` has content but a fixed height of zero.", .{
+                entity.name,
+            });
+    }
+
+    if (entity.layout.x == .fixed and entity.rect.width == 0) {
+        if (entity.type.button.icon.size.width > 0 or entity.type.button.text.len > 0)
+            warn("button `{s}` has content but a fixed width of zero.", .{
+                entity.name,
+            });
+    }
 
     if (entity.type.button.icon.default_name) |value| {
         if (try display.requireImage(value)) |texture| {

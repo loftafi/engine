@@ -2526,6 +2526,7 @@ pub fn setUserScale(display: *Self, scale: Scale) void {
     else
         display.user_scale = scale.float();
     display.scale = display.display_scale * display.user_scale;
+    display.updateScreenMetrics();
     display.need_relayout = true;
 }
 
