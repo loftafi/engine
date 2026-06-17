@@ -405,8 +405,7 @@ inline fn updateChildSize(
         },
         .shrinks => {
             // Shrink to the smallest the children will allow.
-            var new_width = entity.minimumNeededWidth(available_width);
-            if (new_width > available_width) new_width = available_width;
+            const new_width = entity.minimumNeededWidth(available_width);
             if (entity.rect.width != new_width) {
                 entity.rect.width = new_width;
                 child_resized = true;
@@ -430,9 +429,8 @@ inline fn updateChildSize(
             }
         },
         .shrinks => {
-            // Shrink to the smallest the children will allow
-            var new_height = entity.minimumNeededHeight(available_width);
-            if (new_height > available_height) new_height = available_height;
+            // Shrink to the smallest the children will allow.
+            const new_height = entity.minimumNeededHeight(available_width);
             if (entity.rect.height != new_height) {
                 entity.rect.height = new_height;
                 child_resized = true;
