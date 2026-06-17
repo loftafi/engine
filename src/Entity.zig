@@ -90,6 +90,7 @@ type: union(Type) {
     expander: Expander,
     label: Label,
     panel: Panel,
+    particles: Particles,
     progress_bar: ProgressBar,
     rectangle: Rectangle,
     sprite: Sprite,
@@ -110,6 +111,7 @@ pub fn setup(
         .progress_bar => try entity.setup_progress_bar(display),
         .expander => try entity.setup_expander(display),
         .text_input => try entity.setup_text_input(display),
+        .particles => try entity.type.particles.setup(display, entity),
     }
 
     // Warn about invalid layout configurations
@@ -187,12 +189,6 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
             }
             i.*.children.deinit(allocator);
         },
-        .progress_bar => {
-            //
-        },
-        .expander => {
-            //
-        },
         .text_input => |*i| {
             i.*.runes.deinit(allocator);
             i.*.text.deinit(allocator);
@@ -211,8 +207,6 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
             }
             i.*.elements.deinit(allocator);
         },
-        .rectangle => {},
-        .sprite => {},
         .button => |*i| {
             if (i.*.icon.hover) |texture| {
                 display.releaseTextureResource(texture);
@@ -227,6 +221,10 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
                 display.releaseTextureResource(texture);
             }
         },
+        .particles => |*p| {
+            p.deinit(display);
+        },
+        .progress_bar, .expander, .rectangle, .sprite => {},
     }
     self.* = undefined;
 }
@@ -1478,7 +1476,7 @@ pub fn chosen(
             self.type.checkbox.checked = !self.type.checkbox.checked;
             try self.type.checkbox.on_change.call(display, self, event);
         },
-        .progress_bar, .text_input, .rectangle, .expander => {},
+        .particles, .progress_bar, .text_input, .rectangle, .expander => {},
     }
 }
 
@@ -1641,7 +1639,7 @@ pub fn isSelectable(self: *const Entity, display: *Display) bool {
         },
         .text_input => return true,
         .checkbox => return true,
-        .expander, .progress_bar, .rectangle => return false,
+        .particles, .expander, .progress_bar, .rectangle => return false,
     }
 
     return false;
@@ -2207,6 +2205,11 @@ pub const Vector = struct {
     x: f32 = 0,
     y: f32 = 0,
 
+    pub const zero = Vector{
+        .x = 0,
+        .y = 0,
+    };
+
     /// Add the x and y value from the `other` vector to this vector.
     pub fn add(self: Vector, other: Vector) Vector {
         return Vector{
@@ -2516,6 +2519,7 @@ pub const Type = enum {
     expander,
     label,
     panel,
+    particles,
     progress_bar,
     rectangle,
     sprite,
@@ -2563,6 +2567,7 @@ pub const Checkbox = @import("Checkbox.zig");
 pub const Expander = @import("Expander.zig");
 pub const Panel = @import("Panel.zig");
 pub const ProgressBar = @import("ProgressBar.zig");
+pub const Particles = @import("Particles.zig");
 pub const Sprite = @import("Sprite.zig");
 pub const Label = @import("Label.zig");
 pub const Rectangle = @import("Rectangle.zig");

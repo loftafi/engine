@@ -46,6 +46,8 @@ pub const Tag = enum(u8) {
     sprite,
     rectangle,
     progress_bar,
+    particles,
+    count,
     name,
     @"align",
     eof,
@@ -154,6 +156,11 @@ pub const Tag = enum(u8) {
     field,
     em,
     scroll,
+    movement,
+    fireworks,
+    spin,
+    linear,
+    direction,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does

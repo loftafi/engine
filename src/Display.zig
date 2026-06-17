@@ -1859,7 +1859,7 @@ pub fn find_under_cursor(
                     if (query == .clickable) return item;
                     if (top_entity != null) top_entity = item;
                 },
-                .rectangle, .progress_bar, .expander => {},
+                .particles, .rectangle, .progress_bar, .expander => {},
             };
         }
         if (query == .scrollable or query == .clickable_or_scrollable) {
@@ -2246,7 +2246,7 @@ inline fn handleMouseUpEvent(
             .sprite => try found.chosen(display, &.{ .type = .mouse_up }),
             .checkbox => try found.chosen(display, &.{ .type = .mouse_up }),
             .text_input => found.selected(display, &.{ .type = .mouse_up }),
-            .rectangle, .progress_bar, .expander => {
+            .particles, .rectangle, .progress_bar, .expander => {
                 // Not clickable
             },
         }

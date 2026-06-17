@@ -84,8 +84,15 @@ pub fn readEntityType(allocator: Allocator, token: *Token) (Allocator.Error || E
     const entity: Entity = switch (token.tag) {
         .button => .{ .focus = .can_focus, .type = .{ .button = .{ .text_size = .normal } } },
         .checkbox => .{ .focus = .can_focus, .type = .{ .checkbox = .{ .text_size = .normal } } },
-        .expander => .{ .focus = .never_focus, .layout = .{ .x = .grows, .y = .grows }, .type = .{ .expander = .{} } },
-        .label => .{ .focus = .accessibility_focus, .type = .{ .label = .{ .text_size = .normal } } },
+        .expander => .{
+            .focus = .never_focus,
+            .layout = .{ .x = .grows, .y = .grows },
+            .type = .{ .expander = .{} },
+        },
+        .label => .{
+            .focus = .accessibility_focus,
+            .type = .{ .label = .{ .text_size = .normal } },
+        },
         .panel => .{
             .texture = null,
             .background = .{ .image = null },
@@ -94,6 +101,11 @@ pub fn readEntityType(allocator: Allocator, token: *Token) (Allocator.Error || E
         .progress_bar => .{ .type = .{ .progress_bar = .{} } },
         .rectangle => .{ .type = .{ .rectangle = .{} } },
         .sprite => .{ .type = .{ .sprite = .{} } },
+        .particles => .{ .type = .{ .particles = .{
+            .movement = .linear,
+            .count = 0,
+            .linear = .{ .direction = .zero, .velocity = .zero },
+        } } },
         .text_input => .{
             .minimum = .{ .height = TextSize.normal.size() },
             .focus = .can_focus,
