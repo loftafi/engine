@@ -16,7 +16,6 @@ cursor_character: usize = 0,
 cursor_pixels: f32 = 0,
 on_change: Entity.Callback = .empty,
 on_submit: Entity.Callback = .empty,
-placeholder_texture: ?*sdl.SDL_Texture = null,
 placeholder_text: ?[]const u8 = "",
 placeholder_translate: []const u8 = "",
 
@@ -141,14 +140,7 @@ pub inline fn draw(
             cursor_box.x += (entity.rect.height - entity.pad.top - entity.pad.bottom);
             cursor_box.x += word_spacing;
         }
-        _ = sdl.SDL_SetRenderDrawColor(
-            display.renderer,
-            display.theme.cursor_colour.r,
-            display.theme.cursor_colour.g,
-            display.theme.cursor_colour.b,
-            display.theme.cursor_colour.a,
-        );
-        _ = sdl.SDL_RenderFillRect(display.renderer, @ptrCast(&cursor_box));
+        display.renderSolidRectangle(display.theme.cursor_colour, &cursor_box);
     }
 
     // Draw the icon if one was specified
@@ -162,14 +154,12 @@ pub inline fn draw(
             .width = icon_size,
             .height = icon_size,
         };
-        _ = sdl.SDL_SetRenderDrawColor(
-            display.renderer,
-            display.theme.placeholder_text_colour.r,
-            display.theme.placeholder_text_colour.g,
-            display.theme.placeholder_text_colour.b,
-            display.theme.placeholder_text_colour.a,
+        display.renderTextureWithMod(
+            icon_texture.texture,
+            &display.theme.placeholder_text_colour,
+            null,
+            &dest,
         );
-        display.renderTexture(icon_texture.texture, null, &dest);
     }
 
     // Draw either the user text or the placeholder text if set.

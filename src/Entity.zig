@@ -1160,6 +1160,9 @@ pub fn update(self: *Entity, display: *Display) void {
 
         if (self.velocity.y > 0)
             self.rect.y += self.velocity.y;
+    } else if (self.type == .particles) {
+        self.rect.x += self.type.particles.linear.velocity.x;
+        self.rect.y += self.type.particles.linear.velocity.y;
     }
 
     if (display.need_relayout)
@@ -2261,6 +2264,8 @@ pub const Rect = extern struct {
     width: f32 = 0,
     height: f32 = 0,
 
+    pub const zero = Rect{ .x = 0, .y = 0, .width = 0, .height = 0 };
+
     /// Add the x and y value from the `other` vector to this vector.
     pub fn move(self: *const Rect, offset: Vector) Rect {
         return .{
@@ -2320,6 +2325,8 @@ pub const Clip = struct {
 pub const Size = struct {
     width: f32 = 0,
     height: f32 = 0,
+
+    pub const zero = Size{ .width = 0, .height = 0 };
 };
 
 /// The width and height an entity will used based on parent entity information.

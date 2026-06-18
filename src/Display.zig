@@ -2556,6 +2556,28 @@ pub inline fn renderTexture(
     );
 }
 
+pub inline fn renderTextureWithMod(
+    self: *Display,
+    texture: *sdl.SDL_Texture,
+    mod: *const engine.Colour,
+    source: ?*const Rect,
+    dest: *const Rect,
+) void {
+    const rect: sdl.SDL_FRect = .{
+        .x = dest.x * self.scale,
+        .y = dest.y * self.scale,
+        .w = dest.width * self.scale,
+        .h = dest.height * self.scale,
+    };
+    _ = sdl.SDL_SetRenderDrawColor(self.renderer, mod.r, mod.g, mod.b, mod.a);
+    _ = sdl.SDL_RenderTexture(
+        self.renderer,
+        texture,
+        if (source) |from| @ptrCast(from) else null,
+        &rect,
+    );
+}
+
 /// Draw an outline of a rectangle. Used in debug mode to highlight where
 /// items appear on the screen.
 pub fn renderRectangle(
