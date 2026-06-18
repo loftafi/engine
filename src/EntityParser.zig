@@ -1,4 +1,4 @@
-const max_callbacks = 20;
+const max_callbacks = 40;
 
 /// Add or update the fields of an Entity by parsing the contents of a
 /// string describing the contents to apply to that entity.
@@ -140,25 +140,29 @@ pub fn readAttributes(
 
     if (token.tag == .colon) {
         token.* = try token.next();
-        if (token.tag == .string) {
-            const name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            if (entity_pointers.find(handler, name)) |e| {
-                e.* = entity;
-            } else {
-                engine.log.err("field {s} not found in {any}.", .{ name, HandlerType });
-            }
-            token.* = try token.next();
-        } else if (token.tag != .number) {
-            const name = token.slice();
-            if (entity_pointers.find(handler, name)) |e| {
-                e.* = entity;
-            } else {
-                engine.log.err("field {s} not found in {any}.", .{ name, HandlerType });
-            }
-            token.* = try token.next();
+        const name = switch (token.tag) {
+            .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
+            .number => return error.UnexpectedToken,
+            else => token.slice(),
+        };
+
+        if (entity_pointers.find(handler, name)) |e| {
+            e.* = entity;
         } else {
-            return error.UnexpectedToken;
+            engine.log.err("{s} *Entity not found in {any}. {d} options found:", .{
+                name,
+                HandlerType,
+                entity_pointers.count,
+            });
+            for (0..entity_pointers.count) |i| {
+                engine.log.err("    {s}", .{entity_pointers.buffer[i].name});
+            }
+            if (entity_pointers.count == max_callbacks)
+                engine.log.err("{d} options is the maximum allowed. Some fields may be missing.", .{
+                    max_callbacks,
+                });
         }
+        token.* = try token.next();
     }
 
     while (true) {
