@@ -777,6 +777,95 @@ pub inline fn getText(
     };
 }
 
+pub inline fn setTextSize(
+    self: *Entity,
+    display: *Display,
+    size: TextSize,
+) error{OutOfMemory}!void {
+    switch (self.type) {
+        .text_input => |*ti| {
+            if (ti.text_size == size) return;
+            ti.text_size = size;
+
+            if (ti.text.items.len > 0) {
+                ti.cursor_pixels = try ti.font.measureText(
+                    display,
+                    ti.text_size,
+                    ti.text.items,
+                );
+                display.need_relayout = true;
+            } else {
+                ti.cursor_pixels = 0.0;
+                ti.cursor_character = 0;
+            }
+        },
+        .label => |*label| {
+            if (label.text_size == size) return;
+            label.text_size = size;
+
+            label.elements.clearRetainingCapacity();
+            if (label.translated.len > 0) {
+                var data = Chunker.init(label.translated);
+                while (data.next(&display.font)) |word| {
+                    // Store width as a placeholder until layout function is run.
+                    const width = try word.font.measureText(
+                        display,
+                        label.text_size,
+                        word.text,
+                    );
+                    try label.elements.append(display.allocator, .{
+                        .text = word.text,
+                        .width = width,
+                        .font = word.font,
+                    });
+                }
+                display.need_relayout = true;
+            }
+        },
+        .checkbox => |*checkbox| {
+            if (checkbox.text_size == size) return;
+            checkbox.text_size = size;
+
+            checkbox.elements.clearRetainingCapacity();
+            if (checkbox.translated.len > 0) {
+                self.type.checkbox.elements.clearRetainingCapacity();
+                var data = Chunker.init(self.type.checkbox.translated);
+                while (data.next(&display.font)) |text| {
+                    // Store width as a placeholder until layout function is run.
+                    const width = try text.font.measureText(
+                        display,
+                        checkbox.text_size,
+                        text.text,
+                    );
+                    try self.type.checkbox.elements.append(display.allocator, .{
+                        .text = text.text,
+                        .width = width,
+                        .font = text.font,
+                    });
+                }
+                display.need_relayout = true;
+            }
+        },
+        .button => |*button| {
+            if (button.text_size == size) return;
+            button.text_size = size;
+
+            if (button.translated.len > 0) {
+                button.translated_text_width = try button.font.measureText(
+                    display,
+                    button.text_size,
+                    button.translated,
+                );
+                display.need_relayout = true;
+            }
+        },
+        else => {
+            warn("setTextSize({t}) invalid for {t}", .{ self.type, self.type });
+            return;
+        },
+    }
+}
+
 /// Update the `text` and corresponding`translation` field of a label,
 /// checkbox, text input, or button. The backing image texture for
 /// each word is regenerated if the text was changed. The memory
