@@ -787,21 +787,24 @@ inline fn placeChildrenLeftToRight(
 // applied at runtime. Track the height of each entity
 // so wrapping can occur down to the next line.
 inline fn placeChildrenLeftToRightWrap(
-    _: *Panel,
-    parent: *Entity,
+    panel: *Panel,
+    entity: *Entity,
 ) void {
     var current: Vector = .{
-        .x = parent.rect.x + parent.pad.left,
-        .y = parent.rect.y + parent.pad.top,
+        .x = entity.rect.x + entity.pad.left,
+        .y = entity.rect.y + entity.pad.top,
     };
 
     var box: engine.BoxLayout = .init(
-        parent.rect.width - parent.pad.left - parent.pad.right,
-        parent.type.panel.spacing,
-        parent.type.panel.spacing,
+        entity.rect.width - entity.pad.left - entity.pad.right,
+        entity.type.panel.spacing,
+        entity.type.panel.spacing,
     );
 
-    for (parent.type.panel.children.items) |child| {
+    var line_start: usize = 0;
+    var line_end: usize = 0;
+    var current_y: f32 = current.y;
+    for (entity.type.panel.children.items, 0..) |child, i| {
         if (child.layout.position == .float) continue;
         if (child.visible == .hidden) continue;
         if (child.type == .expander) continue;
@@ -809,13 +812,69 @@ inline fn placeChildrenLeftToRightWrap(
         const item = box.place(child.rect.width, child.rect.height);
         child.rect.x = current.x + item.x;
         child.rect.y = current.y + item.y;
+        if (child.rect.y != current_y) {
+            current_y = child.rect.y;
+            if (line_end > line_start) {
+                alignChildRow(
+                    entity.type.panel.children.items[line_start .. line_end + 1],
+                    entity.child_align.x,
+                    panel.children.items[line_end].rect.x + panel.children.items[line_end].rect.width - panel.children.items[line_start].rect.x,
+                    entity.inner_width(),
+                );
+            }
+            line_start = i;
+            line_end = i;
+        } else {
+            line_end = i;
+        }
     }
     box.finalise();
+    if (line_end > line_start) {
+        alignChildRow(
+            entity.type.panel.children.items[line_start .. line_end + 1],
+            entity.child_align.x,
+            panel.children.items[line_end].rect.x + panel.children.items[line_end].rect.width - panel.children.items[line_start].rect.x,
+            entity.inner_width(),
+        );
+    }
 
-    current.y += parent.pad.bottom;
-    const needed_height = current.y - parent.rect.y;
-    parent.type.panel.scrollable.size.height = @max(needed_height, parent.rect.height);
+    current.y += entity.pad.bottom;
+    const needed_height = current.y - entity.rect.y;
+    entity.type.panel.scrollable.size.height = @max(needed_height, entity.rect.height);
     //const overflow_height = parent.rect.height - needed_height;
+}
+
+/// Adjust the horizontal position of a line of entities based on
+/// the `child_align` parameter.
+pub fn alignChildRow(
+    items: []*Entity,
+    child_align: engine.Entity.LayoutAlign,
+    width: f32,
+    available_width: f32,
+) void {
+    switch (child_align) {
+        .start => {},
+        .centre => {
+            // Align from top to work out how much space is left
+            const adjust = (available_width - width) / 2;
+            for (items) |child| {
+                if (child.visible == .hidden) continue;
+                if (child.layout.position == .float) continue;
+                if (child.type == .expander) continue;
+                child.rect.x += adjust;
+            }
+        },
+        .end => {
+            // Align from top to work out how much space is left
+            const adjust = available_width - width;
+            for (items) |child| {
+                if (child.visible == .hidden) continue;
+                if (child.layout.position == .float) continue;
+                if (child.type == .expander) continue;
+                child.rect.x += adjust;
+            }
+        },
+    }
 }
 
 /// Inficate if a panel can grow into the safe area or not.
