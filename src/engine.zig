@@ -61,7 +61,20 @@ pub const Config = struct {
     /// Request that only vertical or horizontal layout is allowed. Note that
     /// devices don't allow "upside down" and some do.
     orientation: enum { any, vertical, horizontal } = .any,
+
+    command: Command = .default,
 };
+
+pub const Command = enum { default, make_bundle };
+
+pub const platform: enum { ios, macos, android } = if (builtin.target.os.tag == .ios)
+    .ios
+else if (builtin.target.os.tag == .macos)
+    .macos
+else if (builtin.abi.isAndroid())
+    .android
+else
+    @compileError("Unsupported platform {t}" ++ builtin.os.tag);
 
 pub const BundleInfo = struct {
     // Name of the bundle file when using a release mode packaged bundle.
@@ -408,6 +421,8 @@ pub const Texture = @import("Texture.zig");
 pub const Audio = @import("Audio.zig");
 pub const Event = @import("Event.zig");
 pub const seconds = Animator.seconds;
+
+pub const start = @import("start.zig").start;
 
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;

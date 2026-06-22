@@ -151,12 +151,16 @@ root: Entity = .{
 animators: ArrayListUnmanaged(Animator) = .empty,
 
 keybindings: std.AutoHashMapUnmanaged(Key, Entity.Callback) = .empty,
-on_resized: Entity.BoolCallback,
-event_hook: U32Callback,
-on_panel_change: Entity.PanelChangeCallback,
+on_resized: Entity.BoolCallback = .empty,
+event_hook: U32Callback = .empty,
+startup_hook: Callback = .empty,
+shutdown_hook: Callback = .empty,
+on_panel_change: Entity.PanelChangeCallback = .empty,
 
 bucket: StringBucket,
 config: Config,
+
+const empty: @This() = .{};
 
 const Self = @This();
 
@@ -301,6 +305,8 @@ pub fn create(
     }
     const default_theme = themes[0];
 
+    seed(io);
+
     var display = try gpa.create(Display);
     display.* = .{
         .allocator = gpa,
@@ -335,6 +341,8 @@ pub fn create(
         .audio_cache = null,
         .last_draw = now,
         .last_delta = now,
+        .startup_hook = .empty,
+        .shutdown_hook = .empty,
 
         .controller_scale = controller_scale,
         .display_scale = display_scale,
@@ -459,27 +467,29 @@ pub fn clearKeybinding(
 
 /// Cleanup memory assocaited with this display.
 pub fn destroy(self: *Self) void {
-    trace("Engine cleanup", .{});
+    debug("Display destroy", .{});
     const gpa = self.allocator;
 
     self.animators.deinit(gpa);
 
-    self.stopAllAudio(0) catch {};
-
     self.root.deinit(gpa, self);
 
     for (self.themes) |item| {
+        item.* = undefined;
         gpa.destroy(item);
     }
+    self.themes.* = undefined;
     gpa.free(self.themes);
 
     self.bucket.deinit();
 
+    debug("Display: free fonts", .{});
     for (self.fonts.items) |item| {
         item.cleanup(gpa);
     }
     self.fonts.deinit(gpa);
 
+    debug("Display: free texture cache", .{});
     var i = self.textures.iterator();
     while (i.next()) |x| {
         if (x.value_ptr.*.references > 0) {
@@ -492,6 +502,10 @@ pub fn destroy(self: *Self) void {
     }
     self.textures.deinit(gpa);
 
+    debug("Display: stop audio", .{});
+    self.stopAllAudio(0) catch {};
+
+    debug("Display: free audio cache", .{});
     var a = self.audio_cache;
     while (a != null) {
         if (a.?.references > 0) {
@@ -2029,7 +2043,7 @@ inline fn handleKeyDownEvent(_: *Self, _: *sdl.SDL_Event) !void {
 /// Refresh the window size information, then refresh the
 /// safe area information.
 pub inline fn updateScreenMetrics(display: *Self) void {
-    info("updateScreenMetrics requested", .{});
+    trace("updateScreenMetrics requested", .{});
     var updated = false;
 
     var width: c_int = 0;
@@ -2052,7 +2066,7 @@ pub inline fn updateScreenMetrics(display: *Self) void {
     if (old_display_scale != display.scale) updated = true;
 
     if (updated or engine.dev_build or engine.dev_mode) {
-        info("window update {d}x{d} ({d}) => {d}x{d} ({d}) scale={d} (mouse_scale={d})", .{
+        debug("window update {d}x{d} ({d}) => {d}x{d} ({d}) scale={d} (mouse_scale={d})", .{
             display.root.rect.width,
             display.root.rect.height,
             old_display_scale,
@@ -2456,6 +2470,27 @@ inline fn handleMouseMotionEvent(
             }
         }
     }
+}
+
+pub fn setEventHook(self: *Display, ptr: *anyopaque, func: *const fn (ptr: *anyopaque, Allocator, u32) Allocator.Error!void) void {
+    self.event_hook = .{
+        .ptr = ptr,
+        .func = func,
+    };
+}
+
+pub fn setOnStartup(self: *Display, ptr: *anyopaque, func: *const fn (ptr: *anyopaque, *Display) Allocator.Error!void) void {
+    self.startup_hook = .{
+        .ptr = ptr,
+        .func = func,
+    };
+}
+
+pub fn setOnShutdown(self: *Display, ptr: *anyopaque, func: *const fn (ptr: *anyopaque, *Display) Allocator.Error!void) void {
+    self.shutdown_hook = .{
+        .ptr = ptr,
+        .func = func,
+    };
 }
 
 /// Handle an event on the event queue.
@@ -2897,14 +2932,13 @@ pub const Callback = struct {
     func: ?*const fn (ptr: *anyopaque, *Display) Allocator.Error!void = null,
     ptr: *anyopaque = undefined,
 
-    pub const empty = .{ .func = null };
+    pub const empty: @This() = .{ .func = null };
 
     pub fn call(
         self: Callback,
-        allocator: Allocator,
         display: *Display,
     ) Allocator.Error!void {
-        if (self.func) |f| return f(self.ptr, allocator, display);
+        if (self.func) |f| return f(self.ptr, display);
     }
 };
 
