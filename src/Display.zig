@@ -55,7 +55,7 @@ textures: std.AutoHashMapUnmanaged(u64, *Texture),
 required_resource: std.AutoHashMapUnmanaged(u64, *const Resource),
 
 /// Cache of currently loaded audio files.
-audio_cache: ?*Audio,
+audio_cache: ?*Audio = null,
 
 /// Four possible theme options are available.
 themes: []*Theme,
@@ -197,7 +197,7 @@ pub fn create(
 
     _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_APPLICATION, sdl.SDL_LOG_PRIORITY_DEBUG);
 
-    if (!builtin.abi.isAndroid()) {
+    if (engine.platform != .android) {
         // On android, the builtin SDL log function is used
         // to output log info to logcat.
         sdl.SDL_SetLogOutputFunction(log.sdl_log_callback, null);
@@ -219,13 +219,8 @@ pub fn create(
         err("mixer setup failed. {s}", .{sdl.SDL_GetError()});
         return error.AudioInitFailed;
     }
-    const a: mixer.SDL_AudioSpec = .{
-        .freq = 44100,
-        .format = mixer.SDL_AUDIO_S16LE,
-        .channels = 2,
-    };
 
-    const mix = mixer.MIX_CreateMixerDevice(mixer.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &a);
+    const mix = mixer.MIX_CreateMixerDevice(mixer.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audio_config);
     if (mix == null) {
         err("create mixer device failed. {s}", .{sdl.SDL_GetError()});
         return error.AudioInitFailed;
@@ -467,7 +462,6 @@ pub fn clearKeybinding(
 
 /// Cleanup memory assocaited with this display.
 pub fn destroy(self: *Self) void {
-    debug("Display destroy", .{});
     const gpa = self.allocator;
 
     self.animators.deinit(gpa);
@@ -478,18 +472,15 @@ pub fn destroy(self: *Self) void {
         item.* = undefined;
         gpa.destroy(item);
     }
-    self.themes.* = undefined;
     gpa.free(self.themes);
 
     self.bucket.deinit();
 
-    debug("Display: free fonts", .{});
     for (self.fonts.items) |item| {
         item.cleanup(gpa);
     }
     self.fonts.deinit(gpa);
 
-    debug("Display: free texture cache", .{});
     var i = self.textures.iterator();
     while (i.next()) |x| {
         if (x.value_ptr.*.references > 0) {
@@ -502,10 +493,6 @@ pub fn destroy(self: *Self) void {
     }
     self.textures.deinit(gpa);
 
-    debug("Display: stop audio", .{});
-    self.stopAllAudio(0) catch {};
-
-    debug("Display: free audio cache", .{});
     var a = self.audio_cache;
     while (a != null) {
         if (a.?.references > 0) {
@@ -523,12 +510,6 @@ pub fn destroy(self: *Self) void {
 
     self.required_resource.deinit(gpa);
     self.resources.deinit(gpa);
-
-    sdl.SDL_DestroyRenderer(self.renderer);
-    sdl.SDL_DestroyWindow(self.window);
-    mixer.MIX_DestroyMixer(self.mix);
-    mixer.MIX_Quit();
-    sdl.SDL_Quit();
 
     self.keybindings.deinit(gpa);
     self.translation.deinit(gpa);
@@ -1348,7 +1329,7 @@ pub fn playBundleResource(
 
     _ = mixer.MIX_SetTrackStoppedCallback(
         track,
-        audio_playback_complete,
+        completedAudioPlayback,
         progress,
     );
     _ = mixer.MIX_PlayTrack(
@@ -1911,9 +1892,15 @@ pub fn rotate_theme(
 
 /// Update the quit flag to indicate to the main loop that
 /// it should exit after processing the current event.
-pub fn end_main_loop(display: *Self) void {
+pub fn endMainLoop(display: *Self) void {
     info("Ending main loop.", .{});
     display.state = .ending;
+    display.stopAllAudio(0) catch {};
+    mixer.MIX_DestroyMixer(display.mix);
+    mixer.MIX_Quit();
+    sdl.SDL_DestroyRenderer(display.renderer);
+    sdl.SDL_DestroyWindow(display.window);
+    sdl.SDL_Quit();
 }
 
 /// Draw all entities. Used in conjunction with SDL_AppIterate
@@ -2528,7 +2515,7 @@ pub fn handleEvent(
         sdl.SDL_EVENT_WINDOW_SAFE_AREA_CHANGED,
         => self.updateScreenMetrics(),
 
-        sdl.SDL_EVENT_QUIT => self.end_main_loop(),
+        sdl.SDL_EVENT_QUIT => self.endMainLoop(),
 
         sdl.SDL_EVENT_TERMINATING => {},
         sdl.SDL_EVENT_LOW_MEMORY => {},
@@ -2944,7 +2931,8 @@ pub const Callback = struct {
 
 /// When an audio file finishes playing, a `handler` object handles
 /// any playback completion notification that might be needed.
-fn audio_playback_complete(audio: ?*anyopaque, _: ?*mixer.MIX_Track) callconv(.c) void {
+fn completedAudioPlayback(audio: ?*anyopaque, _: ?*mixer.MIX_Track) callconv(.c) void {
+    debug("audio completed.", .{});
     const progress: ?*Audio.Progress = @ptrCast(@alignCast(audio));
     if (progress == null) {
         err("playback complete handler called with null callback handler.", .{});
@@ -2962,11 +2950,11 @@ fn audio_playback_complete(audio: ?*anyopaque, _: ?*mixer.MIX_Track) callconv(.c
     if (handler.audio.references > 0)
         handler.audio.references -= 1
     else
-        err("audio_playback_complete on audio with no references?", .{});
+        err("completedAudioPlayback on audio with no references?", .{});
 
     if (handler.callback) |callback| {
         callback.call(handler.gpa, handler.audio) catch |e| {
-            err("audio_playback_complete callback handler failed. {any}", .{e});
+            err("completedAudioPlayback callback handler failed. {any}", .{e});
         };
     }
 
@@ -3048,6 +3036,12 @@ inline fn nextUnicodeChar(text: [*c]const u8) u21 {
 pub const std_options: std.Options = .{
     .log_level = .debug,
     .logFn = @import("log.zig").log_capture,
+};
+
+const audio_config: mixer.SDL_AudioSpec = .{
+    .freq = 44100,
+    .format = mixer.SDL_AUDIO_S16LE,
+    .channels = 2,
 };
 
 pub inline fn clamp(min: f32, value: f32, max: f32) f32 {
