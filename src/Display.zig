@@ -977,6 +977,11 @@ pub inline fn isAnimating(
     return false;
 }
 
+/// Place a text string onto the user devices clipboard.
+pub fn copyToClipboard(_: *Display, text: []const u8) void {
+    _ = sdl.SDL_SetClipboardText(text.ptr);
+}
+
 /// List all of the animators currently in progress.
 pub fn dumpAnimators(self: *Self) void {
     info("---", .{});
