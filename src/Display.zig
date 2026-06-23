@@ -172,6 +172,11 @@ pub fn create(
     error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte } ||
     std.Io.Dir.StatError || std.Io.File.StatError ||
     std.Io.File.OpenError)!*Self {
+    info("Initialising Display. {s} {s}", .{
+        config.app_name orelse "Unknown",
+        config.app_version orelse "0.0.0",
+    });
+
     var bucket = StringBucket.init(gpa);
     errdefer bucket.deinit();
 

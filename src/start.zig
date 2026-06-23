@@ -1,10 +1,20 @@
-pub fn start(display: *Display) void {
+var zig_init: *const std.process.Init = undefined;
+var startup_handler: *const fn (*const std.process.Init) error{ OutOfMemory, AppInitFailed }!*Display = undefined;
+var shutdown_handler: *const fn (*const std.process.Init) void = undefined;
+
+/// When app/binary is executed, SDL takes over the process and calls back
+/// with init, quit, iterate, and event handlers.
+pub fn start(
+    init: *const std.process.Init,
+    startup: *const fn (*const std.process.Init) error{ OutOfMemory, AppInitFailed }!*Display,
+    shutdown: *const fn (*const std.process.Init) void,
+) void {
+    zig_init = init;
+    startup_handler = startup;
+    shutdown_handler = shutdown;
     var none: [0:null]?[*:0]u8 = .{};
-    current_display = display;
     _ = sdl.SDL_RunApp(0, @ptrCast(&none), runapp_callback, null);
 }
-
-var current_display: *Display = undefined;
 
 pub export fn runapp_callback(argc: c_int, argv: ?[*:null]?[*:0]u8) callconv(.c) c_int {
     return sdl.SDL_EnterAppMainCallbacks(
@@ -20,13 +30,11 @@ pub export fn runapp_callback(argc: c_int, argv: ?[*:null]?[*:0]u8) callconv(.c)
 //SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]);
 //pub export fn AppInit(appstate: **void, argc: c_int, argv: [*:null]const ?[*:0]const u8) callconv(.c) c_int {
 pub export fn AppInitC(appstate: ?*?*anyopaque, argc: c_int, argv: ?[*:null]?[*:0]u8) callconv(.c) sdl.SDL_AppResult {
+    debug("App Init event recieved.", .{});
     //var display: *Display = @ptrCast(appstate.?);
-    appstate.?.* = current_display;
-
+    appstate.?.* = startup_handler(zig_init) catch return sdl.SDL_APP_FAILURE;
     _ = argc;
     _ = argv;
-
-    debug("App Init event recieved.", .{});
 
     return sdl.SDL_APP_CONTINUE;
 }
@@ -37,6 +45,8 @@ pub export fn AppQuitC(appstate: ?*anyopaque, result: sdl.SDL_AppResult) callcon
     const display: *Display = @ptrCast(@alignCast(appstate.?));
 
     debug("App Quit event recieved.", .{});
+
+    shutdown_handler(zig_init);
 
     _ = display;
     _ = result;

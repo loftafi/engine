@@ -1098,35 +1098,35 @@ pub fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error 
     }
     if (entity.type == .button) {
         if (entity.type.button.button.default_name) |value| {
-            entity.background.image = try display.loadBundleTexture(&display.resources, value);
+            entity.background.image = try display.requireImage(value);
         }
         if (entity.type.button.button.hover_name) |value| {
-            entity.type.button.button.hover = try display.loadBundleTexture(&display.resources, value);
+            entity.type.button.button.hover = try display.requireImage(value);
         }
         if (entity.type.button.button.disabled_name) |value| {
-            entity.type.button.button.disabled = try display.loadBundleTexture(&display.resources, value);
+            entity.type.button.button.disabled = try display.requireImage(value);
         }
         if (entity.type.button.button.pressed_name) |value| {
-            entity.type.button.button.pressed = try display.loadBundleTexture(&display.resources, value);
+            entity.type.button.button.pressed = try display.requireImage(value);
         }
         if (entity.type.button.icon.default_name) |value| {
-            entity.texture = try display.loadBundleTexture(&display.resources, value);
+            entity.texture = try display.requireImage(value);
         }
         if (entity.type.button.icon.hover_name) |value| {
-            entity.type.button.icon.hover = try display.loadBundleTexture(&display.resources, value);
+            entity.type.button.icon.hover = try display.requireImage(value);
         }
         if (entity.type.button.icon.disabled_name) |value| {
-            entity.type.button.icon.disabled = try display.loadBundleTexture(&display.resources, value);
+            entity.type.button.icon.disabled = try display.requireImage(value);
         }
         if (entity.type.button.icon.pressed_name) |value| {
-            entity.type.button.icon.pressed = try display.loadBundleTexture(&display.resources, value);
+            entity.type.button.icon.pressed = try display.requireImage(value);
         }
     } else {
         if (entity.texture_name) |value| {
-            entity.texture = try display.loadBundleTexture(&display.resources, value);
+            entity.texture = try display.requireImage(value);
         }
         if (entity.background.image_name) |value| {
-            entity.background.image = try display.loadBundleTexture(&display.resources, value);
+            entity.background.image = try display.requireImage(value);
         }
     }
     if (entity.type == .progress_bar) {
