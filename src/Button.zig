@@ -9,7 +9,7 @@ text_size: TextSize = .normal,
 text: []const u8 = "",
 translated: []const u8 = "",
 
-/// The width of the text _not_ including the adjustment for text size.
+/// The width of the text including the adjustment for text size.
 translated_text_width: f32 = 0,
 
 spacing: f32 = 0,
@@ -53,6 +53,7 @@ pub inline fn draw(
 ) void {
     var x_scale: f32 = 1;
     var dest = entity.rect.move(scroll_offset);
+
     if (entity.flip.x) {
         dest.x += dest.width;
         dest.width = 0 - dest.width;
@@ -83,12 +84,12 @@ pub inline fn draw(
         }
     }
 
-    const content_width = self.contentWidth(entity);
-    const content_x_offset = switch (entity.child_align.x) {
+    const content_width = self.contentWidth();
+    var content_x_offset = switch (entity.child_align.x) {
         .start => 0,
-        .centre => (entity.rect.width - content_width) / 2.0,
-        .end => entity.rect.width - content_width,
-    };
+        .centre => (entity.inner_width() - content_width) / 2.0,
+        .end => entity.inner_width() - content_width,
+    } + entity.rect.x + entity.pad.left;
     const icon_y_offset = switch (entity.child_align.y) {
         .start => entity.pad.top,
         .centre => entity.pad.top + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2) - (self.icon.size.height / 2),
@@ -96,46 +97,44 @@ pub inline fn draw(
     };
 
     const text_colour = button_text_colour(entity, display.theme);
-    var has_icon = false;
 
     // Place the icon
-    if (self.current_icon(entity)) |icon_image| {
-        has_icon = true;
-        var icon_rect: Rect = .{
-            .x = entity.rect.x + entity.pad.left + content_x_offset,
-            .y = entity.rect.y + icon_y_offset,
-            .width = self.icon.size.width,
-            .height = self.icon.size.height,
-        };
-        icon_rect = icon_rect.move(scroll_offset);
-        if (entity.flip.x) {
-            icon_rect.x += icon_rect.width;
-            icon_rect.width = 0 - icon_rect.width;
+    if (self.icon.size.width > 0 and self.icon.size.height > 0) {
+        if (self.current_icon(entity)) |icon_image| {
+            var icon_rect: Rect = .{
+                .x = content_x_offset,
+                .y = entity.rect.y + icon_y_offset,
+                .width = self.icon.size.width,
+                .height = self.icon.size.height,
+            };
+            icon_rect = icon_rect.move(scroll_offset);
+            if (entity.flip.x) {
+                icon_rect.x += icon_rect.width;
+                icon_rect.width = 0 - icon_rect.width;
+            }
+            if (entity.flip.y) {
+                icon_rect.y += icon_rect.height;
+                icon_rect.height = 0 - icon_rect.height;
+            }
+            icon_rect.height *= x_scale;
+            _ = sdl.SDL_SetTextureAlphaMod(icon_image, text_colour.a);
+            _ = sdl.SDL_SetTextureColorMod(icon_image, text_colour.r, text_colour.g, text_colour.b);
+            display.renderTexture(icon_image, null, &icon_rect);
         }
-        if (entity.flip.y) {
-            icon_rect.y += icon_rect.height;
-            icon_rect.height = 0 - icon_rect.height;
-        }
-        icon_rect.height *= x_scale;
-        _ = sdl.SDL_SetTextureAlphaMod(icon_image, text_colour.a);
-        _ = sdl.SDL_SetTextureColorMod(icon_image, text_colour.r, text_colour.g, text_colour.b);
-        display.renderTexture(icon_image, null, &icon_rect);
+
+        content_x_offset += self.icon.size.width;
+        if (self.translated_text_width > 0)
+            content_x_offset += self.spacing;
     }
 
     // Place the text
-    if (self.text.len > 0) {
+    if (self.translated_text_width > 0) {
         const height = self.text_size.size();
 
         var pos: Vector = .{
-            .x = entity.rect.x + entity.type.button.icon.size.width + entity.pad.left + content_x_offset,
+            .x = content_x_offset,
             .y = entity.rect.y + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2.0) - (height / 2) + entity.pad.top,
         };
-        if (entity.type.button.icon.size.width == 0 or entity.type.button.icon.size.height == 0) {
-            pos.x = entity.rect.x + entity.rect.width / 2 - (self.translated_text_width * self.text_size.scale()) / 2;
-        }
-        if (has_icon or entity.type.button.icon.size.width > 0) {
-            pos.x += entity.type.button.spacing;
-        }
 
         pos = pos.add(scroll_offset);
         _ = self.font.drawText(display, self.translated, pos, text_colour, self.text_size, x_scale) catch {
@@ -190,22 +189,19 @@ inline fn current_icon(self: *const Button, entity: *const Entity) ?*sdl.SDL_Tex
     return if (entity.texture) |value| value.texture else null;
 }
 
-/// Minimum width of a button includes any requested padding, icon, text and
-/// the icon-text spacing parameter.
+/// Minimum width of a button includes the icon, the text and
+/// icon-text spacing if requested.
 inline fn contentWidth(
     button: *const Button,
-    entity: *const Entity,
 ) f32 {
-    var width: f32 = entity.pad.left + entity.pad.right;
-
-    width += entity.type.button.icon.size.width;
+    var width: f32 = button.icon.size.width;
 
     // If button has icon _and_ text, add button spacing
-    if (button.icon.size.width > 0 and button.text.len > 0)
-        width += entity.type.button.spacing;
+    if (button.icon.size.width > 0 and button.translated_text_width > 0)
+        width += button.spacing;
 
-    if (button.text.len > 0)
-        width += button.translated_text_width * button.text_size.scale();
+    if (button.translated_text_width > 0)
+        width += button.translated_text_width;
 
     return width;
 }
@@ -217,7 +213,10 @@ pub inline fn minimumNeededWidth(
     entity: *const Entity,
     _: f32, //parent_inner_width
 ) f32 {
-    return @max(entity.minimum.width, button.contentWidth(entity));
+    return @max(
+        button.contentWidth() + entity.pad.left + entity.pad.right,
+        entity.minimum.width,
+    );
 }
 
 pub inline fn minimumNeededHeight(

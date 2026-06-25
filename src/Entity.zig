@@ -990,6 +990,8 @@ pub inline fn setText(
                     button.text_size,
                     button.translated,
                 );
+            } else {
+                button.translated_text_width = 0;
             }
         },
         else => {
