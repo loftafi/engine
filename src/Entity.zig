@@ -857,6 +857,8 @@ pub inline fn setTextSize(
                     button.translated,
                 );
                 display.need_relayout = true;
+            } else {
+                button.translated_text_width = 0;
             }
         },
         else => {

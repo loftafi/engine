@@ -8,7 +8,8 @@ font_name: ?[]const u8 = null,
 text_size: TextSize = .normal,
 text: []const u8 = "",
 translated: []const u8 = "",
-/// The width of the text including the adjustment for text size
+
+/// The width of the text _not_ including the adjustment for text size.
 translated_text_width: f32 = 0,
 
 spacing: f32 = 0,
@@ -195,10 +196,8 @@ inline fn contentWidth(
     button: *const Button,
     entity: *const Entity,
 ) f32 {
-    var width: f32 = 0;
+    var width: f32 = entity.pad.left + entity.pad.right;
 
-    width += entity.pad.left;
-    width += entity.pad.right;
     width += entity.type.button.icon.size.width;
 
     // If button has icon _and_ text, add button spacing

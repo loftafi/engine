@@ -172,17 +172,21 @@ fn calculateMinimumNeededHeight(
             // a, next to b, next c.
             //
             // Just need to know the highest/tallest child.
-            var minimum_needed: f32 = 0;
+            var minimum_needed: f32 = entity.pad.top + entity.pad.bottom;
             for (entity.type.panel.children.items) |child| {
                 if (child.layout.position == .float) continue;
                 if (child.visible == .hidden) continue;
                 if (child.type == .expander) continue;
 
-                const height = child.minimumNeededHeight(available_width);
-                if (height > minimum_needed)
-                    minimum_needed = height;
+                minimum_needed = @max(
+                    child.minimumNeededHeight(available_width),
+                    minimum_needed,
+                );
             }
-            return minimum_needed + (entity.pad.top + entity.pad.bottom);
+            return @max(
+                minimum_needed + entity.pad.top + entity.pad.bottom,
+                entity.minimum.height,
+            );
         },
     }
 }
@@ -245,6 +249,7 @@ fn calculateMinimumNeededWidth(
             for (panel.children.items) |child| {
                 if (child.layout.position == .float) continue;
                 if (child.visible == .hidden) continue;
+                if (child.type == .expander) continue;
 
                 const child_width = child.minimumNeededWidth(available_width);
                 if (false) {
@@ -259,7 +264,10 @@ fn calculateMinimumNeededWidth(
                 }
                 minimum_needed = @max(minimum_needed, child_width);
             }
-            return @max(entity.minimum.width, minimum_needed + (entity.pad.left + entity.pad.right));
+            return @max(
+                minimum_needed + entity.pad.left + entity.pad.right,
+                entity.minimum.width,
+            );
         },
     }
 }
