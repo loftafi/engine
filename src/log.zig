@@ -85,14 +85,17 @@ pub fn Log(size: usize) type {
 
             var stderr = std.debug.lockStderr(&.{}).terminal().writer;
             defer std.debug.unlockStderr();
-            if (!builtin.abi.isAndroid() and builtin.os.tag != .ios) {
-                nosuspend stderr.print("\x1B[{s}m[\x1B[1m{t}\x1B[22m] {s}\x1B[0m\n", .{
-                    colour,
-                    level,
-                    message,
-                }) catch return;
-            } else {
-                nosuspend stderr.print("{t} {s}\r\n", .{ level, message }) catch return;
+            switch (engine.platform) {
+                .ios, .android => {
+                    nosuspend stderr.print("\x1B[{s}m[\x1B[1m{t}\x1B[22m] {s}\x1B[0m\n", .{
+                        colour,
+                        level,
+                        message,
+                    }) catch return;
+                },
+                .macos => {
+                    nosuspend stderr.print("{t} {s}\r\n", .{ level, message }) catch return;
+                },
             }
             stderr.flush() catch {};
         }
@@ -205,38 +208,53 @@ fn formatted_log_output(
     if (builtin.is_test) return;
 
     var buffer: [max_log_message_size]u8 = undefined;
-    const message = std.fmt.bufPrintZ(&buffer, format, args) catch format;
+    var msg = std.Io.Writer.fixed(&buffer);
 
-    if (!builtin.abi.isAndroid()) {
-        const prefix = switch (level) {
-            .trace => "\x1B[90m[\x1B[1mtrace\x1B[22m] ",
-            .debug => "\x1B[34m[\x1B[1mdebug\x1B[22m] ",
-            .info => "\x1B[36m[\x1B[1minfo\x1B[22m]  ",
-            .notice => "\x1B[91m[\x1B[1mnotice\x1B[22m] ",
-            .warn => "\x1B[33m[\x1B[1mwarn\x1B[22m]  ",
-            .err => "\x1B[31m[\x1B[1merror\x1B[22m] ",
-            .alert => "\x1B[31m[\x1B[1malert\x1B[22m] ",
-        };
-        // Log to terminal in debug mode
-        var stderr = std.debug.lockStderr(&.{}).terminal().writer;
-        defer std.debug.unlockStderr();
-        nosuspend stderr.print("{s}{s}\x1B[0m\n", .{ prefix, message }) catch return;
-        stderr.flush() catch {};
-    } else {
-        const prefix = switch (level) {
-            .trace => "[trace] ",
-            .debug => "[debug] ",
-            .info => "[info] ",
-            .notice => "[notice] ",
-            .warn => "[warn] ",
-            .err => "[error] ",
-            .alert => "[alert] ",
-        };
+    switch (engine.platform) {
+        .macos => {
+            const prefix = switch (level) {
+                .trace => "\x1B[90m\x1B[1mtrace\x1B[22m: ",
+                .debug => "\x1B[34m\x1B[1mdebug\x1B[22m: ",
+                .info => "\x1B[36m\x1B[1minfo\x1B[22m:  ",
+                .notice => "\x1B[91m\x1B[1mnotice\x1B[22m: ",
+                .warn => "\x1B[33m\x1B[1mwarn\x1B[22m:  ",
+                .err => "\x1B[31m\x1B[1merror\x1B[22m: ",
+                .alert => "\x1B[31m\x1B[1malert\x1B[22m: ",
+            };
+            msg.writeAll(prefix) catch return;
+            msg.print(format, args) catch return;
+            msg.writeAll("\x1B[0m\n") catch return;
 
-        // Log using SDL when in release mode
-        if (scope != .term_scope) {
-            sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), prefix ++ message);
-        }
+            // Log to terminal in debug mode
+            var stderr = std.debug.lockStderr(&.{}).terminal().writer;
+            defer std.debug.unlockStderr();
+            nosuspend stderr.writeAll(msg.buffered()) catch return;
+            stderr.flush() catch {};
+
+            msg.writeByte(0) catch return;
+
+            //if (scope != .term_scope)
+            //    sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), msg.buffered().ptr);
+        },
+        .android, .ios => {
+            const prefix = switch (level) {
+                .trace => "trace: ",
+                .debug => "debug: ",
+                .info => "info: ",
+                .notice => "notice: ",
+                .warn => "warn: ",
+                .err => "error: ",
+                .alert => "alert: ",
+            };
+
+            msg.writeAll(prefix) catch return;
+            msg.print(format, args) catch return;
+            msg.writeAll("\x1B[0m\n") catch return;
+            msg.writeByte(0) catch return;
+
+            if (scope != .term_scope)
+                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), msg.buffered().ptr);
+        },
     }
 }
 
@@ -251,11 +269,37 @@ pub fn sdl_log_callback(
     priority: sdl.SDL_LogPriority,
     message: [*c]const u8,
 ) callconv(.c) void {
-    std.log.scoped(.term_scope).debug("SDL ({s}, {s}) {s}", .{
-        @tagName(SdlLogCategory.fromInt(category)),
-        @tagName(SdlLogPriority.fromInt(priority)),
-        message,
-    });
+    const level = SdlLogPriority.fromInt(priority);
+    switch (level) {
+        .debug, .trace, .verbose, .count, .unknown, .invalid => {
+            std.log.scoped(.term_scope).debug("SDL ({t}, {t}) {s}", .{
+                SdlLogCategory.fromInt(category),
+                level,
+                message,
+            });
+        },
+        .info => {
+            std.log.scoped(.term_scope).info("SDL ({t}, {t}) {s}", .{
+                SdlLogCategory.fromInt(category),
+                level,
+                message,
+            });
+        },
+        .warn => {
+            std.log.scoped(.term_scope).warn("SDL ({t}, {t}) {s}", .{
+                SdlLogCategory.fromInt(category),
+                level,
+                message,
+            });
+        },
+        .err, .critical => {
+            std.log.scoped(.term_scope).err("SDL ({t}, {t}) {s}", .{
+                SdlLogCategory.fromInt(category),
+                level,
+                message,
+            });
+        },
+    }
     _ = data;
 }
 
