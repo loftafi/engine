@@ -1100,52 +1100,56 @@ pub fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error 
     if (entity.getText()) |text| {
         try entity.setText(display, text);
     }
-    if (entity.type == .button) {
-        if (entity.type.button.button.default_name) |value| {
-            entity.background.image = try display.requireImage(value);
-        }
-        if (entity.type.button.button.hover_name) |value| {
-            entity.type.button.button.hover = try display.requireImage(value);
-        }
-        if (entity.type.button.button.disabled_name) |value| {
-            entity.type.button.button.disabled = try display.requireImage(value);
-        }
-        if (entity.type.button.button.pressed_name) |value| {
-            entity.type.button.button.pressed = try display.requireImage(value);
-        }
-        if (entity.type.button.icon.default_name) |value| {
-            entity.texture = try display.requireImage(value);
-        }
-        if (entity.type.button.icon.hover_name) |value| {
-            entity.type.button.icon.hover = try display.requireImage(value);
-        }
-        if (entity.type.button.icon.disabled_name) |value| {
-            entity.type.button.icon.disabled = try display.requireImage(value);
-        }
-        if (entity.type.button.icon.pressed_name) |value| {
-            entity.type.button.icon.pressed = try display.requireImage(value);
-        }
-    } else {
-        if (entity.texture_name) |value| {
-            entity.texture = try display.requireImage(value);
-        }
-        if (entity.background.image_name) |value| {
-            entity.background.image = try display.requireImage(value);
-        }
+
+    if (entity.texture_name) |value| {
+        entity.texture = try display.requireImage(value);
     }
-    if (entity.type == .progress_bar) {
-        if (entity.texture == null) {
-            if (try display.requireImage("rounded progress bar")) |texture| {
-                entity.texture = texture;
-            } else {
-                err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
+    if (entity.background.image_name) |value| {
+        entity.background.image = try display.requireImage(value);
+    }
+
+    switch (entity.type) {
+        .button => {
+            if (entity.type.button.button.default_name) |value| {
+                entity.background.image = try display.requireImage(value);
             }
-        }
-    }
-    if (entity.type == .panel) {
-        for (entity.type.panel.children.items) |child| {
-            try postAppend(display, child);
-        }
+            if (entity.type.button.button.hover_name) |value| {
+                entity.type.button.button.hover = try display.requireImage(value);
+            }
+            if (entity.type.button.button.disabled_name) |value| {
+                entity.type.button.button.disabled = try display.requireImage(value);
+            }
+            if (entity.type.button.button.pressed_name) |value| {
+                entity.type.button.button.pressed = try display.requireImage(value);
+            }
+            if (entity.type.button.icon.default_name) |value| {
+                entity.texture = try display.requireImage(value);
+            }
+            if (entity.type.button.icon.hover_name) |value| {
+                entity.type.button.icon.hover = try display.requireImage(value);
+            }
+            if (entity.type.button.icon.disabled_name) |value| {
+                entity.type.button.icon.disabled = try display.requireImage(value);
+            }
+            if (entity.type.button.icon.pressed_name) |value| {
+                entity.type.button.icon.pressed = try display.requireImage(value);
+            }
+        },
+        .progress_bar => {
+            if (entity.texture == null) {
+                if (try display.requireImage("rounded progress bar")) |texture| {
+                    entity.texture = texture;
+                } else {
+                    err("Failed to load progress_bar texture named \"rounded progress bar\"", .{});
+                }
+            }
+        },
+        .panel => {
+            for (entity.type.panel.children.items) |child| {
+                try postAppend(display, child);
+            }
+        },
+        else => {},
     }
 }
 
