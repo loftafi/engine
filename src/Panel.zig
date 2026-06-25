@@ -814,7 +814,7 @@ inline fn placeChildrenLeftToRightWrap(
         child.rect.y = current.y + item.y;
         if (child.rect.y != current_y) {
             current_y = child.rect.y;
-            if (line_end > line_start) {
+            if (line_end >= line_start) {
                 alignChildRow(
                     entity.type.panel.children.items[line_start .. line_end + 1],
                     entity.child_align.x,
@@ -829,7 +829,7 @@ inline fn placeChildrenLeftToRightWrap(
         }
     }
     box.finalise();
-    if (line_end > line_start) {
+    if (line_end >= line_start and line_start < panel.children.items.len) {
         alignChildRow(
             entity.type.panel.children.items[line_start .. line_end + 1],
             entity.child_align.x,
