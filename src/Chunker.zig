@@ -101,7 +101,7 @@ pub fn guess_language(word: []const u8, font: *Font.Language) *Font {
             x = .korean;
         } else if (is_chinese_letter(c)) {
             x = .chinese;
-        } else if (c == ' ' or c == '\n' or c == '\t' or c == '"' or c == '\'' or c == '“' or c == '”' or c == '‘' or c == '’') {
+        } else if (c == ' ' or c == '\n' or c == '\t' or c == '"' or c == '\'' or c == '“' or c == '”' or c == '‘' or c == '’' or c == '?') {
             continue;
         } else if (is_greek_punctuation(c)) {
             continue;
@@ -195,6 +195,28 @@ test "detect_chinese" {
     data = Chunker.init("中文（繁體）");
     try expectEqualStrings("中文（繁體）", data.next(&display.font).?.text);
     try expectEqual(null, data.next(&display.font));
+}
+
+test "punctuation_filter" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 1024, 720, 2);
+    defer display.destroy();
+
+    // The first word is completely English. The second word is Greek.
+    // It's not ideal that the punctuation is swept up and becomes Greek,
+    // but it is functional for now.
+
+    const text = "Letters “τε”?";
+    var chunker = Chunker.init(text);
+    try expectEqualStrings("Letters", chunker.next(&display.font).?.text);
+    try expectEqualStrings("“τε”?", chunker.next(&display.font).?.text);
+    try expectEqual(null, chunker.next(&display.font));
+
+    chunker = Chunker.init(text);
+    try expectEqual(display.font.english, chunker.next(&display.font).?.font);
+    try expectEqual(display.font.greek, chunker.next(&display.font).?.font);
 }
 
 test "read_chunks" {
