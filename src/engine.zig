@@ -31,6 +31,7 @@ pub const Error = error{
     MaxLineCountExceeded,
     UnexpectedToken,
     ImageNotLoaded,
+    Canceled,
 };
 
 /// Capture _all_ zig log messages for the engine log system.

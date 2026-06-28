@@ -148,10 +148,10 @@ pub inline fn loadResourceSdl(
     io: std.Io,
     bundle: *Resources,
     resource: *Resource,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]const u8 {
+) error{ OutOfMemory, ResourceNotFound, ResourceReadError, Canceled }![]const u8 {
     if (resource.bundle_offset != null) {
         // load resource using sdl
-        return readResourceSdl(allocator, bundle, resource);
+        return readResourceSdl(allocator, io, bundle, resource);
     } else {
         // load resource using file system
         const data = bundle.loadResource(allocator, io, resource) catch |e| {
@@ -225,16 +225,21 @@ pub fn loadBundleSdl(
 
 fn readResourceSdl(
     gpa: Allocator,
+    io: std.Io,
     bundle: *Resources,
     resource: *Resource,
-) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]const u8 {
+) error{ OutOfMemory, ResourceNotFound, ResourceReadError, Canceled }![]const u8 {
     if (resource.bundle_offset == null) {
         err("sdl_read_data called on resource that belongs on disk (not in bundle) {s}", .{resource.filename.?});
         return error.ResourceNotFound;
     }
     if (resource.bundle_offset) |bundle_offset| {
-        if (bundle.used_resources) |*manifest| {
-            try manifest.put(bundle.arena.allocator(), resource.uid, resource);
+        {
+            try bundle.used_resources_rwlock.lock(io);
+            defer bundle.used_resources_rwlock.unlock(io);
+            if (bundle.used_resources) |*manifest| {
+                try manifest.put(bundle.arena.allocator(), resource.uid, resource);
+            }
         }
         return try sdl_load_file_byte_slice(gpa, resource.filename.?, bundle_offset, resource.size);
     }

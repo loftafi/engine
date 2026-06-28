@@ -935,7 +935,10 @@ fn loadImage(
     resource: *Resource,
     si: *SurfaceInfo,
 ) (Error || Allocator.Error)!void {
-    si.buffer = try loadResourceSdl(self.allocator, self.io, bucket, resource);
+    si.buffer = loadResourceSdl(self.allocator, self.io, bucket, resource) catch |f| {
+        err("loadResourceSdl failed: {t}", .{f});
+        return;
+    };
     errdefer self.allocator.free(si.buffer);
 
     si.img = zstbi.Image.loadFromMemory(si.buffer, 4) catch |e| {
@@ -1291,7 +1294,10 @@ pub fn playBundleResource(
         debug("search audio named \"{s}\" in {d}ms", .{ name, end - start });
 
         start = end;
-        const audio = try loadResourceSdl(self.allocator, io, bundle, resource.?);
+        const audio = loadResourceSdl(self.allocator, io, bundle, resource.?) catch |f| {
+            err("loadResourceSdl failed: {t}", .{f});
+            return null;
+        };
         errdefer self.allocator.free(audio);
         end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
 
