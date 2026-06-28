@@ -1350,6 +1350,41 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
     if (entity.visible == .culled)
         entity.visible = .visible;
 
+    if (engine.dev_build and engine.dev_mode) {
+        if (display.safe_area.top != 0) {
+            display.renderRectangle(2, Colour.BLUE, .{
+                .x = 0,
+                .y = 0,
+                .width = display.root.rect.width,
+                .height = display.safe_area.top,
+            });
+        }
+        if (display.safe_area.bottom != 0) {
+            display.renderRectangle(2, Colour.BLUE, .{
+                .x = 0,
+                .y = display.root.rect.height - display.safe_area.bottom,
+                .width = display.root.rect.width,
+                .height = display.safe_area.bottom,
+            });
+        }
+        if (display.safe_area.left != 0) {
+            display.renderRectangle(2, Colour.BLUE, .{
+                .x = 0,
+                .y = 0,
+                .width = display.safe_area.left,
+                .height = display.root.rect.height,
+            });
+        }
+        if (display.safe_area.right != 0) {
+            display.renderRectangle(2, Colour.BLUE, .{
+                .x = display.root.rect.width - display.safe_area.right,
+                .y = 0,
+                .width = display.safe_area.right,
+                .height = display.root.rect.height,
+            });
+        }
+    }
+
     // An Entity may optionally have a background texture or a simple
     // filled background.
     if (entity.background.image) |texture| {

@@ -2118,9 +2118,8 @@ fn propagate_resize_event(self: *Self, entity: *Entity) bool {
 /// Update the safe area metrics and flag if relayout is required.
 fn calculateSafeArea(self: *Self) void {
     var area: sdl.SDL_Rect = undefined;
-
-    if (!sdl.SDL_GetRenderSafeArea(self.renderer, &area)) {
-        err("SDL_GetRenderSafeArea() failed", .{});
+    if (!sdl.SDL_GetWindowSafeArea(self.window, &area)) {
+        err("SDL_GetWindowSafeArea() failed", .{});
         return;
     }
 
@@ -2143,8 +2142,8 @@ fn calculateSafeArea(self: *Self) void {
     // window pretend pixels.
     var left_pad = @as(f32, @floatFromInt(area.x)) / self.scale;
     var top_pad = @as(f32, @floatFromInt(area.y)) / self.scale;
-    var right_pad = self.root.rect.width - left_pad - (@as(f32, @floatFromInt(area.w)) / self.scale);
-    var bottom_pad = self.root.rect.height - top_pad - (@as(f32, @floatFromInt(area.h)) / self.scale);
+    var right_pad = self.root.rect.width - left_pad - (@as(f32, @floatFromInt(area.w)));
+    var bottom_pad = self.root.rect.height - top_pad - (@as(f32, @floatFromInt(area.h)));
 
     if (builtin.abi.isAndroid()) {
         if (top_pad > 0 and bottom_pad > 0) {
