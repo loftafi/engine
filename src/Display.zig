@@ -2069,7 +2069,7 @@ pub inline fn updateScreenMetrics(display: *Self) void {
     if (old_display_scale != display.scale) updated = true;
 
     if (updated or engine.dev_build or engine.dev_mode) {
-        debug("window update {d}x{d} ({d}) => {d}x{d} ({d}) scale={d} (mouse_scale={d})", .{
+        debug("window update {d}x{d} ({d}) => {d}x{d} ({d}) scale={d} (mouse_scale={d}, user_scale={d})", .{
             display.root.rect.width,
             display.root.rect.height,
             old_display_scale,
@@ -2078,6 +2078,7 @@ pub inline fn updateScreenMetrics(display: *Self) void {
             display.display_scale,
             display.scale,
             display.controller_scale,
+            display.user_scale,
         });
     }
 
@@ -2146,10 +2147,10 @@ fn calculateSafeArea(self: *Self) void {
 
     // SDL_GetRenderSafeArea returns physical display pixels, not
     // window pretend pixels.
-    var left_pad = @as(f32, @floatFromInt(area.x)) / self.scale;
-    var top_pad = @as(f32, @floatFromInt(area.y)) / self.scale;
-    var right_pad = self.root.rect.width - left_pad - (@as(f32, @floatFromInt(area.w)));
-    var bottom_pad = self.root.rect.height - top_pad - (@as(f32, @floatFromInt(area.h)));
+    var left_pad = @as(f32, @floatFromInt(area.x)) / self.user_scale;
+    var top_pad = @as(f32, @floatFromInt(area.y)) / self.user_scale;
+    var right_pad = self.root.rect.width - left_pad - @ceil(@as(f32, @floatFromInt(area.w)) / self.user_scale);
+    var bottom_pad = self.root.rect.height - top_pad - @ceil(@as(f32, @floatFromInt(area.h)) / self.user_scale);
 
     if (builtin.abi.isAndroid()) {
         if (top_pad > 0 and bottom_pad > 0) {
