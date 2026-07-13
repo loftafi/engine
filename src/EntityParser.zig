@@ -1763,7 +1763,7 @@ test "panel_children" {
         \\  label text "hello"
         \\  label text "hello2"
         \\  button:jai text "save" on_pressed on_click
-        \\  sprite image "safe"
+        \\  sprite image "safe-rock"
         \\}
     , TestHandler, &te, TextSize.pixels) orelse unreachable;
     defer entity.destroy(display);
@@ -1788,6 +1788,36 @@ test "panel_children" {
     try expectEqual(2, te.count);
 
     const sprite = entity.type.panel.children.items[3];
+    try expect(sprite.texture != null);
+    try expectEqual(sprite.texture.?.uid, 7270660);
+    try expect(display.required_resource.getKey(7270660) != null);
+}
+
+test "panel_children_children" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    var display = try headless_display(allocator, io, 1000, 1600, 2);
+    defer display.destroy();
+
+    var te: TestHandler = .{};
+    var parent = try readEntity(allocator,
+        \\panel:pie name "coffee" {
+        \\  panel:pie name "child" image "cat" {
+        \\    sprite image "safe-rock"
+        \\  }
+        \\}
+    , TestHandler, &te, TextSize.pixels) orelse unreachable;
+    defer parent.destroy(display);
+    try Entity.postAppend(display, parent);
+
+    try expectEqual(1, parent.type.panel.children.items.len);
+    const child = parent.type.panel.children.items[0];
+    try expect(.panel == child.type);
+
+    try expectEqual(1, child.type.panel.children.items.len);
+    const sprite = child.type.panel.children.items[0];
+    try expect(.sprite == sprite.type);
+
     try expect(sprite.texture != null);
     try expectEqual(sprite.texture.?.uid, 7270660);
     try expect(display.required_resource.getKey(7270660) != null);
