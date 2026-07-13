@@ -137,11 +137,11 @@ pub fn guess_language(word: []const u8, font: *Font.Language) *Font {
 }
 
 pub inline fn is_english_punctuation(c: u21) bool {
-    return (c == '.' or c == '?' or c == ',' or c == '"' or c == '\'' or c == '!' or c == '/' or c == '\u{2018}' or c == '\u{2019}' or c == '(' or c == ')' or c == ';' or c == '-');
+    return (c == '.' or c == '?' or c == ',' or c == '"' or c == '\'' or c == '!' or c == '/' or c == '\u{2018}' or c == '\u{2019}' or c == '(' or c == ')' or c == ';' or c == '-' or c == ':');
 }
 
 pub inline fn is_greek_punctuation(c: u21) bool {
-    return (c == '.' or c == ';' or c == ',' or c == '"' or c == '!' or c == '·' or c == '«' or c == '»');
+    return (c == '.' or c == ';' or c == ',' or c == '"' or c == '!' or c == '·' or c == '«' or c == '»' or c == ':');
 }
 
 pub inline fn is_chinese_punctuation(c: u21) bool {
