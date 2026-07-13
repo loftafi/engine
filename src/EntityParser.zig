@@ -1736,11 +1736,16 @@ test "panel" {
     try expectEqual(true, entity.type.panel.scrollable.scroll.y);
     try expectEqual(TextSize.pixels * 0.5, entity.pad.right);
     try expectEqualStrings("coffee", entity.name);
-    try expectEqualStrings("cat", entity.texture_name.?);
+    try expectEqualStrings("./test/repo/white.png", entity.texture.?.resource.filename orelse ""); // "cat"
     try expectEqualStrings("bh", entity.background.image_name.?);
     try expect(entity.background.image != null);
     try expectEqual(.left_to_right, entity.type.panel.direction);
     try expectEqual(.tinted, entity.style);
+
+    try expectEqual(entity.texture.?.uid, 454147630);
+    try expect(display.required_resource.getKey(454147630) != null);
+    try expectEqual(entity.background.image.?.uid, 2073);
+    try expect(display.required_resource.getKey(2073) != null);
 }
 
 test "panel_children" {
@@ -1758,18 +1763,22 @@ test "panel_children" {
         \\  label text "hello"
         \\  label text "hello2"
         \\  button:jai text "save" on_pressed on_click
+        \\  sprite image "safe"
         \\}
     , TestHandler, &te, TextSize.pixels) orelse unreachable;
     defer entity.destroy(display);
+    try Entity.postAppend(display, entity);
 
     try expectEqual(te.pie, entity);
     try expectEqual(.ignore_safe_area, entity.type.panel.safe_area);
     try expectEqual(.not_choosable, entity.type.panel.choosable);
     try expectEqual(true, entity.type.panel.scrollable.scroll.y);
-    try expectEqual(3, entity.type.panel.children.items.len);
+    try expectEqual(4, entity.type.panel.children.items.len);
+    try expectEqual(entity.texture.?.uid, 454147630);
     try expect(.label == entity.type.panel.children.items[0].type);
     try expect(.label == entity.type.panel.children.items[1].type);
     try expect(.button == entity.type.panel.children.items[2].type);
+    try expect(.sprite == entity.type.panel.children.items[3].type);
 
     try expectEqual(0, te.count);
     try te.jai.type.button.on_pressed.call(display, te.pie, &.{});
@@ -1777,6 +1786,11 @@ test "panel_children" {
 
     te.pie.update(display);
     try expectEqual(2, te.count);
+
+    const sprite = entity.type.panel.children.items[3];
+    try expect(sprite.texture != null);
+    try expectEqual(sprite.texture.?.uid, 7270660);
+    try expect(display.required_resource.getKey(7270660) != null);
 }
 
 test "button" {

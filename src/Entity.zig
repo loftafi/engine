@@ -1096,7 +1096,10 @@ pub inline fn appendMultiple(
     }
 }
 
-pub fn postAppend(display: *Display, entity: *Entity) (Error || Allocator.Error || Resources.Error)!void {
+pub fn postAppend(
+    display: *Display,
+    entity: *Entity,
+) (Error || Allocator.Error || Resources.Error)!void {
     if (entity.getText()) |text| {
         try entity.setText(display, text);
     }
