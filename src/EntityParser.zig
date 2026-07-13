@@ -1804,6 +1804,7 @@ test "panel_children_children" {
         \\panel:pie name "coffee" {
         \\  panel:pie name "child" image "cat" {
         \\    sprite image "safe-rock"
+        \\    sprite background_image "question box"
         \\  }
         \\}
     , TestHandler, &te, TextSize.pixels) orelse unreachable;
@@ -1814,13 +1815,19 @@ test "panel_children_children" {
     const child = parent.type.panel.children.items[0];
     try expect(.panel == child.type);
 
-    try expectEqual(1, child.type.panel.children.items.len);
+    try expectEqual(2, child.type.panel.children.items.len);
     const sprite = child.type.panel.children.items[0];
     try expect(.sprite == sprite.type);
+    const sprite2 = child.type.panel.children.items[1];
+    try expect(.sprite == sprite2.type);
 
     try expect(sprite.texture != null);
-    try expectEqual(sprite.texture.?.uid, 7270660);
+    try expectEqual(7270660, sprite.texture.?.uid);
     try expect(display.required_resource.getKey(7270660) != null);
+
+    try expect(sprite2.background.image != null);
+    try expectEqual(827423573, sprite2.background.image.?.uid);
+    try expect(display.required_resource.getKey(827423573) != null);
 }
 
 test "button" {
