@@ -5,7 +5,8 @@ pub fn build(b: *std.Build) void {
 
     const resources = b.dependency("resources", .{ .target = target, .optimize = optimize });
     const resources_module = resources.module("resources");
-    addSystemPathsToModule(b, &target, resources_module);
+    if (platforms.getSystemPath(b, &target)) |path| resources_module.addSystemIncludePath(path);
+    if (platforms.getFrameworkPath(b, &target)) |path| resources_module.addSystemFrameworkPath(path);
 
     const praxis = resources.builder.dependency("praxis", .{ .target = target, .optimize = optimize });
     const praxis_module = praxis.module("praxis");
@@ -27,18 +28,19 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/engine.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "praxis", .module = praxis_module },
+            .{ .name = "resources", .module = resources_module },
+            .{ .name = "zstbi", .module = zstbi_module },
+            .{ .name = "sdl", .module = sdl_module },
+            .{ .name = "mixer", .module = mixer_module },
+            .{ .name = "translator", .module = translator_module },
+            .{ .name = "TrueType", .module = truetype_module },
+        },
     });
-    lib_mod.addImport("praxis", praxis_module);
-    lib_mod.addImport("resources", resources_module);
-    lib_mod.addImport("zstbi", zstbi_module);
-    lib_mod.addImport("sdl", sdl_module);
-    lib_mod.addImport("mixer", mixer_module);
-    lib_mod.addImport("translator", translator_module);
-    lib_mod.addImport("TrueType", truetype_module);
-    lib_mod.addIncludePath(b.path("libs/sdl"));
-    lib_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
+    if (platforms.getSystemPath(b, &target)) |path| lib_mod.addSystemIncludePath(path);
+    if (platforms.getFrameworkPath(b, &target)) |path| lib_mod.addSystemFrameworkPath(path);
     link_sdl_framework(b, &target, lib_mod);
-    addSystemPathsToModule(b, &target, lib_mod);
 
     const lib = b.addLibrary(.{
         .linkage = .static,
@@ -51,18 +53,19 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/test.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "praxis", .module = praxis_module },
+            .{ .name = "resources", .module = resources_module },
+            .{ .name = "zstbi", .module = zstbi_module },
+            .{ .name = "sdl", .module = sdl_module },
+            .{ .name = "mixer", .module = mixer_module },
+            .{ .name = "translator", .module = translator_module },
+            .{ .name = "TrueType", .module = truetype_module },
+        },
     });
-    test_mod.addImport("praxis", praxis_module);
-    test_mod.addImport("resources", resources_module);
-    test_mod.addImport("zstbi", zstbi_module);
-    test_mod.addImport("sdl", sdl_module);
-    test_mod.addImport("mixer", mixer_module);
-    test_mod.addImport("translator", translator_module);
-    test_mod.addImport("TrueType", truetype_module);
-    lib_mod.addIncludePath(b.path("libs/sdl"));
-    test_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
+    if (platforms.getSystemPath(b, &target)) |path| test_mod.addSystemIncludePath(path);
+    if (platforms.getFrameworkPath(b, &target)) |path| test_mod.addSystemFrameworkPath(path);
     link_sdl_framework(b, &target, test_mod);
-    addSystemPathsToModule(b, &target, test_mod);
 
     const real_tests = b.addTest(.{
         .root_module = test_mod,
@@ -88,18 +91,20 @@ fn define_mixer_module(
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
 ) *std.Build.Module {
-    const headers = b.addTranslateC(.{
+    var headers = b.addTranslateC(.{
         .root_source_file = b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"),
         .target = target.*,
         .optimize = optimize.*,
     });
+    if (platforms.getSystemPath(b, target)) |path| headers.addSystemIncludePath(path);
+    if (platforms.getFrameworkPath(b, target)) |path| headers.addSystemFrameworkPath(path);
     headers.addIncludePath(b.path("libs/sdl"));
     headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/SDL.h"));
     headers.addIncludePath(b.path("SDL_mixer.h"));
 
     const sdl_mix_mod = headers.addModule("mixer");
-    addSystemPathsToModule(b, target, sdl_mix_mod);
-    addSystemPathsToTranslateC(b, target, headers);
+    if (platforms.getSystemPath(b, target)) |path| sdl_mix_mod.addSystemIncludePath(path);
+    if (platforms.getFrameworkPath(b, target)) |path| sdl_mix_mod.addSystemFrameworkPath(path);
 
     return sdl_mix_mod;
 }
@@ -117,30 +122,39 @@ fn define_sdl_module(
     // usable `include` folder, only a `Headers` folder which
     // doesnt work here.
     const translate_c_dep = b.dependency("translate_c", .{});
-    const headers: @import("translate_c").Translator = .init(translate_c_dep, .{
-        .c_source_file = b.addWriteFiles().add("c.h",
+
+    const c_header = switch (target.result.os.tag) {
+        .ios => b.addWriteFiles().add("c.h",
+            \\#define TARGET_OS_IPHONE 1
+            \\#define SDL_PLATFORM_IOS 1
             \\#define SDL_DISABLE_OLD_NAMES
             \\#include <SDL3/SDL.h>
             \\#include <SDL3/SDL_revision.h>
             \\#define SDL_MAIN_HANDLED
             \\#include <SDL3/SDL_main.h>
         ),
+        else => b.addWriteFiles().add("c.h",
+            \\#define SDL_DISABLE_OLD_NAMES
+            \\#include <SDL3/SDL.h>
+            \\#include <SDL3/SDL_revision.h>
+            \\#define SDL_MAIN_HANDLED
+            \\#include <SDL3/SDL_main.h>
+        ),
+    };
+
+    var headers: Translator = .init(translate_c_dep, .{
+        .c_source_file = c_header,
         .target = target.*,
         .optimize = optimize.*,
     });
 
-    //headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/SDL.h"));
-    //headers.mod.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL.h"));
+    if (platforms.getSystemPath(b, target)) |path| headers.mod.addSystemIncludePath(path);
+    if (platforms.getFrameworkPath(b, target)) |path| headers.mod.addSystemFrameworkPath(path);
+    if (platforms.getSystemPath(b, target)) |path| headers.addSystemIncludePath(path);
+    if (platforms.getFrameworkPath(b, target)) |path| headers.addSystemFrameworkPath(path);
     headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/"));
-    headers.mod.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
-
-    //headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
-    //headers.mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
     headers.addIncludePath(b.path("libs/sdl"));
     headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
-    headers.mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
-    addSystemPathsToModule(b, target, headers.mod);
-    //addSystemPathsToTranslateC(b, target, headers);
 
     return headers.mod;
 }
@@ -202,6 +216,7 @@ pub fn link_sdl_framework(
 const std = @import("std");
 const debug = std.log.debug;
 
+const Translator = @import("translate_c").Translator;
+
 const FindNDK = @import("build/find_ndk.zig").FindNDK;
-const addSystemPathsToModule = @import("build/addSystemPathsToModule.zig").addSystemPathsToModule;
-const addSystemPathsToTranslateC = @import("build/addSystemPathsToModule.zig").addSystemPathsToTranslateC;
+const platforms = @import("build/platforms.zig");
