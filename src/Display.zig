@@ -160,6 +160,8 @@ on_panel_change: Entity.PanelChangeCallback = .empty,
 bucket: StringBucket,
 config: Config,
 
+haptic_device: ?*sdl.SDL_Haptic = null,
+
 const empty: @This() = .{};
 
 const Self = @This();
@@ -192,21 +194,18 @@ pub fn create(
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_ERROR, sdl.SDL_LOG_PRIORITY_DEBUG);
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_RENDER, sdl.SDL_LOG_PRIORITY_DEBUG);
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_SYSTEM, sdl.SDL_LOG_PRIORITY_DEBUG);
+        _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_APPLICATION, sdl.SDL_LOG_PRIORITY_DEBUG);
     } else {
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_GPU, sdl.SDL_LOG_PRIORITY_INFO);
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_VIDEO, sdl.SDL_LOG_PRIORITY_INFO);
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_ERROR, sdl.SDL_LOG_PRIORITY_INFO);
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_RENDER, sdl.SDL_LOG_PRIORITY_INFO);
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_SYSTEM, sdl.SDL_LOG_PRIORITY_INFO);
+        _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_APPLICATION, sdl.SDL_LOG_PRIORITY_DEBUG);
     }
 
-    _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_APPLICATION, sdl.SDL_LOG_PRIORITY_DEBUG);
-
-    if (engine.platform != .android) {
-        // On android, the builtin SDL log function is used
-        // to output log info to logcat.
-        sdl.SDL_SetLogOutputFunction(log.sdl_log_callback, null);
-    }
+    log.default_sdl_log = sdl.SDL_GetDefaultLogOutputFunction();
+    sdl.SDL_SetLogOutputFunction(log.sdl_log_callback, null);
 
     _ = switch (config.orientation) {
         .any => sdl.SDL_SetHint(sdl.SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight Portrait PortraitUpsideDown"),
@@ -348,6 +347,8 @@ pub fn create(
         .display_scale = display_scale,
         .user_scale = 1,
         .scale = display_scale * 1, // display_scale * user_scale
+
+        .haptic_device = null,
 
         .safe_area = .{
             .top = 0,
@@ -526,14 +527,23 @@ pub fn destroy(self: *Self) void {
 
 pub fn haptic_feedback_available(_: *Self) bool {
     var count: c_int = undefined;
-    if (sdl.SDL_GetHaptics(&count) == null) return false;
+    if (sdl.SDL_GetHaptics(&count) == null) {
+        info("No haptic device results returned.", .{});
+        return false;
+    }
+    info("haptic device count={d}", .{count});
     return count > 0;
 }
 
 /// Vibrate for `duration` milliseconds.
-pub fn haptic_feedback(_: *Self, duration: u16) void {
-    const device: ?*sdl.SDL_Haptic = sdl.SDL_OpenHaptic(0);
-    if (device) |haptic| {
+pub fn haptic_feedback(self: *Self, duration: u16) void {
+    if (self.haptic_device == null) {
+        self.haptic_device = sdl.SDL_OpenHaptic(0);
+        info("open haptic device {any}", .{self.haptic_device});
+    } else {
+        info("haptic device {any}", .{self.haptic_device});
+    }
+    if (self.haptic_device) |haptic| {
         var effect: sdl.SDL_HapticEffect = .{
             .periodic = .{
                 .type = sdl.SDL_HAPTIC_CARTESIAN,
@@ -556,15 +566,13 @@ pub fn haptic_feedback(_: *Self, duration: u16) void {
             },
         };
 
-        const effect_id = sdl.SDL_CreateHapticEffect(device, &effect);
+        const effect_id = sdl.SDL_CreateHapticEffect(self.haptic_device, &effect);
         if (!sdl.SDL_RunHapticEffect(
-            device,
+            haptic,
             effect_id, // Haptic Effect ID
             1, // How many itmes to run
         ))
             warn("haptic vibration failed", .{});
-
-        sdl.SDL_CloseHaptic(haptic);
     }
 }
 

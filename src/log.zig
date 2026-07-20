@@ -176,8 +176,13 @@ pub inline fn alert(comptime format: []const u8, args: anytype) void {
     formatted_log_output(.alert, .engine, format, args);
 }
 
-/// Use with `std.Options.logFn` in your app to direct zig logging
-/// to the engine.
+/// Your `main.zig` or main entry point, should define a `std.Options` to
+/// forward all generic log messages to the main handler `formatted_log_output`:
+///
+/// pub const std_options: std.Options = .{
+///    .log_level = .debug,
+///    .logFn = @import("engine").log.log_capture,
+/// };
 pub fn log_capture(
     comptime level: std.log.Level,
     comptime scope: @EnumLiteral(),
@@ -194,17 +199,18 @@ pub fn log_capture(
     }, scope, format, args);
 }
 
+/// All log messages from `engine.log`and `std.log` filter through this
+/// function.
 fn formatted_log_output(
     comptime level: Level,
     comptime scope: @EnumLiteral(),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    if (!dev_build) {
-        if (level == .trace) return;
-        if (level == .debug and engine.dev_mode == false) return;
-    }
+    _ = scope;
 
+    if (level == .trace and builtin.mode != .Debug) return;
+    if (level == .debug and (builtin.mode != .Debug or engine.dev_mode != true)) return;
     if (builtin.is_test) return;
 
     var buffer: [max_log_message_size]u8 = undefined;
@@ -212,6 +218,7 @@ fn formatted_log_output(
 
     switch (engine.platform) {
         .macos => {
+            // macOS just write to stdout.
             const prefix = switch (level) {
                 .trace => "\x1B[90m\x1B[1mtrace\x1B[22m: ",
                 .debug => "\x1B[34m\x1B[1mdebug\x1B[22m: ",
@@ -230,13 +237,9 @@ fn formatted_log_output(
             defer std.debug.unlockStderr();
             nosuspend stderr.writeAll(msg.buffered()) catch return;
             stderr.flush() catch {};
-
-            msg.writeByte(0) catch return;
-
-            //if (scope != .term_scope)
-            //    sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), msg.buffered().ptr);
         },
         .android, .ios => {
+            // android and iOS use SDL_LogInfo
             const prefix = switch (level) {
                 .trace => "trace: ",
                 .debug => "debug: ",
@@ -246,17 +249,20 @@ fn formatted_log_output(
                 .err => "error: ",
                 .alert => "alert: ",
             };
-
             msg.writeAll(prefix) catch return;
             msg.print(format, args) catch return;
-            msg.writeAll("\x1B[0m\n") catch return;
             msg.writeByte(0) catch return;
-
-            if (scope != .term_scope) {}
             sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), msg.buffered().ptr);
         },
     }
 }
+
+pub var default_sdl_log: ?*const fn (
+    data: ?*anyopaque,
+    category_int: c_int,
+    priority: sdl.SDL_LogPriority,
+    message: [*c]const u8,
+) callconv(.c) void = null;
 
 /// SDL provides extra information that is sometimes helpful for debugging, lets print this
 /// information when we are in debug mode.
@@ -265,42 +271,48 @@ fn formatted_log_output(
 /// https://github.com/Gota7/zig-sdl3/blob/9327bd69d7cbac728486d57bec05d35371a17737/src/log.zig
 pub fn sdl_log_callback(
     data: ?*anyopaque,
-    category: c_int,
+    category_int: c_int,
     priority: sdl.SDL_LogPriority,
     message: [*c]const u8,
 ) callconv(.c) void {
-    const level = SdlLogPriority.fromInt(priority);
-    switch (level) {
+    const category = SdlLogCategory.fromInt(category_int);
+
+    // Application messages always go to SDL.
+    if (category == .application) {
+        if (default_sdl_log) |f| {
+            f(data, category_int, priority, message);
+        }
+        return;
+    }
+
+    // Non Applicaiton messages go through the engine (possibly returning as
+    // an application message
+    switch (SdlLogPriority.fromInt(priority)) {
         .debug, .trace, .verbose, .count, .unknown, .invalid => {
-            std.log.scoped(.term_scope).debug("SDL ({t}, {t}) {s}", .{
-                SdlLogCategory.fromInt(category),
-                level,
+            formatted_log_output(.debug, .term_scope, "SDL {t}: {s}", .{
+                category,
                 message,
             });
         },
         .info => {
-            std.log.scoped(.term_scope).info("SDL ({t}, {t}) {s}", .{
-                SdlLogCategory.fromInt(category),
-                level,
+            formatted_log_output(.info, .term_scope, "SDL {t}: {s}", .{
+                category,
                 message,
             });
         },
         .warn => {
-            std.log.scoped(.term_scope).warn("SDL ({t}, {t}) {s}", .{
-                SdlLogCategory.fromInt(category),
-                level,
+            formatted_log_output(.warn, .term_scope, "SDL {t}: {s}", .{
+                category,
                 message,
             });
         },
         .err, .critical => {
-            std.log.scoped(.term_scope).err("SDL ({t}, {t}) {s}", .{
-                SdlLogCategory.fromInt(category),
-                level,
+            formatted_log_output(.err, .term_scope, "SDL {t}: {s}", .{
+                category,
                 message,
             });
         },
     }
-    _ = data;
 }
 
 /// Convert the SDL LogPriority into a zig enum. See:
