@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.25.12",
+    .version = "0.25.13",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
@@ -15,10 +15,6 @@
         .resources = .{
             .url = "git+https://github.com/loftafi/resources#475909d258751c973a6d7e8744d0e5dcb839b773",
             .hash = "resources-2.1.2-J0GwI7WEywBfkyjSRQ41stQPErmr0NJ8cscTfD3AmblR",
-        },
-        .sdl = .{
-            .url = "git+https://github.com/castholm/SDL.git#1b67d371a531ecb0499d4b80a865631c299f472a",
-            .hash = "sdl-0.5.2+3.4.12-SDL--qPKpwHc40bqAlYs7W9pXJVyLwsGDNa4shNXbOZr",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/ziglang/translate-c#12c1515c074cfa9c69a799eb33506464a27c6332",

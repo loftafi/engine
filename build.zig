@@ -35,6 +35,7 @@ pub fn build(b: *std.Build) void {
     lib_mod.addImport("mixer", mixer_module);
     lib_mod.addImport("translator", translator_module);
     lib_mod.addImport("TrueType", truetype_module);
+    lib_mod.addIncludePath(b.path("libs/sdl"));
     lib_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
     link_sdl_framework(b, &target, lib_mod);
     addSystemPathsToModule(b, &target, lib_mod);
@@ -58,6 +59,7 @@ pub fn build(b: *std.Build) void {
     test_mod.addImport("mixer", mixer_module);
     test_mod.addImport("translator", translator_module);
     test_mod.addImport("TrueType", truetype_module);
+    lib_mod.addIncludePath(b.path("libs/sdl"));
     test_mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
     link_sdl_framework(b, &target, test_mod);
     addSystemPathsToModule(b, &target, test_mod);
@@ -86,16 +88,18 @@ fn define_mixer_module(
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
 ) *std.Build.Module {
-    const sdl_dep = b.dependency("sdl", .{});
-    const headers2 = b.addTranslateC(.{
+    const headers = b.addTranslateC(.{
         .root_source_file = b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"),
         .target = target.*,
         .optimize = optimize.*,
     });
-    headers2.addIncludePath(sdl_dep.path("include"));
-    const sdl_mix_mod = headers2.addModule("mixer");
+    headers.addIncludePath(b.path("libs/sdl"));
+    headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/SDL.h"));
+    headers.addIncludePath(b.path("SDL_mixer.h"));
+
+    const sdl_mix_mod = headers.addModule("mixer");
     addSystemPathsToModule(b, target, sdl_mix_mod);
-    addSystemPathsToTranslateC(b, target, headers2);
+    addSystemPathsToTranslateC(b, target, headers);
 
     return sdl_mix_mod;
 }
@@ -112,8 +116,6 @@ fn define_sdl_module(
     // zig sdl projects. The `xcframework` folders dont contain a
     // usable `include` folder, only a `Headers` folder which
     // doesnt work here.
-    const sdl_dep = b.dependency("sdl", .{});
-
     const translate_c_dep = b.dependency("translate_c", .{});
     const headers: @import("translate_c").Translator = .init(translate_c_dep, .{
         .c_source_file = b.addWriteFiles().add("c.h",
@@ -127,9 +129,16 @@ fn define_sdl_module(
         .optimize = optimize.*,
     });
 
-    headers.addIncludePath(sdl_dep.path("include"));
-    headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
-    headers.mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
+    //headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/SDL.h"));
+    //headers.mod.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL.h"));
+    headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/"));
+    headers.mod.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
+
+    //headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
+    //headers.mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
+    headers.addIncludePath(b.path("libs/sdl"));
+    headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
+    headers.mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
     addSystemPathsToModule(b, target, headers.mod);
     //addSystemPathsToTranslateC(b, target, headers);
 
