@@ -176,7 +176,7 @@ pub fn loadBundleSdl(
 })!bool {
     var buffer: [300:0]u8 = undefined;
 
-    const bundle_filename_z: [:0]u8 = try self.arena.allocator().dupeZ(u8, bundle_filename);
+    const bundle_filename_z: [:0]u8 = try self.arena.allocator().dupeSentinel(u8, bundle_filename, 0);
     errdefer self.arena.allocator().free(bundle_filename_z);
 
     const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
@@ -252,7 +252,7 @@ fn sdl_load_file_byte_slice(
     offset: usize,
     size: usize,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]u8 {
-    const bundle_filename_z = try gpa.dupeZ(u8, bundle_filename);
+    const bundle_filename_z = try gpa.dupeSentinel(u8, bundle_filename, 0);
     defer gpa.free(bundle_filename_z);
 
     const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
@@ -359,9 +359,9 @@ fn make_preference_file_path(
     config: *const engine.Config,
     filename: []const u8,
 ) error{OutOfMemory}![:0]const u8 {
-    const app_org_z = try gpa.dupeZ(u8, config.app_org orelse default_org_name);
+    const app_org_z = try gpa.dupeSentinel(u8, config.app_org orelse default_org_name, 0);
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, config.app_name orelse default_app_name);
+    const app_name_z = try gpa.dupeSentinel(u8, config.app_name orelse default_app_name, 0);
     defer gpa.free(app_name_z);
 
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
@@ -430,9 +430,9 @@ pub fn savePreferenceData(
     filename: []const u8,
     data: []const u8,
 ) error{ ResourceWriteError, OutOfMemory }!void {
-    const app_org_z = try gpa.dupeZ(u8, config.app_org orelse default_org_name);
+    const app_org_z = try gpa.dupeSentinel(u8, config.app_org orelse default_org_name, 0);
     defer gpa.free(app_org_z);
-    const app_name_z = try gpa.dupeZ(u8, config.app_name orelse default_app_name);
+    const app_name_z = try gpa.dupeSentinel(u8, config.app_name orelse default_app_name, 0);
     defer gpa.free(app_name_z);
 
     // SDL auto creates the preferences path if it does not yet exist.

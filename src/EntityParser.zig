@@ -1251,44 +1251,44 @@ pub const CallbackSet = struct {
     pub fn init(t: type) CallbackSet {
         var callbacks: [max_callbacks]Callback = undefined;
         var count: usize = 0;
-        inline for (@typeInfo(t).@"struct".decls) |decl| {
-            const f = @field(t, decl.name);
+        inline for (@typeInfo(t).@"struct".decl_names) |decl_name| {
+            const f = @field(t, decl_name);
             const info = @typeInfo(@TypeOf(f));
             if (info != .@"fn") continue;
-            if (info.@"fn".params.len != 4) continue;
+            if (info.@"fn".param_types.len != 4) continue;
             if (info.@"fn".return_type == null) continue;
             if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
             if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
             if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
 
-            if (info.@"fn".params[0].type == null) continue;
-            const t0 = @typeInfo(info.@"fn".params[0].type.?);
+            if (info.@"fn".param_types[0] == null) continue;
+            const t0 = @typeInfo(info.@"fn".param_types[0].?);
             if (t0 != .pointer) continue;
             const t0i = @typeInfo(t0.pointer.child);
             if (t0i != .@"struct") continue;
 
-            if (info.@"fn".params[1].type == null) continue;
-            const t1 = @typeInfo(info.@"fn".params[1].type.?);
+            if (info.@"fn".param_types[1] == null) continue;
+            const t1 = @typeInfo(info.@"fn".param_types[1].?);
             if (t1 != .pointer) continue;
             const t1i = @typeInfo(t1.pointer.child);
             if (t1i != .@"struct") continue;
             if (t1.pointer.child != engine.Display) continue;
 
-            if (info.@"fn".params[2].type == null) continue;
-            const t2 = @typeInfo(info.@"fn".params[2].type.?);
+            if (info.@"fn".param_types[2] == null) continue;
+            const t2 = @typeInfo(info.@"fn".param_types[2].?);
             if (t2 != .pointer) continue;
             const t2i = @typeInfo(t2.pointer.child);
             if (t2i != .@"struct") continue;
             if (t2.pointer.child != engine.Entity) continue;
 
-            if (info.@"fn".params[3].type == null) continue;
-            const t3 = @typeInfo(info.@"fn".params[3].type.?);
+            if (info.@"fn".param_types[3] == null) continue;
+            const t3 = @typeInfo(info.@"fn".param_types[3].?);
             if (t3 != .pointer) continue;
             const t3i = @typeInfo(t3.pointer.child);
             if (t3i != .@"struct") continue;
             if (t3.pointer.child != engine.Event) continue;
 
-            callbacks[count] = Callback{ .name = decl.name, .f = @ptrCast(&f) };
+            callbacks[count] = Callback{ .name = decl_name, .f = @ptrCast(&f) };
             count += 1;
             if (count == max_callbacks) break;
         }
@@ -1323,37 +1323,37 @@ pub const StateCallbackSet = struct {
     pub fn init(t: type) StateCallbackSet {
         var callbacks: [max_callbacks]Callback = undefined;
         var count: usize = 0;
-        inline for (@typeInfo(t).@"struct".decls) |decl| {
-            const f = @field(t, decl.name);
+        inline for (@typeInfo(t).@"struct".decl_names) |decl_name| {
+            const f = @field(t, decl_name);
             const info = @typeInfo(@TypeOf(f));
             if (info != .@"fn") continue;
-            if (info.@"fn".params.len != 3) continue;
+            if (info.@"fn".param_types.len != 3) continue;
             if (info.@"fn".return_type == null) continue;
             if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
             if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
             if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
 
-            if (info.@"fn".params[0].type == null) continue;
-            const t0 = @typeInfo(info.@"fn".params[0].type.?);
+            if (info.@"fn".param_types[0] == null) continue;
+            const t0 = @typeInfo(info.@"fn".param_types[0].?);
             if (t0 != .pointer) continue;
             const t0i = @typeInfo(t0.pointer.child);
             if (t0i != .@"struct") continue;
 
-            if (info.@"fn".params[1].type == null) continue;
-            const t1 = @typeInfo(info.@"fn".params[1].type.?);
+            if (info.@"fn".param_types[1] == null) continue;
+            const t1 = @typeInfo(info.@"fn".param_types[1].?);
             if (t1 != .pointer) continue;
             const t1i = @typeInfo(t1.pointer.child);
             if (t1i != .@"struct") continue;
             if (t1.pointer.child != engine.Display) continue;
 
-            if (info.@"fn".params[2].type == null) continue;
-            const t2 = @typeInfo(info.@"fn".params[2].type.?);
+            if (info.@"fn".param_types[2] == null) continue;
+            const t2 = @typeInfo(info.@"fn".param_types[2].?);
             if (t2 != .pointer) continue;
             const t2i = @typeInfo(t2.pointer.child);
             if (t2i != .@"struct") continue;
             if (t2.pointer.child != engine.Entity) continue;
 
-            callbacks[count] = Callback{ .name = decl.name, .f = @ptrCast(&f) };
+            callbacks[count] = Callback{ .name = decl_name, .f = @ptrCast(&f) };
             count += 1;
             if (count == max_callbacks) break;
         }
@@ -1389,35 +1389,35 @@ pub const UpdateCallbackSet = struct {
         var callbacks: [max_callbacks]Callback = undefined;
         var count: usize = 0;
 
-        inline for (@typeInfo(t).@"struct".decls) |decl| {
-            const f = @field(t, decl.name);
+        inline for (@typeInfo(t).@"struct".decl_names) |decl_name| {
+            const f = @field(t, decl_name);
             const info = @typeInfo(@TypeOf(f));
             if (info != .@"fn") continue;
-            if (info.@"fn".params.len != 3) continue;
+            if (info.@"fn".param_types.len != 3) continue;
             if (info.@"fn".return_type == null) continue;
             if (@typeInfo(info.@"fn".return_type.?) != .void) continue;
 
-            if (info.@"fn".params[0].type == null) continue;
-            const t0 = @typeInfo(info.@"fn".params[0].type.?);
+            if (info.@"fn".param_types[0] == null) continue;
+            const t0 = @typeInfo(info.@"fn".param_types[0].?);
             if (t0 != .pointer) continue;
             const t0i = @typeInfo(t0.pointer.child);
             if (t0i != .@"struct") continue;
 
-            if (info.@"fn".params[1].type == null) continue;
-            const t1 = @typeInfo(info.@"fn".params[1].type.?);
+            if (info.@"fn".param_types[1] == null) continue;
+            const t1 = @typeInfo(info.@"fn".param_types[1].?);
             if (t1 != .pointer) continue;
             const t1i = @typeInfo(t1.pointer.child);
             if (t1i != .@"struct") continue;
             if (t1.pointer.child != engine.Display) continue;
 
-            if (info.@"fn".params[2].type == null) continue;
-            const t2 = @typeInfo(info.@"fn".params[2].type.?);
+            if (info.@"fn".param_types[2] == null) continue;
+            const t2 = @typeInfo(info.@"fn".param_types[2].?);
             if (t2 != .pointer) continue;
             const t2i = @typeInfo(t2.pointer.child);
             if (t2i != .@"struct") continue;
             if (t2.pointer.child != engine.Entity) continue;
 
-            callbacks[count] = Callback{ .name = decl.name, .f = @ptrCast(&f) };
+            callbacks[count] = Callback{ .name = decl_name, .f = @ptrCast(&f) };
             count += 1;
             if (count == max_callbacks) break;
         }
@@ -1452,35 +1452,35 @@ pub const BoolCallbackSet = struct {
     pub fn init(t: type) BoolCallbackSet {
         var callbacks: [max_callbacks]Callback = undefined;
         var count: usize = 0;
-        inline for (@typeInfo(t).@"struct".decls) |decl| {
-            const f = @field(t, decl.name);
+        inline for (@typeInfo(t).@"struct".decl_names) |decl_name| {
+            const f = @field(t, decl_name);
             const info = @typeInfo(@TypeOf(f));
             if (info != .@"fn") continue;
-            if (info.@"fn".params.len != 3) continue;
+            if (info.@"fn".param_types.len != 3) continue;
             if (info.@"fn".return_type == null) continue;
             if (@typeInfo(info.@"fn".return_type.?) != .bool) continue;
 
-            if (info.@"fn".params[0].type == null) continue;
-            const t0 = @typeInfo(info.@"fn".params[0].type.?);
+            if (info.@"fn".param_types[0] == null) continue;
+            const t0 = @typeInfo(info.@"fn".param_types[0].?);
             if (t0 != .pointer) continue;
             const t0i = @typeInfo(t0.pointer.child);
             if (t0i != .@"struct") continue;
 
-            if (info.@"fn".params[1].type == null) continue;
-            const t1 = @typeInfo(info.@"fn".params[1].type.?);
+            if (info.@"fn".param_types[1] == null) continue;
+            const t1 = @typeInfo(info.@"fn".param_types[1].?);
             if (t1 != .pointer) continue;
             const t1i = @typeInfo(t1.pointer.child);
             if (t1i != .@"struct") continue;
             if (t1.pointer.child != engine.Display) continue;
 
-            if (info.@"fn".params[2].type == null) continue;
-            const t2 = @typeInfo(info.@"fn".params[2].type.?);
+            if (info.@"fn".param_types[2] == null) continue;
+            const t2 = @typeInfo(info.@"fn".param_types[2].?);
             if (t2 != .pointer) continue;
             const t2i = @typeInfo(t2.pointer.child);
             if (t2i != .@"struct") continue;
             if (t2.pointer.child != engine.Entity) continue;
 
-            callbacks[count] = Callback{ .name = decl.name, .f = @ptrCast(&f) };
+            callbacks[count] = Callback{ .name = decl_name, .f = @ptrCast(&f) };
             count += 1;
             if (count == max_callbacks) break;
         }
@@ -1515,13 +1515,14 @@ pub const FieldSet = struct {
     pub fn init(t: type) FieldSet {
         var buffer: [max_callbacks]Field = undefined;
         var count: usize = 0;
-        inline for (@typeInfo(t).@"struct".fields) |field| {
-            const info = @typeInfo(field.type);
+        const ti = @typeInfo(t).@"struct";
+        inline for (ti.field_names, ti.field_types) |field_name, field_type| {
+            const info = @typeInfo(field_type);
             if (info != .pointer) continue;
             if (info.pointer.child != Entity) continue;
             buffer[count] = Field{
-                .name = field.name,
-                .offset = @offsetOf(t, field.name),
+                .name = field_name,
+                .offset = @offsetOf(t, field_name),
             };
             count += 1;
             if (count == max_callbacks) break;

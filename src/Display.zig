@@ -530,19 +530,40 @@ pub fn haptic_feedback_available(_: *Self) bool {
     return count > 0;
 }
 
-pub fn haptic_feedback(_: *Self, _: u32) void {
-    if (sdl.SDL_OpenHaptic(0)) |haptic| {
+/// Vibrate for `duration` milliseconds.
+pub fn haptic_feedback(_: *Self, duration: u16) void {
+    const device: ?*sdl.SDL_Haptic = sdl.SDL_OpenHaptic(0);
+    if (device) |haptic| {
         var effect: sdl.SDL_HapticEffect = .{
-            .type = sdl.SDL_HAPTIC_RUMBLE,
-            .condition = .{
-                .length = 1000, //ms
+            .periodic = .{
+                .type = sdl.SDL_HAPTIC_CARTESIAN,
+                .direction = .{
+                    .type = sdl.SDL_HAPTIC_CARTESIAN,
+                    .dir = .{ 1, 1, 1 },
+                }, // x,y,z between -1 and 1
+                .period = duration,
+                .length = duration,
+                .attack_length = duration / 8,
+                .attack_level = 1, // What value?
+                .fade_length = duration / 8,
+                .fade_level = 1, // What value?
                 .delay = 0,
+                .magnitude = 1,
+                .interval = 1, // What is this??
+                .offset = 0,
+                .phase = 0,
+                .button = 0,
             },
-            .ramp = .{},
         };
-        sdl.SDL_CreateHapticEffect(haptic, &effect);
-        if (!sdl.SDL_RunHapticEffect(haptic, 0, 1))
+
+        const effect_id = sdl.SDL_CreateHapticEffect(device, &effect);
+        if (!sdl.SDL_RunHapticEffect(
+            device,
+            effect_id, // Haptic Effect ID
+            1, // How many itmes to run
+        ))
             warn("haptic vibration failed", .{});
+
         sdl.SDL_CloseHaptic(haptic);
     }
 }
@@ -3215,7 +3236,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
-        try eq(99, l.type.label.elements.getLast().location.x + l.type.label.elements.getLast().location.width);
+        try eq(99, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width);
         try eq(300, panel.rect.width);
         try eq(300, Label.layout(l, 100).minimum_width);
         try eq(350, Label.layout(l, 350).minimum_width);
@@ -3249,7 +3270,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
-        try eq(99, l.type.label.elements.getLast().location.x + l.type.label.elements.getLast().location.width);
+        try eq(99, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width);
         try eq(1000, panel.rect.width);
         try eq(300, Label.layout(l, 100).minimum_width);
         try eq(350, Label.layout(l, 350).minimum_width);

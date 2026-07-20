@@ -20,6 +20,7 @@ pub fn build(b: *std.Build) void {
     const truetype_module = truetype.module("TrueType");
 
     const sdl_module = define_sdl_module(b, &target, &optimize);
+
     const mixer_module = define_mixer_module(b, &target, &optimize);
 
     const lib_mod = b.addModule("engine", .{
@@ -113,19 +114,26 @@ fn define_sdl_module(
     // doesnt work here.
     const sdl_dep = b.dependency("sdl", .{});
 
-    const headers = b.addTranslateC(.{
-        .root_source_file = sdl_dep.path("include/SDL3/SDL.h"),
+    const translate_c_dep = b.dependency("translate_c", .{});
+    const headers: @import("translate_c").Translator = .init(translate_c_dep, .{
+        .c_source_file = b.addWriteFiles().add("c.h",
+            \\#define SDL_DISABLE_OLD_NAMES
+            \\#include <SDL3/SDL.h>
+            \\#include <SDL3/SDL_revision.h>
+            \\#define SDL_MAIN_HANDLED
+            \\#include <SDL3/SDL_main.h>
+        ),
         .target = target.*,
         .optimize = optimize.*,
     });
+
     headers.addIncludePath(sdl_dep.path("include"));
     headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
-    const module = headers.addModule("sdl");
-    module.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
-    addSystemPathsToModule(b, target, module);
-    addSystemPathsToTranslateC(b, target, headers);
+    headers.mod.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"));
+    addSystemPathsToModule(b, target, headers.mod);
+    //addSystemPathsToTranslateC(b, target, headers);
 
-    return module;
+    return headers.mod;
 }
 
 /// Tell a library/exe how to link to the SDL and SDL_mixer libraries

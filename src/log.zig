@@ -71,7 +71,7 @@ pub fn Log(size: usize) type {
             }
             self.history[current].level = level;
             self.history[current].time = std.Io.Timestamp.now(io, .real).toMilliseconds();
-            const message = std.fmt.bufPrintZ(&self.history[current].message, format, args) catch format;
+            const message = std.fmt.bufPrintSentinel(&self.history[current].message, format, args, 0) catch format;
 
             const colour = switch (level) {
                 .trace => "90",
@@ -252,8 +252,8 @@ fn formatted_log_output(
             msg.writeAll("\x1B[0m\n") catch return;
             msg.writeByte(0) catch return;
 
-            if (scope != .term_scope)
-                sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), msg.buffered().ptr);
+            if (scope != .term_scope) {}
+            sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), msg.buffered().ptr);
         },
     }
 }

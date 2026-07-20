@@ -365,7 +365,7 @@ pub fn createGlyphTexture(
     self.image_buffer.clearRetainingCapacity();
 
     const horizontal = self.font.glyphHMetrics(glyph);
-    const vertical = try self.font.glyphBox(glyph);
+    const vertical = self.font.glyphBox(glyph) orelse return error.GlyphNotFound;
 
     // `scale` to the desired physical width and height
     // but multiply the bitmap to the desired `character_pixel_density`

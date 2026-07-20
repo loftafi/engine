@@ -1,28 +1,32 @@
 .{
     .name = .engine,
-    .version = "0.25.11",
+    .version = "0.25.12",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
-        .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#e68d5bb2b06a13c56921a3b863c1e36aec397536",
-            .hash = "resources-2.0.6-J0GwI2OrAgC3-IwPj7HqIgH26ue8-Weuk8P_XGvLS1dj",
-        },
-        .sdl = .{
-            .url = "git+https://github.com/castholm/SDL.git#c5ba24c694b5d520cdc1d029d8def398690d6894",
-            .hash = "sdl-0.4.2+3.4.4-SDL--kB3pQHKG_4zWG-pH04ZcZZj_IRF7dwMpxNVGwd6",
-        },
         .zstbi = .{
             .url = "git+https://github.com/zaddok/zstbi.git#456b7620bf8036d29454d98cb506e0428e6510ae",
             .hash = "zstbi-0.11.0-dev-L0Ea_06WBwCZoJBl6SD0bcHOLEEIrD5xbQ0TbXe-SQ5Y",
         },
         .translator = .{
-            .url = "git+https://github.com/loftafi/translator.git#ac07a6006040f195f8cc4a4de07af3f4bb1d3436",
-            .hash = "translator-0.1.8-cfHZxjhNAAAgL8zOVPESfQGNaAGYbz4X0m50as2_6aGs",
+            .url = "git+https://github.com/loftafi/translator#2c8f24d5ab6d98ab568c9112db3e8c267a295cf9",
+            .hash = "translator-0.1.9-cfHZxjRNAABrdjWRMp23ybbl5d1o7mNYUAnCPjUJLVGg",
+        },
+        .resources = .{
+            .url = "git+https://github.com/loftafi/resources#475909d258751c973a6d7e8744d0e5dcb839b773",
+            .hash = "resources-2.1.2-J0GwI7WEywBfkyjSRQ41stQPErmr0NJ8cscTfD3AmblR",
+        },
+        .sdl = .{
+            .url = "git+https://github.com/castholm/SDL.git#1b67d371a531ecb0499d4b80a865631c299f472a",
+            .hash = "sdl-0.5.2+3.4.12-SDL--qPKpwHc40bqAlYs7W9pXJVyLwsGDNa4shNXbOZr",
+        },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c#12c1515c074cfa9c69a799eb33506464a27c6332",
+            .hash = "translate_c-0.0.0-Q_BUWvo6BwAVl3qDhMeQNrgCAljvDeGUnwqpnGvB0_YM",
         },
         .TrueType = .{
-            .url = "git+https://codeberg.org/loftafi/TrueType?ref=glyphclass-underflow#e46bd6a01e1be78ee280284733993a988eaef0d6",
-            .hash = "TrueType-0.0.0-Ne-mWOdyAQDy0_HzImRIFlqXnBWQ97MlU6S1dGJvH4nX",
+            .url = "git+https://codeberg.org/andrewrk/TrueType.git#ce9da97eb4d1d30fee2a3faa190b25cf0c5d0797",
+            .hash = "TrueType-2.0.0-Ne-mWFx1AQCFjSOoGeTbEftPraXV6E9bZ2eOwcIUfnec",
         },
     },
     .paths = .{

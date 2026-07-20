@@ -1264,6 +1264,7 @@ test "centre_text_bug" {
     display.need_relayout = true;
     display.relayout();
     try eq(180, footer.rect.width);
+    // No children yet, so height should be padding only
     try eq(15 + 11, footer.rect.height);
 
     const icon = try footer.add(.{
