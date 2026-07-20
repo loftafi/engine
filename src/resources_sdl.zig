@@ -545,4 +545,4 @@ const Resources = resources.Resources;
 const Resource = resources.Resource;
 const Type = resources.Type;
 
-const test_config = @import("test.zig").test_config;
+const test_config = engine.test_config;

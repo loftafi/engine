@@ -389,6 +389,10 @@ test "font_loading" {
     try std.testing.expectError(error.ResourceNotFound, display.setDefaultFont("UnknownFont", .greek, .{}));
 }
 
+test {
+    std.testing.refAllDecls(@This());
+}
+
 const std = @import("std");
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
@@ -458,8 +462,8 @@ pub const readEntity = @import("EntityParser.zig").readEntity;
 
 pub const License = @import("License.zig");
 
-const test_config = @import("test.zig").test_config;
-const headless_display = @import("test.zig").headless_display;
+pub const test_config = @import("test_config.zig").test_config;
+pub const headless_display = @import("test_config.zig").headless_display;
 pub const resources_sdl = @import("resources_sdl.zig");
 pub const initResourcesSdl = resources_sdl.initResourcesSdl;
 pub const loadBundleSdl = resources_sdl.loadBundleSdl;

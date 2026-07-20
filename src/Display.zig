@@ -3522,8 +3522,8 @@ const warn = log.warn;
 const info = log.info;
 const notice = log.notice;
 
-const test_config = @import("test.zig").test_config;
-const headless_display = @import("test.zig").headless_display;
+const test_config = engine.test_config;
+const headless_display = engine.headless_display;
 const Token = @import("Token.zig");
 const EntityParser = @import("EntityParser.zig");
 const resources_sdl = @import("resources_sdl.zig");

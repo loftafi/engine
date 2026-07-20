@@ -43,32 +43,13 @@ pub fn build(b: *std.Build) void {
     link_sdl_framework(b, &target, lib_mod);
 
     const lib = b.addLibrary(.{
-        .linkage = .static,
         .name = "engine",
         .root_module = lib_mod,
     });
     b.installArtifact(lib);
 
-    const test_mod = b.createModule(.{
-        .root_source_file = b.path("src/test.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "praxis", .module = praxis_module },
-            .{ .name = "resources", .module = resources_module },
-            .{ .name = "zstbi", .module = zstbi_module },
-            .{ .name = "sdl", .module = sdl_module },
-            .{ .name = "mixer", .module = mixer_module },
-            .{ .name = "translator", .module = translator_module },
-            .{ .name = "TrueType", .module = truetype_module },
-        },
-    });
-    if (platforms.getSystemPath(b, &target)) |path| test_mod.addSystemIncludePath(path);
-    if (platforms.getFrameworkPath(b, &target)) |path| test_mod.addSystemFrameworkPath(path);
-    link_sdl_framework(b, &target, test_mod);
-
     const real_tests = b.addTest(.{
-        .root_module = test_mod,
+        .root_module = lib_mod,
         .filters = test_filters,
     });
 

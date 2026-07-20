@@ -324,4 +324,4 @@ const info = engine.log.info;
 const trace = engine.log.trace;
 const debug = engine.log.debug;
 const eq = std.testing.expectEqual;
-const headless_display = @import("test.zig").headless_display;
+const headless_display = engine.headless_display;

@@ -358,12 +358,12 @@ const praxis = @import("praxis");
 const Lang = praxis.Lang;
 
 const TextElement = @import("Entity.zig").TextElement;
-const test_config = @import("test.zig").test_config;
-const headless_display = @import("test.zig").headless_display;
 
 const engine = @import("engine.zig");
 const Display = engine.Display;
 const Font = engine.Font;
+const test_config = engine.test_config;
+const headless_display = engine.headless_display;
 
 const TextSize = engine.TextSize;
 const debug = engine.log.debug;

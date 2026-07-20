@@ -12,6 +12,8 @@ pub const test_config = Config{
     .full_screen = false,
 };
 
+/// Sample configuration settings that areonly intended
+/// for use by the test case code.
 /// Return a `Display` that has not been initialised with SDL. This is
 /// convenient for testing in an environment that doesnt support
 /// display rendering.
@@ -60,8 +62,3 @@ const engine = @import("engine.zig");
 const Config = engine.Config;
 const Display = engine.Display;
 const TextSize = engine.TextSize;
-
-test {
-    @import("std").testing.refAllDecls(@This());
-    @import("std").testing.refAllDecls(engine);
-}

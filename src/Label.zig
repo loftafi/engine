@@ -687,5 +687,5 @@ const Vector = Entity.Vector;
 const BoxLayout = @import("BoxLayout.zig");
 
 const select_font = Entity.select_font;
-const test_config = @import("test.zig").test_config;
-const headless_display = @import("test.zig").headless_display;
+const test_config = engine.test_config;
+const headless_display = engine.headless_display;

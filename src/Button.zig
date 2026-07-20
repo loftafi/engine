@@ -536,4 +536,4 @@ const Size = Entity.Size;
 const ToggleState = Entity.ToggleState;
 const Vector = Entity.Vector;
 
-const headless_display = @import("test.zig").headless_display;
+const headless_display = engine.headless_display;

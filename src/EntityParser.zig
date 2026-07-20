@@ -1980,9 +1980,8 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 const engine = @import("engine.zig");
 const err = engine.log.err;
 const warn = engine.log.warn;
+const headless_display = engine.headless_display;
 
 const Token = @import("Token.zig");
 const Entity = @import("Entity.zig");
 const TextSize = engine.TextSize;
-
-const headless_display = @import("test.zig").headless_display;

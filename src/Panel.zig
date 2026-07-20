@@ -1266,6 +1266,7 @@ test "centre_text_bug" {
     try eq(180, footer.rect.width);
     // No children yet, so height should be padding only
     try eq(15 + 11, footer.rect.height);
+    try eq(2, 4);
 
     const icon = try footer.add(.{
         .name = "test.icon",
@@ -1390,5 +1391,5 @@ const Size = Entity.Size;
 const TextSize = Entity.TextSize;
 const Vector = Entity.Vector;
 
-const test_config = @import("test.zig").test_config;
-const headless_display = @import("test.zig").headless_display;
+const test_config = engine.test_config;
+const headless_display = engine.headless_display;
