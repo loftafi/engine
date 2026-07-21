@@ -213,6 +213,8 @@ pub inline fn minimumNeededWidth(
     entity: *const Entity,
     _: f32, //parent_inner_width
 ) f32 {
+    if (entity.layout.x == .fixed) return entity.rect.width;
+
     return @max(
         button.contentWidth() + entity.pad.left + entity.pad.right,
         entity.minimum.width,
@@ -224,6 +226,8 @@ pub inline fn minimumNeededHeight(
     entity: *Entity,
     _: f32, //parent_inner_width
 ) f32 {
+    if (entity.layout.y == .fixed) return entity.rect.height;
+
     var height: f32 = 0;
     if (button.text.len > 0) {
         height = button.text_size.size();

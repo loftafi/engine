@@ -386,6 +386,8 @@ pub inline fn setPlaceholderText(
 pub inline fn inner_width(self: *const Entity) f32 {
     const padding = self.pad.left + self.pad.right;
 
+    if (self.layout.x == .fixed) return self.rect.width - padding;
+
     return engine.clamp(
         self.minimum.width - padding,
         self.rect.width - padding,
@@ -397,6 +399,8 @@ pub inline fn inner_width(self: *const Entity) f32 {
 /// height of the entity minus any padding.
 pub inline fn inner_height(self: *const Entity) f32 {
     const padding = self.pad.top + self.pad.bottom;
+
+    if (self.layout.y == .fixed) return self.rect.height - padding;
 
     return engine.clamp(
         self.minimum.height - padding,
