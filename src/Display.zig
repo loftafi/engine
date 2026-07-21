@@ -160,8 +160,6 @@ on_panel_change: Entity.PanelChangeCallback = .empty,
 bucket: StringBucket,
 config: Config,
 
-haptic_device: ?*sdl.SDL_Haptic = null,
-
 const empty: @This() = .{};
 
 const Self = @This();
@@ -214,7 +212,7 @@ pub fn create(
     };
 
     //if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO | sdl.SDL_INIT_GAMEPAD | sdl.SDL_INIT_JOYSTICK)) {
-    if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO | sdl.SDL_INIT_HAPTIC)) {
+    if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS | sdl.SDL_INIT_AUDIO)) {
         err("sdl setup failed. {s}", .{sdl.SDL_GetError()});
         return error.GraphicsInitFailed;
     }
@@ -347,8 +345,6 @@ pub fn create(
         .display_scale = display_scale,
         .user_scale = 1,
         .scale = display_scale * 1, // display_scale * user_scale
-
-        .haptic_device = null,
 
         .safe_area = .{
             .top = 0,
@@ -526,53 +522,78 @@ pub fn destroy(self: *Self) void {
 }
 
 pub fn haptic_feedback_available(_: *Self) bool {
-    var count: c_int = undefined;
-    if (sdl.SDL_GetHaptics(&count) == null) {
-        info("No haptic device results returned.", .{});
-        return false;
-    }
-    info("haptic device count={d}", .{count});
-    return count > 0;
+    return builtin.os.tag == .ios;
 }
 
-/// Vibrate for `duration` milliseconds.
-pub fn haptic_feedback(self: *Self, duration: u16) void {
-    if (self.haptic_device == null) {
-        self.haptic_device = sdl.SDL_OpenHaptic(0);
-        info("open haptic device {any}", .{self.haptic_device});
-    } else {
-        info("haptic device {any}", .{self.haptic_device});
-    }
-    if (self.haptic_device) |haptic| {
-        var effect: sdl.SDL_HapticEffect = .{
-            .periodic = .{
-                .type = sdl.SDL_HAPTIC_CARTESIAN,
-                .direction = .{
-                    .type = sdl.SDL_HAPTIC_CARTESIAN,
-                    .dir = .{ 1, 1, 1 },
-                }, // x,y,z between -1 and 1
-                .period = duration,
-                .length = duration,
-                .attack_length = duration / 8,
-                .attack_level = 1, // What value?
-                .fade_length = duration / 8,
-                .fade_level = 1, // What value?
-                .delay = 0,
-                .magnitude = 1,
-                .interval = 1, // What is this??
-                .offset = 0,
-                .phase = 0,
-                .button = 0,
-            },
-        };
+// https://developer.apple.com/documentation/uikit/uiimpactfeedbackgenerator/feedbackstyle?language=objc
+const UIImpactFeedbackStyle = enum(isize) {
+    UIImpactFeedbackStyleLight = 0,
+    UIImpactFeedbackStyleMedium = 1,
+    UIImpactFeedbackStyleHeavy = 2,
+    UIImpactFeedbackStyleSoft = 3,
+    UIImpactFeedbackStyleRigid = 4,
+};
 
-        const effect_id = sdl.SDL_CreateHapticEffect(self.haptic_device, &effect);
-        if (!sdl.SDL_RunHapticEffect(
-            haptic,
-            effect_id, // Haptic Effect ID
-            1, // How many itmes to run
-        ))
-            warn("haptic vibration failed", .{});
+const objcObj = if (builtin.os.tag == .ios) @import("objc").Object else void;
+
+var ios_haptic_soft: ?objcObj = null;
+var ios_haptic_heavy: ?objcObj = null;
+
+/// Vibrate for `duration` milliseconds.
+///
+/// UIImpactFeedbackGenerator *impactFeedBack = [[UIImpactFeedbackGenerator alloc]
+///                                               initWithStyle:UIImpactFeedbackStyleHeavy];
+/// [impactFeedBack prepare];
+/// [impactFeedBack impactOccurred];
+pub fn haptic_feedback(_: *Self, duration: u16) void {
+    if (builtin.os.tag != .ios) return;
+
+    const objc = @import("objc");
+    const value: UIImpactFeedbackStyle = switch (duration) {
+        0...100 => .UIImpactFeedbackStyleLight,
+        //101...100 => .UIImpactFeedbackStyleMedium,
+        //101...150 => .UIImpactFeedbackStyleHeavy,
+        //else => .UIImpactFeedbackStyleRigid,
+        else => .UIImpactFeedbackStyleRigid,
+    };
+
+    if (ios_haptic_soft == null) {
+        const UIImpactFeedbackGenerator = objc.getClass("UIImpactFeedbackGenerator") orelse {
+            notice("ios objc bridge failed on UIImpactFeedbackGenerator", .{});
+            return;
+        };
+        ios_haptic_soft = UIImpactFeedbackGenerator.msgSend(objc.Object, "alloc", .{});
+        //defer obj.msgSend(void, "dealloc", .{});
+        _ = ios_haptic_soft.?.msgSend(
+            objc.Object,
+            "initWithStyle:",
+            .{@as(isize, @intFromEnum(value))},
+        );
+    }
+
+    if (ios_haptic_heavy == null) {
+        const UIImpactFeedbackGenerator = objc.getClass("UIImpactFeedbackGenerator") orelse {
+            notice("ios objc bridge failed on UIImpactFeedbackGenerator", .{});
+            return;
+        };
+        ios_haptic_heavy = UIImpactFeedbackGenerator.msgSend(objc.Object, "alloc", .{});
+        //defer obj.msgSend(void, "dealloc", .{});
+        _ = ios_haptic_heavy.?.msgSend(
+            objc.Object,
+            "initWithStyle:",
+            .{@as(isize, @intFromEnum(value))},
+        );
+    }
+
+    // If you know in advance, calling `prepare` _before_ `impactOccurred`
+    // can speed up haptic responsiveness. Calling `prepare` at the same time
+    // as`impactOccurred` does nothing.
+    //_ = i.msgSend(void, objc.Sel.registerName("prepare"), .{});
+
+    if (value == .UIImpactFeedbackStyleSoft) {
+        _ = ios_haptic_soft.?.msgSend(void, "impactOccurred", .{});
+    } else {
+        _ = ios_haptic_heavy.?.msgSend(void, "impactOccurred", .{});
     }
 }
 

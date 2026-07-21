@@ -41,6 +41,10 @@ pub fn build(b: *std.Build) void {
     if (platforms.getSystemPath(b, &target)) |path| lib_mod.addSystemIncludePath(path);
     if (platforms.getFrameworkPath(b, &target)) |path| lib_mod.addSystemFrameworkPath(path);
     link_sdl_framework(b, &target, lib_mod);
+    if (target.result.os.tag == .ios) {
+        const objc = b.dependency("zig_objc", .{ .target = target, .optimize = optimize });
+        lib_mod.addImport("objc", objc.module("objc"));
+    }
 
     const lib = b.addLibrary(.{
         .name = "engine",
