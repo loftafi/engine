@@ -2190,7 +2190,7 @@ fn calculateSafeArea(self: *Self) void {
         self.old_safe_area.h != area.h)
     {
         // Log when change is detected
-        info("System reported safe area: {d}x{d} {d}x{d}", .{
+        debug("System reported safe area: {d}x{d} {d}x{d}", .{
             area.x,
             area.y,
             area.w,
@@ -2209,13 +2209,13 @@ fn calculateSafeArea(self: *Self) void {
     if (builtin.abi.isAndroid()) {
         if (top_pad > 0 and bottom_pad > 0) {
             if (top_pad > bottom_pad) {
-                info("Android safe area hack {d},{d} -=> {d},{d}", .{
+                debug("Android safe area hack {d},{d} -=> {d},{d}", .{
                     top_pad, bottom_pad,
                     0,       bottom_pad,
                 });
                 top_pad = 0;
             } else {
-                info("Android safe area hack {d},{d} -=> {d},{d}", .{
+                debug("Android safe area hack {d},{d} -=> {d},{d}", .{
                     top_pad, bottom_pad,
                     top_pad, 0,
                 });
