@@ -426,19 +426,21 @@ pub fn create(
     }
 
     // App can accept these keybindings or replace them
-    if (engine.dev_build) {
-        try display.setKeybinding(.f1, .{ .func = @ptrCast(&toggleDevMode), .ptr = display });
-        try display.setKeybinding(.f10, .{ .func = @ptrCast(&makeBundle), .ptr = display });
-    }
+    try display.setKeybinding(.f1, .{ .func = @ptrCast(&toggleDevMode), .ptr = display });
+    try display.setKeybinding(.@"1", .{ .func = @ptrCast(&toggleDevMode), .ptr = display });
     try display.setKeybinding(.x, .{ .func = @ptrCast(&increaseSize), .ptr = display });
     try display.setKeybinding(.plus, .{ .func = @ptrCast(&increaseSize), .ptr = display });
     try display.setKeybinding(.equals, .{ .func = @ptrCast(&increaseSize), .ptr = display });
     try display.setKeybinding(.minus, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
     try display.setKeybinding(.kp_plus, .{ .func = @ptrCast(&increaseSize), .ptr = display });
     try display.setKeybinding(.kp_minus, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
+    try display.setKeybinding(.@"2", .{ .func = @ptrCast(&dumpEntities), .ptr = display });
     try display.setKeybinding(.f2, .{ .func = @ptrCast(&dumpEntities), .ptr = display });
     try display.setKeybinding(.f3, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
     try display.setKeybinding(.f9, .{ .func = @ptrCast(&dumpFonts), .ptr = display });
+    if (engine.dev_build) {
+        try display.setKeybinding(.f10, .{ .func = @ptrCast(&makeBundle), .ptr = display });
+    }
 
     display.updateSystemTheme();
     display.updateScreenMetrics();
@@ -1942,6 +1944,8 @@ pub fn rotate_theme(
     _: *Entity,
     _: Allocator,
 ) void {
+    if (!engine.dev_mode and !engine.dev_build) return;
+
     var index: usize = 0;
 
     // Find the current theme
@@ -2863,6 +2867,8 @@ pub fn dumpFonts(
     _: *Entity,
     _: *const Event,
 ) Allocator.Error!void {
+    if (!engine.dev_mode and !engine.dev_build) return;
+
     for (self.fonts.items) |font| {
         var i = font.cache.iterator();
         while (i.next()) |entry| {
@@ -2893,6 +2899,7 @@ pub fn dumpEntities(
     _: *Entity,
     _: *const Event,
 ) Allocator.Error!void {
+    if (!engine.dev_mode and !engine.dev_build) return;
     try dumpEntityTree(&self.root, self.allocator, 0);
 }
 

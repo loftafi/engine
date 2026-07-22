@@ -40,11 +40,11 @@ pub fn Log(size: usize) type {
             };
         }
 
-        /// A `trace` message can be used liberally and should only be used for
-        /// log messages in programs that are under active development. Is never
-        /// included in a production ready build of an application.
+        /// A `trace` message can be used liberally for log messages only
+        /// helpful during active development. `trace` is only available
+        /// in `Debug` builds when `engine.dev_mode` is enabled.
         pub inline fn trace(self: *Self, comptime format: []const u8, args: anytype) void {
-            if (builtin.mode != .Debug)
+            if (dev_build and engine.dev_mode)
                 self.log(.trace, format, args);
         }
 
@@ -108,9 +108,9 @@ pub fn Log(size: usize) type {
     };
 }
 
-/// A `trace` message can be used liberally and should only be used for
-/// log messages in programs that are under active development. Is never
-/// included in a production ready build of an application.
+/// A `trace` message can be used liberally for log messages only
+/// helpful during active development. `trace` is only available
+/// in `Debug` builds when `engine.dev_mode` is enabled.
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
     if (dev_build and engine.dev_mode)
         formatted_log_output(.trace, .engine, format, args);
@@ -124,7 +124,7 @@ pub inline fn trace(comptime format: []const u8, args: anytype) void {
 /// size or screen resolution to allow support staff to understand what
 /// actions might have lead to an unexpected program state.
 pub inline fn debug(comptime format: []const u8, args: anytype) void {
-    if (dev_build or engine.dev_mode) {
+    if (engine.dev_mode) {
         formatted_log_output(.debug, .engine, format, args);
     }
 }
@@ -209,8 +209,8 @@ fn formatted_log_output(
 ) void {
     _ = scope;
 
-    if (level == .trace and builtin.mode != .Debug) return;
-    if (level == .debug and (builtin.mode != .Debug or engine.dev_mode != true)) return;
+    if (level == .trace and !dev_build) return;
+    if (level == .debug and engine.dev_mode != true) return;
     if (builtin.is_test) return;
 
     var buffer: [max_log_message_size]u8 = undefined;
