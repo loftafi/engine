@@ -335,8 +335,8 @@ pub fn deletePreferenceData(
 }
 
 /// Load a preferences data file from the system standard preferences folder.
-/// `filename` is the name of the file without any path information.
-/// Returns null if the file does not exist. Release the data array after using.
+/// `filename` is the name of the file _without_ path information.
+/// If the file does not yet exist, returns `null`. Release the data array after using.
 pub fn loadPreferenceData(
     gpa: Allocator,
     config: *const engine.Config,

@@ -1965,6 +1965,7 @@ pub fn rotate_theme(
 pub fn endMainLoop(display: *Self) void {
     info("Ending main loop.", .{});
     display.state = .ending;
+    display.shutdown_hook.call(display) catch {};
     display.stopAllAudio(0) catch {};
     mixer.MIX_DestroyMixer(display.mix);
     mixer.MIX_Quit();
