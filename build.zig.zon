@@ -1,8 +1,8 @@
 .{
     .name = .engine,
-    .version = "0.26.3",
+    .version = "0.26.4",
     .fingerprint = 0xe8a81a8d0aa558d5,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
         .zstbi = .{
             .url = "git+https://github.com/zaddok/zstbi.git#456b7620bf8036d29454d98cb506e0428e6510ae",
@@ -39,6 +39,6 @@
         "libs/SDL3.xcframework",
         "libs/SDL3_mixer.xcframework",
         "build/find_ndk.zig",
-        "build/addSystemPathsToModule.zig",
+        "build/platforms.zig",
     },
 }
