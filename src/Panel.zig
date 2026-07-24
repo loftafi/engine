@@ -172,7 +172,7 @@ fn calculateMinimumNeededHeight(
             // a, next to b, next c.
             //
             // Just need to know the highest/tallest child.
-            var minimum_needed: f32 = entity.pad.top + entity.pad.bottom;
+            var minimum_needed: f32 = 0; // Minimum child item height
             for (entity.type.panel.children.items) |child| {
                 if (child.layout.position == .float) continue;
                 if (child.visible == .hidden) continue;
@@ -1266,7 +1266,6 @@ test "centre_text_bug" {
     try eq(180, footer.rect.width);
     // No children yet, so height should be padding only
     try eq(15 + 11, footer.rect.height);
-    try eq(2, 4);
 
     const icon = try footer.add(.{
         .name = "test.icon",
