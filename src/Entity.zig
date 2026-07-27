@@ -940,6 +940,7 @@ pub inline fn setText(
             label.text = new_text;
             label.translated = new_translated;
             if (label.translated.len > 0) {
+                // Measure each word (text element)
                 var data = Chunker.init(label.translated);
                 while (data.next(&display.font)) |word| {
                     // Store width as a placeholder until layout function is run.
@@ -2338,7 +2339,7 @@ pub const TextElement = struct {
     font: *Font,
     /// Width of this word/element not including display scaling
     /// or text size scaling.
-    width: f32 = 0,
+    width: f32 = 0, // TODO: Why two widths?
     location: Rect = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
 };
 

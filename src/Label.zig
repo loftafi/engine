@@ -97,12 +97,14 @@ pub inline fn minimumNeededWidth(
     return @min(min, entity.maximum.width);
 }
 
-/// Calculate the layout of each text element. Returns the `minimum_width`
-/// the element _could_ be squished into, and the actual `width` chosen based
-/// on what the `entity.layout` preference to `grows` or `shrinks`.
+/// Position each each word (text element) within the space allowed by
+/// `parent_inner_width`. Returns the `width` this label will use, and the
+/// `minimum_width` the element _could_ be squished into.
+/// `entity.layout` determinse if the label will `grows` to use all space
+///  or `shrinks` to the minimum width.
 ///
 /// If `entity.child_align` requests `centred` or `right` aligned text, then the
-/// text element are aligned to the `width` (not the `minimum_width`).
+/// words are aligned to the  full `width` (not the `minimum_width`).
 ///
 /// `parent_inner_width` is maximum number of pixels that the parent can
 /// give to this element. Usually this is the parent width, minus any parent
