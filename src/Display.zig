@@ -2713,7 +2713,7 @@ pub fn renderRectangle(
 pub fn renderSolidRectangle(
     self: *Display,
     colour: Colour,
-    rect: *Rect,
+    rect: *const Rect,
 ) void {
     const dest: sdl.SDL_FRect = .{
         .x = rect.x * self.scale,
