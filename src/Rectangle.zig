@@ -13,7 +13,6 @@ pub inline fn draw(
     const colour = entity.style.panel(display.theme, entity.background.colour);
     const dest = entity.rect.move(scroll_offset);
     display.renderSolidRectangle(colour, &dest);
-    std.log.err("rect {any} {any}", .{ entity.rect, colour });
 }
 
 test "init" {
