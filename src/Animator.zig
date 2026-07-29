@@ -203,6 +203,12 @@ pub fn animate(self: *@This(), current_time: i64) Allocator.Error!bool {
     return false;
 }
 
+/// Reset the time this animation ends to 0, so that it immediately
+/// ends during the next update loop.
+pub fn cancel(self: *Animator) void {
+    self.internal.end_time = 0;
+}
+
 pub const seconds = 1000;
 
 fn lerp_float(comptime T: type, start: T, end: T, step: i64, total_steps: i64) T {
