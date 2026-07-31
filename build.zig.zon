@@ -13,8 +13,8 @@
             .hash = "translator-0.1.9-cfHZxjRNAABrdjWRMp23ybbl5d1o7mNYUAnCPjUJLVGg",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources#475909d258751c973a6d7e8744d0e5dcb839b773",
-            .hash = "resources-2.1.2-J0GwI7WEywBfkyjSRQ41stQPErmr0NJ8cscTfD3AmblR",
+            .url = "git+https://github.com/loftafi/resources.git#8e218155919852e07e15d499e17a4fc1d03d188c",
+            .hash = "resources-2.2.0-J0GwI-dXzABr_r00msWbBPRilkiwZKN83gIjWpnyfYgq",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/ziglang/translate-c#12c1515c074cfa9c69a799eb33506464a27c6332",
