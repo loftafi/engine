@@ -248,6 +248,8 @@ fn drawString(
     x_scale: f32,
     comptime mode: enum { draw, measure },
 ) Allocator.Error!f32 {
+    if (string.len == 0) return 0;
+
     const scale_factor = size.scale();
     var dest: engine.Rect = .{
         .x = pos.x,
@@ -274,7 +276,13 @@ fn drawString(
         const glyph = self.font.codepointGlyphIndex(codepoint);
         if (glyph == .notdef) {
             if (codepoint != ' ')
-                warn("skip {u} in font {s} ({t})", .{ codepoint, self.name, mode });
+                warn("skip {u} ({d}) in font {s} ({t}) string={any}", .{
+                    codepoint,
+                    codepoint,
+                    self.name,
+                    mode,
+                    string,
+                });
             previous_glyph = null;
             dest.x += self.space_width * scale_factor;
             continue;
