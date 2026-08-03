@@ -42,7 +42,7 @@ pub fn init(max_width: f32, spacing: f32, line_spacing: f32) BoxLayout {
 /// metrics to account for this new box
 pub fn place(self: *BoxLayout, width: f32, height: f32) Vector {
     // If adding this block would overflow, wrap to next line.
-    if (self.needed.width > 0 and self.needed.width + width > self.max_width) {
+    if (self.needed.width > 0 and self.needed.width + self.spacing + width > self.max_width) {
         self.finalise();
     }
     if (self.needed.width > 0) {

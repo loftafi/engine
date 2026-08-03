@@ -158,7 +158,7 @@ pub inline fn layout(
         word.location = .{
             .x = @round(location.x),
             .y = @round(location.y),
-            .width = @round(width),
+            .width = width,
             .height = height,
         };
     }
@@ -167,7 +167,7 @@ pub inline fn layout(
     const minimum_without_padding = @max(0, entity.minimum.width - entity.pad.left - entity.pad.right);
 
     const used_text_width = switch (entity.layout.x) {
-        .shrinks => @max(minimum_without_padding, @round(box.final.width)),
+        .shrinks => @max(minimum_without_padding, @ceil(box.final.width)),
         .grows => maximum_text_width,
         .fixed => @max(0, entity.rect.width - (entity.pad.left - entity.pad.right)),
     };

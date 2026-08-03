@@ -149,7 +149,7 @@ pub fn create(
         .ascent = @round(metrics.ascent * scale) + config.baseline,
         .descent = @round(metrics.descent * scale),
         .line_gap = metrics.line_gap * scale,
-        .space_width = @round(space_width),
+        .space_width = space_width,
         .config = config,
     };
     return font_info;
@@ -250,7 +250,7 @@ fn drawString(
 ) Allocator.Error!f32 {
     const scale_factor = size.scale();
     var dest: engine.Rect = .{
-        .x = @round(pos.x),
+        .x = pos.x,
         .y = @round(pos.y),
         .width = 0,
         .height = 0,
@@ -276,7 +276,7 @@ fn drawString(
             if (codepoint != ' ')
                 warn("skip {u} in font {s} ({t})", .{ codepoint, self.name, mode });
             previous_glyph = null;
-            dest.x += @round(self.space_width * scale_factor);
+            dest.x += self.space_width * scale_factor;
             continue;
         }
 
@@ -358,7 +358,7 @@ fn drawString(
         });
     }
 
-    return @ceil(dest.x - start_x);
+    return dest.x - start_x;
 }
 
 /// Create a bitmap for an individual codepoint. The `GlyphBitmap` represents
@@ -424,9 +424,9 @@ pub fn createGlyphTexture(
         .height = dims.height / character_pixel_density,
         .left_side_bearing = @as(f32, @floatFromInt(horizontal.left_side_bearing)) * self.scale,
         .advance = @as(f32, @floatFromInt(horizontal.advance_width)) * self.scale,
-        .x_offset = @round(@as(f32, @floatFromInt(vertical.x0)) * self.scale),
+        .x_offset = @as(f32, @floatFromInt(vertical.x0)) * self.scale,
         .y_offset = @round(@as(f32, @floatFromInt(vertical.y0)) * self.scale),
-        .x_scale = @round(@as(f32, @floatFromInt(vertical.x1)) * self.scale),
+        .x_scale = @as(f32, @floatFromInt(vertical.x1)) * self.scale,
         .y_scale = @round(@as(f32, @floatFromInt(vertical.y1)) * self.scale),
         .texture = texture,
     };
