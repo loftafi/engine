@@ -26,12 +26,6 @@ pub fn TextSize(text_height: comptime_float) type {
             };
         }
 
-        /// How many pixels between each word, depending on the selected
-        /// font size.
-        pub fn word_spacing(self: @This()) f32 {
-            return @round(text_height * self.scale() / 3.5);
-        }
-
         /// Return one size smaller, or null for the smallest size.
         pub fn decrease(self: @This()) ?@This() {
             return switch (self) {

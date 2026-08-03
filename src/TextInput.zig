@@ -124,7 +124,6 @@ pub inline fn draw(
     _: ?Clip, // parent_clip
     _: Vector, // scroll offset
 ) void {
-    const word_spacing = self.text_size.word_spacing();
     const text_height = self.text_size.size();
 
     // Draw cursor around the text input if it is selected.
@@ -138,7 +137,7 @@ pub inline fn draw(
         if (entity.texture) |_| {
             // Add the icon width
             cursor_box.x += (entity.rect.height - entity.pad.top - entity.pad.bottom);
-            cursor_box.x += word_spacing;
+            cursor_box.x += self.font.space_width;
         }
         display.renderSolidRectangle(display.theme.cursor_colour, &cursor_box);
     }
@@ -147,7 +146,7 @@ pub inline fn draw(
     var icon_offset: f32 = 0;
     if (entity.texture) |icon_texture| {
         const icon_size = text_height;
-        icon_offset = icon_size + word_spacing;
+        icon_offset = icon_size + self.font.space_width;
         const dest: Rect = .{
             .x = @round(entity.rect.x + entity.pad.left),
             .y = @round(entity.rect.y + entity.pad.top),

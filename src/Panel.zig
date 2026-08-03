@@ -1318,10 +1318,10 @@ test "centre_text_bug" {
             const word1 = &label.type.label.elements.items[0];
             const word2 = &label.type.label.elements.items[1];
             const word3 = &label.type.label.elements.items[2];
-            const space = label.type.label.text_size.word_spacing();
+            const space = label.type.label.elements.items[0].font.space_width;
             const text_width = word1.location.width + space + word2.location.width + space + word3.location.width;
             // Text is centred, so it doesnt start at the start
-            try eq(78, word1.location.x);
+            try eq(79, word1.location.x);
             try eq(0, word1.location.y);
             // Text is left aligned, so does start at the start
             label.setAlign(.start, .start);

@@ -3273,7 +3273,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
-        try eq(99, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width);
+        try eq(98, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width);
         try eq(300, panel.rect.width);
         try eq(300, Label.layout(l, 100).minimum_width);
         try eq(350, Label.layout(l, 350).minimum_width);
@@ -3307,7 +3307,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
-        try eq(99, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width);
+        try eq(98, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width);
         try eq(1000, panel.rect.width);
         try eq(300, Label.layout(l, 100).minimum_width);
         try eq(350, Label.layout(l, 350).minimum_width);
@@ -3343,12 +3343,12 @@ test "text input sizing" {
         try eq(0, @round(l.type.label.elements.items[0].location.x));
         try eq(0, @round(l.type.label.elements.items[0].location.y));
 
-        try eq(51, @round(l.type.label.elements.items[1].location.x));
+        try eq(50, @round(l.type.label.elements.items[1].location.x));
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(99, l.rect.width);
-        try eq(99, @round(l.minimumNeededWidth(500)));
+        try eq(98, l.rect.width);
+        try eq(98, @round(l.minimumNeededWidth(500)));
 
         // TODO: Is this correct? Why is it * 2 ?
         try eq(
@@ -3412,13 +3412,13 @@ test "text input sizing" {
     // Min width at normal size
     display.need_relayout = true;
     display.relayout();
-    try eq(99, label.minimumNeededWidth(500));
+    try eq(98, label.minimumNeededWidth(500));
 
     // min width at heading size
     label.type.label.text_size = .heading;
     display.need_relayout = true;
     display.relayout();
-    try eq(102, @round(label.minimumNeededWidth(500)));
+    try eq(98, @round(label.minimumNeededWidth(500)));
 
     // Parent wants to shrink but child wants to grow.
     panel.layout.x = .shrinks;

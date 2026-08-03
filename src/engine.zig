@@ -286,11 +286,11 @@ test "text input sizing" {
         try eq(0, @round(l.type.label.elements.items[0].location.x));
         try eq(0, @round(l.type.label.elements.items[0].location.y));
 
-        try eq(51, @round(l.type.label.elements.items[1].location.x));
+        try eq(50, @round(l.type.label.elements.items[1].location.x));
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(99, @round(l.minimumNeededWidth(500)));
+        try eq(98, @round(l.minimumNeededWidth(500)));
 
         try eq(
             2 * TextSize.normal.size(),
@@ -345,7 +345,7 @@ test "text input sizing" {
     label.minimum.height = TextSize.normal.size();
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(50, @ceil(label.minimumNeededWidth(500) / display.display_scale));
+    try eq(49, @ceil(label.minimumNeededWidth(500) / display.display_scale));
 }
 
 test "test_init" {

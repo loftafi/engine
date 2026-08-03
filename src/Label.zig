@@ -135,7 +135,7 @@ pub inline fn layout(
         else => unreachable,
     };
 
-    const word_spacing = text_height.word_spacing();
+    const word_spacing = children[0].font.space_width;
     const maximum_total_width = clamp(entity.minimum.width, parent_inner_width, entity.maximum.width);
     const maximum_text_width = @max(0, maximum_total_width - (entity.pad.left + entity.pad.right));
 
@@ -551,7 +551,8 @@ test "label_multiword_align" {
 
         try eq(60, element2.location.width);
         try eq(22, element2.location.height);
-        try eq(77 + text_size.word_spacing(), element2.location.x);
+        const spacing = child.type.label.elements.items[0].font.space_width;
+        try eq(77 + spacing, element2.location.x);
         try eq(0, element2.location.y);
 
         // Wrap to next line
@@ -586,8 +587,8 @@ test "label_multiword_align" {
         const element3 = child.type.label.elements.items[2];
         try eq(77, element1.location.width);
         try eq(22, element1.location.height);
-        const space = text_size.word_spacing();
-        try eq(@round((panel.rect.width - element2.location.width - element1.location.width - space) / 2), element1.location.x);
+        const spacing = child.type.label.elements.items[0].font.space_width;
+        try eq(@round((panel.rect.width - element2.location.width - element1.location.width - spacing) / 2), element1.location.x);
         try eq(0, element1.location.y);
         try eq(@round((panel.rect.width - element3.location.width) / 2), element3.location.x);
         try eq(22, element3.location.y);

@@ -123,6 +123,17 @@ pub fn create(
         scale,
     });
 
+    const glyph = ttf.codepointGlyphIndex(' ');
+    var space_width: f32 = @as(f32, @floatFromInt(pixel_height)) / 3.5;
+    if (glyph == .notdef) {
+        warn("font has no glyph for space character.", .{});
+    } else {
+        const info = ttf.glyphHMetrics(glyph);
+        const adv = ttf.glyphKernAdvance(glyph, glyph);
+        space_width = (info.advance_width - info.left_side_bearing) * scale;
+        debug("Font space glyph. {s}  width={d} adv={d}", .{ name, space_width, adv });
+    }
+
     const font_info = try allocator.create(Font);
     font_info.* = .{
         .resource = resource,
@@ -138,7 +149,7 @@ pub fn create(
         .ascent = @round(metrics.ascent * scale) + config.baseline,
         .descent = @round(metrics.descent * scale),
         .line_gap = metrics.line_gap * scale,
-        .space_width = metrics.ascent * scale * 0.5,
+        .space_width = @round(space_width),
         .config = config,
     };
     return font_info;
@@ -265,7 +276,7 @@ fn drawString(
             if (codepoint != ' ')
                 warn("skip {u} in font {s} ({t})", .{ codepoint, self.name, mode });
             previous_glyph = null;
-            dest.x += self.space_width * scale_factor;
+            dest.x += @round(self.space_width * scale_factor);
             continue;
         }
 
@@ -284,7 +295,7 @@ fn drawString(
                     .width = 0,
                     .height = 0,
                     .left_side_bearing = 0,
-                    .advance = self.space_width * scale_factor,
+                    .advance = self.space_width,
                     .x_offset = 0,
                     .y_offset = 0,
                     .x_scale = 0,
@@ -439,6 +450,7 @@ const builtin = @import("builtin");
 const engine = @import("engine.zig");
 const err = engine.log.err;
 const warn = engine.log.warn;
+const notice = engine.log.notice;
 const debug = engine.log.debug;
 const trace = engine.log.trace;
 const sdl = engine.sdl;
