@@ -324,7 +324,7 @@ pub fn create(
         .keybindings = .empty,
         .event_hook = .empty,
         .bucket = bucket,
-        .resources = try .init(gpa),
+        .resources = try .init(gpa, io),
         .required_resource = .empty,
         .config = config,
         .mix = mix.?,
