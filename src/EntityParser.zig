@@ -572,6 +572,7 @@ pub fn readOffAttribute(token: *Token, entity: *Entity) Error!void {
 pub fn readSpacingAttribute(token: *Token, entity: *Entity, font_size: f32) Error!void {
     const spacing = switch (entity.type) {
         .panel => &entity.type.panel.spacing,
+        .button => &entity.type.button.spacing,
         else => return error.UnexpectedToken,
     };
     spacing.* = @ceil(try readFloatValue(token, font_size));
