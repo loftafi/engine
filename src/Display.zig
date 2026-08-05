@@ -1134,6 +1134,7 @@ pub fn releaseTextureResource(
 ) error{Canceled}!void {
     try self.textures_lock.lock(self.io);
     defer self.textures_lock.unlock(self.io);
+
     if (ti.references == 0) {
         err("Attempt to release resource with no references", .{});
         return;
@@ -1161,6 +1162,7 @@ pub fn releaseAudioResource(
 ) error{Canceled}!void {
     try self.audio_cache_lock.lock(self.io);
     defer self.audio_cache_lock.unlock(self.io);
+
     if (ai.references == 0)
         err("Attempt to release resource with no references", .{})
     else {
@@ -1180,8 +1182,11 @@ pub fn releaseAudioResource(
     }
 
     if (ai.previous == null) {
+        // `ai` is the head item, so we are removing the head.
         self.audio_cache = ai.next;
-        self.audio_cache.?.previous = null;
+        // If there was a second item, it now has no previous item.
+        if (self.audio_cache != null)
+            self.audio_cache.?.previous = null;
     } else {
         ai.previous.?.next = ai.next;
         if (ai.next != null) {
@@ -1263,6 +1268,7 @@ pub fn loadBundleTexture(
         // If resource uid was already loaded and cached, just return it.
         try self.textures_lock.lockShared(self.io);
         defer self.textures_lock.unlockShared(self.io);
+
         if (self.textures.get(resource.?.uid)) |texture| {
             trace("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
             texture.references += 1;
@@ -1285,6 +1291,7 @@ pub fn loadBundleTexture(
         // Only one thread at a time can register/cache this image texture.
         try self.textures_lock.lock(self.io);
         defer self.textures_lock.unlock(self.io);
+
         const entity = try self.textures.getOrPut(self.allocator, resource.?.uid);
         if (entity.found_existing) {
             // Oops, another thread beat us.
@@ -1397,6 +1404,7 @@ pub fn playBundleResource(
         { // Add the just loaded audio into the audio cache.
             try self.audio_cache_lock.lock(self.io);
             defer self.audio_cache_lock.unlock(self.io);
+
             if (self.findAudioInCache(name)) |ai| {
                 // Oops, another thread beat us to adding this to the cache.
                 item = ai;

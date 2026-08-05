@@ -94,7 +94,7 @@ pub inline fn minimumNeededWidth(
         entity.minimum.width,
     );
     if (entity.maximum.width == 0) return @ceil(min);
-    return @ceil(@min(min, entity.maximum.width));
+    return @min(min, entity.maximum.width);
 }
 
 /// Position each each word (text element) within the space allowed by
@@ -209,8 +209,8 @@ pub inline fn layout(
     }
 
     return .{
-        .width = @ceil(used_text_width) + entity.pad.left + entity.pad.right,
-        .minimum_width = @ceil(used_text_width) + entity.pad.left + entity.pad.right,
+        .width = @round(used_text_width) + entity.pad.left + entity.pad.right,
+        .minimum_width = @round(used_text_width) + entity.pad.left + entity.pad.right,
         .height = @round(box.final.height) + entity.pad.top + entity.pad.bottom,
     };
 }
