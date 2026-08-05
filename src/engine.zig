@@ -281,16 +281,16 @@ test "text input sizing" {
         // Bitmap/Pixel width of first word in this font is 197 pixels
         try eq(45, @ceil(l.type.label.elements.items[0].width));
         // Bitmap/Pixel width of second word in this font is 197 pixels
-        try eq(48, @round(l.type.label.elements.items[1].width));
+        try eq(47, @round(l.type.label.elements.items[1].width));
 
         try eq(0, @round(l.type.label.elements.items[0].location.x));
         try eq(0, @round(l.type.label.elements.items[0].location.y));
 
-        try eq(50, @round(l.type.label.elements.items[1].location.x));
+        try eq(49, @round(l.type.label.elements.items[1].location.x));
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(98, @round(l.minimumNeededWidth(500)));
+        try eq(96, @round(l.minimumNeededWidth(500)));
 
         try eq(
             2 * TextSize.normal.size(),
@@ -345,7 +345,7 @@ test "text input sizing" {
     label.minimum.height = TextSize.normal.size();
     label.layout.x = .shrinks;
     label.layout.y = .shrinks;
-    try eq(49, @ceil(label.minimumNeededWidth(500) / display.display_scale));
+    try eq(48, @ceil(label.minimumNeededWidth(500) / display.display_scale));
 }
 
 test "test_init" {

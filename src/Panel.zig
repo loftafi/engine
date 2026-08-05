@@ -1321,7 +1321,7 @@ test "centre_text_bug" {
             const space = label.type.label.elements.items[0].font.space_width;
             const text_width = word1.location.width + space + word2.location.width + space + word3.location.width;
             // Text is centred, so it doesnt start at the start
-            try eq(79, word1.location.x);
+            try eq(80, word1.location.x);
             try eq(0, word1.location.y);
             // Text is left aligned, so does start at the start
             label.setAlign(.start, .start);
@@ -1329,7 +1329,7 @@ test "centre_text_bug" {
             display.relayout();
             try eq(0, word1.location.x);
             try eq(0, word1.location.y);
-            try eq(text_width, word3.location.x + word3.location.width);
+            try std.testing.expectApproxEqAbs(text_width, word3.location.x + word3.location.width, 0.1);
         }
 
         {

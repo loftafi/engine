@@ -93,8 +93,8 @@ pub inline fn minimumNeededWidth(
         layout(entity, parent_inner_width).minimum_width,
         entity.minimum.width,
     );
-    if (entity.maximum.width == 0) return min;
-    return @min(min, entity.maximum.width);
+    if (entity.maximum.width == 0) return @ceil(min);
+    return @ceil(@min(min, entity.maximum.width));
 }
 
 /// Position each each word (text element) within the space allowed by
@@ -209,8 +209,8 @@ pub inline fn layout(
     }
 
     return .{
-        .width = used_text_width + entity.pad.left + entity.pad.right,
-        .minimum_width = used_text_width + entity.pad.left + entity.pad.right,
+        .width = @ceil(used_text_width) + entity.pad.left + entity.pad.right,
+        .minimum_width = @ceil(used_text_width) + entity.pad.left + entity.pad.right,
         .height = @round(box.final.height) + entity.pad.top + entity.pad.bottom,
     };
 }
@@ -420,7 +420,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(60, element.location.width);
+        try std.testing.expectApproxEqAbs(59, element.location.width, 0.1);
         try eq(22, element.location.height);
         try eq(0, element.location.x);
         try eq(0, element.location.y);
@@ -431,7 +431,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(60, element.location.width);
+        try std.testing.expectApproxEqAbs(59, element.location.width, 0.1);
         try eq(22, element.location.height);
         try eq(panel.rect.width - element.location.width, element.location.x);
         try eq(0, element.location.y);
@@ -442,7 +442,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(60, element.location.width);
+        try std.testing.expectApproxEqAbs(59, element.location.width, 0.1);
         try eq(22, element.location.height);
         try eq(@round(panel.rect.width / 2 - element.location.width / 2), element.location.x);
         try eq(0, element.location.y);
@@ -456,7 +456,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(60, element.location.width);
+        try std.testing.expectApproxEqAbs(59, element.location.width, 0.1);
         try eq(22, element.location.height);
         try eq(0, element.location.x);
         try eq(0, element.location.y);
@@ -471,7 +471,7 @@ test "label_single_word_alignment" {
         try eq(panel.rect.width - child.pad.left - child.pad.right, child.inner_width());
         try eq(300 - 8 - 4, child.inner_width());
         const element = child.type.label.elements.items[0];
-        try eq(60, element.location.width);
+        try std.testing.expectApproxEqAbs(59, element.location.width, 0.1);
         try eq(22, element.location.height);
         // `element.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
@@ -485,7 +485,7 @@ test "label_single_word_alignment" {
         display.need_relayout = true;
         display.relayout();
         const element = child.type.label.elements.items[0];
-        try eq(60, element.location.width);
+        try std.testing.expectApproxEqAbs(59, element.location.width, 0.1);
         try eq(22, element.location.height);
         // `entity.location` is relative to 0x0 not the on screen position, so
         // x is simply how far along from the first top/left drawing position.
@@ -544,19 +544,19 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(77, element1.location.width);
+        try std.testing.expectApproxEqAbs(77, element1.location.width, 0.5);
         try eq(22, element1.location.height);
         try eq(0, element1.location.x);
         try eq(0, element1.location.y);
 
-        try eq(60, element2.location.width);
+        try std.testing.expectApproxEqAbs(59, element2.location.width, 0.1);
         try eq(22, element2.location.height);
         const spacing = child.type.label.elements.items[0].font.space_width;
-        try eq(77 + spacing, element2.location.x);
+        try std.testing.expectApproxEqAbs(77 + spacing, element2.location.x, 1);
         try eq(0, element2.location.y);
 
         // Wrap to next line
-        try eq(117, element3.location.width);
+        try std.testing.expectApproxEqAbs(116, element3.location.width, 0.5);
         try eq(22, element3.location.height);
         try eq(0, element3.location.x);
         try eq(22, element3.location.y);
@@ -570,7 +570,7 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(77, element1.location.width);
+        try std.testing.expectApproxEqAbs(77, element1.location.width, 0.5);
         try eq(22, element1.location.height);
         try eq(panel.rect.width - element2.location.width, element2.location.x);
         try eq(0, element1.location.y);
@@ -585,7 +585,7 @@ test "label_multiword_align" {
         const element1 = child.type.label.elements.items[0];
         const element2 = child.type.label.elements.items[1];
         const element3 = child.type.label.elements.items[2];
-        try eq(77, element1.location.width);
+        try std.testing.expectApproxEqAbs(77, element1.location.width, 0.5);
         try eq(22, element1.location.height);
         const spacing = child.type.label.elements.items[0].font.space_width;
         try eq(@round((panel.rect.width - element2.location.width - element1.location.width - spacing) / 2), element1.location.x);

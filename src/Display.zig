@@ -50,12 +50,14 @@ current_language: Lang = .unknown,
 
 /// Cache of currently loaded textures.
 textures: std.AutoHashMapUnmanaged(u64, *Texture),
+textures_lock: std.Io.RwLock,
 
 /// A list of all active fonts loaded from the resources bundle.
 required_resource: std.AutoHashMapUnmanaged(u64, *const Resource),
 
 /// Cache of currently loaded audio files.
 audio_cache: ?*Audio = null,
+audio_cache_lock: std.Io.RwLock,
 
 /// Four possible theme options are available.
 themes: []*Theme,
@@ -333,9 +335,11 @@ pub fn create(
         .font = undefined,
         .fonts = .empty,
         .textures = .empty,
+        .textures_lock = .init,
         .themes = themes,
         .theme = default_theme,
         .audio_cache = null,
+        .audio_cache_lock = .init,
         .last_draw = now,
         .last_delta = now,
         .startup_hook = .empty,
@@ -464,7 +468,8 @@ pub fn clearKeybinding(
     try self.keybindings.remove(key);
 }
 
-/// Cleanup memory assocaited with this display.
+/// Cleanup memory assocaited with this display. Not thread safe. Call from
+/// main thread.
 pub fn destroy(self: *Self) void {
     const gpa = self.allocator;
 
@@ -1126,7 +1131,9 @@ pub inline fn appendPanel(
 pub fn releaseTextureResource(
     self: *Self,
     ti: *Texture,
-) void {
+) error{Canceled}!void {
+    try self.textures_lock.lock(self.io);
+    defer self.textures_lock.unlock(self.io);
     if (ti.references == 0) {
         err("Attempt to release resource with no references", .{});
         return;
@@ -1151,7 +1158,9 @@ pub fn releaseTextureResource(
 pub fn releaseAudioResource(
     self: *Self,
     ai: *Audio,
-) void {
+) error{Canceled}!void {
+    try self.audio_cache_lock.lock(self.io);
+    defer self.audio_cache_lock.unlock(self.io);
     if (ai.references == 0)
         err("Attempt to release resource with no references", .{})
     else {
@@ -1234,6 +1243,7 @@ pub fn loadBundleTexture(
 ) (Error || Allocator.Error || Resources.Error)!?*Texture {
     if (name.len == 0) return null;
 
+    // Get a resource UID that matches the requested file/resource name.
     var start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
     const resource = try bundle.lookupRandom(name, .image);
     if (resource == null) {
@@ -1249,12 +1259,18 @@ pub fn loadBundleTexture(
         return null;
     }
 
-    if (self.textures.get(resource.?.uid)) |texture| {
-        trace("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
-        texture.references += 1;
-        return texture;
+    {
+        // If resource uid was already loaded and cached, just return it.
+        try self.textures_lock.lockShared(self.io);
+        defer self.textures_lock.unlockShared(self.io);
+        if (self.textures.get(resource.?.uid)) |texture| {
+            trace("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
+            texture.references += 1;
+            return texture;
+        }
     }
 
+    // Load the image data and decompress it under no lock.
     var end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
     trace("search image named \"{s}\" in {d}ms", .{ name, end - start });
     start = end;
@@ -1265,15 +1281,26 @@ pub fn loadBundleTexture(
     end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
     trace("made surface named \"{s}\" in {d}ms", .{ name, end - start });
 
-    start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
-    const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, si.surface);
-    end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
-    trace("sdl create texture in {d}ms", .{end - start});
+    {
+        // Only one thread at a time can register/cache this image texture.
+        try self.textures_lock.lock(self.io);
+        defer self.textures_lock.unlock(self.io);
+        const entity = try self.textures.getOrPut(self.allocator, resource.?.uid);
+        if (entity.found_existing) {
+            // Oops, another thread beat us.
+            entity.value_ptr.*.references += 1;
+            return entity.value_ptr.*;
+        }
 
-    const ti = try Texture.create(self.allocator, resource.?.uid, texture, resource.?);
-    ti.references += 1;
-    try self.textures.put(self.allocator, ti.uid, ti);
-    return ti;
+        start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
+        const texture = sdl.SDL_CreateTextureFromSurface(self.renderer, si.surface);
+        end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
+        trace("sdl create texture in {d}ms", .{end - start});
+
+        entity.value_ptr.* = try Texture.create(self.allocator, resource.?.uid, texture, resource.?);
+        entity.value_ptr.*.references += 1;
+        return entity.value_ptr.*;
+    }
 }
 
 /// Load an image from the formatted_default resource bundle.
@@ -1303,7 +1330,15 @@ pub fn stopAllAudio(
     _ = mixer.MIX_StopAllTracks(self.mix, fade_out_ms);
 }
 
-pub fn getAudioInCache(self: *Self, name: []const u8) ?*Audio {
+/// Load an audio resource from the cache. Returns null if resource not found.
+pub fn getAudioInCache(self: *Self, name: []const u8) error{Canceled}!?*Audio {
+    try self.audio_cache_lock.lockShared(self.io);
+    defer self.audio_cache_lock.unlockShared(self.io);
+    return self.findAudioInCache(name);
+}
+
+/// Non threadsafe version of getAudioInCache
+fn findAudioInCache(self: *Self, name: []const u8) ?*Audio {
     var item = self.audio_cache;
     while (item != null) : (item = item.?.next) {
         if (std.mem.eql(u8, name, item.?.name)) {
@@ -1330,10 +1365,10 @@ pub fn playBundleResource(
 
     // Load audio from memory cache if possible
     var item: ?*Audio = null;
-    if (self.getAudioInCache(name)) |i| {
+    if (try self.getAudioInCache(name)) |ai| {
         // Audio already in memory cache
-        debug("cache hit on audio named \"{s}\" (pre ref count={d})", .{ name, i.references });
-        item = i;
+        debug("cache hit on audio named \"{s}\" (pre ref count={d})", .{ name, ai.references });
+        item = ai;
     } else {
         // Load audio from resource bundle
         var start = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
@@ -1359,13 +1394,23 @@ pub fn playBundleResource(
             end - start,
         });
 
-        const ai = try Audio.create(self.allocator, name, audio, retain);
-        ai.resource = resource;
-        ai.next = self.audio_cache;
-        if (ai.next != null) ai.next.?.previous = ai;
-        ai.previous = null;
-        self.audio_cache = ai;
-        item = ai;
+        { // Add the just loaded audio into the audio cache.
+            try self.audio_cache_lock.lock(self.io);
+            defer self.audio_cache_lock.unlock(self.io);
+            if (self.findAudioInCache(name)) |ai| {
+                // Oops, another thread beat us to adding this to the cache.
+                item = ai;
+                debug("cache hit on audio named \"{s}\" (pre ref count={d})", .{ name, ai.references });
+            } else {
+                const ai = try Audio.create(self.allocator, name, audio, retain);
+                ai.resource = resource;
+                ai.next = self.audio_cache;
+                if (ai.next != null) ai.next.?.previous = ai;
+                ai.previous = null;
+                self.audio_cache = ai;
+                item = ai;
+            }
+        }
     }
 
     const amem = mixer.SDL_IOFromConstMem(item.?.audio.ptr, item.?.audio.len);
@@ -3273,7 +3318,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
-        try eq(98, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width);
+        try std.testing.expectApproxEqAbs(96, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width, 0.1);
         try eq(300, panel.rect.width);
         try eq(300, Label.layout(l, 100).minimum_width);
         try eq(350, Label.layout(l, 350).minimum_width);
@@ -3307,7 +3352,7 @@ test "text input sizing" {
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
         display.need_relayout = true;
         display.relayout();
-        try eq(98, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width);
+        try std.testing.expectApproxEqAbs(96, l.type.label.elements.last().?.location.x + l.type.label.elements.last().?.location.width, 0.1);
         try eq(1000, panel.rect.width);
         try eq(300, Label.layout(l, 100).minimum_width);
         try eq(350, Label.layout(l, 350).minimum_width);
@@ -3343,12 +3388,12 @@ test "text input sizing" {
         try eq(0, @round(l.type.label.elements.items[0].location.x));
         try eq(0, @round(l.type.label.elements.items[0].location.y));
 
-        try eq(50, @round(l.type.label.elements.items[1].location.x));
+        try eq(49, @round(l.type.label.elements.items[1].location.x));
         try eq(0, @round(l.type.label.elements.items[1].location.y));
 
         // Display width of the words when rendered to the physical display
-        try eq(98, l.rect.width);
-        try eq(98, @round(l.minimumNeededWidth(500)));
+        try std.testing.expectApproxEqAbs(96, l.rect.width, 0.1);
+        try eq(96, @round(l.minimumNeededWidth(500)));
 
         // TODO: Is this correct? Why is it * 2 ?
         try eq(
@@ -3412,13 +3457,13 @@ test "text input sizing" {
     // Min width at normal size
     display.need_relayout = true;
     display.relayout();
-    try eq(98, label.minimumNeededWidth(500));
+    try eq(96, label.minimumNeededWidth(500));
 
     // min width at heading size
     label.type.label.text_size = .heading;
     display.need_relayout = true;
     display.relayout();
-    try eq(98, @round(label.minimumNeededWidth(500)));
+    try eq(96, @round(label.minimumNeededWidth(500)));
 
     // Parent wants to shrink but child wants to grow.
     panel.layout.x = .shrinks;

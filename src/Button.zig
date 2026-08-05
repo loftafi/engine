@@ -215,10 +215,10 @@ pub inline fn minimumNeededWidth(
 ) f32 {
     if (entity.layout.x == .fixed) return entity.rect.width;
 
-    return @max(
+    return @ceil(@max(
         button.contentWidth() + entity.pad.left + entity.pad.right,
         entity.minimum.width,
-    );
+    ));
 }
 
 pub inline fn minimumNeededHeight(
@@ -466,7 +466,7 @@ test "normal_use" {
     display.relayout();
     try expectEqual(45, @ceil(button.rect.width));
     // Does the width grow more than 10 (minimum) because of the button size.
-    try expectEqual(2 + 45 + 3, @round(panel.rect.width));
+    try expectEqual(2 + 45 + 3, @ceil(panel.rect.width));
     // Minimum height was not_quite_one_line, expect it grew to font height.
     try expectEqual(TextSize.normal.size(), button.rect.height);
     try expectEqual(TextSize.normal.size() + 4 + 5, panel.rect.height);

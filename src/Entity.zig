@@ -172,12 +172,12 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
     // Cleanup shared attributes
 
     if (self.texture) |texture| {
-        display.releaseTextureResource(texture);
+        display.releaseTextureResource(texture) catch {};
         self.texture = null;
     }
 
     if (self.background.image) |texture| {
-        display.releaseTextureResource(texture);
+        display.releaseTextureResource(texture) catch {};
         self.background.image = null;
     }
 
@@ -198,27 +198,27 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
         },
         .checkbox => |*i| {
             if (i.*.on_texture) |texture| {
-                display.releaseTextureResource(texture);
+                display.releaseTextureResource(texture) catch {};
                 i.*.on_texture = null;
             }
             if (i.*.off_texture) |texture| {
-                display.releaseTextureResource(texture);
+                display.releaseTextureResource(texture) catch {};
                 i.*.off_texture = null;
             }
             i.*.elements.deinit(allocator);
         },
         .button => |*i| {
             if (i.*.icon.hover) |texture| {
-                display.releaseTextureResource(texture);
+                display.releaseTextureResource(texture) catch {};
             }
             if (i.*.icon.pressed) |texture| {
-                display.releaseTextureResource(texture);
+                display.releaseTextureResource(texture) catch {};
             }
             if (i.*.button.hover) |texture| {
-                display.releaseTextureResource(texture);
+                display.releaseTextureResource(texture) catch {};
             }
             if (i.*.button.pressed) |texture| {
-                display.releaseTextureResource(texture);
+                display.releaseTextureResource(texture) catch {};
             }
         },
         .particles => |*p| {
@@ -625,14 +625,14 @@ pub inline fn setTexture(
     self: *Entity,
     display: *Display,
     name: []const u8,
-) error{OutOfMemory}!void {
+) error{ OutOfMemory, Canceled }!void {
     const texture = display.loadBundleTexture(&display.resources, name) catch |f| {
         err("setTexture({s}) error loading texture. {any}", .{ name, f });
         return;
     };
     if (texture != null) {
         if (self.texture != null) {
-            display.releaseTextureResource(self.texture.?);
+            try display.releaseTextureResource(self.texture.?);
         }
         self.texture = texture.?;
     } else {
@@ -649,14 +649,14 @@ pub inline fn setBackgroundTexture(
     self: *Entity,
     display: *Display,
     name: []const u8,
-) error{OutOfMemory}!void {
+) error{ OutOfMemory, Canceled }!void {
     const texture = display.loadBundleTexture(&display.resources, name) catch |f| {
         err("setBackgroundTexture({s}) error loading texture. {any}", .{ name, f });
         return;
     };
     if (texture != null) {
         if (self.background.image != null)
-            display.releaseTextureResource(self.background.image.?);
+            try display.releaseTextureResource(self.background.image.?);
         self.background.image = texture.?;
     } else {
         err("setBackgroundTexture({s}) resource not found", .{name});
@@ -682,7 +682,7 @@ pub inline fn setImage(
     self.texture_name = name;
 
     if (self.texture != null) {
-        display.releaseTextureResource(self.texture.?);
+        try display.releaseTextureResource(self.texture.?);
         self.texture = null;
     }
     self.texture = texture.?;
@@ -693,9 +693,9 @@ pub inline fn setImage(
 pub inline fn clearImage(
     self: *Entity,
     display: *Display,
-) void {
+) error{Canceled}!void {
     if (self.texture != null) {
-        display.releaseTextureResource(self.texture.?);
+        try display.releaseTextureResource(self.texture.?);
         self.texture = null;
     }
 }
@@ -714,7 +714,7 @@ pub inline fn setBackgroundImage(
     debug("setBackgroundImage loaded \"{s}\"", .{name});
 
     if (self.background.image != null) {
-        display.releaseTextureResource(self.background.image.?);
+        try display.releaseTextureResource(self.background.image.?);
         self.background.image = null;
     }
     self.background.image = texture.?;
@@ -725,9 +725,9 @@ pub inline fn setBackgroundImage(
 pub inline fn clearBackgroundImage(
     self: *Entity,
     display: *Display,
-) void {
+) error{Canceled} {
     if (self.background.image != null) {
-        display.releaseTextureResource(self.background.image.?);
+        try display.releaseTextureResource(self.background.image.?);
         self.background.image = null;
     }
 }
