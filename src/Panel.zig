@@ -476,7 +476,10 @@ inline fn placeChildrenCentred(
         child.rect.y = corner.y + @round(inner_height / 2 - child.rect.height / 2);
         if (safe_offset) |offset| {
             if (child.type == .panel and child.type.panel.safe_area != .ignore_safe_area) {
-                child.rect = child.rect.move(offset);
+                child.rect = child.rect.move(.{
+                    .x = offset.x / 2,
+                    .y = offset.y / 2,
+                });
             }
         }
     }
