@@ -461,6 +461,24 @@ pub fn setKeybinding(
     trace("bind key {t} count={d}", .{ key, self.keybindings.count() });
 }
 
+/// Set the width and height of a window in _logical_ pixels.
+pub fn setWindowSize(
+    self: *Self,
+    size: Size,
+) void {
+    info("setWindowSize {d}x{d} -> {d}x{d}", .{
+        self.root.rect.width,
+        self.root.rect.height,
+        size.width,
+        size.height,
+    });
+    _ = sdl.SDL_SetWindowSize(
+        self.window,
+        @as(c_int, @intFromFloat(size.width)),
+        @as(c_int, @intFromFloat(size.height)),
+    );
+}
+
 pub fn clearKeybinding(
     self: *Self,
     key: Key,
