@@ -727,23 +727,56 @@ pub fn choosePanel(
     if (found == null) {
         warn("choosePanel() did not find panel. name={s}", .{name});
     } else {
-        boundScrollerPanels(found.?);
+        self.boundScrollerPanels(found.?, false);
     }
 }
 
-fn boundScrollerPanels(entity: *Entity) void {
+fn boundScrollerPanels(self: *Display, entity: *Entity, relayout_done: bool) void {
     if (entity.type != .panel) return;
+    var did_relayout = relayout_done;
     const panel = &entity.type.panel;
+
+    if (panel.scrollable.scroll.x or panel.scrollable.scroll.y)
+        info(" bound check on scroller: {s} {t} align={t}  offset={d}x{d}", .{
+            entity.name,
+            entity.type,
+            entity.child_align.x,
+            entity.offset.x,
+            entity.offset.y,
+        });
+
     if (panel.scrollable.scroll.x) {
-        const max_x = -panel.scrollable.size.width + entity.rect.width;
-        if (entity.offset.x < max_x) {
-            warn("patched {s} x offset {d} => {d}", .{ entity.name, entity.offset.x, max_x });
-            entity.offset.x = max_x;
+        if (!relayout_done) {
+            //self.relayout();
+            did_relayout = true;
+        }
+        // panel=500, screen=100  panel-screen=400 - Allow up to 400 pixels
+        const max_offset = @max(0, panel.scrollable.size.width - entity.rect.width);
+        // panel=500, screen=100 screen-panel=400 - Allow down to -400 pixels
+        const min_offset = @max(0, entity.rect.width - panel.scrollable.size.width);
+        info("    bound check {s} {t} - screen_width={d} needed_width={d} clamp={d}-{d}-{d}", .{
+            entity.name,
+            entity.child_align.x,
+            entity.rect.width,
+            panel.scrollable.size.width,
+            min_offset,
+            entity.offset.x,
+            max_offset,
+        });
+        const update = clamp(min_offset, entity.offset.x, max_offset);
+        if (entity.offset.x != update) {
+            warn("patched {s} x offset {d} => {d}", .{ entity.name, entity.offset.x, update });
+            entity.offset.x = update;
         } else {
-            debug("scroller {s} x offset {d} is in {d}", .{ entity.name, entity.offset.x, max_x });
+            debug("scroller {s} x in bounds {d}-{d}-{d}", .{ entity.name, min_offset, entity.offset.x, max_offset });
         }
     }
+
     if (panel.scrollable.scroll.y) {
+        if (!relayout_done) {
+            //self.relayout();
+            did_relayout = true;
+        }
         const max_y = -panel.scrollable.size.height + entity.rect.height;
         if (entity.offset.y < max_y) {
             warn("patched {s} y offset {d} => {d}", .{ entity.name, entity.offset.y, max_y });
@@ -755,7 +788,7 @@ fn boundScrollerPanels(entity: *Entity) void {
 
     for (entity.type.panel.children.items) |child| {
         if (child.type == .panel) {
-            boundScrollerPanels(child);
+            self.boundScrollerPanels(child, relayout_done);
         }
     }
 }

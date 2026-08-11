@@ -335,6 +335,8 @@ pub fn deletePreferenceData(
 }
 
 /// Load a preferences data file from the system standard preferences folder.
+/// Fallback to check if the file is in the documents folder.
+///
 /// `filename` is the name of the file _without_ path information.
 /// If the file does not yet exist, returns `null`. Release the data array after using.
 pub fn loadPreferenceData(
@@ -345,13 +347,50 @@ pub fn loadPreferenceData(
     const name = try make_preference_file_path(gpa, config, filename);
     defer gpa.free(name);
 
-    debug("Loading file: {s}", .{name});
-    const data = load_folder_file_bytes(gpa, name) catch |e| {
-        if (!sdl.SDL_GetPathInfo(name.ptr, null)) return null;
-        warn("Read file failed. {s} {any}", .{ name, e });
+    if (load_folder_file_bytes(gpa, name)) |data| {
+        if (data != null) {
+            info("Loaded preferences file: {s} len={d}", .{ name, data.?.len });
+            return data.?;
+        }
+        debug("Read preferences file not found. {s}", .{name});
+    } else |e| {
+        warn("Read preferences file failed. {s} {any}", .{ name, e });
         return error.ResourceReadError;
-    };
-    return data;
+    }
+
+    const alt_name = try make_documents_file_path(gpa, filename);
+    defer gpa.free(alt_name);
+
+    debug("Fallback to loading file: {s}", .{alt_name});
+    if (load_folder_file_bytes(gpa, alt_name)) |data| {
+        if (data != null) {
+            info("Fallback to documents folder: {s}", .{alt_name});
+            return data;
+        }
+    } else |e| {
+        warn("Read file failed. {s} {any}", .{ alt_name, e });
+        return error.ResourceReadError;
+    }
+
+    // Preference file does not exist in preference or documents folder.
+    info("Preferences file not found. {s}", .{name});
+    return null;
+}
+
+fn make_documents_file_path(
+    gpa: Allocator,
+    filename: []const u8,
+) error{OutOfMemory}![:0]const u8 {
+    const path = sdl.SDL_GetUserFolder(sdl.SDL_FOLDER_DOCUMENTS);
+    const zpath = std.mem.sliceTo(path, 0);
+    //info("Document path: {s} -> {s}", .{ zpath, filename });
+
+    var file: std.ArrayListUnmanaged(u8) = .empty;
+    try file.appendSlice(gpa, zpath);
+    if (file.items[file.items.len - 1] != '/' and file.items[file.items.len - 1] != '\\')
+        try file.append(gpa, guess_separator(zpath));
+    try file.appendSlice(gpa, filename);
+    return file.toOwnedSliceSentinel(gpa, 0);
 }
 
 fn make_preference_file_path(
@@ -366,27 +405,27 @@ fn make_preference_file_path(
 
     const path = sdl.SDL_GetPrefPath(app_org_z, app_name_z);
     const zpath = std.mem.sliceTo(path, 0);
-    //debug("Preferences path: {s} for {s}", .{ zpath, filename });
+    //info("Preference path: {s} -> {s}", .{ zpath, filename });
 
     var file: std.ArrayListUnmanaged(u8) = .empty;
-    defer file.deinit(gpa);
-
     try file.appendSlice(gpa, zpath);
-    if (file.items[file.items.len - 1] != '/' and file.items[file.items.len - 1] != '/')
+    if (file.items[file.items.len - 1] != '/' and file.items[file.items.len - 1] != '\\')
         try file.append(gpa, guess_separator(zpath));
     try file.appendSlice(gpa, filename);
-    return gpa.dupeSentinel(u8, file.items, 0);
+    return file.toOwnedSliceSentinel(gpa, 0);
 }
 
-// `filename` must end with a 0
+/// Return file contents, or null if file does not exist. `filename` must end with a 0
 fn load_folder_file_bytes(
     gpa: Allocator,
-    filename: []const u8,
+    filename: [:0]const u8,
 ) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
     _ = sdl.SDL_ClearError();
+    // check if file exists:
+    if (!sdl.SDL_GetPathInfo(filename.ptr, null)) return null;
+
     const in = sdl.SDL_IOFromFile(filename.ptr, "rb");
     if (in == null) {
-        if (!sdl.SDL_GetPathInfo(filename.ptr, null)) return null;
         const sdl_error = sdl.SDL_GetError();
         if (sdl_error != null)
             err("Open file '{s}' failed. {s}", .{ filename, sdl_error })
