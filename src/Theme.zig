@@ -69,7 +69,7 @@ pub const Style = enum {
     pub fn text(self: Style, theme: *Theme, custom: Colour) Colour {
         return switch (self) {
             .normal => theme.text_colour,
-            .faded => theme.faded_panel_colour,
+            .faded => theme.faded_text_colour,
             .tinted => theme.tinted_text_colour,
             .emphasised => theme.emphasised_text_colour,
             .success => theme.success_text_colour,
