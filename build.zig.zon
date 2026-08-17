@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.29.2",
+    .version = "0.29.3",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
@@ -27,6 +27,10 @@
         .zig_objc = .{
             .url = "git+https://github.com/loftafi/zig-objc#3352c12a868f8787ab71bf2ca6eab9fcfb635c52",
             .hash = "zig_objc-0.0.0-Ir_Sp_4tAQDXtPi51nW_jD9LOEzBvU9lofwO9Pzi6IB4",
+        },
+        .praxis = .{
+            .url = "git+https://github.com/loftafi/praxis#6b0b1d6751a181bbaa22a93f0e66d1bdedce7064",
+            .hash = "praxis-0.9.1-FPf2NeHPBgAnUc9WGpq7HtGFBV8j6N16s0W1f23lbuqI",
         },
     },
     .paths = .{

@@ -280,7 +280,8 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 
     // Keep track of each expander in the panel. At the end, expand
     // each expander according to the leftover space.
-    var expanders = BoundedArray(*Entity, 10){};
+    var expanders: [20]*Entity = undefined;
+    var expander_count: usize = 0;
     var expander_weights: f32 = 0;
 
     // The parent panel now has its final/fixed size for this layout
@@ -341,7 +342,8 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 
         if (entity.type == .expander) {
             if (entity.type.expander.weight <= 0) continue;
-            expanders.appendAssumeCapacity(entity);
+            expanders[expander_count] = entity;
+            expander_count += 1;
             expander_weights += entity.type.expander.weight;
         }
     }
@@ -367,9 +369,9 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     self.scrollable.size.width = parent.minimum.width;
     self.scrollable.size.height = parent.minimum.height;
     switch (self.direction) {
-        .left_to_right => self.placeChildrenLeftToRight(parent, expanders.slice(), expander_weights),
+        .left_to_right => self.placeChildrenLeftToRight(parent, expanders[0..expander_count], expander_weights),
         .left_to_right_wrap => self.placeChildrenLeftToRightWrap(parent),
-        .top_to_bottom => self.placeChildrenTopToBottom(parent, expanders.slice(), expander_weights),
+        .top_to_bottom => self.placeChildrenTopToBottom(parent, expanders[0..expander_count], expander_weights),
         .centre => self.placeChildrenCentred(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
         .top_left => self.placeChildrenTopLeft(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
         .top_right => self.placeChildrenTopRight(parent, if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null),
@@ -1372,7 +1374,6 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const eq = std.testing.expectEqual;
 
 const praxis = @import("praxis");
-const BoundedArray = praxis.BoundedArray;
 
 const engine = @import("engine.zig");
 const err = engine.log.err;

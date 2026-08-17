@@ -417,7 +417,6 @@ pub const start = @import("start.zig").start;
 
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
-const BoundedArray = praxis.BoundedArray;
 const mixer = @import("mixer");
 
 pub const Chunker = @import("Chunker.zig");

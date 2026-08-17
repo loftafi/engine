@@ -563,7 +563,6 @@ const expectEqual = std.testing.expectEqual;
 const expect = std.testing.expect;
 
 const praxis = @import("praxis");
-const BoundedArray = praxis.BoundedArray;
 const random = praxis.random.random;
 const seed = praxis.random.seed;
 

@@ -3628,7 +3628,6 @@ const CsvReader = engine.CsvReader;
 
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
-const BoundedArray = praxis.BoundedArray;
 const mixer = @import("mixer");
 
 const Translation = @import("translator").Translation;
