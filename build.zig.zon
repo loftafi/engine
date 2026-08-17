@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.29.1",
+    .version = "0.29.2",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
@@ -13,8 +13,8 @@
             .hash = "translator-0.1.9-cfHZxjRNAABrdjWRMp23ybbl5d1o7mNYUAnCPjUJLVGg",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources.git#48202b712106977c72a63376201219f6d419e623",
-            .hash = "resources-3.0.0-J0GwI-pZzAB52fM7jGw-0FTszt9MHGewUTl9un-4NCnw",
+            .url = "git+https://github.com/loftafi/resources#8c8c0c34401a1d4f295a1dd1fec42d1b68dc87f4",
+            .hash = "resources-3.0.1-J0GwI-pZzAA9MHKlGprHyumaFrb7dSLecNHMGsKtpES8",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/ziglang/translate-c#12c1515c074cfa9c69a799eb33506464a27c6332",
