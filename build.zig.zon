@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.29.4",
+    .version = "0.29.5",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
@@ -9,8 +9,8 @@
             .hash = "zstbi-0.11.0-dev-L0Ea_06WBwCZoJBl6SD0bcHOLEEIrD5xbQ0TbXe-SQ5Y",
         },
         .translator = .{
-            .url = "git+https://github.com/loftafi/translator#b8291a2fc914d2391a07bc96b4e1e7b0774761c3",
-            .hash = "translator-0.1.10-cfHZxjRNAADGa00jULjJfTtZnKshHes5vaXsD266O8yG",
+            .url = "git+https://github.com/loftafi/translator#06cfc1b34bed8fea898fc2d5ffe13cdce178eaf4",
+            .hash = "translator-0.1.11-cfHZxjVNAADIdB9UQzRvepKqgBR1zuTg_Sm5NQnP2J28",
         },
         .resources = .{
             .url = "git+https://github.com/loftafi/resources#8c8c0c34401a1d4f295a1dd1fec42d1b68dc87f4",
@@ -29,8 +29,8 @@
             .hash = "zig_objc-0.0.0-Ir_Sp_4tAQDXtPi51nW_jD9LOEzBvU9lofwO9Pzi6IB4",
         },
         .praxis = .{
-            .url = "git+https://github.com/loftafi/praxis#6b0b1d6751a181bbaa22a93f0e66d1bdedce7064",
-            .hash = "praxis-0.9.1-FPf2NeHPBgAnUc9WGpq7HtGFBV8j6N16s0W1f23lbuqI",
+            .url = "git+https://github.com/loftafi/praxis#ffc7bf68e117960f85d2db1c99358b27baa4fbe8",
+            .hash = "praxis-0.10.0-FPf2NYrRBgDN30gF6sW7XjIyt1BaDsvW_dYpYxtif92H",
         },
     },
     .paths = .{
