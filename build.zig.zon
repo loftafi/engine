@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.29.8",
+    .version = "0.29.9",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
@@ -9,8 +9,8 @@
             .hash = "zstbi-0.11.0-dev-L0Ea_06WBwCZoJBl6SD0bcHOLEEIrD5xbQ0TbXe-SQ5Y",
         },
         .translator = .{
-            .url = "git+https://github.com/loftafi/translator#06cfc1b34bed8fea898fc2d5ffe13cdce178eaf4",
-            .hash = "translator-0.1.11-cfHZxjVNAADIdB9UQzRvepKqgBR1zuTg_Sm5NQnP2J28",
+            .url = "git+https://github.com/loftafi/translator#dd17068410f874362936aad5e7299d94e9d3d214",
+            .hash = "translator-0.1.12-cfHZxjVNAAA_4U_cQR5FcRyPlpTlbxyBtjrTpNomCm0g",
         },
         .resources = .{
             .url = "git+https://github.com/loftafi/resources#17704289996575186ba5c52b9611c9e0fff35e12",
