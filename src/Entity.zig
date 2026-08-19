@@ -892,7 +892,7 @@ pub inline fn setText(
             return;
         },
     };
-    if (engine.dev_build and engine.dev_mode) {
+    if (false and engine.dev_build and engine.dev_mode) {
         const old_text = switch (self.type) {
             .text_input => self.type.text_input.text.items,
             .checkbox => self.type.checkbox.text,
@@ -903,12 +903,12 @@ pub inline fn setText(
         debug("setText {s} {s} \"{s}\" => \"{s}\"", .{ self.name, @tagName(self.type), old_text, new_text });
     }
     const new_translated = display.translation.translate(new_text);
-    trace("setText({s}.{s}) translated \"{s}\" => \"{s}\"", .{
-        @tagName(self.type),
-        self.name,
-        old_translated,
-        new_translated,
-    });
+    //trace("setText({s}.{s}) translated \"{s}\" => \"{s}\"", .{
+    //    @tagName(self.type),
+    //    self.name,
+    //    old_translated,
+    //    new_translated,
+    //});
     if (std.mem.eql(u8, new_translated, old_translated)) {
         // Do nothing if the text has not changed. This assumes that
         // the original text buffer was not modified.

@@ -359,11 +359,11 @@ fn drawString(
     }
 
     if (builtin.mode == .Debug and mode == .measure) {
-        trace("draw string='{s}': written={s} width={d}", .{
-            string,
-            dbg.written(),
-            dest.x - start_x,
-        });
+        //trace("draw string='{s}': written={s} width={d}", .{
+        //    string,
+        //    dbg.written(),
+        //    dest.x - start_x,
+        //});
     }
 
     return dest.x - start_x;

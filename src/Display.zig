@@ -1321,7 +1321,7 @@ pub fn loadBundleTexture(
         defer self.textures_lock.unlockShared(self.io);
 
         if (self.textures.get(resource.?.uid)) |texture| {
-            trace("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
+            //trace("cache hit looking up {s} with uid {d}", .{ name, resource.?.uid });
             texture.references += 1;
             return texture;
         }
@@ -1329,14 +1329,14 @@ pub fn loadBundleTexture(
 
     // Load the image data and decompress it under no lock.
     var end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
-    trace("search image named \"{s}\" in {d}ms", .{ name, end - start });
+    //trace("search image named \"{s}\" in {d}ms", .{ name, end - start });
     start = end;
 
     var si: SurfaceInfo = undefined;
     try self.loadImage(bundle, resource.?, &si);
     defer si.deinit(self.allocator);
     end = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
-    trace("made surface named \"{s}\" in {d}ms", .{ name, end - start });
+    //trace("made surface named \"{s}\" in {d}ms", .{ name, end - start });
 
     {
         // Only one thread at a time can register/cache this image texture.
@@ -2634,6 +2634,25 @@ inline fn handleMouseMotionEvent(
     }
 }
 
+/// Register an event type that can used with `triggerEventHook` to trigger
+/// a callback on the main thread. Use `setEventHook` on app startup to enable this.
+pub fn registerEventHook(_: *Display) u32 {
+    // Request 1 event uid and return it.
+    return sdl.SDL_RegisterEvents(1);
+}
+
+/// Send an event message to be handled on the main thread by the
+/// `event_hook` callback handler. Use `setEventHook` on app startup to enable this.
+pub fn triggerEventHook(_: *Display, id: u32) bool {
+    var event: sdl.SDL_Event = undefined;
+    event.type = id;
+    const result = sdl.SDL_PushEvent(&event);
+    if (!result) debug("send event hook callback {d} failed.", .{id});
+    return result;
+}
+
+/// Specify the callback function to be called from the main thread when a
+/// `triggerEventHook` is called from a background/non-main thread.
 pub fn setEventHook(self: *Display, ptr: *anyopaque, func: *const fn (ptr: *anyopaque, Allocator, u32) Allocator.Error!void) void {
     self.event_hook = .{
         .ptr = ptr,
