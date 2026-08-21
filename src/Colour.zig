@@ -33,6 +33,14 @@ pub fn parse(value: []const u8) ?Colour {
     return null;
 }
 
+pub fn format(self: *const Colour, out: *std.Io.Writer) std.Io.Writer.Error!void {
+    try out.writeByte('#');
+    try out.printInt(self.r, 16, .upper, .{});
+    try out.printInt(self.g, 16, .upper, .{});
+    try out.printInt(self.b, 16, .upper, .{});
+    try out.printInt(self.a, 16, .upper, .{});
+}
+
 test parse {
     const colour: Colour = Colour.parse("#112233") orelse unreachable;
     try std.testing.expectEqual(0x11, colour.r);

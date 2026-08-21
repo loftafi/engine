@@ -105,6 +105,7 @@ pub const Tag = enum(u8) {
     icon_pressed,
     icon_hover,
     icon_disabled,
+    icon_mod,
     button_default,
     button_hover,
     button_pressed,

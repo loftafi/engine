@@ -281,44 +281,16 @@ pub inline fn applyBackgroundTint(
     display: *Display,
     texture: *sdl.SDL_Texture,
 ) void {
-    if (self.type == .button) {
-        switch (self.style) {
-            .success => {
-                tint_texture(texture, display.theme.success_button_colour);
-                return;
-            },
-            .failed => {
-                tint_texture(texture, display.theme.failed_button_colour);
-                return;
-            },
-            .custom => {
-                if (self.background.colour.a != Colour.TRANSPARENT.a)
-                    tint_texture(texture, self.background.colour);
-                return;
-            },
-            else => {
-                // Otherwise apply toggle colurs if needed
-            },
-        }
-
-        switch (self.type.button.toggle) {
-            .off, .locked_off => tint_texture(texture, display.theme.toggle_button),
-            .on => tint_texture(texture, display.theme.toggle_button_picked),
-            .correct => tint_texture(texture, display.theme.toggle_button_correct),
-            .incorrect => tint_texture(texture, display.theme.toggle_button_incorrect),
-            .no_toggle, .disabled => tint_texture(texture, Colour.WHITE),
-        }
-        return;
-    }
+    if (self.type == .button) unreachable;
 
     if (self.type == .panel) {
         switch (self.style) {
+            .normal => tint_texture(texture, display.theme.panel_colour),
             .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
             .success => tint_texture(texture, display.theme.success_panel_colour),
             .failed => tint_texture(texture, display.theme.failed_panel_colour),
             .faded => tint_texture(texture, display.theme.faded_panel_colour),
             .background => tint_texture(texture, display.theme.background_colour),
-            .normal => tint_texture(texture, display.theme.label_background_colour),
             .custom => tint_texture(texture, self.background.colour),
             else => {
                 warn(
@@ -333,20 +305,20 @@ pub inline fn applyBackgroundTint(
 
     if (self.type == .sprite) {
         switch (self.style) {
-            .custom => tint_texture(texture, self.background.colour),
             .normal => tint_texture(texture, Colour.WHITE),
             .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
             .success => tint_texture(texture, display.theme.success_panel_colour),
             .failed => tint_texture(texture, display.theme.failed_panel_colour),
             .faded => tint_texture(texture, display.theme.faded_panel_colour),
-            .tinted => tint_texture(texture, display.theme.label_background_colour),
+            .tinted => tint_texture(texture, display.theme.tinted_panel_colour),
             .background => tint_texture(texture, display.theme.background_colour),
+            .custom => tint_texture(texture, self.background.colour),
         }
         return;
     }
 
     if (self.type == .label) {
-        tint_texture(texture, display.theme.label_background_colour);
+        tint_texture(texture, display.theme.background_colour);
         return;
     }
 
@@ -428,6 +400,10 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
     if (self.background.image_name) |name| {
         _ = try out.write(" background_image=");
         _ = try out.write(name);
+    }
+    if (self.background.colour.a != 0) {
+        _ = try out.write(" background_colour=");
+        _ = try out.print("{f}", .{self.background.colour});
     }
     _ = try out.print(" rect={d:1.0}x{d:1.0}/{d:1.0}x{d:1.0}", .{
         self.rect.x,
@@ -516,9 +492,13 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
         if (self.type.label.on_pressed.func != null)
             _ = try out.write(" on_pressed");
     } else if (self.type == .button) {
+        if (self.colour.a > 0) {
+            _ = try out.print(" colour={f}", .{self.colour});
+        }
         if (self.type.button.text.len > 0) {
-            _ = try out.write(" text=");
+            _ = try out.write(" text='");
             _ = try out.write(self.type.button.text);
+            _ = try out.writeByte('\'');
         }
         if (!std.mem.eql(u8, self.type.button.text, self.type.button.translated) and self.type.button.translated.len > 0) {
             _ = try out.write(" translated=");
@@ -529,6 +509,18 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
                 self.type.button.icon.size.width,
                 self.type.button.icon.size.height,
             });
+        }
+        if (self.type.button.icon.mod.a > 0) {
+            _ = try out.print(" icon.mod={f}", .{self.type.button.icon.mod});
+        }
+        if (self.type.button.icon.default_name) |value| {
+            _ = try out.print(" icon.default='{s}'", .{value});
+        }
+        if (self.type.button.button.default_name) |value| {
+            _ = try out.print(" button.default='{s}'", .{value});
+        }
+        if (self.type.button.button.pressed_name) |value| {
+            _ = try out.print(" button.pressed='{s}'", .{value});
         }
         if (self.type.button.font_name) |font| {
             if (font.len > 0) {

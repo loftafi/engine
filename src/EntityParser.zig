@@ -214,6 +214,7 @@ pub fn readAttributes(
             .off => readOffAttribute(token, entity),
             .checkbox_size => readCheckboxSizeAttribute(token, entity, font_size),
             .icon_size => readIconSizeAttribute(token, entity, font_size),
+            .icon_mod => readIconModAttribute(token, entity),
             .placeholder_text => readPlaceholderTextAttribute(token, entity),
             .on_change => readOnChangeAttribute(token, entity, handler, callbacks),
             .on_pressed => readOnPressedAttribute(token, entity, handler, callbacks),
@@ -771,6 +772,34 @@ pub fn readBackgroundColourAttribute(
         },
     }
 
+    token.* = try token.next();
+}
+
+pub fn readIconModAttribute(
+    token: *Token,
+    entity: *engine.Entity,
+) Error!void {
+    if (entity.type == .expander) {
+        err("{t} does not support icon colour attribute.", .{entity.type});
+        return error.UnexpectedToken;
+    }
+    token.* = try token.next();
+    const field = switch (token.tag) {
+        .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
+        .field => token.slice(),
+        else => {
+            err("Expected icon_mod value, found {t}", .{token.tag});
+            return error.UnexpectedToken;
+        },
+    };
+    const colour = try readColour(field);
+    switch (entity.type) {
+        .button => entity.type.button.icon.mod = colour,
+        else => {
+            err("{t} does not have colour attribute.", .{entity.type});
+            return error.UnexpectedToken;
+        },
+    }
     token.* = try token.next();
 }
 

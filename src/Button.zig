@@ -14,6 +14,7 @@ translated_text_width: f32 = 0,
 
 spacing: f32 = 0,
 icon: struct {
+    mod: Colour = .TRANSPARENT,
     size: Size = .{ .width = 0, .height = 0 },
     default_name: ?[]const u8 = null,
     hover: ?*Texture = null,
@@ -71,7 +72,7 @@ pub inline fn draw(
 
     // Draw the background matching the current button state
     if (self.current_background(entity)) |background_image| {
-        entity.applyBackgroundTint(display, background_image);
+        buttonColour(entity, display.theme, background_image);
         if (entity.background.image_corner_radius == 0) {
             display.renderTexture(background_image, null, &dest);
         } else {
@@ -96,8 +97,6 @@ pub inline fn draw(
         .end => entity.rect.height - entity.pad.bottom - self.icon.size.height,
     };
 
-    const text_colour = button_text_colour(entity, display.theme);
-
     // Place the icon
     if (self.icon.size.width > 0 and self.icon.size.height > 0) {
         if (self.current_icon(entity)) |icon_image| {
@@ -117,8 +116,10 @@ pub inline fn draw(
                 icon_rect.height = 0 - icon_rect.height;
             }
             icon_rect.height *= x_scale;
-            _ = sdl.SDL_SetTextureAlphaMod(icon_image, text_colour.a);
-            _ = sdl.SDL_SetTextureColorMod(icon_image, text_colour.r, text_colour.g, text_colour.b);
+            const icon_colour = iconColour(entity, display.theme);
+            if (icon_colour.a > 0)
+                _ = sdl.SDL_SetTextureAlphaMod(icon_image, icon_colour.a);
+            _ = sdl.SDL_SetTextureColorMod(icon_image, icon_colour.r, icon_colour.g, icon_colour.b);
             display.renderTexture(icon_image, null, &icon_rect);
         }
 
@@ -136,6 +137,7 @@ pub inline fn draw(
             .y = entity.rect.y + ((entity.rect.height - entity.pad.top - entity.pad.bottom) / 2.0) - (height / 2) + entity.pad.top,
         };
 
+        const text_colour = textColour(entity, display.theme);
         pos = pos.add(scroll_offset);
         _ = self.font.drawText(display, self.translated, pos, text_colour, self.text_size, x_scale) catch {
             // Memory allocations should not be occuring during drawText.
@@ -172,13 +174,66 @@ pub inline fn current_background(
 /// By default, button text is uses the default theme `text_colour`
 /// unless a style is applied, or the button is altered by its
 /// `hovered` or `pressed` status.
-inline fn button_text_colour(entity: *const Entity, theme: *const Theme) Colour {
-    if (entity.style == .success) return theme.success_text_colour;
-    if (entity.style == .failed) return theme.failed_text_colour;
-    if (entity.style == .custom) return entity.colour;
-    if (entity.pressed) return theme.tinted_text_colour;
-    if (entity.hovered) return theme.tinted_text_colour;
-    return theme.text_colour;
+inline fn textColour(entity: *const Entity, theme: *const Theme) Colour {
+    var colour: Colour = switch (entity.style) {
+        .normal => theme.text_colour,
+        .success => theme.success_text_colour,
+        .failed => theme.failed_text_colour,
+        .tinted => theme.tinted_text_colour,
+        .faded => theme.failed_text_colour,
+        .emphasised => theme.emphasised_text_colour,
+        .custom => entity.colour,
+        .background => theme.text_colour,
+    };
+    if (entity.hovered) colour.a -= (colour.a >> 2);
+    if (entity.pressed) {
+        colour.r -= (colour.r >> 2);
+        colour.g -= (colour.g >> 2);
+        colour.b -= (colour.b >> 2);
+        colour.a -= (colour.a >> 2);
+    }
+    return colour;
+}
+
+inline fn iconColour(entity: *const Entity, theme: *const Theme) Colour {
+    if (entity.type.button.icon.mod.a == 0)
+        return textColour(entity, theme)
+    else {
+        var colour = entity.type.button.icon.mod;
+        if (entity.pressed or entity.hovered) colour.a -= (colour.a >> 2);
+        return colour;
+    }
+}
+
+inline fn buttonColour(entity: *const Entity, theme: *const Theme, texture: *sdl.SDL_Texture) void {
+    if (entity.type.button.toggle != .no_toggle) {
+        switch (entity.type.button.toggle) {
+            .off, .locked_off => Entity.tint_texture(texture, theme.toggle_button),
+            .on => Entity.tint_texture(texture, theme.toggle_button_picked),
+            .correct => Entity.tint_texture(texture, theme.toggle_button_correct),
+            .incorrect => Entity.tint_texture(texture, theme.toggle_button_incorrect),
+            .no_toggle, .disabled => Entity.tint_texture(texture, Colour.WHITE),
+        }
+    }
+    var tint = switch (entity.style) {
+        .success => theme.success_button_colour,
+        .failed => theme.failed_button_colour,
+        .tinted => theme.tinted_button_colour,
+        .faded => theme.faded_button_colour,
+        .emphasised => theme.emphasised_button_colour,
+        .normal => theme.button_colour,
+        .background => theme.background_colour,
+        .custom => entity.background.colour,
+    };
+    if (entity.background.colour.a != Colour.TRANSPARENT.a) tint = entity.background.colour;
+    if (entity.hovered) tint.a -= (tint.a >> 2);
+    if (entity.pressed) {
+        tint.r -= (tint.r >> 2);
+        tint.g -= (tint.g >> 2);
+        tint.b -= (tint.b >> 2);
+        tint.a -= (tint.a >> 2);
+    }
+    Entity.tint_texture(texture, tint);
 }
 
 /// An icon may have different image textures for hovered, pressed
