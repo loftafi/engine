@@ -171,9 +171,7 @@ pub fn create(
     io: std.Io,
     config: Config,
 ) (Error || Allocator.Error || Resources.Error || engine.Error ||
-    error{ Utf8ExpectedContinuation, Utf8OverlongEncoding, Utf8EncodesSurrogateHalf, Utf8CodepointTooLarge, Utf8InvalidStartByte } ||
-    std.Io.Dir.StatError || std.Io.File.StatError ||
-    std.Io.File.OpenError)!*Self {
+    std.Io.Dir.StatError || std.Io.File.OpenError)!*Self {
     info("Initialising Display. {s} {s}", .{
         config.app_name orelse "Unknown",
         config.app_version orelse "0.0.0",

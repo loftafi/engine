@@ -12,14 +12,7 @@ pub fn initResourcesSdl(
     config: *const engine.Config,
     bundle_info: *const engine.BundleInfo,
 ) (Allocator.Error || Resources.Error || engine.Error || std.Io.Dir.StatError ||
-    std.Io.File.StatError || std.Io.File.OpenError || error{
-    ResourceReadError,
-    Utf8ExpectedContinuation,
-    Utf8OverlongEncoding,
-    Utf8EncodesSurrogateHalf,
-    Utf8CodepointTooLarge,
-    Utf8InvalidStartByte,
-})!void {
+    std.Io.File.StatError || std.Io.File.OpenError)!void {
     const start = std.Io.Timestamp.now(io, .real).toMilliseconds();
 
     if (bundle_info.folder) |folder| {
@@ -122,15 +115,19 @@ fn guess_separator(base_folder: []const u8) u8 {
 }
 
 /// Assumes base_folder has a trailing / provided by `SDL_GetBasePath()`
-fn make_sdl_file_path(allocator: Allocator, base_folder: []const u8, expected_file: []const u8) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
+fn make_sdl_file_path(
+    allocator: Allocator,
+    base_folder: []const u8,
+    expected_file: []const u8,
+) Allocator.Error!?[]const u8 {
     // Make the folder/file path
     var buffer: std.ArrayListUnmanaged(u8) = .empty;
-    buffer.appendSlice(allocator, base_folder) catch return error.ResourceReadError;
+    try buffer.appendSlice(allocator, base_folder);
     if (!std.mem.endsWith(u8, base_folder, "/") and !std.mem.endsWith(u8, base_folder, "\\")) {
-        buffer.append(allocator, guess_separator(base_folder)) catch return error.ResourceReadError;
+        try buffer.append(allocator, guess_separator(base_folder));
     }
-    buffer.appendSlice(allocator, expected_file) catch return error.ResourceReadError;
-    buffer.append(allocator, 0) catch return error.ResourceReadError;
+    try buffer.appendSlice(allocator, expected_file);
+    try buffer.append(allocator, 0);
 
     // Check if it exists
     var path_info: sdl.SDL_PathInfo = undefined;
@@ -167,13 +164,7 @@ pub inline fn loadResourceSdl(
 pub fn loadBundleSdl(
     self: *Resources,
     bundle_filename: []const u8,
-) (Allocator.Error || Resources.Error || error{
-    Utf8OverlongEncoding,
-    Utf8EncodesSurrogateHalf,
-    Utf8CodepointTooLarge,
-    Utf8InvalidStartByte,
-    Utf8ExpectedContinuation,
-})!bool {
+) (Allocator.Error || Resources.Error)!bool {
     var buffer: [300:0]u8 = undefined;
 
     const bundle_filename_z: [:0]u8 = try self.arena.allocator().dupeSentinel(u8, bundle_filename, 0);
