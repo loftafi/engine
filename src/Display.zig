@@ -18,20 +18,20 @@ state: enum { running, paused, ending } = .running,
 /// all entities on the screen will need to be refreshed.
 /// Setting this to `true` causes the `relayout()` function
 /// to be called before the next `draw()` is requested.
-need_relayout: bool = true,
+need_relayout: bool,
 
 /// Normally it is only possible to navigate to, focus, hover,
 /// or tap on `can_focus` items. In `accessibility` mode,
 /// extra entities such as titles or guidance text entities
 /// can also be navigated onto. These special entities must
 /// be given the given `accessibility_focus` option.
-blind_accessibility: bool = false,
+blind_accessibility: bool,
 
 /// Used to calculate frame rate in microseconds.
-last_draw: i64 = 0,
+last_draw: i64,
 
 /// Duration between each frame in microseconds.
-last_delta: i64 = 0,
+last_delta: i64,
 
 /// A list of read only resources is loaded from a resource
 /// bundle, or an on disk development directory. This may
@@ -39,14 +39,14 @@ last_delta: i64 = 0,
 resources: Resources,
 
 /// A list of all active fonts loaded from the resources bundle.
-fonts: ArrayListUnmanaged(*Font) = .empty,
+fonts: ArrayListUnmanaged(*Font),
 
 font: Font.Language,
 
 /// Translates the default provided text into a specific language
 /// using a csv translation file
-translation: Translation = .empty,
-current_language: Lang = .unknown,
+translation: Translation,
+current_language: Lang,
 
 /// Cache of currently loaded textures.
 textures: std.AutoHashMapUnmanaged(u64, *Texture),
@@ -56,7 +56,7 @@ textures_lock: std.Io.RwLock,
 required_resource: std.AutoHashMapUnmanaged(u64, *const Resource),
 
 /// Cache of currently loaded audio files.
-audio_cache: ?*Audio = null,
+audio_cache: ?*Audio,
 audio_cache_lock: std.Io.RwLock,
 
 /// Four possible theme options are available.
@@ -67,12 +67,12 @@ theme: *Theme,
 
 /// The tab key, arrow keys, or game controler may be used
 /// to switch between focussable user interface entities.
-focussed: ?*Entity = null,
+focussed: ?*Entity,
 
 /// When the mouse is clicked dcown on a scrollable/movable
 /// entities, this is the current entity that is being
 /// scrolled/moved.
-scrolling: ?*Entity = null,
+scrolling: ?*Entity,
 
 /// When a user clicks to begin a scroll action, the scroll
 /// movement begins from a specific point on the screen.
@@ -90,11 +90,12 @@ old_safe_area: sdl.SDL_Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
 
 /// One user interface entity may be marked as selected to recieve
 /// keyboard input
-selected: ?*Entity = null,
+selected: ?*Entity,
 
 /// If the user at some point navigates using a keyboard or
 /// controller, `keyboard_activity` is set to `true`
-keyboard_activity: bool = false,
+keyboard_activity: bool,
+
 draw_cursor: ?*const fn (
     renderer: *sdl.SDL_Renderer,
     entity_type: Entity.Type,
@@ -105,7 +106,7 @@ draw_cursor: ?*const fn (
 /// One user interface entity may be rendered differently
 /// when the mouse/pointer is floating over that entity.
 /// i.e. A button might light up when the mouse hovers above it.
-hovered: ?*Entity = null,
+hovered: ?*Entity,
 
 // TextSize contains the height in pixels _before_ display
 // scaling. It is defined at comptime. For example, if
@@ -119,19 +120,19 @@ hovered: ?*Entity = null,
 /// It must be enlarged by the display scale. i.e. On a retina
 /// screen, a text height of 16 must be multiplied by 2 on a
 /// retnia screen so it is 32 pixels high.
-display_scale: f32 = 0,
+display_scale: f32,
 
 /// Used when user adjusts the global size of the interface
-user_scale: f32 = 1,
+user_scale: f32,
 
 /// The actual scale is the display_scale * user_scale
-scale: f32 = 0,
+scale: f32,
 
 /// iOS and retina mac displays report the mouse position according
 /// to traditional dimensions (i.e. 1920x1080) rather than actual
 /// pixels (i.e. 3840x2160). A mouse/tap at 100x100, must be
 /// translated to the physical pixel/entity position of 200x200.
-controller_scale: f32 = 1,
+controller_scale: f32,
 
 root: Entity = .{
     .name = "root",
@@ -150,28 +151,26 @@ root: Entity = .{
     .on_resized = .empty,
     .on_visibility = .empty,
 },
-animators: ArrayListUnmanaged(Animator) = .empty,
+animators: ArrayListUnmanaged(Animator),
 
-keybindings: std.AutoHashMapUnmanaged(Key, Entity.Callback) = .empty,
-on_resized: Entity.BoolCallback = .empty,
-event_hook: U32Callback = .empty,
-startup_hook: Callback = .empty,
-shutdown_hook: Callback = .empty,
-on_panel_change: Entity.PanelChangeCallback = .empty,
+keybindings: std.AutoHashMapUnmanaged(Key, Entity.Callback),
+on_resized: Entity.BoolCallback,
+event_hook: U32Callback,
+startup_hook: Callback,
+shutdown_hook: Callback,
+on_panel_change: Entity.PanelChangeCallback,
 
 bucket: StringBucket,
 config: Config,
 
-const empty: @This() = .{};
-
-const Self = @This();
+const empty: Display = .{};
 
 pub fn create(
     gpa: Allocator,
     io: std.Io,
     config: Config,
 ) (Error || Allocator.Error || Resources.Error || engine.Error ||
-    std.Io.Dir.StatError || std.Io.File.OpenError)!*Self {
+    std.Io.Dir.StatError || std.Io.File.OpenError)!*Display {
     info("Initialising Display. {s} {s}", .{
         config.app_name orelse "Unknown",
         config.app_version orelse "0.0.0",
@@ -451,7 +450,7 @@ pub fn create(
 }
 
 pub fn setKeybinding(
-    self: *Self,
+    self: *Display,
     key: Key,
     callback: Entity.Callback,
 ) Allocator.Error!void {
@@ -461,7 +460,7 @@ pub fn setKeybinding(
 
 /// Set the width and height of a window in _logical_ pixels.
 pub fn setWindowSize(
-    self: *Self,
+    self: *Display,
     size: Size,
 ) void {
     info("setWindowSize {d}x{d} -> {d}x{d}", .{
@@ -478,7 +477,7 @@ pub fn setWindowSize(
 }
 
 pub fn clearKeybinding(
-    self: *Self,
+    self: *Display,
     key: Key,
 ) Allocator.Error!void {
     try self.keybindings.remove(key);
@@ -486,7 +485,7 @@ pub fn clearKeybinding(
 
 /// Cleanup memory assocaited with this display. Not thread safe. Call from
 /// main thread.
-pub fn destroy(self: *Self) void {
+pub fn destroy(self: *Display) void {
     const gpa = self.allocator;
 
     self.animators.deinit(gpa);
@@ -544,7 +543,7 @@ pub fn destroy(self: *Self) void {
     zstbi.deinit();
 }
 
-pub fn haptic_feedback_available(_: *Self) bool {
+pub fn haptic_feedback_available(_: *Display) bool {
     return builtin.os.tag == .ios;
 }
 
@@ -568,7 +567,7 @@ var ios_haptic_heavy: ?objcObj = null;
 ///                                               initWithStyle:UIImpactFeedbackStyleHeavy];
 /// [impactFeedBack prepare];
 /// [impactFeedBack impactOccurred];
-pub fn haptic_feedback(_: *Self, duration: u16) void {
+pub fn haptic_feedback(_: *Display, duration: u16) void {
     if (builtin.os.tag != .ios) return;
 
     const objc = @import("objc");
@@ -622,7 +621,7 @@ pub fn haptic_feedback(_: *Self, duration: u16) void {
 
 /// Check that a theme name is a valid theme name. Return a stack
 /// allocated string version of the name.
-pub fn validate_theme(display: *Self, name: []const u8) []const u8 {
+pub fn validate_theme(display: *Display, name: []const u8) []const u8 {
     for (display.themes) |theme| {
         if (std.ascii.eqlIgnoreCase(theme.tag, name)) {
             return theme.tag;
@@ -633,7 +632,7 @@ pub fn validate_theme(display: *Self, name: []const u8) []const u8 {
 
 /// Change the theme. If the theme name is not valid, or empty
 /// use the system preference.
-pub fn setTheme(self: *Self, name: []const u8) bool {
+pub fn setTheme(self: *Display, name: []const u8) bool {
     for (self.themes) |theme| {
         if (std.ascii.eqlIgnoreCase(theme.tag, name)) {
             self.theme = theme;
@@ -650,7 +649,7 @@ pub fn setTheme(self: *Self, name: []const u8) bool {
 
 /// On initialisation, the display reads the users OS light/dark
 /// theme preference.
-pub fn updateSystemTheme(self: *Self) void {
+pub fn updateSystemTheme(self: *Display) void {
     switch (sdl.SDL_GetSystemTheme()) {
         sdl.SDL_SYSTEM_THEME_DARK => self.theme = self.themes[0],
         sdl.SDL_SYSTEM_THEME_LIGHT => self.theme = self.themes[3],
@@ -660,7 +659,7 @@ pub fn updateSystemTheme(self: *Self) void {
 }
 
 /// Return the top level panel with the requested name.
-pub fn getPanel(self: *Self, name: []const u8) ?*Entity {
+pub fn getPanel(self: *Display, name: []const u8) ?*Entity {
     for (self.root.type.panel.children.items) |item| {
         if (item.type != .panel) {
             continue;
@@ -676,7 +675,7 @@ pub fn getPanel(self: *Self, name: []const u8) ?*Entity {
 /// `not_choosable` panels can not be chosen because they are always visible
 /// and not part of the choosable set.
 pub fn choosePanel(
-    self: *Self,
+    self: *Display,
     name: []const u8,
     event: *const Event,
 ) Allocator.Error!void {
@@ -794,7 +793,7 @@ fn boundScrollerPanels(self: *Display, entity: *Entity, relayout_done: bool) voi
 /// Get the name of the currently visible panel also has the `choosable` flag.
 /// `not_choosable` panels are not selectable and thus cant become the
 /// "current" panel.
-pub fn currentPanel(self: *Self) ?*Entity {
+pub fn currentPanel(self: *Display) ?*Entity {
     if (builtin.mode == .Debug) {
         if (self.root.type != .panel) {
             err("root panel is {t}, which is not a panel", .{self.root.type});
@@ -816,7 +815,7 @@ pub fn currentPanel(self: *Self) ?*Entity {
 
 /// Do a draw, but dont block to wait for events. Use to ensure the
 /// window starts being drawn wile starting the app.
-pub fn initial_draw(display: *Self) !void {
+pub fn initial_draw(display: *Display) !void {
     _ = sdl.SDL_SetRenderDrawColor(
         display.renderer,
         display.theme.background_colour.r,
@@ -846,7 +845,7 @@ pub fn initial_draw(display: *Self) !void {
 /// if an entity continually returns `on_resized` = `true` then an
 /// infinite loop will occur. on_resized=true should be used with
 /// caution.
-pub fn relayout(display: *Self) void {
+pub fn relayout(display: *Display) void {
     if (display.need_relayout == false) return;
 
     //trace("relayout", .{});
@@ -868,7 +867,7 @@ pub fn relayout(display: *Self) void {
     }
 }
 
-pub fn setLanguage(self: *Self, language: Lang) !void {
+pub fn setLanguage(self: *Display, language: Lang) !void {
     if (language == self.current_language) {
         debug("setLanguage({s}) unchanged.", .{@tagName(self.current_language)});
         return;
@@ -892,7 +891,7 @@ pub fn setLanguage(self: *Self, language: Lang) !void {
 }
 
 /// Update and draw all entities on the display.
-pub fn draw(display: *Self) Allocator.Error!void {
+pub fn draw(display: *Display) Allocator.Error!void {
     const now = std.Io.Timestamp.now(display.io, .real).toMilliseconds();
     display.last_delta = now - display.last_draw;
     display.last_draw = now;
@@ -944,7 +943,7 @@ pub fn draw(display: *Self) Allocator.Error!void {
 /// then set a default font for a specific individual language, i.e.
 /// lang=`.english`.
 pub fn setDefaultFont(
-    self: *Self,
+    self: *Display,
     name: []const u8,
     lang: praxis.Lang,
     config: Font.Config,
@@ -1005,7 +1004,7 @@ fn removeFontFromList(allocator: Allocator, list: *ArrayListUnmanaged(*Font), it
 /// when this record is no loger needed, or `Font.clone()` to indicate
 /// multiple interests retaining this Font.
 pub fn loadFontResource(
-    self: *Self,
+    self: *Display,
     name: []const u8,
     config: Font.Config,
 ) (Error || Allocator.Error || Resources.Error)!*Font {
@@ -1036,7 +1035,7 @@ pub fn loadFontResource(
 /// Load image data from a resource bucket into a `si` SurfaceInfo
 /// struct.
 fn loadImage(
-    self: *Self,
+    self: *Display,
     bucket: *Resources,
     resource: *Resource,
     si: *SurfaceInfo,
@@ -1072,7 +1071,7 @@ fn loadImage(
 /// Add an animator that points to a currently active/valid entity.
 /// The entity must not be destroyed for the lifetime of the animation.
 pub inline fn addAnimator(
-    self: *Self,
+    self: *Display,
     animator: Animator,
 ) Allocator.Error!void {
     try self.animators.append(self.allocator, animator);
@@ -1082,7 +1081,7 @@ pub inline fn addAnimator(
 
 /// Check if an Entity is currently in animation
 pub inline fn isAnimating(
-    self: *Self,
+    self: *Display,
     entity: *Entity,
 ) bool {
     for (self.animators.items) |*a|
@@ -1097,7 +1096,7 @@ pub fn copyToClipboard(_: *Display, text: []const u8) void {
 }
 
 /// List all of the animators currently in progress.
-pub fn dumpAnimators(self: *Self) void {
+pub fn dumpAnimators(self: *Display) void {
     info("---", .{});
     for (self.animators.items, 0..) |*animator, i| {
         info("{d}: {s} {t} {t}", .{ i, animator.target.name, animator.mode, animator.movement });
@@ -1108,7 +1107,7 @@ pub fn dumpAnimators(self: *Self) void {
 /// Attach a child entity to the main display panel (root) entity. The
 /// main display panel should only contain panels as children
 pub inline fn addPanel(
-    self: *Self,
+    self: *Display,
     item: Entity,
 ) (Allocator.Error || Resources.Error || Error)!*Entity {
     if (item.type != .panel) {
@@ -1129,7 +1128,7 @@ pub inline fn addPanel(
 /// Attach a child entity to the main display panel (root) entity. The
 /// main display panel should only contain panels as children
 pub inline fn appendPanel(
-    self: *Self,
+    self: *Display,
     data: []const u8,
     HandlerType: type,
     handler: *HandlerType,
@@ -1178,7 +1177,7 @@ pub inline fn appendPanel(
 /// entities. This releases a texture, only when all references to
 /// a texture no longer exist.
 pub fn releaseTextureResource(
-    self: *Self,
+    self: *Display,
     ti: *Texture,
 ) error{Canceled}!void {
     try self.textures_lock.lock(self.io);
@@ -1206,7 +1205,7 @@ pub fn releaseTextureResource(
 /// entities. This releases a texture, only when all references to
 /// a texture no longer exist.
 pub fn releaseAudioResource(
-    self: *Self,
+    self: *Display,
     ai: *Audio,
 ) error{Canceled}!void {
     try self.audio_cache_lock.lock(self.io);
@@ -1249,7 +1248,7 @@ pub fn releaseAudioResource(
 /// Add a named resource to the list of resources needed in the
 /// app resource bundle.
 pub inline fn requireResourceRecord(
-    self: *Self,
+    self: *Display,
     name: []const u8,
     category: Resources.SearchCategory,
 ) (Error || Allocator.Error || Resources.Error)!void {
@@ -1276,7 +1275,7 @@ pub inline fn requireResourceRecord(
 
 /// Load an image from the default resource bundle.
 pub inline fn requireImage(
-    self: *Self,
+    self: *Display,
     name: []const u8,
 ) (Error || Allocator.Error || Resources.Error)!?*Texture {
     const texture = try self.loadBundleTexture(&self.resources, name);
@@ -1291,7 +1290,7 @@ pub inline fn requireImage(
 
 /// Load an image from a specific resource bundle.
 pub fn loadBundleTexture(
-    self: *Self,
+    self: *Display,
     bundle: *Resources,
     name: []const u8,
 ) (Error || Allocator.Error || Resources.Error)!?*Texture {
@@ -1361,7 +1360,7 @@ pub fn loadBundleTexture(
 
 /// Load an image from the formatted_default resource bundle.
 pub inline fn playResource(
-    self: *Self,
+    self: *Display,
     io: std.Io,
     name: []const u8,
     retain: Audio.Retain,
@@ -1380,21 +1379,21 @@ pub inline fn playResource(
 
 /// Load an image from a specific resource bundle.
 pub fn stopAllAudio(
-    self: *Self,
+    self: *Display,
     fade_out_ms: i64,
 ) (Error || Allocator.Error)!void {
     _ = mixer.MIX_StopAllTracks(self.mix, fade_out_ms);
 }
 
 /// Load an audio resource from the cache. Returns null if resource not found.
-pub fn getAudioInCache(self: *Self, name: []const u8) error{Canceled}!?*Audio {
+pub fn getAudioInCache(self: *Display, name: []const u8) error{Canceled}!?*Audio {
     try self.audio_cache_lock.lockShared(self.io);
     defer self.audio_cache_lock.unlockShared(self.io);
     return self.findAudioInCache(name);
 }
 
 /// Non threadsafe version of getAudioInCache
-fn findAudioInCache(self: *Self, name: []const u8) ?*Audio {
+fn findAudioInCache(self: *Display, name: []const u8) ?*Audio {
     var item = self.audio_cache;
     while (item != null) : (item = item.?.next) {
         if (std.mem.eql(u8, name, item.?.name)) {
@@ -1406,7 +1405,7 @@ fn findAudioInCache(self: *Self, name: []const u8) ?*Audio {
 
 /// Load an image from a specific resource bundle.
 pub fn playBundleResource(
-    self: *Self,
+    self: *Display,
     io: std.Io,
     bundle: *Resources,
     name: []const u8,
@@ -1561,7 +1560,7 @@ pub fn isVisibleInTree(
 /// Note that the first selectable entity in the tree might not be the
 /// top/left most enity visually drawn on the screen.
 pub fn selectFirstEntity(
-    self: *Self,
+    self: *Display,
     entities: []*Entity,
     event: *const Event,
 ) bool {
@@ -1603,7 +1602,7 @@ const SelectState = enum(u2) {
 /// Note that next selectable entity in the entity tree might not be
 /// not the entity visually located to the right of the current entity.
 pub fn selectNextEntity(
-    self: *Self,
+    self: *Display,
     event: *const Event,
 ) void {
     trace("selectNextEntity() find next entity", .{});
@@ -1633,7 +1632,7 @@ pub fn selectNextEntity(
 /// correspond to the entity visually located to the left of the
 /// current entity.
 pub fn selectPreviousEntity(
-    self: *Self,
+    self: *Display,
     event: *const Event,
 ) void {
     trace("selectPreviousEntity() find previous entity", .{});
@@ -1655,7 +1654,7 @@ pub fn selectPreviousEntity(
 }
 
 fn do_selectNextEntity(
-    self: *Self,
+    self: *Display,
     entities: []*Entity,
     state: *SelectState,
     previous: *?*Entity,
@@ -1713,7 +1712,7 @@ fn do_selectNextEntity(
 
 /// Find the closest entity that is to the left of this entity.
 pub fn selectLeftEntity(
-    self: *Self,
+    self: *Display,
     event: *const Event,
 ) void {
     var walker = EntityWalker.default;
@@ -1724,7 +1723,7 @@ pub fn selectLeftEntity(
 
 /// Find the closest entity that is to the right of this entity.
 pub fn selectRightEntity(
-    self: *Self,
+    self: *Display,
     event: *const Event,
 ) void {
     var walker = EntityWalker.default;
@@ -1735,7 +1734,7 @@ pub fn selectRightEntity(
 
 /// Find the closest entity that is above this entity.
 pub fn selectAboveEntity(
-    self: *Self,
+    self: *Display,
     event: *const Event,
 ) void {
     var walker = EntityWalker.default;
@@ -1746,7 +1745,7 @@ pub fn selectAboveEntity(
 
 /// Find the closest entity that is below this entity.
 pub fn selectBelowEntity(
-    self: *Self,
+    self: *Display,
     event: *const Event,
 ) void {
     var walker = EntityWalker.default;
@@ -1960,7 +1959,7 @@ pub const FindQuery = enum {
 // (first drawn) items. (Because on mouse down is not a button click
 // we dont need to handle this special case.)
 pub fn find_under_cursor(
-    display: *Self,
+    display: *Display,
     entities: []*Entity,
     cursor: Vector,
     scroll_offset: Vector,
@@ -2041,8 +2040,8 @@ pub fn find_under_cursor(
 /// Switch from the current theme to the next theme. This is a keypress
 /// event handler that expects `display`, `entity` and `allocator`.
 pub fn rotate_theme(
-    self: *Self,
-    _: *Self,
+    self: *Display,
+    _: *Display,
     _: *Entity,
     _: Allocator,
 ) void {
@@ -2064,7 +2063,7 @@ pub fn rotate_theme(
 
 /// Update the quit flag to indicate to the main loop that
 /// it should exit after processing the current event.
-pub fn endMainLoop(display: *Self) void {
+pub fn endMainLoop(display: *Display) void {
     info("Ending main loop.", .{});
     display.state = .ending;
     display.shutdown_hook.call(display) catch {};
@@ -2077,14 +2076,14 @@ pub fn endMainLoop(display: *Self) void {
 }
 
 /// Draw all entities. Used in conjunction with SDL_AppIterate
-pub fn iterate(display: *Self) !void {
+pub fn iterate(display: *Display) !void {
     if (display.state == .running)
         try display.draw();
 }
 
 /// Enters the main run loop and only returns when quit has been
 /// requested. Only used in conjunction with SDL_Main
-pub fn main(display: *Self) !void {
+pub fn main(display: *Display) !void {
     info("Main loop starting", .{});
 
     while (display.state == .running) {
@@ -2104,7 +2103,7 @@ pub fn main(display: *Self) !void {
 
 /// Handle Key up events that are _not_ sent to a text input box
 fn handleKeyUpEvent(
-    display: *Self,
+    display: *Display,
     e: *sdl.SDL_Event,
 ) (Allocator.Error)!void {
     const key: Key = @enumFromInt(e.key.key);
@@ -2196,13 +2195,13 @@ fn handleKeyUpEvent(
 }
 
 /// Handle key down events that are not sent to a text input box.
-inline fn handleKeyDownEvent(_: *Self, _: *sdl.SDL_Event) !void {
+inline fn handleKeyDownEvent(_: *Display, _: *sdl.SDL_Event) !void {
     //
 }
 
 /// Refresh the window size information, then refresh the
 /// safe area information.
-pub inline fn updateScreenMetrics(display: *Self) void {
+pub inline fn updateScreenMetrics(display: *Display) void {
     trace("updateScreenMetrics requested", .{});
     var updated = false;
 
@@ -2263,7 +2262,7 @@ pub inline fn updateScreenMetrics(display: *Self) void {
 }
 
 /// Trigger `on_resized` events on each node in the tree.
-fn propagate_resize_event(self: *Self, entity: *Entity) bool {
+fn propagate_resize_event(self: *Display, entity: *Entity) bool {
     var updated = false;
     if (entity.visible == .visible)
         updated = entity.on_resized.call(self, entity);
@@ -2280,7 +2279,7 @@ fn propagate_resize_event(self: *Self, entity: *Entity) bool {
 }
 
 /// Update the safe area metrics and flag if relayout is required.
-fn calculateSafeArea(self: *Self) void {
+fn calculateSafeArea(self: *Display) void {
     var area: sdl.SDL_Rect = undefined;
     if (!sdl.SDL_GetWindowSafeArea(self.window, &area)) {
         err("SDL_GetWindowSafeArea() failed", .{});
@@ -2362,7 +2361,7 @@ fn calculateSafeArea(self: *Self) void {
 /// The mouse up event idicates a mouse click, or the end of a mouse
 /// scroll/drag action.
 inline fn handleMouseUpEvent(
-    display: *Self,
+    display: *Display,
     _: *sdl.SDL_Event,
 ) !void {
     var cursor: Vector = undefined;
@@ -2435,7 +2434,7 @@ inline fn handleMouseUpEvent(
 /// Event handler for mouse down events. This begins a scroll event,
 /// or converts to a click on mouse up event later.
 inline fn handleMouseDownEvent(
-    display: *Self,
+    display: *Display,
     _: *sdl.SDL_Event,
 ) !void {
     var cursor: Vector = undefined;
@@ -2489,7 +2488,7 @@ fn limit_scroll(min: f32, value: f32, max: f32) f32 {
 
 /// Event handler for mouse motion
 inline fn handleMouseMotionEvent(
-    display: *Self,
+    display: *Display,
     _: *sdl.SDL_Event,
 ) !void {
     var cursor: Vector = undefined;
@@ -2674,7 +2673,7 @@ pub fn setOnShutdown(self: *Display, ptr: *anyopaque, func: *const fn (ptr: *any
 
 /// Handle an event on the event queue.
 pub fn handleEvent(
-    self: *Self,
+    self: *Display,
     e: *sdl.SDL_Event,
 ) (Allocator.Error)!void {
     switch (e.type) {
@@ -2734,7 +2733,7 @@ pub fn handleEvent(
 }
 
 /// Set the user preferred screen scale.
-pub fn setUserScale(display: *Self, scale: Scale) void {
+pub fn setUserScale(display: *Display, scale: Scale) void {
     if (scale == .unknown)
         display.user_scale = 1
     else
@@ -2745,7 +2744,7 @@ pub fn setUserScale(display: *Self, scale: Scale) void {
 }
 
 /// Lookoup the user preferred screen scale.
-pub fn user_scale_setting(display: *Self) Scale {
+pub fn user_scale_setting(display: *Display) Scale {
     return Scale.from_float(display.user_scale);
 }
 
@@ -2912,8 +2911,8 @@ pub inline fn render9GridTexture(
 
 /// Handle request to increase UI size.
 pub fn increaseSize(
-    self: *Self,
-    display: *Self,
+    self: *Display,
+    display: *Display,
     _: *Entity,
     _: *const Event,
 ) void {
@@ -2937,8 +2936,8 @@ pub fn increaseSize(
 
 /// Handle request to decrease UI size.
 pub fn decreaseSize(
-    self: *Self,
-    display: *Self,
+    self: *Display,
+    display: *Display,
     _: *Entity,
     _: *const Event,
 ) void {
@@ -2985,7 +2984,7 @@ pub fn dumpEntityTree(
 /// Log the basic metrics for each used and cached character.
 pub fn dumpFonts(
     self: *Display,
-    _: *Self,
+    _: *Display,
     _: *Entity,
     _: *const Event,
 ) Allocator.Error!void {
@@ -3017,7 +3016,7 @@ pub fn dumpFonts(
 /// Dump all currently visible on screen elements to the log.
 pub fn dumpEntities(
     self: *Display,
-    _: *Self,
+    _: *Display,
     _: *Entity,
     _: *const Event,
 ) Allocator.Error!void {
@@ -3028,7 +3027,7 @@ pub fn dumpEntities(
 /// Keypress event handler expects `display`, `entity` and `allocator`.
 fn makeBundle(
     display: *Display,
-    _: *Self,
+    _: *Display,
     _: *Entity,
     _: *const Event,
 ) error{OutOfMemory}!void {
@@ -3068,7 +3067,7 @@ fn makeBundle(
 
 /// Add an empty panel that keeps a space open in a list of entities.
 pub fn add_spacer(
-    display: *Self,
+    display: *Display,
     parent: *Entity,
     size: f32,
 ) (Error || Allocator.Error || Resources.Error)!*Entity {
@@ -3083,7 +3082,7 @@ pub fn add_spacer(
 
 /// Add a label with generic settings needed for a paragraph.
 pub fn add_paragraph(
-    display: *Self,
+    display: *Display,
     parent: *Entity,
     size: TextSize,
     name: []const u8,
@@ -3101,7 +3100,7 @@ pub fn add_paragraph(
 
 /// Keypress `Callback` handler to toggle dev mode.
 fn toggleDevMode(
-    _: *Self,
+    _: *Display,
     _: *Display,
     _: *Entity,
     _: *Event,
