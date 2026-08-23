@@ -55,6 +55,14 @@ pub inline fn rightScrollSpace(self: *const Panel) f32 {
     return 9999;
 }
 
+pub fn firstChild(self: *const Panel) ?*Entity {
+    return if (self.children.items.len > 0) self.children.items[0] else null;
+}
+
+pub fn lastChild(self: *const Panel) ?*Entity {
+    return if (self.children.items.len > 0) self.children.items[self.children.items.len - 1] else null;
+}
+
 /// Return true if this panel can be interacted with through user
 /// driven event handlers..
 pub inline fn clickable(self: *const Panel) bool {
