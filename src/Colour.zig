@@ -6,12 +6,12 @@ g: u8 = 0,
 b: u8 = 0,
 a: u8 = 0,
 
-pub const TRANSPARENT: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
-pub const WHITE: Colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
-pub const BLACK: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
-pub const RED: Colour = .{ .r = 255, .g = 0, .b = 0, .a = 255 };
-pub const GREEN: Colour = .{ .r = 0, .g = 255, .b = 0, .a = 255 };
-pub const BLUE: Colour = .{ .r = 0, .g = 0, .b = 255, .a = 255 };
+pub const transparent: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
+pub const white: Colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
+pub const black: Colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
+pub const red: Colour = .{ .r = 255, .g = 0, .b = 0, .a = 255 };
+pub const green: Colour = .{ .r = 0, .g = 255, .b = 0, .a = 255 };
+pub const blue: Colour = .{ .r = 0, .g = 0, .b = 255, .a = 255 };
 
 pub fn parse(value: []const u8) ?Colour {
     if (value.len < 7) return null;

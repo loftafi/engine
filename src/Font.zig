@@ -206,7 +206,7 @@ pub fn measureText(
         display,
         string,
         .{},
-        .WHITE,
+        .white,
         size,
         1,
         .measure,

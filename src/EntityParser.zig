@@ -1683,7 +1683,7 @@ test "sprite" {
     , TestHandler, &te, TextSize.pixels) orelse unreachable;
     defer std.testing.allocator.destroy(entity);
 
-    try expectEqual(engine.Colour.BLACK, entity.background.colour);
+    try expectEqual(engine.Colour.black, entity.background.colour);
     try expectEqual(.fit, entity.type.sprite.scale);
 }
 
@@ -1921,7 +1921,7 @@ test "label" {
     , TestHandler, &te, TextSize.pixels) orelse unreachable;
     defer std.testing.allocator.destroy(entity2);
     try expectEqual(.custom, entity2.style);
-    try expectEqual(engine.Colour.WHITE, entity2.colour);
+    try expectEqual(Colour.white, entity2.colour);
 }
 
 test "checkbox" {
@@ -2014,4 +2014,5 @@ const headless_display = engine.headless_display;
 
 const Token = @import("Token.zig");
 const Entity = @import("Entity.zig");
+const Colour = engine.Colour;
 const TextSize = engine.TextSize;

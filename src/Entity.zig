@@ -68,17 +68,17 @@ texture: ?*Texture = null,
 texture_name: ?[]const u8 = null,
 
 style: Theme.Style = .normal,
-colour: Colour = Colour.WHITE,
+colour: Colour = .white,
 
 background: Background = .{
-    .colour = Colour.TRANSPARENT,
+    .colour = .transparent,
     .image = null,
     .image_name = null,
     .corner_radius = 0,
     .image_corner_radius = 0,
 },
 
-border_colour: Colour = Colour.TRANSPARENT,
+border_colour: Colour = .transparent,
 border_width: f32 = 0,
 
 on_resized: BoolCallback = .empty,
@@ -297,7 +297,7 @@ pub inline fn applyBackgroundTint(
                     "unhandled panel tint option: {s}",
                     .{@tagName(self.style)},
                 );
-                tint_texture(texture, Colour.WHITE);
+                tint_texture(texture, .white);
             },
         }
         return;
@@ -305,7 +305,7 @@ pub inline fn applyBackgroundTint(
 
     if (self.type == .sprite) {
         switch (self.style) {
-            .normal => tint_texture(texture, Colour.WHITE),
+            .normal => tint_texture(texture, .white),
             .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
             .success => tint_texture(texture, display.theme.success_panel_colour),
             .failed => tint_texture(texture, display.theme.failed_panel_colour),
@@ -322,7 +322,7 @@ pub inline fn applyBackgroundTint(
         return;
     }
 
-    tint_texture(texture, Colour.WHITE);
+    tint_texture(texture, .white);
 }
 
 /// The text_input entity may display placeholder text when there
@@ -1352,7 +1352,7 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
 
     if (engine.dev_build and engine.dev_mode) {
         if (display.safe_area.top != 0) {
-            display.renderRectangle(2, Colour.BLUE, .{
+            display.renderRectangle(2, .blue, .{
                 .x = 0,
                 .y = 0,
                 .width = display.root.rect.width,
@@ -1360,7 +1360,7 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             });
         }
         if (display.safe_area.bottom != 0) {
-            display.renderRectangle(2, Colour.BLUE, .{
+            display.renderRectangle(2, .blue, .{
                 .x = 0,
                 .y = display.root.rect.height - display.safe_area.bottom,
                 .width = display.root.rect.width,
@@ -1368,7 +1368,7 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             });
         }
         if (display.safe_area.left != 0) {
-            display.renderRectangle(2, Colour.BLUE, .{
+            display.renderRectangle(2, .blue, .{
                 .x = 0,
                 .y = 0,
                 .width = display.safe_area.left,
@@ -1376,7 +1376,7 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             });
         }
         if (display.safe_area.right != 0) {
-            display.renderRectangle(2, Colour.BLUE, .{
+            display.renderRectangle(2, .blue, .{
                 .x = display.root.rect.width - display.safe_area.right,
                 .y = 0,
                 .width = display.safe_area.right,
@@ -1521,25 +1521,25 @@ fn markCorners(entity: *Entity, display: *Display, scroll_offset: Vector) void {
     const length = 20;
     display.renderLine(
         3,
-        Colour.RED,
+        .red,
         entity.rect.location().move(entity.pad.left, entity.pad.top).add(scroll_offset),
         entity.rect.location().move(entity.pad.left + length, entity.pad.top).add(scroll_offset),
     );
     display.renderLine(
         3,
-        Colour.RED,
+        .red,
         entity.rect.location().move(entity.pad.left, entity.pad.top).add(scroll_offset),
         entity.rect.location().move(entity.pad.left, entity.pad.top + length).add(scroll_offset),
     );
     display.renderLine(
         3,
-        Colour.RED,
+        .red,
         entity.rect.location().move(entity.rect.width - entity.pad.right - length, entity.rect.height - entity.pad.bottom).add(scroll_offset),
         entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom).add(scroll_offset),
     );
     display.renderLine(
         3,
-        Colour.RED,
+        .red,
         entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom).add(scroll_offset),
         entity.rect.location().move(entity.rect.width - entity.pad.right, entity.rect.height - entity.pad.bottom - length).add(scroll_offset),
     );
@@ -2295,7 +2295,7 @@ pub inline fn tint_texture(texture: *sdl.SDL_Texture, colour: Colour) void {
 }
 
 pub const Background = struct {
-    colour: Colour = Colour.TRANSPARENT,
+    colour: Colour = .transparent,
 
     /// Load an `image` resource by indicating the name of the image
     /// exactly as it appears in the resource bundle.

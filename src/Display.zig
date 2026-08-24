@@ -375,7 +375,7 @@ pub fn create(
             .layout = .{ .x = .grows, .y = .grows },
             .child_align = .{ .x = .centre, .y = .start },
             .colour = .{},
-            .background = .{ .colour = Colour.TRANSPARENT },
+            .background = .{ .colour = .transparent },
             .border_colour = .{},
             .border_width = 0,
             .type = .{ .panel = .{

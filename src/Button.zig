@@ -14,7 +14,7 @@ translated_text_width: f32 = 0,
 
 spacing: f32 = 0,
 icon: struct {
-    mod: Colour = .TRANSPARENT,
+    mod: Colour = .transparent,
     size: Size = .{ .width = 0, .height = 0 },
     default_name: ?[]const u8 = null,
     hover: ?*Texture = null,
@@ -212,7 +212,7 @@ inline fn buttonColour(entity: *const Entity, theme: *const Theme, texture: *sdl
             .on => Entity.tint_texture(texture, theme.toggle_button_picked),
             .correct => Entity.tint_texture(texture, theme.toggle_button_correct),
             .incorrect => Entity.tint_texture(texture, theme.toggle_button_incorrect),
-            .no_toggle, .disabled => Entity.tint_texture(texture, Colour.WHITE),
+            .no_toggle, .disabled => Entity.tint_texture(texture, .white),
         }
     }
     var tint = switch (entity.style) {
@@ -225,7 +225,7 @@ inline fn buttonColour(entity: *const Entity, theme: *const Theme, texture: *sdl
         .background => theme.background_colour,
         .custom => entity.background.colour,
     };
-    if (entity.background.colour.a != Colour.TRANSPARENT.a) tint = entity.background.colour;
+    if (entity.background.colour.a != Colour.transparent.a) tint = entity.background.colour;
     if (entity.hovered) tint.a -= (tint.a >> 2);
     if (entity.pressed) {
         tint.r -= (tint.r >> 2);
