@@ -650,6 +650,7 @@ pub inline fn setBackgroundTexture(
         if (self.background.image != null)
             try display.releaseTextureResource(self.background.image.?);
         self.background.image = texture.?;
+        self.background.image_name = name;
     } else {
         err("setBackgroundTexture({s}) resource not found", .{name});
     }

@@ -156,6 +156,7 @@ animators: ArrayListUnmanaged(Animator),
 keybindings: std.AutoHashMapUnmanaged(Key, Entity.Callback),
 on_resized: Entity.BoolCallback,
 event_hook: U32Callback,
+theme_change: Callback,
 startup_hook: Callback,
 shutdown_hook: Callback,
 on_panel_change: Entity.PanelChangeCallback,
@@ -322,6 +323,7 @@ pub fn create(
         .animators = .empty,
         .keybindings = .empty,
         .event_hook = .empty,
+        .theme_change = .empty,
         .bucket = bucket,
         .resources = try .init(gpa, io),
         .required_resource = .empty,
@@ -437,7 +439,7 @@ pub fn create(
     try display.setKeybinding(.kp_minus, .{ .func = @ptrCast(&decreaseSize), .ptr = display });
     try display.setKeybinding(.@"2", .{ .func = @ptrCast(&dumpEntities), .ptr = display });
     try display.setKeybinding(.f2, .{ .func = @ptrCast(&dumpEntities), .ptr = display });
-    try display.setKeybinding(.f3, .{ .func = @ptrCast(&rotate_theme), .ptr = display });
+    try display.setKeybinding(.f3, .{ .func = @ptrCast(&rotateTheme), .ptr = display });
     try display.setKeybinding(.f9, .{ .func = @ptrCast(&dumpFonts), .ptr = display });
     if (engine.dev_build) {
         try display.setKeybinding(.f10, .{ .func = @ptrCast(&makeBundle), .ptr = display });
@@ -632,18 +634,27 @@ pub fn validate_theme(display: *Display, name: []const u8) []const u8 {
 
 /// Change the theme. If the theme name is not valid, or empty
 /// use the system preference.
-pub fn setTheme(self: *Display, name: []const u8) bool {
+pub fn setTheme(self: *Display, name: []const u8) Allocator.Error!bool {
     for (self.themes) |theme| {
         if (std.ascii.eqlIgnoreCase(theme.tag, name)) {
-            self.theme = theme;
+            if (self.theme != theme) {
+                self.theme = theme;
+                try self.theme_change.call(self);
+                return true;
+            }
             return true;
         }
     }
-    switch (sdl.SDL_GetSystemTheme()) {
-        sdl.SDL_SYSTEM_THEME_DARK => self.theme = self.themes[0],
-        sdl.SDL_SYSTEM_THEME_LIGHT => self.theme = self.themes[3],
-        else => self.theme = self.themes[3],
+    const update = switch (sdl.SDL_GetSystemTheme()) {
+        sdl.SDL_SYSTEM_THEME_DARK => self.themes[0],
+        sdl.SDL_SYSTEM_THEME_LIGHT => self.themes[3],
+        else => self.themes[3],
+    };
+    if (update != self.theme) {
+        self.theme = update;
+        try self.theme_change.call(self);
     }
+
     return name.len == 0 or std.ascii.eqlIgnoreCase(name, "default");
 }
 
@@ -2039,7 +2050,7 @@ pub fn find_under_cursor(
 
 /// Switch from the current theme to the next theme. This is a keypress
 /// event handler that expects `display`, `entity` and `allocator`.
-pub fn rotate_theme(
+pub fn rotateTheme(
     self: *Display,
     _: *Display,
     _: *Entity,
@@ -2058,7 +2069,8 @@ pub fn rotate_theme(
     if (index >= self.themes.len) {
         index = 0;
     }
-    self.theme = self.themes[index];
+    info("Change theme from {s} to {s}", .{ self.theme.tag, self.themes[index].tag });
+    _ = self.setTheme(self.themes[index].tag) catch {};
 }
 
 /// Update the quit flag to indicate to the main loop that
@@ -2657,6 +2669,14 @@ pub fn setEventHook(self: *Display, ptr: *anyopaque, func: *const fn (ptr: *anyo
     };
 }
 
+/// Specify the callback function to be called from the main thread when a
+pub fn setThemeChangeHook(self: *Display, ptr: *anyopaque, func: *const fn (ptr: *anyopaque, *Display) Allocator.Error!void) void {
+    self.theme_change = .{
+        .ptr = ptr,
+        .func = func,
+    };
+}
+
 pub fn setOnStartup(self: *Display, ptr: *anyopaque, func: *const fn (ptr: *anyopaque, *Display) Allocator.Error!void) void {
     self.startup_hook = .{
         .ptr = ptr,
@@ -3103,7 +3123,7 @@ fn toggleDevMode(
     _: *Display,
     _: *Display,
     _: *Entity,
-    _: *Event,
+    _: *const Event,
 ) Allocator.Error!void {
     engine.dev_mode = !engine.dev_mode;
     info("Dev mode: {any}", .{engine.dev_mode});
