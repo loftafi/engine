@@ -656,6 +656,26 @@ pub inline fn setBackgroundTexture(
     }
 }
 
+/// Replace the current button icon texture with an image from the
+/// default resource bundle. Only valid for button entities.
+pub inline fn setIconTexture(
+    self: *Entity,
+    display: *Display,
+    name: []const u8,
+) error{ OutOfMemory, Canceled }!void {
+    const texture = display.loadBundleTexture(&display.resources, name) catch |f| {
+        err("setBackgroundTexture({s}) error loading texture. {any}", .{ name, f });
+        return;
+    };
+    if (texture == null) {
+        err("setIconTexture({s}) resource not found", .{name});
+        return;
+    }
+    if (self.texture != null) try display.releaseTextureResource(self.texture.?);
+    self.texture = texture.?;
+    self.type.button.icon.default_name = name;
+}
+
 /// Replace the current image texture with a a texture from a resource
 /// bundle. Returns null if the resource name does not exist.
 pub inline fn setImage(
@@ -2577,6 +2597,9 @@ pub const LayoutDirection = enum {
 
     /// Place _all_ items in the top right of the panel.
     top_right,
+
+    /// Place _all_ items at bottom left
+    bottom_left,
 };
 
 /// The `normal` scale is designed for a regular person with regular

@@ -175,7 +175,7 @@ fn calculateMinimumNeededHeight(
             );
         },
 
-        .centre, .left_to_right, .top_left, .top_right => {
+        .centre, .left_to_right, .top_left, .bottom_left, .top_right => {
             // centred all together
             // a, next to b, next c.
             //
@@ -248,7 +248,7 @@ fn calculateMinimumNeededWidth(
                 entity.minimum.width,
             );
         },
-        .centre, .top_to_bottom, .top_left, .top_right => {
+        .centre, .top_to_bottom, .top_left, .bottom_left, .top_right => {
             // a, centred upon b, centred upon c
             // a, then b underneath, thn c underneath...
             //
@@ -383,6 +383,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
         .centre => self.placeChildrenCentred(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
         .top_left => self.placeChildrenTopLeft(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
         .top_right => self.placeChildrenTopRight(parent, if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null),
+        .bottom_left => self.placeChildrenBottomLeft(parent, if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null),
     }
 
     // Descend into child entities to allow child panels to also resize.
@@ -526,6 +527,32 @@ inline fn placeChildrenTopLeft(
     }
 }
 
+inline fn placeChildrenBottomLeft(
+    _: *Panel,
+    parent: *Entity,
+    safe_offset: ?Vector,
+) void {
+    const corner: Vector = .{
+        .x = parent.rect.x + parent.pad.left,
+        .y = parent.rect.y + parent.rect.height - parent.pad.bottom,
+    };
+    for (parent.type.panel.children.items) |child| {
+        if (child.layout.position == .float) continue;
+        if (child.visible == .hidden) continue;
+        if (child.type == .expander) {
+            warn("expander panel '{s}' ignored due to bottom_left layout.", .{parent.name});
+            continue;
+        }
+        child.rect.x = corner.x;
+        child.rect.y = corner.y - child.rect.height;
+        if (safe_offset) |offset| {
+            if (child.type == .panel and child.type.panel.safe_area != .ignore_safe_area) {
+                child.rect = child.rect.move(offset);
+            }
+        }
+    }
+}
+
 inline fn placeChildrenTopRight(
     _: *Panel,
     parent: *Entity,
@@ -593,12 +620,12 @@ inline fn placeChildrenTopToBottom(
     // do start/centre/end alignment.
     if (expanders.len > 0 or expander_weights > 0) {
         // Relayout the children with expanders
-        trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
-            parent.name,
-            expanders.len,
-            needed_height,
-            parent.rect.height,
-        });
+        //trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
+        //    parent.name,
+        //    expanders.len,
+        //    needed_height,
+        //    parent.rect.height,
+        //});
         const needed_space = needed_height + parent.pad.top + parent.pad.bottom;
         if (parent.rect.height > needed_space) {
             // Give each expander a percentage of the spare height area
@@ -608,10 +635,10 @@ inline fn placeChildrenTopToBottom(
 
                 const percent = expander.type.expander.weight / expander_weights;
                 expander.rect.height = @trunc(spare_height * percent);
-                trace("   expander: weight {d} given: {d}", .{
-                    percent,
-                    expander.rect.height,
-                });
+                //trace("   expander: weight {d} given: {d}", .{
+                //    percent,
+                //    expander.rect.height,
+                //});
             }
             // Re-update each child panels y position based on the
             // update to each expanders size.
@@ -626,12 +653,12 @@ inline fn placeChildrenTopToBottom(
                 child.rect.y = new_y;
                 new_y += child.rect.height;
                 if (child.type != .expander) first = false;
-                trace("expanding. {t} {s} y={d} height={d}", .{
-                    child.type,
-                    child.name,
-                    child.rect.y,
-                    child.rect.height,
-                });
+                //trace("expanding. {t} {s} y={d} height={d}", .{
+                //    child.type,
+                //    child.name,
+                //    child.rect.y,
+                //    child.rect.height,
+                //});
             }
         }
     } else {

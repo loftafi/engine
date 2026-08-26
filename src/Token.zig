@@ -162,6 +162,8 @@ pub const Tag = enum(u8) {
     spin,
     linear,
     direction,
+    top_left,
+    bottom_left,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does

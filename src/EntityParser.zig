@@ -223,6 +223,14 @@ pub fn readAttributes(
             .on_update => readOnUpdateAttribute(token, entity, handler, update_callbacks),
             .on_submit => readOnSubmitAttribute(token, entity, handler, callbacks),
             .on_ui_event => readOnUiEventAttribute(token, entity, handler, callbacks),
+            .top_left => {
+                entity.type.panel.direction = .top_left;
+                token.* = try token.next();
+            },
+            .bottom_left => {
+                entity.type.panel.direction = .bottom_left;
+                token.* = try token.next();
+            },
             .never_focus => {
                 entity.focus = .never_focus;
                 token.* = try token.next();

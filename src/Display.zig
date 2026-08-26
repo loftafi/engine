@@ -658,15 +658,27 @@ pub fn setTheme(self: *Display, name: []const u8) Allocator.Error!bool {
     return name.len == 0 or std.ascii.eqlIgnoreCase(name, "default");
 }
 
+pub const SystemTheme = enum { light, dark };
+
+pub fn systemTheme(_: *Display) SystemTheme {
+    return switch (sdl.SDL_GetSystemTheme()) {
+        sdl.SDL_SYSTEM_THEME_DARK => .dark,
+        sdl.SDL_SYSTEM_THEME_LIGHT => .light,
+        sdl.SDL_SYSTEM_THEME_UNKNOWN => .light,
+        else => .light,
+    };
+}
+
 /// On initialisation, the display reads the users OS light/dark
 /// theme preference.
 pub fn updateSystemTheme(self: *Display) void {
-    switch (sdl.SDL_GetSystemTheme()) {
-        sdl.SDL_SYSTEM_THEME_DARK => self.theme = self.themes[0],
-        sdl.SDL_SYSTEM_THEME_LIGHT => self.theme = self.themes[3],
-        sdl.SDL_SYSTEM_THEME_UNKNOWN => self.theme = self.themes[3],
-        else => self.theme = self.themes[3],
-    }
+    self.theme = switch (sdl.SDL_GetSystemTheme()) {
+        sdl.SDL_SYSTEM_THEME_DARK => self.themes[0],
+        sdl.SDL_SYSTEM_THEME_LIGHT => self.themes[3],
+        sdl.SDL_SYSTEM_THEME_UNKNOWN => self.themes[3],
+        else => self.themes[3],
+    };
+    self.theme_change.call(self) catch {};
 }
 
 /// Return the top level panel with the requested name.
