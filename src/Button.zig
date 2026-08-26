@@ -205,11 +205,13 @@ inline fn iconColour(entity: *const Entity, theme: *const Theme) Colour {
     }
 }
 
+/// Apply the button `style` or alternatively the `toggle` button style
+/// when toggle mode is enabled.
 inline fn buttonColour(entity: *const Entity, theme: *const Theme, texture: *sdl.SDL_Texture) void {
     if (entity.type.button.toggle != .no_toggle) {
         switch (entity.type.button.toggle) {
-            .off, .locked_off => Entity.tint_texture(texture, theme.toggle_button),
-            .on => Entity.tint_texture(texture, theme.toggle_button_picked),
+            .off, .locked_off => Entity.tint_texture(texture, theme.toggle_button_off),
+            .on => Entity.tint_texture(texture, theme.toggle_button_on),
             .correct => Entity.tint_texture(texture, theme.toggle_button_correct),
             .incorrect => Entity.tint_texture(texture, theme.toggle_button_incorrect),
             .no_toggle, .disabled => Entity.tint_texture(texture, .white),

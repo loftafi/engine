@@ -26,13 +26,14 @@ tinted_text_colour: Colour,
 tinted_panel_colour: Colour,
 tinted_button_colour: Colour,
 
-/// Some elements can switch from default background and text colour to
-/// an alternate stronger text and background colour.
+/// A bold panel where the colours are intended to be inverted versions of the
+/// regular panel. i.e. If the normal background is white, this would be black.
 emphasised_panel_colour: Colour,
 emphasised_text_colour: Colour,
 emphasised_button_colour: Colour,
 
-/// Switch from default panel style to a faded/de-emphasised panel style.
+/// Switch from default panel style to a faded/de-emphasised version of
+/// the normal panel style.
 faded_panel_colour: Colour,
 faded_text_colour: Colour,
 faded_button_colour: Colour,
@@ -48,10 +49,10 @@ failed_text_colour: Colour,
 failed_button_colour: Colour,
 
 /// Default background of a button when toggle is enabled.
-toggle_button: Colour,
+toggle_button_off: Colour,
 
 /// Background of a button when a toggle button is marked picked.
-toggle_button_picked: Colour,
+toggle_button_on: Colour,
 
 /// Background of a button in toggle mode that has been marked correct.
 toggle_button_correct: Colour,
@@ -59,7 +60,8 @@ toggle_button_correct: Colour,
 /// Background of a button in toggle mode that has been marked incorrect.
 toggle_button_incorrect: Colour,
 
-/// The colour of the progress bar itself. Not the colour of the entity background.
+/// The colour of the progress bar itself. Not the colour of
+/// the entity background.
 progress_bar_background: Colour,
 
 /// The colour of the progress indicator that is overlaid onto the progress bar.
@@ -116,9 +118,9 @@ pub const default_themes = [5]Theme{
         .tinted_text_colour = .{ .r = 185, .g = 185, .b = 245, .a = 255 },
         .tinted_panel_colour = .{ .r = 255, .g = 205, .b = 205, .a = 128 },
         .tinted_button_colour = .{ .r = 255, .g = 205, .b = 205, .a = 128 },
-        .emphasised_text_colour = .{ .r = 255, .g = 205, .b = 205, .a = 128 },
-        .emphasised_panel_colour = .{ .r = 255, .g = 205, .b = 205, .a = 128 },
-        .emphasised_button_colour = .{ .r = 255, .g = 205, .b = 205, .a = 128 },
+        .emphasised_text_colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
+        .emphasised_panel_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
+        .emphasised_button_colour = .{ .r = 230, .g = 235, .b = 255, .a = 255 },
         .success_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
         .success_button_colour = .{ .r = 35, .g = 129, .b = 43, .a = 255 },
         .success_panel_colour = .{ .r = 83, .g = 172, .b = 75, .a = 128 },
@@ -128,8 +130,8 @@ pub const default_themes = [5]Theme{
         .faded_text_colour = .{ .r = 204, .g = 204, .b = 204, .a = 255 },
         .faded_panel_colour = .{ .r = 15, .g = 17, .b = 25, .a = 255 },
         .faded_button_colour = .{ .r = 35, .g = 37, .b = 45, .a = 255 },
-        .toggle_button = .{ .r = 42, .g = 52, .b = 62, .a = 255 },
-        .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
+        .toggle_button_off = .{ .r = 42, .g = 52, .b = 62, .a = 255 },
+        .toggle_button_on = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
         .progress_bar_background = .{ .r = 31, .g = 34, .b = 48, .a = 255 },
@@ -146,9 +148,9 @@ pub const default_themes = [5]Theme{
         .tinted_text_colour = .{ .r = 150, .g = 150, .b = 142, .a = 128 },
         .tinted_panel_colour = .{ .r = 185, .g = 166, .b = 194, .a = 255 },
         .tinted_button_colour = .{ .r = 185, .g = 166, .b = 194, .a = 255 },
-        .emphasised_text_colour = .{ .r = 185, .g = 166, .b = 194, .a = 255 },
-        .emphasised_panel_colour = .{ .r = 185, .g = 166, .b = 194, .a = 255 },
-        .emphasised_button_colour = .{ .r = 185, .g = 166, .b = 194, .a = 255 },
+        .emphasised_text_colour = .{ .r = 60, .g = 60, .b = 95, .a = 255 },
+        .emphasised_panel_colour = .{ .r = 235, .g = 245, .b = 255, .a = 255 },
+        .emphasised_button_colour = .{ .r = 205, .g = 215, .b = 225, .a = 255 },
         .success_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
         .success_button_colour = .{ .r = 35, .g = 129, .b = 43, .a = 255 },
         .success_panel_colour = .{ .r = 83, .g = 172, .b = 75, .a = 128 },
@@ -158,8 +160,8 @@ pub const default_themes = [5]Theme{
         .faded_text_colour = .{ .r = 156, .g = 156, .b = 156, .a = 255 },
         .faded_panel_colour = .{ .r = 36, .g = 46, .b = 56, .a = 255 },
         .faded_button_colour = .{ .r = 56, .g = 66, .b = 76, .a = 255 },
-        .toggle_button = .{ .r = 58, .g = 72, .b = 86, .a = 255 },
-        .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
+        .toggle_button_off = .{ .r = 58, .g = 72, .b = 86, .a = 255 },
+        .toggle_button_on = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
         .progress_bar_background = .{ .r = 47, .g = 58, .b = 69, .a = 255 },
@@ -189,8 +191,8 @@ pub const default_themes = [5]Theme{
         .faded_text_colour = .{ .r = 72, .g = 72, .b = 42, .a = 255 },
         .faded_panel_colour = .{ .r = 217, .g = 207, .b = 197, .a = 255 },
         .faded_button_colour = .{ .r = 237, .g = 227, .b = 217, .a = 255 },
-        .toggle_button = .{ .r = 196, .g = 184, .b = 170, .a = 255 },
-        .toggle_button_picked = .{ .r = 157, .g = 138, .b = 118, .a = 255 },
+        .toggle_button_off = .{ .r = 196, .g = 184, .b = 170, .a = 255 },
+        .toggle_button_on = .{ .r = 157, .g = 138, .b = 118, .a = 255 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
         .toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 },
         .progress_bar_background = .{ .r = 210, .g = 200, .b = 190, .a = 255 },
@@ -208,9 +210,9 @@ pub const default_themes = [5]Theme{
         .tinted_text_colour = .{ .r = 99, .g = 138, .b = 171, .a = 128 },
         .tinted_panel_colour = .{ .r = 40, .g = 0, .b = 0, .a = 128 },
         .tinted_button_colour = .{ .r = 40, .g = 0, .b = 0, .a = 128 },
-        .emphasised_text_colour = .{ .r = 40, .g = 0, .b = 0, .a = 128 },
-        .emphasised_panel_colour = .{ .r = 40, .g = 0, .b = 0, .a = 128 },
-        .emphasised_button_colour = .{ .r = 40, .g = 0, .b = 0, .a = 128 },
+        .emphasised_text_colour = .{ .r = 235, .g = 235, .b = 255, .a = 255 },
+        .emphasised_panel_colour = .{ .r = 0, .g = 0, .b = 20, .a = 225 },
+        .emphasised_button_colour = .{ .r = 20, .g = 20, .b = 40, .a = 188 },
         .success_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
         .success_button_colour = .{ .r = 35, .g = 129, .b = 43, .a = 255 },
         .success_panel_colour = .{ .r = 83, .g = 172, .b = 75, .a = 128 },
@@ -219,9 +221,9 @@ pub const default_themes = [5]Theme{
         .failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 },
         .faded_text_colour = .{ .r = 40, .g = 40, .b = 40, .a = 255 },
         .faded_panel_colour = .{ .r = 240, .g = 247, .b = 255, .a = 255 },
-        .faded_button_colour = .{ .r = 220, .g = 227, .b = 235, .a = 255 },
-        .toggle_button = .{ .r = 193, .g = 203, .b = 213, .a = 255 },
-        .toggle_button_picked = .{ .r = 131, .g = 142, .b = 149, .a = 255 },
+        .faded_button_colour = .{ .r = 220, .g = 227, .b = 245, .a = 255 },
+        .toggle_button_off = .{ .r = 193, .g = 203, .b = 213, .a = 255 },
+        .toggle_button_on = .{ .r = 131, .g = 142, .b = 149, .a = 255 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
         .toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 },
         .progress_bar_background = .{ .r = 217, .g = 230, .b = 242, .a = 255 },
@@ -250,8 +252,8 @@ pub const default_themes = [5]Theme{
         .faded_text_colour = .{ .r = 204, .g = 204, .b = 204, .a = 255 },
         .faded_panel_colour = .{ .r = 65, .g = 130, .b = 92, .a = 255 },
         .faded_button_colour = .{ .r = 85, .g = 150, .b = 112, .a = 255 },
-        .toggle_button = .{ .r = 20, .g = 70, .b = 20, .a = 255 },
-        .toggle_button_picked = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
+        .toggle_button_off = .{ .r = 20, .g = 70, .b = 20, .a = 255 },
+        .toggle_button_on = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
         .progress_bar_background = .{ .r = 86, .g = 150, .b = 114, .a = 255 },
