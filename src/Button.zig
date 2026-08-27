@@ -185,6 +185,8 @@ inline fn textColour(entity: *const Entity, theme: *const Theme) Colour {
         .custom => entity.colour,
         .background => theme.text_colour,
     };
+    if (entity.type.button.toggle == .disabled)
+        colour = theme.toggle_button_disabled_text;
     if (entity.hovered) colour.a -= (colour.a >> 2);
     if (entity.pressed) {
         colour.r -= (colour.r >> 2);
@@ -208,26 +210,29 @@ inline fn iconColour(entity: *const Entity, theme: *const Theme) Colour {
 /// Apply the button `style` or alternatively the `toggle` button style
 /// when toggle mode is enabled.
 inline fn buttonColour(entity: *const Entity, theme: *const Theme, texture: *sdl.SDL_Texture) void {
+    var tint: Colour = .white;
+
     if (entity.type.button.toggle != .no_toggle) {
-        switch (entity.type.button.toggle) {
-            .off, .locked_off => Entity.tint_texture(texture, theme.toggle_button_off),
-            .on => Entity.tint_texture(texture, theme.toggle_button_on),
-            .correct => Entity.tint_texture(texture, theme.toggle_button_correct),
-            .incorrect => Entity.tint_texture(texture, theme.toggle_button_incorrect),
-            .no_toggle, .disabled => Entity.tint_texture(texture, .white),
-        }
-        return;
+        tint = switch (entity.type.button.toggle) {
+            .off, .locked_off => theme.toggle_button_off,
+            .on => theme.toggle_button_on,
+            .correct => theme.toggle_button_correct,
+            .incorrect => theme.toggle_button_incorrect,
+            .disabled => theme.toggle_button_disabled,
+            .no_toggle => unreachable,
+        };
+    } else {
+        tint = switch (entity.style) {
+            .success => theme.success_button_colour,
+            .failed => theme.failed_button_colour,
+            .tinted => theme.tinted_button_colour,
+            .faded => theme.faded_button_colour,
+            .emphasised => theme.emphasised_button_colour,
+            .normal => theme.button_colour,
+            .background => theme.background_colour,
+            .custom => entity.background.colour,
+        };
     }
-    var tint = switch (entity.style) {
-        .success => theme.success_button_colour,
-        .failed => theme.failed_button_colour,
-        .tinted => theme.tinted_button_colour,
-        .faded => theme.faded_button_colour,
-        .emphasised => theme.emphasised_button_colour,
-        .normal => theme.button_colour,
-        .background => theme.background_colour,
-        .custom => entity.background.colour,
-    };
     if (entity.background.colour.a != Colour.transparent.a) tint = entity.background.colour;
     if (entity.hovered) tint.a -= (tint.a >> 2);
     if (entity.pressed) {

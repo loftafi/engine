@@ -60,6 +60,10 @@ toggle_button_correct: Colour,
 /// Background of a button in toggle mode that has been marked incorrect.
 toggle_button_incorrect: Colour,
 
+/// A toggle button that is non-tappable.
+toggle_button_disabled: Colour,
+toggle_button_disabled_text: Colour,
+
 /// The colour of the progress bar itself. Not the colour of
 /// the entity background.
 progress_bar_background: Colour,
@@ -132,6 +136,8 @@ pub const default_themes = [5]Theme{
         .faded_button_colour = .{ .r = 35, .g = 37, .b = 45, .a = 255 },
         .toggle_button_off = .{ .r = 42, .g = 52, .b = 62, .a = 255 },
         .toggle_button_on = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
+        .toggle_button_disabled = .{ .r = 22, .g = 32, .b = 42, .a = 215 },
+        .toggle_button_disabled_text = .{ .r = 140, .g = 140, .b = 140, .a = 200 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
         .progress_bar_background = .{ .r = 31, .g = 34, .b = 48, .a = 255 },
@@ -162,8 +168,10 @@ pub const default_themes = [5]Theme{
         .faded_button_colour = .{ .r = 56, .g = 66, .b = 76, .a = 255 },
         .toggle_button_off = .{ .r = 58, .g = 72, .b = 86, .a = 255 },
         .toggle_button_on = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
+        .toggle_button_disabled = .{ .r = 38, .g = 52, .b = 66, .a = 215 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
+        .toggle_button_disabled_text = .{ .r = 125, .g = 125, .b = 165, .a = 200 },
         .progress_bar_background = .{ .r = 47, .g = 58, .b = 69, .a = 255 },
         .progress_bar_foreground = .{ .r = 146, .g = 146, .b = 175, .a = 255 },
     },
@@ -193,6 +201,8 @@ pub const default_themes = [5]Theme{
         .faded_button_colour = .{ .r = 237, .g = 227, .b = 217, .a = 255 },
         .toggle_button_off = .{ .r = 196, .g = 184, .b = 170, .a = 255 },
         .toggle_button_on = .{ .r = 157, .g = 138, .b = 118, .a = 255 },
+        .toggle_button_disabled = .{ .r = 176, .g = 164, .b = 150, .a = 215 },
+        .toggle_button_disabled_text = .{ .r = 130, .g = 120, .b = 105, .a = 200 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
         .toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 },
         .progress_bar_background = .{ .r = 210, .g = 200, .b = 190, .a = 255 },
@@ -224,6 +234,8 @@ pub const default_themes = [5]Theme{
         .faded_button_colour = .{ .r = 220, .g = 227, .b = 245, .a = 255 },
         .toggle_button_off = .{ .r = 193, .g = 203, .b = 213, .a = 255 },
         .toggle_button_on = .{ .r = 131, .g = 142, .b = 149, .a = 255 },
+        .toggle_button_disabled = .{ .r = 173, .g = 183, .b = 193, .a = 215 },
+        .toggle_button_disabled_text = .{ .r = 110, .g = 110, .b = 125, .a = 200 },
         .toggle_button_correct = .{ .r = 132, .g = 160, .b = 100, .a = 255 },
         .toggle_button_incorrect = .{ .r = 159, .g = 111, .b = 98, .a = 255 },
         .progress_bar_background = .{ .r = 217, .g = 230, .b = 242, .a = 255 },
@@ -254,6 +266,8 @@ pub const default_themes = [5]Theme{
         .faded_button_colour = .{ .r = 85, .g = 150, .b = 112, .a = 255 },
         .toggle_button_off = .{ .r = 20, .g = 70, .b = 20, .a = 255 },
         .toggle_button_on = .{ .r = 80, .g = 99, .b = 119, .a = 255 },
+        .toggle_button_disabled = .{ .r = 0, .g = 50, .b = 0, .a = 215 },
+        .toggle_button_disabled_text = .{ .r = 105, .g = 155, .b = 105, .a = 200 },
         .toggle_button_correct = .{ .r = 80, .g = 119, .b = 81, .a = 255 },
         .toggle_button_incorrect = .{ .r = 119, .g = 80, .b = 80, .a = 255 },
         .progress_bar_background = .{ .r = 86, .g = 150, .b = 114, .a = 255 },
