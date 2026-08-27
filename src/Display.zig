@@ -869,9 +869,16 @@ pub fn initial_draw(display: *Display) !void {
 /// infinite loop will occur. on_resized=true should be used with
 /// caution.
 pub fn relayout(display: *Display) void {
+    display.relayoutCount(0);
+}
+
+pub fn relayoutCount(display: *Display, count: u8) void {
     if (display.need_relayout == false) return;
 
-    //trace("relayout", .{});
+    if (count == 20) {
+        err("aborting relayout loop", .{});
+        return;
+    }
 
     display.need_relayout = false;
 
@@ -885,7 +892,11 @@ pub fn relayout(display: *Display) void {
         const child_resized = display.propagate_resize_event(&display.root);
         if (child_resized) {
             display.need_relayout = true;
-            display.relayout();
+            if (count == 10) {
+                err("relayout loop caught", .{});
+                return;
+            }
+            display.relayoutCount(count + 1);
         }
     }
 }
