@@ -216,6 +216,7 @@ inline fn buttonColour(entity: *const Entity, theme: *const Theme, texture: *sdl
             .incorrect => Entity.tint_texture(texture, theme.toggle_button_incorrect),
             .no_toggle, .disabled => Entity.tint_texture(texture, .white),
         }
+        return;
     }
     var tint = switch (entity.style) {
         .success => theme.success_button_colour,

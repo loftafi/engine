@@ -492,6 +492,9 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
         if (self.type.label.on_pressed.func != null)
             _ = try out.write(" on_pressed");
     } else if (self.type == .button) {
+        if (self.type.button.toggle != .no_toggle) {
+            _ = try out.print(" toggle={t}", .{self.type.button.toggle});
+        }
         if (self.colour.a > 0) {
             _ = try out.print(" colour={f}", .{self.colour});
         }
