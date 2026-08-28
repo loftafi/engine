@@ -180,7 +180,7 @@ inline fn textColour(entity: *const Entity, theme: *const Theme) Colour {
         .success => theme.success_text_colour,
         .failed => theme.failed_text_colour,
         .tinted => theme.tinted_text_colour,
-        .faded => theme.failed_text_colour,
+        .faded => theme.faded_text_colour,
         .emphasised => theme.emphasised_text_colour,
         .custom => entity.colour,
         .background => theme.text_colour,

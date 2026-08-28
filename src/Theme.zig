@@ -196,7 +196,7 @@ pub const default_themes = [5]Theme{
         .failed_text_colour = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
         .failed_button_colour = .{ .r = 145, .g = 59, .b = 59, .a = 255 },
         .failed_panel_colour = .{ .r = 150, .g = 80, .b = 65, .a = 255 },
-        .faded_text_colour = .{ .r = 72, .g = 72, .b = 42, .a = 255 },
+        .faded_text_colour = .{ .r = 40, .g = 50, .b = 15, .a = 235 },
         .faded_panel_colour = .{ .r = 217, .g = 207, .b = 197, .a = 255 },
         .faded_button_colour = .{ .r = 237, .g = 227, .b = 217, .a = 255 },
         .toggle_button_off = .{ .r = 196, .g = 184, .b = 170, .a = 255 },
