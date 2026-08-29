@@ -96,6 +96,9 @@ pub fn Log(size: usize) type {
                 .macos => {
                     nosuspend stderr.print("{t} {s}\r\n", .{ level, message }) catch return;
                 },
+                .linux => {
+                    nosuspend stderr.print("{t} {s}\r\n", .{ level, message }) catch return;
+                },
             }
             stderr.flush() catch {};
         }
@@ -217,7 +220,7 @@ fn formatted_log_output(
     var msg = std.Io.Writer.fixed(&buffer);
 
     switch (engine.platform) {
-        .macos => {
+        .macos, .linux => {
             // macOS just write to stdout.
             const prefix = switch (level) {
                 .trace => "\x1B[90m\x1B[1mtrace\x1B[22m: ",

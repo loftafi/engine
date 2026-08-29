@@ -68,12 +68,14 @@ pub const Config = struct {
 
 pub const Command = enum { default, make_bundle };
 
-pub const platform: enum { ios, macos, android } = if (builtin.target.os.tag == .ios)
+pub const platform: enum { ios, macos, android, linux } = if (builtin.target.os.tag == .ios)
     .ios
 else if (builtin.target.os.tag == .macos)
     .macos
-else if (builtin.abi.isAndroid())
+else if (builtin.abi.isAndroid()) // android is also linux
     .android
+else if (builtin.target.os.tag == .linux) // not android but is linux
+    .linux
 else
     @compileError("Unsupported platform {t}" ++ builtin.os.tag);
 
