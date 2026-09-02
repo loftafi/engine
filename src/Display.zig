@@ -2825,7 +2825,8 @@ pub inline fn renderTextureWithMod(
         .w = dest.width * self.scale,
         .h = dest.height * self.scale,
     };
-    _ = sdl.SDL_SetRenderDrawColor(self.renderer, mod.r, mod.g, mod.b, mod.a);
+    _ = sdl.SDL_SetTextureAlphaMod(texture, mod.a);
+    _ = sdl.SDL_SetTextureColorMod(texture, mod.r, mod.g, mod.b);
     _ = sdl.SDL_RenderTexture(
         self.renderer,
         texture,

@@ -161,15 +161,14 @@ pub inline fn draw(
         );
     }
 
+    const text_x = entity.rect.x + entity.pad.left + icon_offset;
+
     // Draw either the user text or the placeholder text if set.
     if (self.text.items.len > 0) {
         self.font.drawText(
             display,
             self.text.items,
-            .{
-                .x = entity.rect.x + entity.pad.left + icon_offset,
-                .y = entity.rect.y + entity.pad.top,
-            },
+            .{ .x = text_x, .y = entity.rect.y + entity.pad.top },
             display.theme.text_colour,
             self.text_size,
             1,
@@ -185,7 +184,7 @@ pub inline fn draw(
                     display,
                     placeholder_text,
                     .{
-                        .x = entity.rect.x + entity.pad.left,
+                        .x = text_x,
                         .y = entity.rect.y + entity.pad.top,
                     },
                     display.theme.placeholder_text_colour,
