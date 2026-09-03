@@ -281,48 +281,49 @@ pub inline fn applyBackgroundTint(
     display: *Display,
     texture: *sdl.SDL_Texture,
 ) void {
-    if (self.type == .button) unreachable;
-
-    if (self.type == .panel) {
-        switch (self.style) {
-            .normal => tint_texture(texture, display.theme.panel_colour),
-            .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
-            .success => tint_texture(texture, display.theme.success_panel_colour),
-            .failed => tint_texture(texture, display.theme.failed_panel_colour),
-            .faded => tint_texture(texture, display.theme.faded_panel_colour),
-            .background => tint_texture(texture, display.theme.background_colour),
-            .custom => tint_texture(texture, self.background.colour),
-            else => {
-                warn(
-                    "unhandled panel tint option: {s}",
-                    .{@tagName(self.style)},
-                );
-                tint_texture(texture, .white);
-            },
-        }
-        return;
+    switch (self.type) {
+        .button => unreachable,
+        .panel => {
+            switch (self.style) {
+                .normal => tint_texture(texture, display.theme.panel_colour),
+                .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
+                .success => tint_texture(texture, display.theme.success_panel_colour),
+                .failed => tint_texture(texture, display.theme.failed_panel_colour),
+                .faded => tint_texture(texture, display.theme.faded_panel_colour),
+                .background => tint_texture(texture, display.theme.background_colour),
+                .custom => tint_texture(texture, self.background.colour),
+                else => {
+                    warn(
+                        "unhandled panel tint option: {s}",
+                        .{@tagName(self.style)},
+                    );
+                    tint_texture(texture, .white);
+                },
+            }
+        },
+        .sprite => {
+            switch (self.style) {
+                .normal => tint_texture(texture, .white),
+                .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
+                .success => tint_texture(texture, display.theme.success_panel_colour),
+                .failed => tint_texture(texture, display.theme.failed_panel_colour),
+                .faded => tint_texture(texture, display.theme.faded_panel_colour),
+                .tinted => tint_texture(texture, display.theme.tinted_panel_colour),
+                .background => tint_texture(texture, display.theme.background_colour),
+                .custom => tint_texture(texture, self.background.colour),
+            }
+            return;
+        },
+        .label => tint_texture(texture, display.theme.background_colour),
+        .text_input => {
+            if (display.theme.background_colour.a != 0 or self.style == .custom)
+                //tint_texture(texture, display.theme.background_colour)
+                tint_texture(texture, display.theme.input_background_colour)
+            else
+                tint_texture(texture, display.theme.input_background_colour);
+        },
+        else => tint_texture(texture, .white),
     }
-
-    if (self.type == .sprite) {
-        switch (self.style) {
-            .normal => tint_texture(texture, .white),
-            .emphasised => tint_texture(texture, display.theme.emphasised_panel_colour),
-            .success => tint_texture(texture, display.theme.success_panel_colour),
-            .failed => tint_texture(texture, display.theme.failed_panel_colour),
-            .faded => tint_texture(texture, display.theme.faded_panel_colour),
-            .tinted => tint_texture(texture, display.theme.tinted_panel_colour),
-            .background => tint_texture(texture, display.theme.background_colour),
-            .custom => tint_texture(texture, self.background.colour),
-        }
-        return;
-    }
-
-    if (self.type == .label) {
-        tint_texture(texture, display.theme.background_colour);
-        return;
-    }
-
-    tint_texture(texture, .white);
 }
 
 /// The text_input entity may display placeholder text when there
@@ -1577,7 +1578,7 @@ pub fn drawCursor(
     rect: Rect,
 ) void {
     if (entity_type == .text_input) return;
-    const colour = theme.cursor_colour;
+    const colour = theme.input_cursor_colour;
     const border_width = 2;
     if (border_width > 0 and colour.a > 0) {
         var dest: Rect = .{

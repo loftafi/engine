@@ -139,7 +139,7 @@ pub inline fn draw(
             cursor_box.x += (entity.rect.height - entity.pad.top - entity.pad.bottom);
             cursor_box.x += self.font.space_width;
         }
-        display.renderSolidRectangle(display.theme.cursor_colour, &cursor_box);
+        display.renderSolidRectangle(display.theme.input_cursor_colour, &cursor_box);
     }
 
     // Draw the icon if one was specified
@@ -155,7 +155,7 @@ pub inline fn draw(
         };
         display.renderTextureWithMod(
             icon_texture.texture,
-            &display.theme.placeholder_text_colour,
+            &display.theme.input_icon_colour,
             null,
             &dest,
         );
@@ -169,7 +169,7 @@ pub inline fn draw(
             display,
             self.text.items,
             .{ .x = text_x, .y = entity.rect.y + entity.pad.top },
-            display.theme.text_colour,
+            display.theme.input_text_colour,
             self.text_size,
             1,
         ) catch {
@@ -187,7 +187,7 @@ pub inline fn draw(
                         .x = text_x,
                         .y = entity.rect.y + entity.pad.top,
                     },
-                    display.theme.placeholder_text_colour,
+                    display.theme.input_placeholder_colour,
                     self.text_size,
                     1,
                 ) catch {
