@@ -5,7 +5,6 @@ pub fn addSystemPathsToModule(
     target: *const std.Build.ResolvedTarget,
     lib: *std.Build.Module,
 ) void {
-    if (getSystemPath(b, target)) |path| lib.addSystemIncludePath(path);
     if (getFrameworkPath(b, target)) |path| lib.addSystemFrameworkPath(path);
 }
 
@@ -14,7 +13,6 @@ pub fn addSystemPathsToTranslateC(
     target: *const std.Build.ResolvedTarget,
     lib: *std.Build.Step.TranslateC,
 ) void {
-    if (getSystemPath(b, target)) |path| lib.addSystemIncludePath(path);
     if (getFrameworkPath(b, target)) |path| lib.addSystemFrameworkPath(path);
 }
 
@@ -23,7 +21,6 @@ pub fn addSystemPathsToTranslator(
     target: *const std.Build.ResolvedTarget,
     translator: *Translator,
 ) void {
-    if (getSystemPath(b, target)) |path| translator.addSystemIncludePath(path);
     if (getFrameworkPath(b, target)) |path| translator.addSystemFrameworkPath(path);
 }
 
@@ -44,10 +41,12 @@ pub fn getFrameworkPath(
     }
 }
 
-pub fn getSystemPath(
+var systemPaths: [2]std.Build.LazyPath = undefined;
+
+pub fn getSystemPaths(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
-) ?std.Build.LazyPath {
+) []std.Build.LazyPath {
     // For TranslateC to work, we need the system library headers
     switch (target.result.os.tag) {
         .macos, .ios => {
@@ -56,22 +55,28 @@ pub fn getSystemPath(
                 b.graph.io,
                 &target.result,
             ) orelse @panic("SDK is missing");
-            return .{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) };
+            systemPaths[0] = .{ .cwd_relative = b.pathJoin(&.{ sdk, "/usr/include" }) };
+            return systemPaths[0..1];
         },
         .linux => {
             if (target.result.abi.isAndroid()) {
                 if (FindNDK.find(b.graph.io, b.graph.environ_map) catch null) |android_ndk| {
-                    return .{ .cwd_relative = b.pathJoin(&.{
+                    systemPaths[0] = .{ .cwd_relative = b.pathJoin(&.{
                         android_ndk,
                         "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
                     }) };
+                    systemPaths[1] = .{ .cwd_relative = b.pathJoin(&.{
+                        android_ndk,
+                        "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/aarch64-linux-android/",
+                    }) };
+                    return systemPaths[0..2];
                 } else {
                     @panic("android/linux build requires ndk. Set ANDROID_NDK_HOME");
                 }
             }
-            return null;
+            return &.{};
         },
-        else => return null,
+        else => return &.{},
     }
 }
 

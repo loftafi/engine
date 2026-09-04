@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
 
     const resources = b.dependency("resources", .{ .target = target, .optimize = optimize });
     const resources_module = resources.module("resources");
-    if (platforms.getSystemPath(b, &target)) |path| resources_module.addSystemIncludePath(path);
+    for (platforms.getSystemPaths(b, &target)) |path| resources_module.addSystemIncludePath(path);
     if (platforms.getFrameworkPath(b, &target)) |path| resources_module.addSystemFrameworkPath(path);
 
     const praxis = resources.builder.dependency("praxis", .{ .target = target, .optimize = optimize });
@@ -21,7 +21,6 @@ pub fn build(b: *std.Build) void {
     const truetype_module = truetype.module("TrueType");
 
     const sdl_module = define_sdl_module(b, &target, &optimize);
-
     const mixer_module = define_mixer_module(b, &target, &optimize);
 
     const lib_mod = b.addModule("engine", .{
@@ -38,7 +37,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "TrueType", .module = truetype_module },
         },
     });
-    if (platforms.getSystemPath(b, &target)) |path| lib_mod.addSystemIncludePath(path);
+    for (platforms.getSystemPaths(b, &target)) |path| lib_mod.addSystemIncludePath(path);
     if (platforms.getFrameworkPath(b, &target)) |path| lib_mod.addSystemFrameworkPath(path);
     link_sdl_framework(b, &target, lib_mod);
     if (target.result.os.tag == .ios) {
@@ -76,22 +75,66 @@ fn define_mixer_module(
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
 ) *std.Build.Module {
-    var headers = b.addTranslateC(.{
-        .root_source_file = b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/SDL_mixer.h"),
+
+    // Android needs a libc file for translate_c
+    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
+
+    const translate_c_dep = b.dependency("translate_c", .{
+        .libc_file = libc_file,
+    });
+
+    // Android targets aarch64 android, and not the relatively rare alternatives.
+    //   arm-linux-androideabi, armv7-linux-androideabi, i686-linux-android
+
+    const c_header = switch (target.result.os.tag) {
+        .ios => b.addWriteFiles().add("c.h",
+            \\#define TARGET_OS_IPHONE 1
+            \\#define SDL_PLATFORM_IOS 1
+            \\#define SDL_DISABLE_OLD_NAMES
+            \\#include <SDL3/SDL.h>
+            \\#include <SDL3/SDL_revision.h>
+            \\#define SDL_MAIN_HANDLED
+            \\#include <SDL3/SDL_main.h>
+            \\#include <SDL_mixer.h>
+        ),
+        .linux => b.addWriteFiles().add("c.h",
+            \\#define __ANDROID_MIN_SDK_VERSION__ 27
+            \\#define TARGET_ARCH aarch64-linux-android
+            \\#define HOST aarch64-linux-android
+            \\#define SDL_DISABLE_OLD_NAMES
+            \\#include <SDL3/SDL.h>
+            \\#include <SDL3/SDL_revision.h>
+            \\#define SDL_MAIN_HANDLED
+            \\#include <SDL3/SDL_main.h>
+            \\#include <SDL_mixer.h>
+        ),
+        else => b.addWriteFiles().add("c.h",
+            \\#define SDL_DISABLE_OLD_NAMES
+            \\#include <SDL3/SDL.h>
+            \\#include <SDL3/SDL_revision.h>
+            \\#define SDL_MAIN_HANDLED
+            \\#include <SDL3/SDL_main.h>
+            \\#include <SDL_mixer.h>
+        ),
+    };
+
+    var headers: Translator = .init(translate_c_dep, .{
+        .c_source_file = c_header,
         .target = target.*,
         .optimize = optimize.*,
+        .libc_file = libc_file,
     });
-    if (platforms.getSystemPath(b, target)) |path| headers.addSystemIncludePath(path);
+
+    for (platforms.getSystemPaths(b, target)) |path| headers.addSystemIncludePath(path);
     if (platforms.getFrameworkPath(b, target)) |path| headers.addSystemFrameworkPath(path);
     headers.addIncludePath(b.path("libs/sdl"));
-    headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/SDL.h"));
-    headers.addIncludePath(b.path("SDL_mixer.h"));
+    headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/"));
+    headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
 
-    const sdl_mix_mod = headers.addModule("mixer");
-    if (platforms.getSystemPath(b, target)) |path| sdl_mix_mod.addSystemIncludePath(path);
-    if (platforms.getFrameworkPath(b, target)) |path| sdl_mix_mod.addSystemFrameworkPath(path);
+    for (platforms.getSystemPaths(b, target)) |path| headers.mod.addSystemIncludePath(path);
+    //if (platforms.getFrameworkPath(b, target)) |path| headers.mod.addSystemFrameworkPath(path);
 
-    return sdl_mix_mod;
+    return headers.mod;
 }
 
 /// Build an SDL module from the SDL3 and SDL3_mixer header files that we
@@ -102,16 +145,27 @@ fn define_sdl_module(
     optimize: *const std.builtin.OptimizeMode,
 ) *std.Build.Module {
 
-    // Use TranslateC to with the SDL and SDL_mixer headers found in
-    // zig sdl projects. The `xcframework` folders dont contain a
-    // usable `include` folder, only a `Headers` folder which
-    // doesnt work here.
-    const translate_c_dep = b.dependency("translate_c", .{});
+    // Android needs a libc file for translate_c
+    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
+
+    const translate_c_dep = b.dependency("translate_c", .{
+        .libc_file = libc_file,
+    });
 
     const c_header = switch (target.result.os.tag) {
         .ios => b.addWriteFiles().add("c.h",
             \\#define TARGET_OS_IPHONE 1
             \\#define SDL_PLATFORM_IOS 1
+            \\#define SDL_DISABLE_OLD_NAMES
+            \\#include <SDL3/SDL.h>
+            \\#include <SDL3/SDL_revision.h>
+            \\#define SDL_MAIN_HANDLED
+            \\#include <SDL3/SDL_main.h>
+        ),
+        .linux => b.addWriteFiles().add("c.h",
+            \\#define __ANDROID_MIN_SDK_VERSION__ 27
+            \\#define TARGET_ARCH aarch64-linux-android
+            \\#define HOST aarch64-linux-android
             \\#define SDL_DISABLE_OLD_NAMES
             \\#include <SDL3/SDL.h>
             \\#include <SDL3/SDL_revision.h>
@@ -131,15 +185,19 @@ fn define_sdl_module(
         .c_source_file = c_header,
         .target = target.*,
         .optimize = optimize.*,
+        .libc_file = libc_file,
     });
 
-    if (platforms.getSystemPath(b, target)) |path| headers.mod.addSystemIncludePath(path);
+    for (platforms.getSystemPaths(b, target)) |path| headers.mod.addSystemIncludePath(path);
+    for (platforms.getSystemPaths(b, target)) |path| headers.addSystemIncludePath(path);
     if (platforms.getFrameworkPath(b, target)) |path| headers.mod.addSystemFrameworkPath(path);
-    if (platforms.getSystemPath(b, target)) |path| headers.addSystemIncludePath(path);
     if (platforms.getFrameworkPath(b, target)) |path| headers.addSystemFrameworkPath(path);
     headers.addIncludePath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Versions/A/Headers/"));
-    headers.addIncludePath(b.path("libs/sdl"));
     headers.addIncludePath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/SDL3_mixer.framework/Versions/A/Headers/"));
+    headers.addIncludePath(b.path("libs/sdl"));
+
+    for (platforms.getSystemPaths(b, target)) |path| headers.mod.addSystemIncludePath(path);
+    //if (platforms.getFrameworkPath(b, target)) |path| headers.mod.addSystemFrameworkPath(path);
 
     return headers.mod;
 }
@@ -158,9 +216,6 @@ pub fn link_sdl_framework(
             lib.addRPath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/"));
             lib.linkFramework("SDL3", .{});
             lib.linkFramework("SDL3_mixer", .{});
-            //lib.addLibraryPath(b.path("libs/vorbis/"));
-            //lib.linkSystemLibrary("vorbis.0.4.9", .{});
-            //lib.linkSystemLibrary("ogg.0.8.5", .{});
         },
         .ios => {
             if (target.result.abi == .simulator) {
@@ -181,13 +236,13 @@ pub fn link_sdl_framework(
         },
         .linux => {
             if (target.result.cpu.arch == .aarch64) {
-                //lib.addLibraryPath(b.path("libs/ubuntu-aarch64/"));
-                lib.linkSystemLibrary("SDL3", .{});
-                lib.linkSystemLibrary("SDL3_mixer", .{});
+                // Dynamic linking on android
+                //lib.linkSystemLibrary("SDL3", .{});
+                //lib.linkSystemLibrary("SDL3_mixer", .{});
             } else if (target.result.cpu.arch == .x86_64) {
-                //lib.addLibraryPath(b.path("libs/ubuntu-x64/"));
-                lib.linkSystemLibrary("SDL3", .{});
-                lib.linkSystemLibrary("SDL3_mixer", .{});
+                // Dynamic linking on android
+                //lib.linkSystemLibrary("SDL3", .{});
+                //lib.linkSystemLibrary("SDL3_mixer", .{});
             } else {
                 std.log.err("Only aarch and x86_64 is supported for linux builds.", .{});
             }
@@ -204,5 +259,4 @@ const debug = std.log.debug;
 
 const Translator = @import("translate_c").Translator;
 
-const FindNDK = @import("build/find_ndk.zig").FindNDK;
 const platforms = @import("build/platforms.zig");
