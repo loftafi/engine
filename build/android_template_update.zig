@@ -17,17 +17,11 @@ pub fn main(init: std.process.Init) !void {
     }
     std.debug.print("\n", .{});
 
-    const root_path = args[1];
+    const install_path = args[1];
     const libc_file = args[2];
     const app_name = args[3];
     const app_version = args[4];
     const android_target = args[5];
-
-    const git_hash = getGitCommitHash(init.arena.allocator(), init.io, root_path) catch |e| {
-        std.log.err("Failed to read build number from git history. {any}", .{e});
-        @panic("Failed to read build number from git history.");
-    };
-    const hash = if (git_hash.len > 7) git_hash[0..7] else git_hash;
 
     const ndk_path = FindNDK.find(init.io, init.environ_map) catch |e| {
         std.log.err("Error while finding NDK. {any}", .{e});
@@ -44,68 +38,39 @@ pub fn main(init: std.process.Init) !void {
     try update_android_metadata(
         init.gpa,
         init.io,
-        "android/app/src/main/AndroidManifest.xml",
-        "android/app/build.gradle",
-        "android/app/src/main/res/values/strings.xml",
+        try std.Io.Dir.cwd().openDir(init.io, install_path, .{}),
+        "app/src/main/AndroidManifest.xml",
+        "app/build.gradle",
+        "app/src/main/res/values/strings.xml",
         app_name,
         app_version,
-        hash,
     );
     std.process.exit(0);
-}
-
-pub fn getGitCommitNumber(b: *std.Build) (std.fmt.ParseIntError || std.process.RunError || error{ GitNotFound, GitNotRepository })!usize {
-    var code: u8 = 0;
-    const out: []const u8 = b.runAllowFail(
-        &[_][]const u8{ "git", "-C", b.build_root.path orelse ".", "rev-list", "--count", "HEAD" },
-        &code,
-        .ignore,
-    ) catch |err| switch (err) {
-        error.FileNotFound => return error.GitNotFound,
-        error.ExitCodeFailure => return error.GitNotRepository,
-        else => return err,
-    };
-    const trimmed = std.mem.trim(u8, out, " \t\n\r");
-    const build_number = try std.fmt.parseUnsigned(u32, trimmed, 10);
-    return build_number;
-}
-
-pub fn getGitCommitHash(allocator: Allocator, io: std.Io, root_path: []const u8) error{ GitFailed, OutOfMemory }![]const u8 {
-    const result = std.process.run(allocator, io, .{
-        .argv = &[_][]const u8{ "git", "-C", root_path, "rev-parse", "HEAD" },
-    }) catch {
-        return error.GitFailed;
-    };
-    if (result.term != .exited or result.term.exited != 0) {
-        return error.GitFailed;
-    }
-
-    const build_number = std.mem.trim(u8, result.stdout, " \t\n\r");
-    return try allocator.dupe(u8, build_number);
 }
 
 /// Use to update `AndroidManifest.xml`
 pub fn update_android_metadata(
     allocator: std.mem.Allocator,
     io: std.Io,
+    dir: std.Io.Dir,
     manifest: []const u8,
     gradle: []const u8,
     strings: []const u8,
     app_name: []const u8,
     app_version: []const u8,
-    build_number: []const u8,
 ) !void {
     var buff: [100]u8 = undefined;
-    try update_android_strings_variable(allocator, io, strings, "app_name", app_name);
-    try update_android_manifest_variable(allocator, io, manifest, "versionName", app_version);
-    try update_android_manifest_variable(allocator, io, manifest, "versionCode", build_number);
-    try update_android_gradle_variable(allocator, io, gradle, "versionName", try std.fmt.bufPrint(&buff, "\"{s}\"", .{app_version}));
-    try update_android_gradle_variable(allocator, io, gradle, "versionCode", build_number);
+    try update_android_strings_variable(allocator, io, dir, strings, "app_name", app_name);
+    try update_android_manifest_variable(allocator, io, dir, manifest, "versionName", app_version);
+    try update_android_manifest_variable(allocator, io, dir, manifest, "versionCode", app_version);
+    try update_android_gradle_variable(allocator, io, dir, gradle, "versionName", try std.fmt.bufPrint(&buff, "\"{s}\"", .{app_version}));
+    try update_android_gradle_variable(allocator, io, dir, gradle, "versionCode", app_version);
 }
 
 pub fn update_android_manifest_variable(
     allocator: std.mem.Allocator,
     io: std.Io,
+    dir: std.Io.Dir,
     filename: []const u8,
     comptime key: []const u8,
     value: []const u8,
@@ -113,33 +78,34 @@ pub fn update_android_manifest_variable(
     const manifest_variable_start = "android:" ++ key ++ "=\"";
     const manifest_variable_end = "\"";
 
-    if (std.Io.Dir.cwd().readFileAlloc(io, filename, allocator, .unlimited)) |data| {
+    if (dir.readFileAlloc(io, filename, allocator, .unlimited)) |data| {
         defer allocator.free(data);
         const new_data = try replace_variable(data, manifest_variable_start, manifest_variable_end, value, allocator);
         defer allocator.free(new_data);
-        const file = try std.Io.Dir.cwd().createFile(io, filename, .{});
+        const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
         _ = try file.writeStreamingAll(io, new_data);
         std.log.info("Updated android manifest variable {s} = \"{s}\"", .{ key, value });
     } else |e| {
-        std.log.warn("Error reading android manifest file. {any}", .{e});
+        std.log.warn("Error reading android file='{s}'. {any}", .{ filename, e });
     }
 }
 
 pub fn update_android_strings_variable(
     allocator: std.mem.Allocator,
     io: std.Io,
+    dir: std.Io.Dir,
     filename: []const u8,
     comptime key: []const u8,
     value: []const u8,
 ) !void {
     const manifest_variable_start = "<string name=\"" ++ key ++ "\">";
     const manifest_variable_end = "</string>";
-    if (std.Io.Dir.cwd().readFileAlloc(io, filename, allocator, .unlimited)) |data| {
+    if (dir.readFileAlloc(io, filename, allocator, .unlimited)) |data| {
         defer allocator.free(data);
         const new_data = try replace_variable(data, manifest_variable_start, manifest_variable_end, value, allocator);
         defer allocator.free(new_data);
-        const file = try std.Io.Dir.cwd().createFile(io, filename, .{});
+        const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
         _ = try file.writeStreamingAll(io, new_data);
         std.log.info("Updated android manifest variable {s} = \"{s}\"", .{ key, value });
@@ -151,17 +117,18 @@ pub fn update_android_strings_variable(
 pub fn update_android_gradle_variable(
     allocator: std.mem.Allocator,
     io: std.Io,
+    dir: std.Io.Dir,
     filename: []const u8,
     comptime key: []const u8,
     value: []const u8,
 ) !void {
     const gradle_variable_start = key ++ " ";
     const gradle_variable_end = "\n";
-    if (std.Io.Dir.cwd().readFileAlloc(io, filename, allocator, .unlimited)) |data| {
+    if (dir.readFileAlloc(io, filename, allocator, .unlimited)) |data| {
         defer allocator.free(data);
         const new_data = try replace_variable(data, gradle_variable_start, gradle_variable_end, value, allocator);
         defer allocator.free(new_data);
-        const file = try std.Io.Dir.cwd().createFile(io, filename, .{});
+        const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
         _ = try file.writeStreamingAll(io, new_data);
         std.log.info("Updated android gradle variable {s} = \"{s}\"", .{ key, value });

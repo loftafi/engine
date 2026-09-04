@@ -3,7 +3,7 @@ pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
 
     if (args.len != 6) {
-        std.debug.print("usage: /path/to/project /subfolder/App.xcodeproj/project.pbxfile app_name app_version app_id", .{});
+        std.debug.print("usage: /path/to/install_dir /subfolder/App.xcodeproj/project.pbxfile app_name app_version app_id", .{});
         std.debug.print("\nFound {d} arguments: ", .{args.len});
         for (args) |arg| {
             std.debug.print(" {s} ", .{arg});
@@ -17,27 +17,20 @@ pub fn main(init: std.process.Init) !void {
     }
     std.debug.print("\n", .{});
 
-    const root_path = args[1];
+    const install_path = args[1];
     const pbxfile = args[2];
     const app_name = args[3];
     const app_version = args[4];
     const app_id = args[5];
 
-    const build_number = getGitCommitHash(init.arena.allocator(), init.io, root_path) catch |e| {
-        std.log.err("Failed to read build number from git history. {any}", .{e});
-        @panic("Failed to read build number from git history.");
-    };
-    const hash = if (build_number.len > 7) build_number[0..7] else build_number;
-
     update_xcode_variables(
         init.arena.allocator(),
         init.io,
-        root_path,
+        install_path,
         pbxfile,
         app_name,
         app_version,
         app_id,
-        hash,
     ) catch |e| {
         std.debug.print("Update XCode PBX file failed. {t}", .{e});
         std.process.exit(1);
@@ -46,32 +39,17 @@ pub fn main(init: std.process.Init) !void {
     std.process.exit(0);
 }
 
-pub fn getGitCommitHash(allocator: Allocator, io: std.Io, root_path: []const u8) error{ GitFailed, OutOfMemory }![]const u8 {
-    const result = std.process.run(allocator, io, .{
-        .argv = &[_][]const u8{ "git", "-C", root_path, "rev-parse", "HEAD" },
-    }) catch {
-        return error.GitFailed;
-    };
-    if (result.term != .exited or result.term.exited != 0) {
-        return error.GitFailed;
-    }
-
-    const build_number = std.mem.trim(u8, result.stdout, " \t\n\r");
-    return try allocator.dupe(u8, build_number);
-}
-
 pub fn update_xcode_variables(
     allocator: std.mem.Allocator,
     io: std.Io,
-    root_path: []const u8,
+    install_path: []const u8,
     pbx_file: []const u8,
     app_name: []const u8,
     app_version: []const u8,
     app_id: []const u8,
-    build_number: []const u8,
 ) !void {
     var file_buffer: [1024 * 100]u8 = undefined;
-    const dir = try std.Io.Dir.cwd().openDir(io, root_path, .{});
+    const dir = try std.Io.Dir.cwd().openDir(io, install_path, .{});
     if (dir.readFile(io, pbx_file, &file_buffer)) |data| {
         const out1 = try replace_variable(allocator, data, "MARKETING_VERSION", app_version);
         defer allocator.free(out1);
@@ -80,7 +58,7 @@ pub fn update_xcode_variables(
         defer allocator.free(out2);
         const out3 = try replace_variable(allocator, out2, "PRODUCT_BUNDLE_IDENTIFIER", app_id);
         defer allocator.free(out3);
-        const out4 = try replace_variable(allocator, out3, "CURRENT_PROJECT_VERSION", build_number);
+        const out4 = try replace_variable(allocator, out3, "CURRENT_PROJECT_VERSION", app_id);
         defer allocator.free(out4);
 
         if (!std.mem.eql(u8, data, out4)) {
