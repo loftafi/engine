@@ -80,7 +80,7 @@ fn define_mixer_module(
     const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
 
     const translate_c_dep = b.dependency("translate_c", .{
-        .libc_file = libc_file,
+        .libc_paths_file = libc_file,
     });
 
     // Android targets aarch64 android, and not the relatively rare alternatives.
@@ -149,7 +149,7 @@ fn define_sdl_module(
     const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
 
     const translate_c_dep = b.dependency("translate_c", .{
-        .libc_file = libc_file,
+        .libc_paths_file = libc_file,
     });
 
     const c_header = switch (target.result.os.tag) {
