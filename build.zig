@@ -1,4 +1,4 @@
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const test_filters = b.option([]const []const u8, "test-filter", "Skip tests that do not match any filter") orelse &[0][]const u8{};
@@ -20,8 +20,8 @@ pub fn build(b: *std.Build) void {
     const truetype = b.dependency("TrueType", .{ .target = target, .optimize = optimize });
     const truetype_module = truetype.module("TrueType");
 
-    const sdl_module = define_sdl_module(b, &target, &optimize);
-    const mixer_module = define_mixer_module(b, &target, &optimize);
+    const sdl_module = try define_sdl_module(b, &target, &optimize);
+    const mixer_module = try define_mixer_module(b, &target, &optimize);
 
     const lib_mod = b.addModule("engine", .{
         .root_source_file = b.path("src/engine.zig"),
@@ -73,6 +73,7 @@ pub fn build(b: *std.Build) void {
         //
         // xcode template exporter task
         //
+        const export_xcode_template = b.step("export_xcode_template", "Build xcode for ios");
 
         const ios_app_name = b.option([]const u8, "ios_app_name", "iOS app name.");
         const ios_app_version = b.option([]const u8, "ios_app_version", "iOS app version");
@@ -90,6 +91,7 @@ pub fn build(b: *std.Build) void {
             .install_subdir = "",
         });
         copy_xcode_template.dependOn(&do_copy.step);
+        export_xcode_template.dependOn(copy_xcode_template);
 
         // Ammend the xcode template with project information
         var patch_xcode_template = b.step("patch_xcode_template", "Update the xcode template");
@@ -124,6 +126,7 @@ pub fn build(b: *std.Build) void {
         run_xcode_update.has_side_effects = true;
         run_xcode_update.step.dependOn(copy_xcode_template);
         patch_xcode_template.dependOn(&run_xcode_update.step);
+        export_xcode_template.dependOn(patch_xcode_template);
 
         if (ios_app_bundle) |name| {
             copyStep(b, patch_xcode_template, copy_xcode_template, name, "xcode/Dialectos/app_bundle.bd");
@@ -136,9 +139,6 @@ pub fn build(b: *std.Build) void {
             copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
             copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
         }
-
-        const export_xcode_template = b.step("export_xcode_template", "Build xcode for ios");
-        export_xcode_template.dependOn(&run_xcode_update.step);
     }
 }
 
@@ -158,7 +158,7 @@ fn define_mixer_module(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
-) *std.Build.Module {
+) error{OutOfMemory}!*std.Build.Module {
 
     // Android needs a libc file for translate_c
     const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
@@ -202,7 +202,8 @@ fn define_mixer_module(
         ),
     };
 
-    var headers: Translator = .init(translate_c_dep, .{
+    var headers = try b.graph.arena.create(Translator);
+    headers.* = .init(translate_c_dep, .{
         .c_source_file = c_header,
         .target = target.*,
         .optimize = optimize.*,
@@ -227,7 +228,7 @@ fn define_sdl_module(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
-) *std.Build.Module {
+) error{OutOfMemory}!*std.Build.Module {
 
     // Android needs a libc file for translate_c
     const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
@@ -265,7 +266,8 @@ fn define_sdl_module(
         ),
     };
 
-    var headers: Translator = .init(translate_c_dep, .{
+    var headers = try b.graph.arena.create(Translator);
+    headers.* = .init(translate_c_dep, .{
         .c_source_file = c_header,
         .target = target.*,
         .optimize = optimize.*,

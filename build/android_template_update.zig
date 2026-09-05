@@ -33,12 +33,13 @@ pub fn main(init: std.process.Init) !void {
         std.log.info("Dialectos for android using android ndk in {s}", .{ndk_path.?});
     }
 
-    generateLibC(init.gpa, init.io, android_target, libc_file, ndk_path.?) catch @panic("failed to generate libc.txt");
+    var install_dir = try std.Io.Dir.cwd().openDir(init.io, install_path, .{});
+    generateLibC(init.gpa, init.io, &install_dir, android_target, libc_file, ndk_path.?) catch @panic("failed to generate libc.txt");
 
     try update_android_metadata(
         init.gpa,
         init.io,
-        try std.Io.Dir.cwd().openDir(init.io, install_path, .{}),
+        &install_dir,
         "app/src/main/AndroidManifest.xml",
         "app/build.gradle",
         "app/src/main/res/values/strings.xml",
@@ -52,7 +53,7 @@ pub fn main(init: std.process.Init) !void {
 pub fn update_android_metadata(
     allocator: std.mem.Allocator,
     io: std.Io,
-    dir: std.Io.Dir,
+    dir: *std.Io.Dir,
     manifest: []const u8,
     gradle: []const u8,
     strings: []const u8,
@@ -70,7 +71,7 @@ pub fn update_android_metadata(
 pub fn update_android_manifest_variable(
     allocator: std.mem.Allocator,
     io: std.Io,
-    dir: std.Io.Dir,
+    dir: *std.Io.Dir,
     filename: []const u8,
     comptime key: []const u8,
     value: []const u8,
@@ -94,7 +95,7 @@ pub fn update_android_manifest_variable(
 pub fn update_android_strings_variable(
     allocator: std.mem.Allocator,
     io: std.Io,
-    dir: std.Io.Dir,
+    dir: *std.Io.Dir,
     filename: []const u8,
     comptime key: []const u8,
     value: []const u8,
@@ -117,7 +118,7 @@ pub fn update_android_strings_variable(
 pub fn update_android_gradle_variable(
     allocator: std.mem.Allocator,
     io: std.Io,
-    dir: std.Io.Dir,
+    dir: *std.Io.Dir,
     filename: []const u8,
     comptime key: []const u8,
     value: []const u8,
@@ -175,6 +176,7 @@ pub fn androidTriple(target: *const std.Target) error{InvalidAndroidTarget}![]co
 pub fn generateLibC(
     allocator: Allocator,
     io: std.Io,
+    dir: *std.Io.Dir,
     android_target: []const u8,
     filename: []const u8,
     ndk_path: []const u8,
@@ -208,7 +210,7 @@ pub fn generateLibC(
     try out.writeAll("kernel32_lib_dir=\n");
     try out.writeAll("gcc_dir=\n");
 
-    var file = try std.Io.Dir.cwd().createFile(io, filename, .{ .truncate = true });
+    var file = try dir.createFile(io, filename, .{ .truncate = true });
     defer file.close(io);
     try file.writeStreamingAll(io, libc_txt.written());
 }

@@ -12,7 +12,7 @@ pub const FindNDK = struct {
             if (found == null) {
                 std.log.debug("ANDROID_NDK_HOME not set", .{});
             } else {
-                std.log.info("found ANDROID_NDK_HOME: {s}", .{found.?});
+                std.log.debug("found ANDROID_NDK_HOME: {s}", .{found.?});
                 ndk = found;
                 return ndk;
             }
