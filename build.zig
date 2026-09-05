@@ -3,16 +3,6 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const test_filters = b.option([]const []const u8, "test-filter", "Skip tests that do not match any filter") orelse &[0][]const u8{};
 
-    const app_name = b.option([]const u8, "app_name", "override the app name") orelse "Lexica";
-    const app_version = b.option([]const u8, "app_version", "override the app version") orelse "0";
-    const app_bundle = b.option([]const u8, "app_bundle", "override the app bundle filename") orelse "app_bundle.bd";
-    const app_id = b.option([]const u8, "app_id", "override the app id") orelse
-        "org.example";
-    const splash_screen = b.option(std.Build.LazyPath, "splash_screen", "Path to splash screen jpg") orelse
-        b.path("assets/generated/splash-screen.jpg");
-    const ios_icon = b.option(std.Build.LazyPath, "ios_icon", "Path to ios icon png") orelse
-        b.path("assets/generated/app-icon-1024x1024.png");
-
     const resources = b.dependency("resources", .{ .target = target, .optimize = optimize });
     const resources_module = resources.module("resources");
     for (platforms.getSystemPaths(b, &target)) |path| resources_module.addSystemIncludePath(path);
@@ -84,6 +74,13 @@ pub fn build(b: *std.Build) void {
         // xcode template exporter task
         //
 
+        const ios_app_name = b.option([]const u8, "ios_app_name", "iOS app name.");
+        const ios_app_version = b.option([]const u8, "ios_app_version", "iOS app version");
+        const ios_app_bundle = b.option([]const u8, "ios_app_bundle", "Default app resource bundle filename");
+        const ios_app_id = b.option([]const u8, "ios_app_id", "iOS the app id");
+        const ios_splash_screen = b.option(std.Build.LazyPath, "ios_splash_screen", "iOS app startup splash screen jpg");
+        const ios_icon = b.option(std.Build.LazyPath, "ios_icon", "The iOS icon png");
+
         // Copy the xcode template
         var copy_xcode_template = b.step("xcode_template_copy", "Copy ios template");
         const template_path = b.path("templates/xcode/");
@@ -109,18 +106,36 @@ pub fn build(b: *std.Build) void {
         var run_xcode_update = b.addRunArtifact(xcode_template_update);
         run_xcode_update.addFileArg(b.graph.path(.install_prefix, "xcode/"));
         run_xcode_update.addArg("Dialectos.xcodeproj/project.pbxproj");
-        run_xcode_update.addArg(app_name);
-        run_xcode_update.addArg(app_version);
-        run_xcode_update.addArg(app_id);
+        if (ios_app_name) |name| {
+            run_xcode_update.addArg(name);
+        } else {
+            run_xcode_update.step.dependOn(&b.addFail("Specify -Dios_app_name to build ios package.").step);
+        }
+        if (ios_app_version) |version| {
+            run_xcode_update.addArg(version);
+        } else {
+            run_xcode_update.step.dependOn(&b.addFail("Specify -Dios_app_version to build ios package.").step);
+        }
+        if (ios_app_id) |id| {
+            run_xcode_update.addArg(id);
+        } else {
+            run_xcode_update.step.dependOn(&b.addFail("Specify -Dios_app_id to build ios package.").step);
+        }
         run_xcode_update.has_side_effects = true;
         run_xcode_update.step.dependOn(copy_xcode_template);
         patch_xcode_template.dependOn(&run_xcode_update.step);
 
-        copyStep(b, patch_xcode_template, copy_xcode_template, app_bundle, "xcode/Dialectos/app_bundle.bd");
-        copyStepP(b, patch_xcode_template, copy_xcode_template, splash_screen, "xcode/startup-screen.jpg");
-        copyStepP(b, patch_xcode_template, copy_xcode_template, ios_icon, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
-        copyStepP(b, patch_xcode_template, copy_xcode_template, ios_icon, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
-        copyStepP(b, patch_xcode_template, copy_xcode_template, ios_icon, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+        if (ios_app_bundle) |name| {
+            copyStep(b, patch_xcode_template, copy_xcode_template, name, "xcode/Dialectos/app_bundle.bd");
+        }
+        if (ios_splash_screen) |jpg| {
+            copyStepP(b, patch_xcode_template, copy_xcode_template, jpg, "xcode/startup-screen.jpg");
+        }
+        if (ios_icon) |png| {
+            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
+            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+        }
 
         const export_xcode_template = b.step("export_xcode_template", "Build xcode for ios");
         export_xcode_template.dependOn(&run_xcode_update.step);
