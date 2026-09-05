@@ -81,6 +81,8 @@ pub fn build(b: *std.Build) !void {
         const ios_app_id = b.option([]const u8, "ios_app_id", "iOS the app id");
         const ios_splash_screen = b.option(std.Build.LazyPath, "ios_splash_screen", "iOS app startup splash screen jpg");
         const ios_icon = b.option(std.Build.LazyPath, "ios_icon", "The iOS icon png");
+        const ios_icon_light = b.option(std.Build.LazyPath, "ios_icon_light", "Optional iOS light icon png");
+        const ios_icon_dark = b.option(std.Build.LazyPath, "ios_icon_dark", "Optional iOSdark icon png");
 
         // Copy the xcode template
         var copy_xcode_template = b.step("xcode_template_copy", "Copy ios template");
@@ -130,20 +132,33 @@ pub fn build(b: *std.Build) !void {
 
         if (ios_app_bundle) |name| {
             copyStep(b, patch_xcode_template, copy_xcode_template, name, "xcode/Dialectos/app_bundle.bd");
+        } else {
+            //std.log.warn("No ios_app_bundle set", .{});
         }
         if (ios_splash_screen) |jpg| {
             copyStepP(b, patch_xcode_template, copy_xcode_template, jpg, "xcode/startup-screen.jpg");
+        } else {
+            //std.log.warn("No ios_splash_screen set", .{});
         }
         if (ios_icon) |png| {
             copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
             copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
             copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
         }
+        if (ios_icon_light) |png| {
+            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+        }
+        if (ios_icon_dark) |png| {
+            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+        }
+        if (ios_icon == null and ios_icon_dark == null and ios_icon_light == null) {
+            //std.log.warn("No ios_icon set", .{});
+        }
     }
 }
 
 fn copyStep(b: *std.Build, before: *std.Build.Step, after: *std.Build.Step, src: []const u8, dst: []const u8) void {
-    var cp = b.addInstallFile(b.path(src), dst);
+    var cp = b.addInstallFile(b.graph.path(.install_prefix, src), dst);
     cp.step.dependOn(after);
     before.dependOn(&cp.step);
 }

@@ -11,11 +11,6 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("\n", .{});
         std.process.exit(1);
     }
-    std.debug.print("\nFound {d} arguments: ", .{args.len});
-    for (args) |arg| {
-        std.debug.print(" {s} ", .{arg});
-    }
-    std.debug.print("\n", .{});
 
     const install_path = args[1];
     const libc_file = args[2];
