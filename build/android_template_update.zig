@@ -2,8 +2,8 @@
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
 
-    if (args.len != 6) {
-        std.debug.print("usage: /path/to/project /subfolder/libc.txt app_name app_version android_target", .{});
+    if (args.len != 7) {
+        std.debug.print("usage: /path/to/project /subfolder/libc.txt app_name app_version app_id android_target", .{});
         std.debug.print("\nFound {d} arguments: ", .{args.len});
         for (args) |arg| {
             std.debug.print(" {s} ", .{arg});
@@ -11,12 +11,18 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("\n", .{});
         std.process.exit(1);
     }
+    std.debug.print("\nFound {d} arguments: ", .{args.len});
+    for (args) |arg| {
+        std.debug.print(" {s} ", .{arg});
+    }
+    std.debug.print("\n", .{});
 
     const install_path = args[1];
     const libc_file = args[2];
     const app_name = args[3];
     const app_version = args[4];
-    const android_target = args[5];
+    const app_id = args[5];
+    const android_target = args[6];
 
     const ndk_path = FindNDK.find(init.io, init.environ_map) catch |e| {
         std.log.err("Error while finding NDK. {any}", .{e});
@@ -29,9 +35,16 @@ pub fn main(init: std.process.Init) !void {
     }
 
     var install_dir = try std.Io.Dir.cwd().openDir(init.io, install_path, .{});
-    generateLibC(init.gpa, init.io, &install_dir, android_target, libc_file, ndk_path.?) catch @panic("failed to generate libc.txt");
+    generateLibC(
+        init.gpa,
+        init.io,
+        &install_dir,
+        android_target,
+        libc_file,
+        ndk_path.?,
+    ) catch @panic("failed to generate libc.txt");
 
-    try update_android_metadata(
+    try updateAndroidMetadata(
         init.gpa,
         init.io,
         &install_dir,
@@ -40,12 +53,13 @@ pub fn main(init: std.process.Init) !void {
         "app/src/main/res/values/strings.xml",
         app_name,
         app_version,
+        app_id,
     );
     std.process.exit(0);
 }
 
 /// Use to update `AndroidManifest.xml`
-pub fn update_android_metadata(
+pub fn updateAndroidMetadata(
     allocator: std.mem.Allocator,
     io: std.Io,
     dir: *std.Io.Dir,
@@ -54,16 +68,20 @@ pub fn update_android_metadata(
     strings: []const u8,
     app_name: []const u8,
     app_version: []const u8,
+    app_id: []const u8,
 ) !void {
-    var buff: [100]u8 = undefined;
+    var buff: [500]u8 = undefined;
     try update_android_strings_variable(allocator, io, dir, strings, "app_name", app_name);
-    try update_android_manifest_variable(allocator, io, dir, manifest, "versionName", app_version);
-    try update_android_manifest_variable(allocator, io, dir, manifest, "versionCode", app_version);
-    try update_android_gradle_variable(allocator, io, dir, gradle, "versionName", try std.fmt.bufPrint(&buff, "\"{s}\"", .{app_version}));
-    try update_android_gradle_variable(allocator, io, dir, gradle, "versionCode", app_version);
+    try updateAndroidManifestVariable(allocator, io, dir, manifest, "versionName", app_version);
+    try updateAndroidManifestVariable(allocator, io, dir, manifest, "versionCode", app_version);
+    try updateAndroidGradleVariable(allocator, io, dir, gradle, "versionName", try std.fmt.bufPrint(&buff, "\"{s}\"", .{app_version}));
+    try updateAndroidGradleVariable(allocator, io, dir, gradle, "versionCode", app_version);
+    //If you update this, you must also update the `package` header in the java files.
+    //try updateAndroidGradleVariable(allocator, io, dir, gradle, "namespace", try std.fmt.bufPrint(&buff, "\"{s}\"", .{app_id}));
+    _ = app_id;
 }
 
-pub fn update_android_manifest_variable(
+pub fn updateAndroidManifestVariable(
     allocator: std.mem.Allocator,
     io: std.Io,
     dir: *std.Io.Dir,
@@ -76,7 +94,13 @@ pub fn update_android_manifest_variable(
 
     if (dir.readFileAlloc(io, filename, allocator, .unlimited)) |data| {
         defer allocator.free(data);
-        const new_data = try replace_variable(data, manifest_variable_start, manifest_variable_end, value, allocator);
+        const new_data = try replaceVariable(
+            data,
+            manifest_variable_start,
+            manifest_variable_end,
+            value,
+            allocator,
+        );
         defer allocator.free(new_data);
         const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
@@ -99,7 +123,13 @@ pub fn update_android_strings_variable(
     const manifest_variable_end = "</string>";
     if (dir.readFileAlloc(io, filename, allocator, .unlimited)) |data| {
         defer allocator.free(data);
-        const new_data = try replace_variable(data, manifest_variable_start, manifest_variable_end, value, allocator);
+        const new_data = try replaceVariable(
+            data,
+            manifest_variable_start,
+            manifest_variable_end,
+            value,
+            allocator,
+        );
         defer allocator.free(new_data);
         const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
@@ -110,7 +140,7 @@ pub fn update_android_strings_variable(
     }
 }
 
-pub fn update_android_gradle_variable(
+pub fn updateAndroidGradleVariable(
     allocator: std.mem.Allocator,
     io: std.Io,
     dir: *std.Io.Dir,
@@ -122,7 +152,13 @@ pub fn update_android_gradle_variable(
     const gradle_variable_end = "\n";
     if (dir.readFileAlloc(io, filename, allocator, .unlimited)) |data| {
         defer allocator.free(data);
-        const new_data = try replace_variable(data, gradle_variable_start, gradle_variable_end, value, allocator);
+        const new_data = try replaceVariable(
+            data,
+            gradle_variable_start,
+            gradle_variable_end,
+            value,
+            allocator,
+        );
         defer allocator.free(new_data);
         const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
@@ -133,7 +169,13 @@ pub fn update_android_gradle_variable(
     }
 }
 
-pub fn replace_variable(data: []const u8, comptime key_start: []const u8, comptime key_end: []const u8, value: []const u8, allocator: std.mem.Allocator) ![]const u8 {
+pub fn replaceVariable(
+    data: []const u8,
+    comptime key_start: []const u8,
+    comptime key_end: []const u8,
+    value: []const u8,
+    allocator: std.mem.Allocator,
+) ![]const u8 {
     var out: std.ArrayList(u8) = .empty;
     errdefer out.deinit(allocator);
     var i = std.mem.tokenizeSequence(u8, data, key_start);
@@ -227,13 +269,13 @@ test "manifest_version_update" {
             \\android:installLocation="auto">
         ;
 
-        const result = try replace_variable(sample, "android:versionName=\"", "\"", "3.3.3", std.testing.allocator);
+        const result = try replaceVariable(sample, "android:versionName=\"", "\"", "3.3.3", std.testing.allocator);
         defer std.testing.allocator.free(result);
-        const result2 = try replace_variable(result, "android:versionCode=\"", "\"\n", "333", std.testing.allocator);
+        const result2 = try replaceVariable(result, "android:versionCode=\"", "\"\n", "333", std.testing.allocator);
         defer std.testing.allocator.free(result2);
         try std.testing.expectEqualStrings(updated, result2);
     }
-    try update_android_metadata(
+    try updateAndroidMetadata(
         "android/app/src/main/AndroidManifest.xml",
         "android/app/build.gradle",
         "android/app/src/main/res/values/strings.xml",
@@ -263,13 +305,13 @@ test "gradle_version_update" {
             \\  stuff 99
         ;
 
-        const result = try replace_variable(sample, "versionName ", "\n", "\"2.2\"", std.testing.allocator);
+        const result = try replaceVariable(sample, "versionName ", "\n", "\"2.2\"", std.testing.allocator);
         defer std.testing.allocator.free(result);
-        const result2 = try replace_variable(result, "versionCode ", "\n", "22", std.testing.allocator);
+        const result2 = try replaceVariable(result, "versionCode ", "\n", "22", std.testing.allocator);
         defer std.testing.allocator.free(result2);
         try std.testing.expectEqualStrings(updated, result2);
     }
-    try update_android_metadata(
+    try updateAndroidMetadata(
         "android/app/src/main/AndroidManifest.xml",
         "android/app/build.gradle",
         "android/app/src/main/res/values/strings.xml",
@@ -283,4 +325,4 @@ test "gradle_version_update" {
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const FindNDK = @import("find_ndk.zig").FindNDK;
+const FindNDK = @import("FindNDK.zig").FindNDK;

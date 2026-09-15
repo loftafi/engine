@@ -4,7 +4,7 @@ var ndk: ?[]const u8 = null;
 /// Attempt to find the location of the NDK. Searches ANDROID_NDK_HOME,
 /// ANDROID_SDK_ROOT, and standard locations inside the user home folder.
 pub const FindNDK = struct {
-    pub fn find(io: std.Io, env: std.process.Environ.Map) !?[]const u8 {
+    pub fn find(io: std.Io, env: *const std.process.Environ.Map) !?[]const u8 {
         if (ndk != null) return ndk;
 
         // Firstly just check ANDROID_NDK_HOME
@@ -81,7 +81,7 @@ pub const FindNDK = struct {
     /// If ANDROID_NDK_HOME is set, just use that
     fn find_android_ndk_home(
         io: std.Io,
-        env: std.process.Environ.Map,
+        env: *const std.process.Environ.Map,
     ) !?[]const u8 {
         const home = env.get("ANDROID_NDK_HOME");
         if (home == null) {
@@ -98,7 +98,7 @@ pub const FindNDK = struct {
     /// If ANDROID_SDK_ROOT is set, just use that
     fn find_android_sdk_root(
         io: std.Io,
-        env: std.process.Environ.Map,
+        env: *const std.process.Environ.Map,
     ) !?std.Io.Dir {
         const home = env.get("ANDROID_SDK_ROOT");
         if (home == null) {
@@ -114,7 +114,7 @@ pub const FindNDK = struct {
     /// Sometimes, the NDK is in the users home folder
     fn find_user_home(
         io: std.Io,
-        env: std.process.Environ.Map,
+        env: *const std.process.Environ.Map,
     ) !?std.Io.Dir {
         const home = env.get("HOME");
         if (home != null) {
@@ -137,12 +137,13 @@ pub const FindNDK = struct {
     }
 
     const ndk_versions = [_][]const u8{
-        "30.0.16138531",
-        "29.0.14206865",
-        "29.0.13846066",
-        "28.2.13676358",
-        "27.3.13750724",
-        "27.0.12077973",
+        "30.0.16248370", // release
+        "30.0.16138531", // rc2
+        "29.0.14206865", // release
+        "29.0.13846066", // rc3
+        "28.2.13676358", // release
+        "27.3.13750724", // release
+        "27.0.12077973", // release
         "25.1.8937393",
         "23.2.8568313",
         "23.1.7779620",

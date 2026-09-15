@@ -155,6 +155,165 @@ pub fn build(b: *std.Build) !void {
             //std.log.warn("No ios_icon set", .{});
         }
     }
+
+    {
+        const export_android_template = b.step("export_android_template", "Build template for android studio");
+
+        //
+        // Android
+        //
+        const android_target = b.resolveTargetQuery(.{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .android });
+        const android_app_name = b.option([]const u8, "android_app_name", "Android app name.");
+        const android_app_id = b.option([]const u8, "android_app_id", "Android app id.");
+        const android_app_version = b.option([]const u8, "android_app_version", "Android app version.");
+        const android_icon = b.option(std.Build.LazyPath, "android_icon", "The android icon png.");
+        const android_app_bundle = b.option([]const u8, "android_app_bundle", "Default app resource bundle filename.");
+
+        const android_icon_circle_192 = b.option(std.Build.LazyPath, "android_icon_circle_192", "Circle 192px android icon png.");
+        const android_icon_circle_144 = b.option(std.Build.LazyPath, "android_icon_circle_144", "Circle 144px android icon png.");
+        const android_icon_circle_96 = b.option(std.Build.LazyPath, "android_icon_circle_96", "Circle 96px android icon png.");
+        const android_icon_circle_72 = b.option(std.Build.LazyPath, "android_icon_circle_72", "Circle 72px android icon png.");
+        const android_icon_circle_48 = b.option(std.Build.LazyPath, "android_icon_circle_48", "Circle 48px android icon png.");
+        const android_icon_rounded_192 = b.option(std.Build.LazyPath, "android_icon_rounded_192", "Rounded 192px android icon png.");
+        const android_icon_rounded_144 = b.option(std.Build.LazyPath, "android_icon_rounded_144", "Rounded 144px android icon png.");
+        const android_icon_rounded_96 = b.option(std.Build.LazyPath, "android_icon_rounded_96", "Rounded 96px android icon png.");
+        const android_icon_rounded_72 = b.option(std.Build.LazyPath, "android_icon_rounded_72", "Rounded 72px android icon png.");
+        const android_icon_rounded_48 = b.option(std.Build.LazyPath, "android_icon_rounded_48", "Rounded 48px android icon png.");
+        const android_icon_foreground_432 = b.option(std.Build.LazyPath, "android_icon_foreground_192", "Foreground 192px android icon png.");
+        const android_icon_foreground_324 = b.option(std.Build.LazyPath, "android_icon_foreground_48", "Foreground 48px android icon png.");
+        const android_icon_foreground_216 = b.option(std.Build.LazyPath, "android_icon_foreground_144", "Foreground 144px android icon png.");
+        const android_icon_foreground_162 = b.option(std.Build.LazyPath, "android_icon_foreground_96", "Foreground 96px android icon png.");
+        const android_icon_foreground_108 = b.option(std.Build.LazyPath, "android_icon_foreground_72", "Foreground 72px android icon png.");
+        const android_icon_background_432 = b.option(std.Build.LazyPath, "android_icon_background_432", "Foreground 192px android icon png.");
+        const android_icon_background_324 = b.option(std.Build.LazyPath, "android_icon_background_324", "Foreground 144px android icon png.");
+        const android_icon_background_216 = b.option(std.Build.LazyPath, "android_icon_background_216", "Foreground 96px android icon png.");
+        const android_icon_background_162 = b.option(std.Build.LazyPath, "android_icon_background_162", "Foreground 72px android icon png.");
+        const android_icon_background_108 = b.option(std.Build.LazyPath, "android_icon_background_108", "Foreground 48px android icon png.");
+
+        // Copy the android template
+        var copy_android_template = b.step("android_template_copy", "Copy android template");
+        const template_path = b.path("templates/android/");
+        const do_copy_template = b.addInstallDirectory(.{
+            .source_dir = template_path,
+            .install_dir = .{ .custom = "android/" },
+            .install_subdir = "",
+        });
+        copy_android_template.dependOn(&do_copy_template.step);
+
+        // Copy SDL into the android template
+        //const sdl_pkg = b.dependency("sdl", .{});
+        //const do_copy_sdl = b.addInstallDirectory(.{
+        //    .source_dir = sdl_pkg.path(""),
+        //    .install_dir = .{ .custom = "android/app/jni/SDL" },
+        //    .install_subdir = "",
+        //});
+        //copy_android_template.dependOn(&do_copy_sdl.step);
+
+        // Copy SDL mixer into the android template
+        const sdl_mixer_pkg = b.dependency("sdl_mixer", .{});
+        const do_copy_sdl_mixer = b.addInstallDirectory(.{
+            .source_dir = sdl_mixer_pkg.path(""),
+            .install_dir = .{ .custom = "android/app/jni/SDL_mixer" },
+            .install_subdir = "",
+        });
+        copy_android_template.dependOn(&do_copy_sdl_mixer.step);
+
+        const text_replace_util = b.addExecutable(.{
+            .name = "text_replacement",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("build/text_replace.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+        var run_sdl_mixer_patch = b.addRunArtifact(text_replace_util);
+        run_sdl_mixer_patch.addFileArg(b.graph.path(.install_prefix, "android/app/jni/SDL_mixer/Android.mk"));
+        run_sdl_mixer_patch.addArg("SUPPORT_FLAC_DRFLAC ?= true");
+        run_sdl_mixer_patch.addArg("SUPPORT_FLAC_DRFLAC ?= false");
+        run_sdl_mixer_patch.addArg("SUPPORT_WAVPACK ?= true");
+        run_sdl_mixer_patch.addArg("SUPPORT_WAVPACK ?= false");
+        run_sdl_mixer_patch.addArg("SUPPORT_MP3_DRMP3 ?= true");
+        run_sdl_mixer_patch.addArg("SUPPORT_MP3_DRMP3 ?= false");
+
+        run_sdl_mixer_patch.has_side_effects = true;
+        run_sdl_mixer_patch.step.dependOn(&do_copy_sdl_mixer.step);
+
+        // Ammend the android template with project information
+        var patch_android_template = b.step("patch_android_template", "Update the android template");
+        patch_android_template.dependOn(copy_android_template);
+        patch_android_template.dependOn(&run_sdl_mixer_patch.step);
+        const android_update_exe = b.addExecutable(.{
+            .name = "android_template_update",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("build/android_template_update.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+        var run_android_update = b.addRunArtifact(android_update_exe);
+        run_android_update.addFileArg(b.graph.path(.install_prefix, "android/"));
+        run_android_update.addFileArg(b.path("libc.txt"));
+        run_android_update.addArg(android_app_name orelse "Example");
+        run_android_update.addArg(android_app_version orelse "1");
+        run_android_update.addArg(android_app_id orelse "org.example.app");
+        run_android_update.addArg(try androidTriple(&android_target.result));
+        run_android_update.has_side_effects = true;
+        run_android_update.step.dependOn(copy_android_template);
+        patch_android_template.dependOn(&run_android_update.step);
+
+        if (!b.graph.environ_map.contains("ANDROID_NDK_HOME") and !b.graph.environ_map.contains("ANDROID_SDK_ROOT")) {
+            run_android_update.step.dependOn(&b.addFail("The `android` build step requires ANDROID_NDK_HOME or ANDROID_SDK_ROOT to be set.").step);
+        }
+        export_android_template.dependOn(copy_android_template);
+        export_android_template.dependOn(&run_sdl_mixer_patch.step);
+        export_android_template.dependOn(&run_android_update.step);
+        export_android_template.dependOn(patch_android_template);
+
+        if (android_app_bundle) |name| {
+            copyStep(b, patch_android_template, copy_android_template, name, "android/app/src/main/assets/app_bundle.bd");
+        } else {
+            //std.log.warn("No ios_app_bundle set", .{});
+        }
+
+        const copy = .{
+            .{ android_icon, "android/app/src/main/ic_launcher-playstore.png" },
+            .{ android_icon, "android/app/src/main/ic_launcher-playstore.png" },
+            .{ android_icon_rounded_192, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" },
+            .{ android_icon_rounded_192, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" },
+            .{ android_icon_rounded_144, "android/app/src/main/res/mipmap-xxhdpi/ic_launcher.webp" },
+            .{ android_icon_rounded_96, "android/app/src/main/res/mipmap-xhdpi/ic_launcher.webp" },
+            .{ android_icon_rounded_72, "android/app/src/main/res/mipmap-hdpi/ic_launcher.webp" },
+            .{ android_icon_rounded_48, "android/app/src/main/res/mipmap-mdpi/ic_launcher.webp" },
+            .{ android_icon_circle_48, "android/app/src/main/res/mipmap-mdpi/ic_launcher_round.webp" },
+            .{ android_icon_circle_96, "android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.webp" },
+            .{ android_icon_circle_72, "android/app/src/main/res/mipmap-hdpi/ic_launcher_round.webp" },
+            .{ android_icon_circle_192, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" },
+            .{ android_icon_circle_192, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" },
+            .{ android_icon_circle_144, "android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp" },
+            .{ android_icon_foreground_432, "android/app/src/main/res/mipmap/ic_launcher_foreground.webp" },
+            .{ android_icon_foreground_432, "android/app/src/main/res/mipmap/icon_foreground.webp" },
+            .{ android_icon_foreground_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp" },
+            .{ android_icon_foreground_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.webp" },
+            .{ android_icon_foreground_324, "android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.webp" },
+            .{ android_icon_foreground_216, "android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.webp" },
+            .{ android_icon_foreground_162, "android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.webp" },
+            .{ android_icon_foreground_108, "android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.webp" },
+            .{ android_icon_background_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp" },
+            .{ android_icon_background_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.webp" },
+            .{ android_icon_background_432, "android/app/src/main/res/mipmap/ic_launcher_background.webp" },
+            .{ android_icon_background_432, "android/app/src/main/res/mipmap/icon_background.webp" },
+            .{ android_icon_background_324, "android/app/src/main/res/mipmap-xxhdpi/ic_launcher_background.webp" },
+            .{ android_icon_background_216, "android/app/src/main/res/mipmap-xhdpi/ic_launcher_background.webp" },
+            .{ android_icon_background_162, "android/app/src/main/res/mipmap-hdpi/ic_launcher_background.webp" },
+            .{ android_icon_background_108, "android/app/src/main/res/mipmap-mdpi/ic_launcher_background.webp" },
+        };
+
+        inline for (copy) |cp| {
+            if (cp[0]) |src| {
+                copyStepP(b, export_android_template, patch_android_template, src, cp[1]);
+            }
+        }
+    }
 }
 
 fn copyStep(b: *std.Build, before: *std.Build.Step, after: *std.Build.Step, src: []const u8, dst: []const u8) void {
@@ -361,3 +520,4 @@ const debug = std.log.debug;
 const Translator = @import("translate_c").Translator;
 
 const platforms = @import("build/platforms.zig");
+const androidTriple = @import("build/android_template_update.zig").androidTriple;

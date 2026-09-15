@@ -36,7 +36,7 @@ pub fn getSystemPaths(
         },
         .linux => {
             if (target.result.abi.isAndroid()) {
-                if (FindNDK.find(b.graph.io, b.graph.environ_map) catch null) |android_ndk| {
+                if (FindNDK.find(b.graph.io, &b.graph.environ_map) catch null) |android_ndk| {
                     systemPaths[0] = .{ .cwd_relative = b.pathJoin(&.{
                         android_ndk,
                         "toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/",
@@ -127,4 +127,4 @@ pub fn addSystemPathsToModule(
     }
 }
 
-const FindNDK = @import("find_ndk.zig").FindNDK;
+const FindNDK = @import("FindNDK.zig").FindNDK;
