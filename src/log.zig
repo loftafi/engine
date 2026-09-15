@@ -20,6 +20,19 @@ pub const Level = enum {
     warn,
     err,
     alert,
+
+    fn toSdlLogPriority(self: Level) c_uint {
+        return switch (self) {
+            .trace => sdl.SDL_LOG_PRIORITY_TRACE,
+            //.trace => sdl.SDL_LOG_PRIORITY_VERBOSE,
+            .debug => sdl.SDL_LOG_PRIORITY_DEBUG,
+            .info => sdl.SDL_LOG_PRIORITY_INFO,
+            .warn => sdl.SDL_LOG_PRIORITY_WARN,
+            .err => sdl.SDL_LOG_PRIORITY_ERROR,
+            .alert => sdl.SDL_LOG_PRIORITY_CRITICAL,
+            else => sdl.SDL_LOG_PRIORITY_INVALID,
+        };
+    }
 };
 
 const max_log_message_size = 5000;
@@ -44,7 +57,7 @@ pub fn Log(size: usize) type {
         /// helpful during active development. `trace` is only available
         /// in `Debug` builds when `engine.dev_mode` is enabled.
         pub inline fn trace(self: *Self, comptime format: []const u8, args: anytype) void {
-            if (dev_build and engine.dev_mode)
+            if (dev_build and engine.dev_mode and builtin.mode == .Debug)
                 self.log(.trace, format, args);
         }
 
@@ -115,7 +128,7 @@ pub fn Log(size: usize) type {
 /// helpful during active development. `trace` is only available
 /// in `Debug` builds when `engine.dev_mode` is enabled.
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
-    if (dev_build and engine.dev_mode)
+    if (dev_build and engine.dev_mode and builtin.mode == .Debug)
         formatted_log_output(.trace, .engine, format, args);
 }
 
@@ -127,7 +140,7 @@ pub inline fn trace(comptime format: []const u8, args: anytype) void {
 /// size or screen resolution to allow support staff to understand what
 /// actions might have lead to an unexpected program state.
 pub inline fn debug(comptime format: []const u8, args: anytype) void {
-    if (engine.dev_mode) {
+    if (engine.dev_mode or builtin.mode == .Debug) {
         formatted_log_output(.debug, .engine, format, args);
     }
 }
@@ -213,7 +226,7 @@ fn formatted_log_output(
     _ = scope;
 
     if (level == .trace and !dev_build) return;
-    if (level == .debug and engine.dev_mode != true) return;
+    if (level == .debug and (engine.dev_mode == false and builtin.mode != .Debug)) return;
     if (builtin.is_test) return;
 
     var buffer: [max_log_message_size]u8 = undefined;
@@ -241,7 +254,13 @@ fn formatted_log_output(
             nosuspend stderr.writeAll(msg.buffered()) catch return;
             stderr.flush() catch {};
         },
-        .android, .ios => {
+        .android => {
+            const sdl_level = level.toSdlLogPriority();
+            msg.print(format, args) catch return;
+            msg.writeByte(0) catch return;
+            sdl.SDL_LogMessage(@intFromEnum(SdlLogCategory.application), sdl_level, msg.buffered().ptr);
+        },
+        .ios => {
             // android and iOS use SDL_LogInfo
             const prefix = switch (level) {
                 .trace => "trace: ",
@@ -334,6 +353,21 @@ const SdlLogPriority = enum(c_uint) {
 
     fn fromInt(priority: c_uint) SdlLogPriority {
         return std.enums.fromInt(SdlLogPriority, priority) orelse .unknown;
+    }
+
+    fn toSdlLogPriority(self: SdlLogPriority) c_uint {
+        return switch (self) {
+            .invalid => sdl.SDL_LOG_PRIORITY_INVALID,
+            .trace => sdl.SDL_LOG_PRIORITY_TRACE,
+            .verbose => sdl.SDL_LOG_PRIORITY_VERBOSE,
+            .debug => sdl.SDL_LOG_PRIORITY_DEBUG,
+            .info => sdl.SDL_LOG_PRIORITY_INFO,
+            .warn => sdl.SDL_LOG_PRIORITY_WARN,
+            .err => sdl.SDL_LOG_PRIORITY_ERROR,
+            .critical => sdl.SDL_LOG_PRIORITY_CRITICAL,
+            .count => sdl.SDL_LOG_PRIORITY_COUNT,
+            else => 9999,
+        };
     }
 };
 

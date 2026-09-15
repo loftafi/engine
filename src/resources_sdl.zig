@@ -319,7 +319,7 @@ pub fn deletePreferenceData(
     config: *const engine.Config,
     filename: []const u8,
 ) error{OutOfMemory}!void {
-    const preference_file = try make_preference_file_path(gpa, config, filename);
+    const preference_file = try getUserPreferencesPath(gpa, config, filename);
     defer gpa.free(preference_file);
     if (!sdl.SDL_GetPathInfo(preference_file.ptr, null)) return;
     _ = sdl.SDL_RemovePath(preference_file.ptr);
@@ -335,21 +335,25 @@ pub fn loadPreferenceData(
     config: *const engine.Config,
     filename: []const u8,
 ) error{ OutOfMemory, ResourceReadError }!?[]const u8 {
-    const name = try make_preference_file_path(gpa, config, filename);
+    const name = try getUserPreferencesPath(gpa, config, filename);
     defer gpa.free(name);
 
     if (load_folder_file_bytes(gpa, name)) |data| {
         if (data != null) {
-            info("Loaded preferences file: {s} len={d}", .{ name, data.?.len });
+            info("Loaded local file='{s}' len={d}", .{ name, data.?.len });
             return data.?;
         }
-        debug("Read preferences file not found. {s}", .{name});
+        debug("Local file not found. file='{s}'", .{name});
     } else |e| {
-        warn("Read preferences file failed. {s} {any}", .{ name, e });
+        warn("Read preferences file failed. file='{s}' error='{any}'", .{ name, e });
         return error.ResourceReadError;
     }
 
-    const alt_name = try make_documents_file_path(gpa, filename);
+    const alt_name = try getUserDocumentsPath(gpa, filename);
+    if (alt_name.len == 0) {
+        info("local file not found. {s}", .{name});
+        return null;
+    }
     defer gpa.free(alt_name);
 
     debug("Fallback to loading file: {s}", .{alt_name});
@@ -364,18 +368,27 @@ pub fn loadPreferenceData(
     }
 
     // Preference file does not exist in preference or documents folder.
-    info("Preferences file not found. {s}", .{name});
+    info("local file not found. {s}", .{name});
     return null;
 }
 
-fn make_documents_file_path(
+/// Get the system user documents folder. This folder and it's contents are
+/// usuaally visible to the user. On Android this fails and returns "".
+///
+/// For example:
+///
+///  - /Users/user/Documents
+///
+fn getUserDocumentsPath(
     gpa: Allocator,
     filename: []const u8,
 ) error{OutOfMemory}![:0]const u8 {
     const path = sdl.SDL_GetUserFolder(sdl.SDL_FOLDER_DOCUMENTS);
+    if (path == 0) {
+        warn("No SDL_FOLDER_DOCUMENTS available", .{});
+        return "";
+    }
     const zpath = std.mem.sliceTo(path, 0);
-    //info("Document path: {s} -> {s}", .{ zpath, filename });
-
     var file: std.ArrayListUnmanaged(u8) = .empty;
     try file.appendSlice(gpa, zpath);
     if (file.items[file.items.len - 1] != '/' and file.items[file.items.len - 1] != '\\')
@@ -384,7 +397,16 @@ fn make_documents_file_path(
     return file.toOwnedSliceSentinel(gpa, 0);
 }
 
-fn make_preference_file_path(
+/// Get the user application preferences folder. This folder and it's contents
+/// are not usually visible to the user.
+///
+/// For example:
+///
+/// - /home/user/.local/share/My App
+/// - /Users/user/Library/Application Support/My Company/My App
+/// - C:\Users\user\AppData\Roaming\My Company\My App
+///
+fn getUserPreferencesPath(
     gpa: Allocator,
     config: *const engine.Config,
     filename: []const u8,

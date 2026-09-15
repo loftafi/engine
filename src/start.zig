@@ -1,25 +1,73 @@
-var zig_init: *const std.process.Init = undefined;
-var startup_handler: *const fn (*const std.process.Init) error{ OutOfMemory, AppInitFailed }!*Display = undefined;
-var shutdown_handler: *const fn (*const std.process.Init) void = undefined;
+const native_arch = builtin.cpu.arch;
+const native_os = builtin.os.tag;
+const is_wasm = native_arch.isWasm();
+
+const use_safe_allocator = !is_wasm and switch (builtin.mode) {
+    .Debug, .ReleaseSafe => true,
+    .ReleaseFast, .ReleaseSmall => !builtin.link_libc and builtin.single_threaded, // Also not ideal.
+};
+var safe_allocator: std.heap.SafeAllocator = .init(std.heap.page_allocator, .{});
+
+const builtin = @import("builtin");
+
+var zig_io: std.Io.Threaded = undefined;
+
+var gpa = if (builtin.mode == .Debug)
+    safe_allocator.allocator()
+else if (builtin.link_libc)
+    std.heap.c_allocator
+else if (is_wasm)
+    std.heap.wasm_allocator
+else if (!builtin.single_threaded)
+    std.heap.smp_allocator
+else
+    unreachable;
+
+const arena_backing_allocator = if (is_wasm) gpa else std.heap.page_allocator;
+var arena_allocator = std.heap.ArenaAllocator.init(arena_backing_allocator);
+
+pub var startup_handler: *const fn (
+    std.mem.Allocator,
+    std.mem.Allocator,
+    std.Io,
+    []const [*:0]const u8, //args: std.process.Args,
+) error{ OutOfMemory, AppInitFailed }!*Display = undefined;
+
+pub var shutdown_handler: *const fn (
+    std.mem.Allocator,
+    std.mem.Allocator,
+    std.Io,
+) void = undefined;
 
 /// When app/binary is executed, SDL takes over the process and calls back
 /// with init, quit, iterate, and event handlers.
 pub fn start(
-    init: *const std.process.Init,
-    startup: *const fn (*const std.process.Init) error{ OutOfMemory, AppInitFailed }!*Display,
-    shutdown: *const fn (*const std.process.Init) void,
-) void {
-    zig_init = init;
+    startup: @TypeOf(startup_handler),
+    shutdown: @TypeOf(shutdown_handler),
+    args: std.process.Args,
+) Allocator.Error!void {
     startup_handler = startup;
     shutdown_handler = shutdown;
-    var none: [0:null]?[*:0]u8 = .{};
-    _ = sdl.SDL_RunApp(0, @ptrCast(&none), runapp_callback, null);
+
+    var list: std.ArrayListUnmanaged(?[*:0]const u8) = .empty;
+    var iter = try args.iterateAllocator(arena_allocator.allocator());
+    while (iter.next()) |arg| {
+        try list.append(arena_allocator.allocator(), arg);
+    }
+    try list.append(arena_allocator.allocator(), null);
+
+    _ = sdl.SDL_RunApp(
+        @intCast(list.items.len - 1),
+        @ptrCast(&list.items[0]),
+        runapp_callback,
+        null,
+    );
 }
 
-pub export fn runapp_callback(argc: c_int, argv: ?[*:null]?[*:0]u8) callconv(.c) c_int {
+pub fn runapp_callback(argc: c_int, argv: [*c][*c]u8) callconv(.c) c_int {
     return sdl.SDL_EnterAppMainCallbacks(
         argc,
-        @ptrCast(argv.?[0..@intCast(argc)]),
+        argv,
         AppInitC,
         AppIterateC,
         AppEventC,
@@ -27,34 +75,50 @@ pub export fn runapp_callback(argc: c_int, argv: ?[*:null]?[*:0]u8) callconv(.c)
     );
 }
 
-//SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]);
-//pub export fn AppInit(appstate: **void, argc: c_int, argv: [*:null]const ?[*:0]const u8) callconv(.c) c_int {
-pub export fn AppInitC(appstate: ?*?*anyopaque, argc: c_int, argv: ?[*:null]?[*:0]u8) callconv(.c) sdl.SDL_AppResult {
+pub fn AppInitC(
+    appstate: [*c]?*anyopaque,
+    argc: c_int,
+    argv: [*c][*c]u8, // [*:null]?[*:0]u8
+) callconv(.c) sdl.SDL_AppResult {
     debug("App Init event recieved.", .{});
-    //var display: *Display = @ptrCast(appstate.?);
-    appstate.?.* = startup_handler(zig_init) catch return sdl.SDL_APP_FAILURE;
-    _ = argc;
-    _ = argv;
+
+    zig_io = .init(gpa, .{
+        .argv0 = .empty, //.init(.{ .vector = .empty }),
+        .environ = .{ .block = .empty },
+    });
+
+    const args = @as([]const [*:0]const u8, @ptrCast(argv[0..@intCast(argc)]));
+    appstate.?.* = startup_handler(
+        gpa,
+        arena_allocator.allocator(),
+        zig_io.io(),
+        args,
+    ) catch return sdl.SDL_APP_FAILURE;
 
     return sdl.SDL_APP_CONTINUE;
 }
 
-//void SDL_AppQuit(void *appstate, SDL_AppResult result);
-//pub export fn AppQuit(appstate: **void, result: c_int) callconv(.c) c_int {
-pub export fn AppQuitC(appstate: ?*anyopaque, result: sdl.SDL_AppResult) callconv(.c) void {
+pub fn AppQuitC(
+    appstate: ?*anyopaque,
+    result: sdl.SDL_AppResult,
+) callconv(.c) void {
     const display: *Display = @ptrCast(@alignCast(appstate.?));
 
     debug("App Quit event recieved.", .{});
 
-    shutdown_handler(zig_init);
+    shutdown_handler(gpa, arena_allocator.allocator(), zig_io.io());
+
+    zig_io.deinit();
+    defer arena_allocator.deinit();
+    if (use_safe_allocator) {
+        _ = safe_allocator.deinit();
+    }
 
     _ = display;
     _ = result;
 }
 
-//SDL_AppResult SDL_AppIterate(void *appstate);
-//pub export fn AppIterate(appstate: **void) callconv(.c) c_int {
-pub export fn AppIterateC(appstate: ?*anyopaque) callconv(.c) sdl.SDL_AppResult {
+pub fn AppIterateC(appstate: ?*anyopaque) callconv(.c) sdl.SDL_AppResult {
     var display: *Display = @ptrCast(@alignCast(appstate.?));
 
     display.iterate() catch |e| {
@@ -67,9 +131,7 @@ pub export fn AppIterateC(appstate: ?*anyopaque) callconv(.c) sdl.SDL_AppResult 
         return sdl.SDL_APP_CONTINUE;
 }
 
-//SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event);
-//pub export fn AppEvent(appstate: **void, event: *sdl.SDL_Event) callconv(.c) c_int {
-pub export fn AppEventC(appstate: ?*anyopaque, event: ?*sdl.SDL_Event) callconv(.c) sdl.SDL_AppResult {
+pub fn AppEventC(appstate: ?*anyopaque, event: ?*sdl.SDL_Event) callconv(.c) sdl.SDL_AppResult {
     var display: *Display = @ptrCast(@alignCast(appstate.?));
 
     if (event) |e| {
@@ -85,6 +147,7 @@ pub export fn AppEventC(appstate: ?*anyopaque, event: ?*sdl.SDL_Event) callconv(
 }
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const engine = @import("engine.zig");
 const Display = engine.Display;

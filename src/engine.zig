@@ -415,8 +415,6 @@ pub const Audio = @import("Audio.zig");
 pub const Event = @import("Event.zig");
 pub const seconds = Animator.seconds;
 
-pub const start = @import("start.zig").start;
-
 const praxis = @import("praxis");
 const Lang = @import("praxis").Lang;
 const mixer = @import("mixer");
@@ -472,3 +470,9 @@ pub const loadResourceSdl = resources_sdl.loadResourceSdl;
 pub const loadPreferenceData = resources_sdl.loadPreferenceData;
 pub const deletePreferenceData = resources_sdl.deletePreferenceData;
 pub const savePreferenceData = resources_sdl.savePreferenceData;
+
+pub const start = @import("start.zig");
+pub const AppInitC = start.AppInitC;
+pub const AppQuitC = start.AppQuitC;
+pub const AppEventC = start.AppEventC;
+pub const AppIterateC = start.AppIterateC;

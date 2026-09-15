@@ -84,9 +84,9 @@ scroll_initial_offset: Vector = .{ .x = 0, .y = 0 },
 /// Some devices have screen notches and cutouts.
 safe_area: Clip = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 },
 
-/// Deduplicate safe area change updates by remembering the
-/// old safe area information.
-old_safe_area: sdl.SDL_Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
+/// Most recently read safe area reported by the operating system. Used to
+/// detect if the safe area has changed.
+physical_safe_area: sdl.SDL_Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
 
 /// One user interface entity may be marked as selected to recieve
 /// keyboard input
@@ -241,7 +241,7 @@ pub fn create(
         if (config.height == 0) 800 else @intCast(config.height),
         sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY | gui_flags,
     ) orelse {
-        err("No Window created. {s}", .{sdl.SDL_GetError()});
+        err("SDL_CreateWindow failed: {s}", .{sdl.SDL_GetError()});
         return error.WindowCreationFailed;
     };
     _ = sdl.SDL_SetWindowMinimumSize(
@@ -889,7 +889,7 @@ pub fn relayoutCount(display: *Display, count: u8) void {
         if (display.on_resized.call(display, &display.root)) {
             _ = display.root.type.panel.layout(display, &display.root);
         }
-        const child_resized = display.propagate_resize_event(&display.root);
+        const child_resized = display.propagateResizeEvent(&display.root);
         if (child_resized) {
             display.need_relayout = true;
             if (count == 10) {
@@ -2296,8 +2296,8 @@ pub inline fn updateScreenMetrics(display: *Display) void {
     display.calculateSafeArea();
 }
 
-/// Trigger `on_resized` events on each node in the tree.
-fn propagate_resize_event(self: *Display, entity: *Entity) bool {
+/// Trigger `on_resized` events on each child entity in the tree.
+fn propagateResizeEvent(self: *Display, entity: *Entity) bool {
     var updated = false;
     if (entity.visible == .visible)
         updated = entity.on_resized.call(self, entity);
@@ -2305,7 +2305,7 @@ fn propagate_resize_event(self: *Display, entity: *Entity) bool {
     if (entity.type == .panel) {
         for (entity.type.panel.children.items) |child| {
             if (child.visible == .visible) {
-                updated = self.propagate_resize_event(child) or updated;
+                updated = self.propagateResizeEvent(child) or updated;
             }
         }
     }
@@ -2315,33 +2315,45 @@ fn propagate_resize_event(self: *Display, entity: *Entity) bool {
 
 /// Update the safe area metrics and flag if relayout is required.
 fn calculateSafeArea(self: *Display) void {
-    var area: sdl.SDL_Rect = undefined;
-    if (!sdl.SDL_GetWindowSafeArea(self.window, &area)) {
-        err("SDL_GetWindowSafeArea() failed", .{});
+    var new_safe_area: sdl.SDL_Rect = undefined;
+    if (!sdl.SDL_GetWindowSafeArea(self.window, &new_safe_area)) {
+        err("calculateSafeArea() unable to request safe area. (SDL_GetWindowSafeArea failed)", .{});
         return;
     }
 
-    if (self.old_safe_area.x != area.x or
-        self.old_safe_area.y != area.y or
-        self.old_safe_area.w != area.w or
-        self.old_safe_area.h != area.h)
+    if (self.root.rect.width <= 0 or self.root.rect.height <= 0) {
+        // Android phones sometimes send negative safe areas for the
+        // window size. Needs further investigation.
+        warn("calculateSafeArea() aborted due to zero sized window.", .{});
+        return;
+    }
+
+    if (self.physical_safe_area.x != new_safe_area.x or
+        self.physical_safe_area.y != new_safe_area.y or
+        self.physical_safe_area.w != new_safe_area.w or
+        self.physical_safe_area.h != new_safe_area.h)
     {
         // Log when change is detected
         debug("System reported safe area: {d}x{d} {d}x{d}", .{
-            area.x,
-            area.y,
-            area.w,
-            area.h,
+            new_safe_area.x,
+            new_safe_area.y,
+            new_safe_area.w,
+            new_safe_area.h,
         });
-        self.old_safe_area = area;
+        self.physical_safe_area = new_safe_area;
     }
 
     // SDL_GetRenderSafeArea returns physical display pixels, not
     // window pretend pixels.
-    var left_pad = @as(f32, @floatFromInt(area.x)) / self.user_scale;
-    var top_pad = @as(f32, @floatFromInt(area.y)) / self.user_scale;
-    var right_pad = self.root.rect.width - left_pad - @ceil(@as(f32, @floatFromInt(area.w)) / self.user_scale);
-    var bottom_pad = self.root.rect.height - top_pad - @ceil(@as(f32, @floatFromInt(area.h)) / self.user_scale);
+    var left_pad = @as(f32, @floatFromInt(new_safe_area.x)) / self.user_scale;
+    var top_pad = @as(f32, @floatFromInt(new_safe_area.y)) / self.user_scale;
+    var right_pad = self.root.rect.width - left_pad - @ceil(@as(f32, @floatFromInt(new_safe_area.w)) / self.user_scale);
+    var bottom_pad = self.root.rect.height - top_pad - @ceil(@as(f32, @floatFromInt(new_safe_area.h)) / self.user_scale);
+
+    left_pad = @max(0, left_pad);
+    right_pad = @max(0, right_pad);
+    top_pad = @max(0, top_pad);
+    bottom_pad = @max(0, bottom_pad);
 
     if (builtin.abi.isAndroid()) {
         if (top_pad > 0 and bottom_pad > 0) {
@@ -2360,6 +2372,7 @@ fn calculateSafeArea(self: *Display) void {
             }
         }
     }
+
     if (builtin.os.tag == .ios) {
         const id = sdl.SDL_GetDisplayForWindow(self.window);
         const orientation = sdl.SDL_GetCurrentDisplayOrientation(id);
@@ -3057,7 +3070,7 @@ pub fn dumpFonts(
     }
 }
 
-/// Dump all currently visible on screen elements to the log.
+/// Dump all currently visible on screen entities to the log.
 pub fn dumpEntities(
     self: *Display,
     _: *Display,
