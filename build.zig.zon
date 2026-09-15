@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.40.0",
+    .version = "0.40.1",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
@@ -25,8 +25,24 @@
             .hash = "TrueType-2.0.0-Ne-mWFx1AQCFjSOoGeTbEftPraXV6E9bZ2eOwcIUfnec",
         },
         .zig_objc = .{
+            // Used on iOS/macOS to register local notifications
             .url = "git+https://github.com/loftafi/zig-objc#3352c12a868f8787ab71bf2ca6eab9fcfb635c52",
             .hash = "zig_objc-0.0.0-Ir_Sp_4tAQDXtPi51nW_jD9LOEzBvU9lofwO9Pzi6IB4",
+        },
+        //.sdl = .{
+        //    .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.4.16.tar.gz",
+        //    .hash = "N-V-__8AABHq9wIiTHGY4qR6mw45F_TX8FSvqsQQ-Wtq1tzY",
+        //    .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.2.30.tar.gz",
+        //    .hash = "N-V-__8AAB0JjQOa6NvVLTf1LYdwC3IIX502jpuNgQ7_au3Z",
+        //    .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.2.10.tar.gz",
+        //    .hash = "N-V-__8AANnIigPc2ohHTIv1zbGQOlBg6zmA3mslMH9M7x2E",
+        //    .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/preview-3.3.2.tar.gz",
+        //    .hash = "N-V-__8AAHvu7AJWj3-7C0e_EwY36hXYwvRYvcp8BWxVj4Xm",
+        //},
+        .sdl_mixer = .{
+            // Required by the android template if `zig build android` is requested.
+            .url = "https://github.com/libsdl-org/SDL_mixer/archive/refs/tags/release-3.2.4.tar.gz",
+            .hash = "N-V-__8AADpm6wBISpVEXBiXyYZNjm0JDAI2qa8lydmFKm4W",
         },
     },
     .paths = .{
