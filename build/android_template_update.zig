@@ -42,7 +42,10 @@ pub fn main(init: std.process.Init) !void {
         android_target,
         libc_file,
         ndk_path.?,
-    ) catch @panic("failed to generate libc.txt");
+    ) catch |e| {
+        std.log.err("failed to generate libc.txt file='{s}' in folder='{s}'. err={t}", .{ libc_file, install_path, e });
+        @panic("failed to generate libc.txt");
+    };
 
     try updateAndroidMetadata(
         init.gpa,

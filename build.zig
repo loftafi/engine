@@ -131,7 +131,7 @@ pub fn build(b: *std.Build) !void {
         export_xcode_template.dependOn(patch_xcode_template);
 
         if (ios_app_bundle) |name| {
-            copyStep(b, patch_xcode_template, copy_xcode_template, name, "xcode/Dialectos/app_bundle.bd");
+            copyRootStep(b, patch_xcode_template, copy_xcode_template, name, "xcode/Dialectos/app_bundle.bd");
         } else {
             //std.log.warn("No ios_app_bundle set", .{});
         }
@@ -189,6 +189,16 @@ pub fn build(b: *std.Build) !void {
         const android_icon_background_216 = b.option(std.Build.LazyPath, "android_icon_background_216", "Foreground 96px android icon png.");
         const android_icon_background_162 = b.option(std.Build.LazyPath, "android_icon_background_162", "Foreground 72px android icon png.");
         const android_icon_background_108 = b.option(std.Build.LazyPath, "android_icon_background_108", "Foreground 48px android icon png.");
+
+        if (android_app_name == null) {
+            export_android_template.dependOn(&b.addFail("Specify -Dandroid_app_name to build ios package.").step);
+        }
+        if (android_app_version == null) {
+            export_android_template.dependOn(&b.addFail("Specify -Dandroid_app_version to build ios package.").step);
+        }
+        if (android_app_id == null) {
+            export_android_template.dependOn(&b.addFail("Specify -Dandroid_app_id to build ios package.").step);
+        }
 
         // Copy the android template
         var copy_android_template = b.step("android_template_copy", "Copy android template");
@@ -252,7 +262,7 @@ pub fn build(b: *std.Build) !void {
         });
         var run_android_update = b.addRunArtifact(android_update_exe);
         run_android_update.addFileArg(b.graph.path(.install_prefix, "android/"));
-        run_android_update.addFileArg(b.path("libc.txt"));
+        run_android_update.addArg("libc.txt");
         run_android_update.addArg(android_app_name orelse "Example");
         run_android_update.addArg(android_app_version orelse "1");
         run_android_update.addArg(android_app_id orelse "org.example.app");
@@ -270,7 +280,7 @@ pub fn build(b: *std.Build) !void {
         export_android_template.dependOn(patch_android_template);
 
         if (android_app_bundle) |name| {
-            copyStep(b, patch_android_template, copy_android_template, name, "android/app/src/main/assets/app_bundle.bd");
+            copyRootStep(b, patch_android_template, copy_android_template, name, "android/app/src/main/assets/app_bundle.bd");
         } else {
             //std.log.warn("No ios_app_bundle set", .{});
         }
@@ -316,13 +326,25 @@ pub fn build(b: *std.Build) !void {
     }
 }
 
-fn copyStep(b: *std.Build, before: *std.Build.Step, after: *std.Build.Step, src: []const u8, dst: []const u8) void {
+fn copyRootStep(
+    b: *std.Build,
+    before: *std.Build.Step,
+    after: *std.Build.Step,
+    src: []const u8,
+    dst: []const u8,
+) void {
     var cp = b.addInstallFile(b.graph.path(.install_prefix, src), dst);
     cp.step.dependOn(after);
     before.dependOn(&cp.step);
 }
 
-fn copyStepP(b: *std.Build, before: *std.Build.Step, after: *std.Build.Step, src: std.Build.LazyPath, dst: []const u8) void {
+fn copyStepP(
+    b: *std.Build,
+    before: *std.Build.Step,
+    after: *std.Build.Step,
+    src: std.Build.LazyPath,
+    dst: []const u8,
+) void {
     var cp = b.addInstallFile(src, dst);
     cp.step.dependOn(after);
     before.dependOn(&cp.step);
