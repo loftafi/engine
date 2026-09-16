@@ -2260,7 +2260,7 @@ pub inline fn updateScreenMetrics(display: *Display) void {
     if (old_display_scale != display.scale) updated = true;
 
     if (updated or engine.dev_build or engine.dev_mode) {
-        debug("window update {d}x{d} ({d}) => {d}x{d} ({d}) scale={d} (mouse_scale={d}, user_scale={d})", .{
+        info("window resized {d}x{d} (scale={d}) => {d}x{d} ({d}) (scale={d}) mouse_scale={d} user_scale={d}", .{
             display.root.rect.width,
             display.root.rect.height,
             old_display_scale,
@@ -2279,7 +2279,7 @@ pub inline fn updateScreenMetrics(display: *Display) void {
         const display_id = sdl.SDL_GetDisplayForWindow(display.window);
         display.controller_scale = sdl.SDL_GetDisplayContentScale(display_id);
         if (display.controller_scale != old_controller_scale) {
-            info("mouse/controller scale {d} => {d}", .{
+            info("Mouse/Controller scale change {d} => {d}", .{
                 old_controller_scale,
                 display.controller_scale,
             });
@@ -2334,7 +2334,7 @@ fn calculateSafeArea(self: *Display) void {
         self.physical_safe_area.h != new_safe_area.h)
     {
         // Log when change is detected
-        debug("System reported safe area: {d}x{d} {d}x{d}", .{
+        info("safe area changed: {d}x{d} {d}x{d}", .{
             new_safe_area.x,
             new_safe_area.y,
             new_safe_area.w,
@@ -2358,13 +2358,13 @@ fn calculateSafeArea(self: *Display) void {
     if (builtin.abi.isAndroid()) {
         if (top_pad > 0 and bottom_pad > 0) {
             if (top_pad > bottom_pad) {
-                debug("Android safe area hack {d},{d} -=> {d},{d}", .{
+                info("Android safe area hack {d},{d} -=> {d},{d}", .{
                     top_pad, bottom_pad,
                     0,       bottom_pad,
                 });
                 top_pad = 0;
             } else {
-                debug("Android safe area hack {d},{d} -=> {d},{d}", .{
+                info("Android safe area hack {d},{d} -=> {d},{d}", .{
                     top_pad, bottom_pad,
                     top_pad, 0,
                 });
@@ -2392,7 +2392,7 @@ fn calculateSafeArea(self: *Display) void {
     if (!approxEqAbs(f32, self.safe_area.bottom, bottom_pad, 0.01)) updated = true;
 
     if (updated) {
-        info("safe area changed: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
+        info("safe area updated: {d} {d} {d} {d} -=> {d} {d} {d} {d}", .{
             self.safe_area.left,  self.safe_area.top,
             self.safe_area.right, self.safe_area.bottom,
             left_pad,             top_pad,
