@@ -46,10 +46,10 @@ pub fn headless_display(
     display.safe_area.bottom = 0;
     display.safe_area.left = 0;
     display.safe_area.right = 0;
-    display.old_safe_area.x = 0;
-    display.old_safe_area.y = 0;
-    display.old_safe_area.w = @intFromFloat(width);
-    display.old_safe_area.h = @intFromFloat(height);
+    display.physical_safe_area.x = 0;
+    display.physical_safe_area.y = 0;
+    display.physical_safe_area.w = @intFromFloat(width);
+    display.physical_safe_area.h = @intFromFloat(height);
 
     display.root.name = "root";
 

@@ -446,7 +446,7 @@ pub fn create(
     }
 
     display.updateSystemTheme();
-    display.updateScreenMetrics();
+    display.updateScreenMetrics(0);
 
     return display;
 }
@@ -743,7 +743,7 @@ pub fn choosePanel(
     if (self.selected) |selected| {
         selected.deselected(self, event);
     }
-    self.updateScreenMetrics();
+    self.updateScreenMetrics(0);
     if (found == null) {
         warn("choosePanel() did not find panel. name={s}", .{name});
     } else {
@@ -2236,8 +2236,14 @@ inline fn handleKeyDownEvent(_: *Display, _: *sdl.SDL_Event) !void {
 
 /// Refresh the window size information, then refresh the
 /// safe area information.
-pub inline fn updateScreenMetrics(display: *Display) void {
-    trace("updateScreenMetrics requested", .{});
+pub inline fn updateScreenMetrics(display: *Display, event_code: usize) void {
+    info("updateScreenMetrics requested {s}", .{switch (event_code) {
+        sdl.SDL_EVENT_DISPLAY_ORIENTATION => "SDL_EVENT_DISPLAY_ORIENTATION", //       0x151 / 337
+        sdl.SDL_EVENT_WINDOW_RESIZED => "SDL_EVENT_WINDOW_RESIZED", //            0x206 / 518
+        sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED => "SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED", // 0x207 / 519
+        sdl.SDL_EVENT_WINDOW_SAFE_AREA_CHANGED => "SDL_EVENT_WINDOW_SAFE_AREA_CHANGED", //  0x215 / 533
+        else => "",
+    }});
     var updated = false;
 
     var width: c_int = 0;
@@ -2252,6 +2258,11 @@ pub inline fn updateScreenMetrics(display: *Display) void {
     // logical width and height
     const logical_width: f32 = @ceil(@as(f32, @floatFromInt(width)) / display.scale);
     const logical_height: f32 = @ceil(@as(f32, @floatFromInt(height)) / display.scale);
+
+    if (width == 0 or height == 0) {
+        warn("Window has no area/pixels/size. {d}x{d}", .{ width, height });
+        updated = true;
+    }
 
     if (display.root.rect.width != logical_width) updated = true;
     if (display.root.rect.height != logical_height) updated = true;
@@ -2356,10 +2367,10 @@ fn calculateSafeArea(self: *Display) void {
     bottom_pad = @max(0, bottom_pad);
 
     if (builtin.abi.isAndroid()) {
-        left_pad /= self.display_scale;
-        right_pad /= self.display_scale;
-        top_pad /= self.display_scale;
-        bottom_pad /= self.display_scale;
+        left_pad = @round(left_pad / self.display_scale);
+        right_pad = @round(right_pad / self.display_scale);
+        top_pad = @round(top_pad / self.display_scale);
+        bottom_pad = @round(bottom_pad / self.display_scale);
         if (top_pad > 0 and bottom_pad > 0) {
             if (top_pad > bottom_pad) {
                 info("Android safe area hack {d},{d} -=> {d},{d}", .{
@@ -2760,11 +2771,11 @@ pub fn handleEvent(
         sdl.SDL_EVENT_MOUSE_MOTION => try self.handleMouseMotionEvent(e),
 
         sdl.SDL_EVENT_SYSTEM_THEME_CHANGED => self.updateSystemTheme(),
-        sdl.SDL_EVENT_WINDOW_RESIZED,
-        sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED,
-        sdl.SDL_EVENT_DISPLAY_ORIENTATION,
-        sdl.SDL_EVENT_WINDOW_SAFE_AREA_CHANGED,
-        => self.updateScreenMetrics(),
+        sdl.SDL_EVENT_DISPLAY_ORIENTATION, //       0x151 / 337
+        sdl.SDL_EVENT_WINDOW_RESIZED, //            0x206 / 518
+        sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED, // 0x207 / 519
+        sdl.SDL_EVENT_WINDOW_SAFE_AREA_CHANGED, //  0x215 / 533
+        => self.updateScreenMetrics(e.type),
 
         sdl.SDL_EVENT_QUIT => self.endMainLoop(),
 
@@ -2799,7 +2810,7 @@ pub fn setUserScale(display: *Display, scale: Scale) void {
     else
         display.user_scale = scale.float();
     display.scale = display.display_scale * display.user_scale;
-    display.updateScreenMetrics();
+    display.updateScreenMetrics(0);
     display.need_relayout = true;
 }
 
@@ -2987,7 +2998,7 @@ pub fn increaseSize(
         if (engine.dev_build or engine.dev_mode) 1.5 else 1.25
     else if (engine.dev_build or engine.dev_mode) 1.5 else 1.25;
 
-    self.updateScreenMetrics();
+    self.updateScreenMetrics(0);
     debug("Increase size. {d}*{d} = {d}", .{
         display.display_scale,
         display.user_scale,
@@ -3012,7 +3023,7 @@ pub fn decreaseSize(
     else if (display.user_scale == 1.5)
         1.25
     else if (engine.dev_build or engine.dev_mode) 0.5 else 0.75;
-    self.updateScreenMetrics();
+    self.updateScreenMetrics(0);
     debug("Decrease size. {d}*{d} = {d}", .{
         display.display_scale,
         display.user_scale,
