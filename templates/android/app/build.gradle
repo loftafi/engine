@@ -6,7 +6,8 @@ def buildWithCMake = project.hasProperty('BUILD_WITH_CMAKE')
 
 android {
     namespace = "org.libsdl.app"
-    compileSdkVersion 35
+    ndkVersion = "30.0.16248370" // Use 28 or higher for 16k page size by default.
+    compileSdkVersion 37
     defaultConfig {
         minSdkVersion 24
         targetSdkVersion 35
