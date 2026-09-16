@@ -2356,6 +2356,10 @@ fn calculateSafeArea(self: *Display) void {
     bottom_pad = @max(0, bottom_pad);
 
     if (builtin.abi.isAndroid()) {
+        left_pad /= self.display_scale;
+        right_pad /= self.display_scale;
+        top_pad /= self.display_scale;
+        bottom_pad /= self.display_scale;
         if (top_pad > 0 and bottom_pad > 0) {
             if (top_pad > bottom_pad) {
                 info("Android safe area hack {d},{d} -=> {d},{d}", .{

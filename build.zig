@@ -245,7 +245,7 @@ pub fn build(b: *std.Build) !void {
         run_sdl_mixer_patch.addArg("SUPPORT_MP3_DRMP3 ?= true");
         run_sdl_mixer_patch.addArg("SUPPORT_MP3_DRMP3 ?= false");
         run_sdl_mixer_patch.addArg("LOCAL_LDFLAGS := ");
-        run_sdl_mixer_patch.addArg("LOCAL_LDFLAGS := -z,max-page-size=16384 -Wl,-z,common-page-size=16384,");
+        run_sdl_mixer_patch.addArg("LOCAL_LDFLAGS := -z,max-page-size=16384 -Wl,-z,common-page-size=16384 ");
 
         run_sdl_mixer_patch.has_side_effects = true;
         run_sdl_mixer_patch.step.dependOn(&do_copy_sdl_mixer.step);
