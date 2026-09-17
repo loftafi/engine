@@ -11,11 +11,11 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("\n", .{});
         std.process.exit(1);
     }
-    std.debug.print("\nFound {d} arguments: ", .{args.len});
-    for (args) |arg| {
-        std.debug.print(" {s} ", .{arg});
-    }
-    std.debug.print("\n", .{});
+    //std.debug.print("\nFound {d} arguments: ", .{args.len});
+    //for (args) |arg| {
+    //    std.debug.print(" {s} ", .{arg});
+    //}
+    //std.debug.print("\n", .{});
 
     const install_path = args[1];
     const libc_file = args[2];
@@ -25,13 +25,13 @@ pub fn main(init: std.process.Init) !void {
     const android_target = args[6];
 
     const ndk_path = FindNDK.find(init.io, init.environ_map) catch |e| {
-        std.log.err("Error while finding NDK. {any}", .{e});
+        err("Error while finding NDK. {any}", .{e});
         return;
     };
     if (ndk_path == null) {
-        std.log.err("Dialectos for android requires the android ndk. Specify ANDROID_NDK_HOME", .{});
+        err("Android ndk required. Specify ANDROID_NDK_HOME", .{});
     } else {
-        std.log.info("Dialectos for android using android ndk in {s}", .{ndk_path.?});
+        info("Using Android ndk {s}", .{ndk_path.?});
     }
 
     var install_dir = try std.Io.Dir.cwd().openDir(init.io, install_path, .{});
@@ -43,7 +43,7 @@ pub fn main(init: std.process.Init) !void {
         libc_file,
         ndk_path.?,
     ) catch |e| {
-        std.log.err("failed to generate libc.txt file='{s}' in folder='{s}'. err={t}", .{ libc_file, install_path, e });
+        err("failed to generate libc.txt file='{s}' in folder='{s}'. err={t}", .{ libc_file, install_path, e });
         @panic("failed to generate libc.txt");
     };
 
@@ -113,9 +113,9 @@ pub fn updateAndroidManifestVariable(
         const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
         _ = try file.writeStreamingAll(io, new_data);
-        std.log.info("Updated android manifest variable {s} = \"{s}\"", .{ key, value });
+        debug("Updated android manifest variable {s} = \"{s}\"", .{ key, value });
     } else |e| {
-        std.log.warn("Error reading android file='{s}'. {any}", .{ filename, e });
+        warn("Error reading android file='{s}'. {any}", .{ filename, e });
     }
 }
 
@@ -142,9 +142,9 @@ pub fn update_android_strings_variable(
         const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
         _ = try file.writeStreamingAll(io, new_data);
-        std.log.info("Updated android manifest variable {s} = \"{s}\"", .{ key, value });
+        debug("Updated android manifest variable {s} = \"{s}\"", .{ key, value });
     } else |e| {
-        std.log.warn("Error reading android manifest file. {any}", .{e});
+        warn("Error reading android manifest file. {any}", .{e});
     }
 }
 
@@ -171,9 +171,9 @@ pub fn updateAndroidGradleVariable(
         const file = try dir.createFile(io, filename, .{});
         defer file.close(io);
         _ = try file.writeStreamingAll(io, new_data);
-        std.log.info("Updated android gradle variable {s} = \"{s}\"", .{ key, value });
+        debug("Updated android gradle variable {s} = \"{s}\"", .{ key, value });
     } else |e| {
-        std.log.warn("Error reading android gradle file. {any}", .{e});
+        warn("Error reading android gradle file. {any}", .{e});
     }
 }
 
@@ -260,6 +260,10 @@ pub fn generateLibC(
     try file.writeStreamingAll(io, libc_txt.written());
 }
 
+pub const std_options: std.Options = .{
+    .log_level = .warn,
+};
+
 test "manifest_version_update" {
     {
         const sample =
@@ -332,5 +336,9 @@ test "gradle_version_update" {
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const debug = std.log.debug;
+const info = std.log.info;
+const warn = std.log.warn;
+const err = std.log.err;
 
 const FindNDK = @import("FindNDK.zig").FindNDK;

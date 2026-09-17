@@ -10,7 +10,7 @@ pub const FindNDK = struct {
         // Firstly just check ANDROID_NDK_HOME
         if (find_android_ndk_home(io, env)) |found| {
             if (found == null) {
-                std.log.debug("ANDROID_NDK_HOME not set", .{});
+                std.log.debug("ANDROID_NDK_HOME not set, try ANDROID_SDK_ROOT", .{});
             } else {
                 ndk = found;
                 return ndk;
@@ -22,7 +22,7 @@ pub const FindNDK = struct {
         // If ANDROID_NDK_HOME, see if we can find ndk in the ANDROID_SDK_ROOT
         if (find_android_sdk_root(io, env)) |d| {
             if (d == null) {
-                std.log.debug("ANDROID_SDK_ROOT not set", .{});
+                std.log.debug("ANDROID_SDK_ROOT not set, try known locations.", .{});
             } else {
                 std.log.debug("ANDROID_SDK_ROOT is set", .{});
                 defer d.?.close(io);
@@ -60,6 +60,9 @@ pub const FindNDK = struct {
         defer ndk_base.close(io);
 
         ndk = try search_ndk_folder(io, ndk_base);
+        if (ndk) |path| {
+            std.log.debug("ndk found in known location {s}", .{path});
+        }
         return ndk;
     }
 
@@ -68,10 +71,9 @@ pub const FindNDK = struct {
             if (ndk_base.openDir(io, version, .{})) |d| {
                 defer d.close(io);
                 ndk = buffer[0..try d.realPath(io, &buffer)];
-                std.log.info("ndk version {s} found at {s}", .{ version, ndk.? });
                 return ndk;
             } else |_| {
-                //std.log.sdebug("ndk version {s} not found", .{version});
+                //std.log.debug("ndk version {s} not found", .{version});
                 continue;
             }
         }
