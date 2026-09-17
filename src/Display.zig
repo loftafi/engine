@@ -349,12 +349,8 @@ pub fn create(
         .user_scale = 1,
         .scale = display_scale * 1, // display_scale * user_scale
 
-        .safe_area = .{
-            .top = 0,
-            .bottom = 0,
-            .left = 0,
-            .right = 0,
-        },
+        .safe_area = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 },
+        .physical_safe_area = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
 
         .root = .{
             .name = "root",
@@ -362,7 +358,7 @@ pub fn create(
                 .x = 0,
                 .y = 0,
                 .width = @as(f32, @floatFromInt(pixel_width)),
-                .height = @as(f32, @floatFromInt(pixel_width)),
+                .height = @as(f32, @floatFromInt(pixel_height)),
             },
             .texture = null,
             .pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 },
@@ -389,6 +385,10 @@ pub fn create(
             .on_visibility = .empty,
         },
     };
+
+    if (builtin.abi.isAndroid()) {
+        _ = sdl.SDL_AddTimer(500, androidSafeAreaHack, display);
+    }
 
     debug("Initialising resource loader", .{});
     for (config.bundles) |bundle| {
@@ -2248,10 +2248,16 @@ pub inline fn updateScreenMetrics(display: *Display, event_code: usize) void {
 
     var width: c_int = 0;
     var height: c_int = 0;
-    _ = sdl.SDL_GetWindowSizeInPixels(display.window, &width, &height);
+    if (!sdl.SDL_GetWindowSizeInPixels(display.window, &width, &height)) {
+        err("SDL_GetWindowSizeInPixels failed {s}", .{sdl.SDL_GetError()});
+    }
+    info("SDL_GetWindowSizeInPixels width={d} height={d}", .{ width, height });
 
     const old_display_scale = display.display_scale;
     display.display_scale = sdl.SDL_GetWindowDisplayScale(display.window);
+    if (display.display_scale == 0.0) {
+        err("SDL_GetWindowDisplayScale failed {s}", .{sdl.SDL_GetError()});
+    }
     display.scale = display.display_scale * display.user_scale;
 
     // Physical window pixel width and hight must be translated to
@@ -2288,7 +2294,13 @@ pub inline fn updateScreenMetrics(display: *Display, event_code: usize) void {
         display.need_relayout = true;
         const old_controller_scale = display.controller_scale;
         const display_id = sdl.SDL_GetDisplayForWindow(display.window);
+        if (display_id == 0) {
+            err("SDL_GetDisplayForWindow failed {s}", .{sdl.SDL_GetError()});
+        }
         display.controller_scale = sdl.SDL_GetDisplayContentScale(display_id);
+        if (display.controller_scale == 0.0) {
+            err("SDL_GetDisplayContentScale failed {s}", .{sdl.SDL_GetError()});
+        }
         if (display.controller_scale != old_controller_scale) {
             info("Mouse/Controller scale change {d} => {d}", .{
                 old_controller_scale,
@@ -2328,9 +2340,15 @@ fn propagateResizeEvent(self: *Display, entity: *Entity) bool {
 fn calculateSafeArea(self: *Display) void {
     var new_safe_area: sdl.SDL_Rect = undefined;
     if (!sdl.SDL_GetWindowSafeArea(self.window, &new_safe_area)) {
-        err("calculateSafeArea() unable to request safe area. (SDL_GetWindowSafeArea failed)", .{});
+        err("calculateSafeArea() unable to request safe area. (SDL_GetWindowSafeArea failed) {s}", .{sdl.SDL_GetError()});
         return;
     }
+    info("SDL_GetWindowSafeArea: {d}x{d} {d}x{d}", .{
+        new_safe_area.x,
+        new_safe_area.y,
+        new_safe_area.w,
+        new_safe_area.h,
+    });
 
     if (self.root.rect.width <= 0 or self.root.rect.height <= 0) {
         // Android phones sometimes send negative safe areas for the
@@ -2377,26 +2395,29 @@ fn calculateSafeArea(self: *Display) void {
                     top_pad, bottom_pad,
                     0,       bottom_pad,
                 });
-                top_pad = 0;
+                //top_pad = 0;
             } else {
                 info("Android safe area hack {d},{d} -=> {d},{d}", .{
                     top_pad, bottom_pad,
                     top_pad, 0,
                 });
-                bottom_pad = 0;
+                //bottom_pad = 0;
             }
         }
     }
 
     if (builtin.os.tag == .ios) {
         const id = sdl.SDL_GetDisplayForWindow(self.window);
+        if (id == 0) {
+            err("SDL_GetDisplayForWindow failed {s}", .{sdl.SDL_GetError()});
+        }
         const orientation = sdl.SDL_GetCurrentDisplayOrientation(id);
         switch (orientation) {
             sdl.SDL_ORIENTATION_PORTRAIT => bottom_pad = 0,
             sdl.SDL_ORIENTATION_PORTRAIT_FLIPPED => top_pad = 0,
             sdl.SDL_ORIENTATION_LANDSCAPE => right_pad = 0,
             sdl.SDL_ORIENTATION_LANDSCAPE_FLIPPED => left_pad = 0,
-            else => bottom_pad = 0,
+            else => bottom_pad = 0, // SDL_ORIENTATION_UNKNOWN
         }
     }
 
@@ -2798,6 +2819,7 @@ pub fn handleEvent(
 
         else => {
             // Unhandled events can be caught by an event hook.
+            trace("Unhandled SDL event {d}", .{e.type});
             _ = try self.event_hook.call(self.allocator, e.type);
         },
     }
@@ -3323,6 +3345,34 @@ pub fn directional_clamp(mode: LayoutSize, min: f32, value: f32, max: f32) f32 {
     if (mode == .shrinks)
         if (min > 0) return min;
     return clamp(min, value, max);
+}
+
+/// On some android devices, the safe area information is not instantly
+/// available on startup. Check the safe area every ~500ms and give up
+/// after a few seconds.
+pub export fn androidSafeAreaHack(
+    record: ?*anyopaque,
+    timer_id: u32,
+    interval: u32,
+) callconv(.c) u32 {
+    info("android safe area hack interval={d}", .{interval});
+    _ = timer_id;
+
+    const display: ?*Display = @ptrCast(@alignCast(record));
+    display.?.updateScreenMetrics(0);
+
+    const got_safe_area = display.?.safe_area.top != 0 or
+        display.?.safe_area.bottom != 0 or
+        display.?.safe_area.left != 0 or
+        display.?.safe_area.right != 0;
+
+    if (got_safe_area) {
+        info("androd hack applied. discovered safe area", .{});
+        return 0;
+    }
+
+    // Repeat the timer after a few seconds. Use the `interval` to count.
+    return if (interval == 488) 0 else interval - 1;
 }
 
 test "clamp" {
