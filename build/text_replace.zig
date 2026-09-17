@@ -11,17 +11,12 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("\n", .{});
         std.process.exit(1);
     }
-    std.debug.print("\nFound {d} arguments: ", .{args.len});
-    for (args) |arg| {
-        std.debug.print(" {s} ", .{arg});
-    }
-    std.debug.print("\n", .{});
 
     const filename = args[1];
 
     //var original_file = try std.Io.Dir.cwd().openFile(init.io, filename, .{});
     var data = std.Io.Dir.cwd().readFileAlloc(init.io, filename, init.gpa, .unlimited) catch |e| {
-        std.log.warn("Error reading android file='{s}'. {any}", .{ filename, e });
+        err("Error reading android file='{s}'. {any}", .{ filename, e });
         std.process.exit(1);
     };
     defer init.gpa.free(data);
@@ -37,10 +32,10 @@ pub fn main(init: std.process.Init) !void {
 
         const count = std.mem.replace(u8, data, from, to, new_data);
         if (count == 0) {
-            std.log.info("String \"{s}\" not found in \"{s}\"", .{ from, filename });
+            err("String \"{s}\" not found in \"{s}\"", .{ from, filename });
             std.process.exit(1);
         }
-        std.log.info("Replaced \"{s}\" with \"{s}\" in \"{s}\" {d} times.", .{ from, to, filename, count });
+        debug("Replaced \"{s}\" with \"{s}\" in \"{s}\" {d} times.", .{ from, to, filename, count });
 
         init.gpa.free(data);
         data = new_data;
@@ -52,5 +47,12 @@ pub fn main(init: std.process.Init) !void {
     std.process.exit(0);
 }
 
+pub const std_options: std.Options = .{
+    .log_level = .warn,
+};
+
 const std = @import("std");
+const err = std.log.err;
+const warn = std.log.warn;
+const debug = std.log.debug;
 const Allocator = std.mem.Allocator;
