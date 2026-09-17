@@ -3372,7 +3372,7 @@ pub export fn androidSafeAreaHack(
     }
 
     // Repeat the timer after a few seconds. Use the `interval` to count.
-    return if (interval == 488) 0 else interval - 1;
+    return if (interval == 470) 0 else interval - 1;
 }
 
 test "clamp" {
