@@ -49,7 +49,6 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-        android:appCategory="game"
         android:hasFragileUserData="false"
         android:requestLegacyExternalStorage="false"
         android:hardwareAccelerated="true"

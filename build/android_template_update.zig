@@ -73,12 +73,17 @@ pub fn updateAndroidMetadata(
     app_version: []const u8,
     app_id: []const u8,
 ) !void {
+    var version_code = app_version;
+    if (std.mem.indexOf(u8, version_code, ".")) |index| {
+        version_code = version_code[0..index];
+    }
+
     var buff: [500]u8 = undefined;
     try update_android_strings_variable(allocator, io, dir, strings, "app_name", app_name);
     try updateAndroidManifestVariable(allocator, io, dir, manifest, "versionName", app_version);
-    try updateAndroidManifestVariable(allocator, io, dir, manifest, "versionCode", app_version);
+    try updateAndroidManifestVariable(allocator, io, dir, manifest, "versionCode", version_code);
     try updateAndroidGradleVariable(allocator, io, dir, gradle, "versionName", try std.fmt.bufPrint(&buff, "\"{s}\"", .{app_version}));
-    try updateAndroidGradleVariable(allocator, io, dir, gradle, "versionCode", app_version);
+    try updateAndroidGradleVariable(allocator, io, dir, gradle, "versionCode", version_code);
     //If you update this, you must also update the `package` header in the java files.
     //try updateAndroidGradleVariable(allocator, io, dir, gradle, "namespace", try std.fmt.bufPrint(&buff, "\"{s}\"", .{app_id}));
     _ = app_id;
