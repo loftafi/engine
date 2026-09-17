@@ -179,16 +179,16 @@ pub fn build(b: *std.Build) !void {
         const android_icon_rounded_96 = b.option(std.Build.LazyPath, "android_icon_rounded_96", "Rounded 96px android icon png.");
         const android_icon_rounded_72 = b.option(std.Build.LazyPath, "android_icon_rounded_72", "Rounded 72px android icon png.");
         const android_icon_rounded_48 = b.option(std.Build.LazyPath, "android_icon_rounded_48", "Rounded 48px android icon png.");
-        const android_icon_foreground_432 = b.option(std.Build.LazyPath, "android_icon_foreground_192", "Foreground 192px android icon png.");
-        const android_icon_foreground_324 = b.option(std.Build.LazyPath, "android_icon_foreground_48", "Foreground 48px android icon png.");
-        const android_icon_foreground_216 = b.option(std.Build.LazyPath, "android_icon_foreground_144", "Foreground 144px android icon png.");
-        const android_icon_foreground_162 = b.option(std.Build.LazyPath, "android_icon_foreground_96", "Foreground 96px android icon png.");
-        const android_icon_foreground_108 = b.option(std.Build.LazyPath, "android_icon_foreground_72", "Foreground 72px android icon png.");
-        const android_icon_background_432 = b.option(std.Build.LazyPath, "android_icon_background_432", "Foreground 192px android icon png.");
-        const android_icon_background_324 = b.option(std.Build.LazyPath, "android_icon_background_324", "Foreground 144px android icon png.");
-        const android_icon_background_216 = b.option(std.Build.LazyPath, "android_icon_background_216", "Foreground 96px android icon png.");
-        const android_icon_background_162 = b.option(std.Build.LazyPath, "android_icon_background_162", "Foreground 72px android icon png.");
-        const android_icon_background_108 = b.option(std.Build.LazyPath, "android_icon_background_108", "Foreground 48px android icon png.");
+        const android_icon_foreground_432 = b.option(std.Build.LazyPath, "android_icon_foreground_432", "Foreground 432px android icon png.");
+        const android_icon_foreground_324 = b.option(std.Build.LazyPath, "android_icon_foreground_324", "Foreground 324px android icon png.");
+        const android_icon_foreground_216 = b.option(std.Build.LazyPath, "android_icon_foreground_216", "Foreground 216px android icon png.");
+        const android_icon_foreground_162 = b.option(std.Build.LazyPath, "android_icon_foreground_162", "Foreground 162px android icon png.");
+        const android_icon_foreground_108 = b.option(std.Build.LazyPath, "android_icon_foreground_108", "Foreground 108px android icon png.");
+        const android_icon_background_432 = b.option(std.Build.LazyPath, "android_icon_background_432", "Android background icon 432px webp.");
+        const android_icon_background_324 = b.option(std.Build.LazyPath, "android_icon_background_324", "Android background icon 324px webp.");
+        const android_icon_background_216 = b.option(std.Build.LazyPath, "android_icon_background_216", "Android background icon 216px webp.");
+        const android_icon_background_162 = b.option(std.Build.LazyPath, "android_icon_background_162", "Android background icon 162px webp.");
+        const android_icon_background_108 = b.option(std.Build.LazyPath, "android_icon_background_108", "Android background icon 108px webp.");
 
         if (android_app_name == null) {
             export_android_template.dependOn(&b.addFail("Specify -Dandroid_app_name to build ios package.").step);
