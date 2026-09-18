@@ -259,10 +259,10 @@ fn drawString(
     };
     const start_x = dest.x;
 
-    var dbg = if (builtin.mode == .Debug)
+    var dbg = if (builtin.mode == .debug)
         std.Io.Writer.Allocating.init(display.allocator)
     else {};
-    defer if (builtin.mode == .Debug) dbg.deinit();
+    defer if (builtin.mode == .debug) dbg.deinit();
 
     var previous_glyph: ?TrueType.GlyphIndex = null;
     // Invalid UTF8 should not be possible at this point because
@@ -342,7 +342,7 @@ fn drawString(
             }
         }
 
-        if (mode == .measure and builtin.mode == .Debug) {
+        if (mode == .measure and builtin.mode == .debug) {
             dbg.writer.print("\n  {u} bitmap.width {d} bitmap.height {d} kern {d} lsb={d} char.width {d}", .{
                 codepoint,
                 glyph_info.width,
@@ -358,7 +358,7 @@ fn drawString(
         previous_glyph = glyph;
     }
 
-    if (builtin.mode == .Debug and mode == .measure) {
+    if (builtin.mode == .debug and mode == .measure) {
         //trace("draw string='{s}': written={s} width={d}", .{
         //    string,
         //    dbg.written(),

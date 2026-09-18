@@ -346,7 +346,7 @@ fn define_mixer_module(
     optimize: *const std.builtin.OptimizeMode,
 ) error{OutOfMemory}!*std.Build.Module {
     // Android needs a libc file for translate_c
-    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
+    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.lazy_path else null;
 
     const translate_c_dep = b.dependency("translate_c", .{
         .libc_paths_file = libc_file,
@@ -416,7 +416,7 @@ fn define_sdl_module(
 ) error{OutOfMemory}!*std.Build.Module {
 
     // Android needs a libc file for translate_c
-    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
+    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.lazy_path else null;
 
     const translate_c_dep = b.dependency("translate_c", .{
         .libc_paths_file = libc_file,

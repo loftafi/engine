@@ -1,6 +1,6 @@
 /// Comptime known value to allow creation of `if (dev_build)` statements
 /// to allow code to be excluded from production releases.
-pub const dev_build = (builtin.mode == .Debug);
+pub const dev_build = (builtin.mode == .debug);
 
 /// A global variable which can be used to turn on or off live debugging
 /// features such as drawing lines around on screen entities and output of

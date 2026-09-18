@@ -1,6 +1,6 @@
 .{
     .name = .engine,
-    .version = "0.45.0",
+    .version = "0.45.1",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
@@ -13,8 +13,8 @@
             .hash = "resources-3.2.1-J0GwI8ybzADt9K5GUx-sdikJ1_cHBLMylYXObRBNU7AB",
         },
         .translate_c = .{
-            .url = "git+https://codeberg.org/ziglang/translate-c#12c1515c074cfa9c69a799eb33506464a27c6332",
-            .hash = "translate_c-0.0.0-Q_BUWvo6BwAVl3qDhMeQNrgCAljvDeGUnwqpnGvB0_YM",
+            .url = "git+https://codeberg.org/ziglang/translate-c#0944784e197e419433a21d4b28bfc65e48e7d514",
+            .hash = "translate_c-0.0.0-Q_BUWo5NBwBs3K0a-B1XbxEF3gFdTb75VgOE0FL-2qKL",
         },
         .TrueType = .{
             .url = "git+https://codeberg.org/andrewrk/TrueType.git#ce9da97eb4d1d30fee2a3faa190b25cf0c5d0797",

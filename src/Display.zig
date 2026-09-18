@@ -817,7 +817,7 @@ fn boundScrollerPanels(self: *Display, entity: *Entity, relayout_done: bool) voi
 /// `not_choosable` panels are not selectable and thus cant become the
 /// "current" panel.
 pub fn currentPanel(self: *Display) ?*Entity {
-    if (builtin.mode == .Debug) {
+    if (builtin.mode == .debug) {
         if (self.root.type != .panel) {
             err("root panel is {t}, which is not a panel", .{self.root.type});
             return null;

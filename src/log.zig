@@ -55,9 +55,9 @@ pub fn Log(size: usize) type {
 
         /// A `trace` message can be used liberally for log messages only
         /// helpful during active development. `trace` is only available
-        /// in `Debug` builds when `engine.dev_mode` is enabled.
+        /// in `debug` builds when `engine.dev_mode` is enabled.
         pub inline fn trace(self: *Self, comptime format: []const u8, args: anytype) void {
-            if (dev_build and engine.dev_mode and builtin.mode == .Debug)
+            if (dev_build and engine.dev_mode and builtin.mode == .debug)
                 self.log(.trace, format, args);
         }
 
@@ -126,9 +126,9 @@ pub fn Log(size: usize) type {
 
 /// A `trace` message can be used liberally for log messages only
 /// helpful during active development. `trace` is only available
-/// in `Debug` builds when `engine.dev_mode` is enabled.
+/// in `debug` builds when `engine.dev_mode` is enabled.
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
-    if (dev_build and engine.dev_mode and builtin.mode == .Debug)
+    if (dev_build and engine.dev_mode and builtin.mode == .debug)
         formatted_log_output(.trace, .engine, format, args);
 }
 
@@ -140,7 +140,7 @@ pub inline fn trace(comptime format: []const u8, args: anytype) void {
 /// size or screen resolution to allow support staff to understand what
 /// actions might have lead to an unexpected program state.
 pub inline fn debug(comptime format: []const u8, args: anytype) void {
-    if (engine.dev_mode or builtin.mode == .Debug) {
+    if (engine.dev_mode or builtin.mode == .debug) {
         formatted_log_output(.debug, .engine, format, args);
     }
 }
@@ -226,7 +226,7 @@ fn formatted_log_output(
     _ = scope;
 
     if (level == .trace and !dev_build) return;
-    if (level == .debug and (engine.dev_mode == false and builtin.mode != .Debug)) return;
+    if (level == .debug and (engine.dev_mode == false and builtin.mode != .debug)) return;
     if (builtin.is_test) return;
 
     var buffer: [max_log_message_size]u8 = undefined;

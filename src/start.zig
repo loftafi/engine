@@ -3,8 +3,8 @@ const native_os = builtin.os.tag;
 const is_wasm = native_arch.isWasm();
 
 const use_safe_allocator = !is_wasm and switch (builtin.mode) {
-    .Debug, .ReleaseSafe => true,
-    .ReleaseFast, .ReleaseSmall => !builtin.link_libc and builtin.single_threaded, // Also not ideal.
+    .debug, .safe => true,
+    .fast, .small => !builtin.link_libc and builtin.single_threaded, // Also not ideal.
 };
 var safe_allocator: std.heap.SafeAllocator = .init(std.heap.page_allocator, .{});
 
@@ -12,7 +12,7 @@ const builtin = @import("builtin");
 
 var zig_io: std.Io.Threaded = undefined;
 
-var gpa = if (builtin.mode == .Debug)
+var gpa = if (builtin.mode == .debug)
     safe_allocator.allocator()
 else if (builtin.link_libc)
     std.heap.c_allocator
