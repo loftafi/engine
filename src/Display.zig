@@ -395,7 +395,7 @@ pub fn create(
         try initResourcesSdl(gpa, io, &display.resources, &config, &bundle);
     }
 
-    zstbi.init(display.allocator, display.io);
+    zstbi.init(display.io, display.allocator);
 
     if (config.desktop_icon) |desktop_icon| {
         try display.requireResourceRecord(desktop_icon, .image);

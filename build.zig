@@ -77,7 +77,7 @@ pub fn build(b: *std.Build) !void {
 
         const ios_app_name = b.option([]const u8, "ios_app_name", "iOS app name.");
         const ios_app_version = b.option([]const u8, "ios_app_version", "iOS app version");
-        const ios_app_bundle = b.option([]const u8, "ios_app_bundle", "Default app resource bundle filename");
+        const ios_app_bundle = b.option(std.Build.LazyPath, "ios_app_bundle", "Default app resource bundle filename");
         const ios_app_id = b.option([]const u8, "ios_app_id", "iOS the app id");
         const ios_splash_screen = b.option(std.Build.LazyPath, "ios_splash_screen", "iOS app startup splash screen jpg");
         const ios_icon = b.option(std.Build.LazyPath, "ios_icon", "The iOS icon png");
@@ -131,25 +131,26 @@ pub fn build(b: *std.Build) !void {
         export_xcode_template.dependOn(patch_xcode_template);
 
         if (ios_app_bundle) |name| {
-            copyRootStep(b, patch_xcode_template, copy_xcode_template, name, "xcode/Dialectos/app_bundle.bd");
+            std.log.warn("ios_app_bundle is set", .{});
+            copyStep(b, patch_xcode_template, b.getInstallStep(), name, "xcode/Dialectos/app_bundle.bd");
         } else {
-            //std.log.warn("No ios_app_bundle set", .{});
+            std.log.warn("No ios_app_bundle set", .{});
         }
         if (ios_splash_screen) |jpg| {
-            copyStepP(b, patch_xcode_template, copy_xcode_template, jpg, "xcode/startup-screen.jpg");
+            copyStep(b, patch_xcode_template, copy_xcode_template, jpg, "xcode/startup-screen.jpg");
         } else {
             //std.log.warn("No ios_splash_screen set", .{});
         }
         if (ios_icon) |png| {
-            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
-            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
-            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
+            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
         }
         if (ios_icon_light) |png| {
-            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
         }
         if (ios_icon_dark) |png| {
-            copyStepP(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
         }
         if (ios_icon == null and ios_icon_dark == null and ios_icon_light == null) {
             //std.log.warn("No ios_icon set", .{});
@@ -166,8 +167,7 @@ pub fn build(b: *std.Build) !void {
         const android_app_name = b.option([]const u8, "android_app_name", "Android app name.");
         const android_app_id = b.option([]const u8, "android_app_id", "Android app id.");
         const android_app_version = b.option([]const u8, "android_app_version", "Android app version.");
-        const android_app_bundle = b.option([]const u8, "android_app_bundle", "Default app resource bundle filename.");
-
+        const android_app_bundle = b.option(std.Build.LazyPath, "android_app_bundle", "Default app resource bundle filename.");
         const android_icon_playstore = b.option(std.Build.LazyPath, "android_icon_playstore", "The android google play store icon png.");
         const android_icon_circle_192 = b.option(std.Build.LazyPath, "android_icon_circle_192", "Circle 192px android icon png.");
         const android_icon_circle_144 = b.option(std.Build.LazyPath, "android_icon_circle_144", "Circle 144px android icon png.");
@@ -282,7 +282,7 @@ pub fn build(b: *std.Build) !void {
         export_android_template.dependOn(patch_android_template);
 
         if (android_app_bundle) |name| {
-            copyRootStep(b, patch_android_template, copy_android_template, name, "android/app/src/main/assets/app_bundle.bd");
+            copyStep(b, patch_android_template, copy_android_template, name, "android/app/src/main/assets/app_bundle.bd");
         } else {
             //std.log.warn("No ios_app_bundle set", .{});
         }
@@ -321,25 +321,13 @@ pub fn build(b: *std.Build) !void {
 
         inline for (copy) |cp| {
             if (cp[0]) |src| {
-                copyStepP(b, export_android_template, patch_android_template, src, cp[1]);
+                copyStep(b, export_android_template, patch_android_template, src, cp[1]);
             }
         }
     }
 }
 
-fn copyRootStep(
-    b: *std.Build,
-    before: *std.Build.Step,
-    after: *std.Build.Step,
-    src: []const u8,
-    dst: []const u8,
-) void {
-    var cp = b.addInstallFile(b.graph.path(.install_prefix, src), dst);
-    cp.step.dependOn(after);
-    before.dependOn(&cp.step);
-}
-
-fn copyStepP(
+fn copyStep(
     b: *std.Build,
     before: *std.Build.Step,
     after: *std.Build.Step,
@@ -347,7 +335,9 @@ fn copyStepP(
     dst: []const u8,
 ) void {
     var cp = b.addInstallFile(src, dst);
-    cp.step.dependOn(after);
+    _ = after;
+    //cp.step.dependOn(after);
+    cp.step.dependOn(b.getInstallStep());
     before.dependOn(&cp.step);
 }
 
@@ -357,10 +347,7 @@ fn define_mixer_module(
     optimize: *const std.builtin.OptimizeMode,
 ) error{OutOfMemory}!*std.Build.Module {
     // Android needs a libc file for translate_c
-    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v|
-        (if (@import("builtin").zig_version.minor == 16) v.value.lazy_path else v.lazy_path)
-    else
-        null;
+    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
 
     const translate_c_dep = b.dependency("translate_c", .{
         .libc_paths_file = libc_file,
@@ -430,9 +417,7 @@ fn define_sdl_module(
 ) error{OutOfMemory}!*std.Build.Module {
 
     // Android needs a libc file for translate_c
-    const libc_file: ?std.Build.LazyPath = if (@import("builtin").zig_version.minor == 16)
-        if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null
-    else if (b.user_input_options.get("libc_file")) |v| v.lazy_path else null;
+    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
 
     const translate_c_dep = b.dependency("translate_c", .{
         .libc_paths_file = libc_file,
