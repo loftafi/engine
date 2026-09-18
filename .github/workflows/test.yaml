@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   test-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Build and Test Engine package on linux
     steps:
       - uses: actions/checkout@v3
@@ -45,7 +45,6 @@ jobs:
       - run: zig build test
 
   build-docs:
-    runs-on: ubuntu-latest
     needs: test-linux
     steps:
       - uses: actions/checkout@v3
