@@ -45,6 +45,7 @@ jobs:
       - run: zig build test
 
   build-docs:
+    runs-on: ubuntu-26.04
     needs: test-linux
     steps:
       - uses: actions/checkout@v3
