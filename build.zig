@@ -131,10 +131,9 @@ pub fn build(b: *std.Build) !void {
         export_xcode_template.dependOn(patch_xcode_template);
 
         if (ios_app_bundle) |name| {
-            std.log.warn("ios_app_bundle is set", .{});
             copyStep(b, patch_xcode_template, b.getInstallStep(), name, "xcode/Dialectos/app_bundle.bd");
         } else {
-            std.log.warn("No ios_app_bundle set", .{});
+            //std.log.warn("No ios_app_bundle set", .{});
         }
         if (ios_splash_screen) |jpg| {
             copyStep(b, patch_xcode_template, copy_xcode_template, jpg, "xcode/startup-screen.jpg");
