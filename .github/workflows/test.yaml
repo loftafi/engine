@@ -29,8 +29,8 @@ jobs:
         with:
           version: master
       - run: sudo apt install -y ffmpeg
-      - run: sudo apt install -y libsdl3
-      - run: sudo apt install -y libsdl3-mixer
+      - run: sudo apt install -y libsdl3-0
+      - run: sudo apt install -y libsdl3-mixer0
       - run: zig build test
 
   test-macos:
