@@ -45,8 +45,9 @@ jobs:
       - run: zig build test
 
   build-docs:
-    runs-on: ubuntu-26.04
-    needs: test-linux
+    runs-on: macos-latest
+    #runs-on: ubuntu-26.04
+    needs: test-macos
     steps:
       - uses: actions/checkout@v3
       - uses: mlugg/setup-zig@v2
