@@ -1,20 +1,16 @@
 .{
     .name = .engine,
-    .version = "0.43.1",
+    .version = "0.44.0",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
-        .zstbi = .{
-            .url = "git+https://github.com/zaddok/zstbi.git#456b7620bf8036d29454d98cb506e0428e6510ae",
-            .hash = "zstbi-0.11.0-dev-L0Ea_06WBwCZoJBl6SD0bcHOLEEIrD5xbQ0TbXe-SQ5Y",
-        },
         .translator = .{
             .url = "git+https://github.com/loftafi/translator#0d59f7210670ddfa1d3b2cadf7a9b7989662d930",
             .hash = "translator-0.1.13-cfHZxjVNAAAQp92ObGz7tI5X16LR9quEN3nVXjlQquVP",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources#13a98b6776db6d4234aaca714bb08c7e35828dbf",
-            .hash = "resources-3.0.5-J0GwI5BZzAD72IBJvL2IQ1gdHPEkj6eh6kwm7g5FZtDQ",
+            .url = "git+https://github.com/loftafi/resources#bd52326f4bd1014c2f045a49d410da00b9b600c4",
+            .hash = "resources-3.2.1-J0GwI8ybzADt9K5GUx-sdikJ1_cHBLMylYXObRBNU7AB",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/ziglang/translate-c#12c1515c074cfa9c69a799eb33506464a27c6332",
@@ -29,16 +25,6 @@
             .url = "git+https://github.com/loftafi/zig-objc#3352c12a868f8787ab71bf2ca6eab9fcfb635c52",
             .hash = "zig_objc-0.0.0-Ir_Sp_4tAQDXtPi51nW_jD9LOEzBvU9lofwO9Pzi6IB4",
         },
-        //.sdl = .{
-        //    .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.4.16.tar.gz",
-        //    .hash = "N-V-__8AABHq9wIiTHGY4qR6mw45F_TX8FSvqsQQ-Wtq1tzY",
-        //    .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.2.30.tar.gz",
-        //    .hash = "N-V-__8AAB0JjQOa6NvVLTf1LYdwC3IIX502jpuNgQ7_au3Z",
-        //    .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.2.10.tar.gz",
-        //    .hash = "N-V-__8AANnIigPc2ohHTIv1zbGQOlBg6zmA3mslMH9M7x2E",
-        //    .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/preview-3.3.2.tar.gz",
-        //    .hash = "N-V-__8AAHvu7AJWj3-7C0e_EwY36hXYwvRYvcp8BWxVj4Xm",
-        //},
         .sdl_mixer = .{
             // Required by the android template if `zig build android` is requested.
             .url = "https://github.com/libsdl-org/SDL_mixer/archive/refs/tags/release-3.2.4.tar.gz",

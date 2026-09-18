@@ -166,9 +166,9 @@ pub fn build(b: *std.Build) !void {
         const android_app_name = b.option([]const u8, "android_app_name", "Android app name.");
         const android_app_id = b.option([]const u8, "android_app_id", "Android app id.");
         const android_app_version = b.option([]const u8, "android_app_version", "Android app version.");
-        const android_icon = b.option(std.Build.LazyPath, "android_icon", "The android icon png.");
         const android_app_bundle = b.option([]const u8, "android_app_bundle", "Default app resource bundle filename.");
 
+        const android_icon_playstore = b.option(std.Build.LazyPath, "android_icon_playstore", "The android google play store icon png.");
         const android_icon_circle_192 = b.option(std.Build.LazyPath, "android_icon_circle_192", "Circle 192px android icon png.");
         const android_icon_circle_144 = b.option(std.Build.LazyPath, "android_icon_circle_144", "Circle 144px android icon png.");
         const android_icon_circle_96 = b.option(std.Build.LazyPath, "android_icon_circle_96", "Circle 96px android icon png.");
@@ -288,8 +288,7 @@ pub fn build(b: *std.Build) !void {
         }
 
         const copy = .{
-            .{ android_icon, "android/app/src/main/ic_launcher-playstore.png" },
-            .{ android_icon, "android/app/src/main/ic_launcher-playstore.png" },
+            .{ android_icon_playstore, "android/app/src/main/ic_launcher-playstore.png" },
             .{ android_icon_rounded_192, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" },
             .{ android_icon_rounded_192, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" },
             .{ android_icon_rounded_144, "android/app/src/main/res/mipmap-xxhdpi/ic_launcher.webp" },
@@ -357,9 +356,11 @@ fn define_mixer_module(
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
 ) error{OutOfMemory}!*std.Build.Module {
-
     // Android needs a libc file for translate_c
-    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
+    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v|
+        (if (@import("builtin").zig_version.minor == 16) v.value.lazy_path else v.lazy_path)
+    else
+        null;
 
     const translate_c_dep = b.dependency("translate_c", .{
         .libc_paths_file = libc_file,
@@ -429,7 +430,9 @@ fn define_sdl_module(
 ) error{OutOfMemory}!*std.Build.Module {
 
     // Android needs a libc file for translate_c
-    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null;
+    const libc_file: ?std.Build.LazyPath = if (@import("builtin").zig_version.minor == 16)
+        if (b.user_input_options.get("libc_file")) |v| v.value.lazy_path else null
+    else if (b.user_input_options.get("libc_file")) |v| v.lazy_path else null;
 
     const translate_c_dep = b.dependency("translate_c", .{
         .libc_paths_file = libc_file,
