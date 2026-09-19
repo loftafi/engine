@@ -9,8 +9,8 @@
             .hash = "translator-0.1.14-cfHZxjVNAADvp_KHNlsbbAGCLJdCv4NJLfa8DPdoxQjH",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources#6b0dd8c1e4230e33fcf66d8ebbc85ba1c539c669",
-            .hash = "resources-3.2.2-J0GwI3GdzADlEpaJGJUvcCrFkl4FfDFIodH7k0_SYh1j",
+            .url = "git+https://github.com/loftafi/resources#d892252087c4b437c356caff80d17bf874461aa7",
+            .hash = "resources-3.2.2-J0GwI_qfzADI7MMVse52XFCqmGIDK-Zk8URhHPT395UJ",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/ziglang/translate-c#0944784e197e419433a21d4b28bfc65e48e7d514",
