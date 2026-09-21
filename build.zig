@@ -263,7 +263,7 @@ pub fn build(b: *std.Build) !void {
         });
         var run_android_update = b.addRunArtifact(android_update_exe);
         run_android_update.addFileArg(b.graph.path(.install_prefix, "android/"));
-        run_android_update.addArg("libc.txt");
+        _ = run_android_update.addOutputFileArg2("libc.txt");
         run_android_update.addArg(android_app_name orelse "Example");
         run_android_update.addArg(android_app_version orelse "1");
         run_android_update.addArg(android_app_id orelse "org.example.app");
