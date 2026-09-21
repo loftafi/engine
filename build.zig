@@ -20,8 +20,27 @@ pub fn build(b: *std.Build) !void {
     const truetype = b.dependency("TrueType", .{ .target = target, .optimize = optimize });
     const truetype_module = truetype.module("TrueType");
 
-    const sdl_module = try define_sdl_module(b, &target, &optimize);
-    const mixer_module = try define_mixer_module(b, &target, &optimize);
+    // If we might be building for android, create a libc.txt for the
+    // android library, and for the SDL/SDL_mixer libraries.
+    var libc_file: ?std.Build.LazyPath = undefined;
+    var generate_libc: *std.Build.Step.Run = undefined;
+    if (b.graph.environ_map.contains("ANDROID_NDK_HOME") or b.graph.environ_map.contains("ANDROID_SDK_ROOT")) {
+        const run_generate_libc = b.addExecutable(.{
+            .name = "generate_libc",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("build/generate_libc.zig"),
+                .target = b.graph.host,
+                .optimize = optimize,
+            }),
+        });
+        generate_libc = b.addRunArtifact(run_generate_libc);
+        libc_file = generate_libc.addOutputFileArg2("libc.txt", .{});
+        const libc_target = b.resolveTargetQuery(.{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .android });
+        generate_libc.addArg(try androidTriple(&libc_target.result));
+    }
+
+    const sdl_module = try define_sdl_module(b, &target, &optimize, libc_file);
+    const mixer_module = try define_mixer_module(b, &target, &optimize, libc_file);
 
     const lib_mod = b.addModule("engine", .{
         .root_source_file = b.path("src/engine.zig"),
@@ -50,6 +69,10 @@ pub fn build(b: *std.Build) !void {
         .root_module = lib_mod,
     });
     b.installArtifact(lib);
+
+    if (b.graph.environ_map.contains("ANDROID_NDK_HOME") or b.graph.environ_map.contains("ANDROID_SDK_ROOT")) {
+        lib.step.dependOn(&generate_libc.step);
+    }
 
     const real_tests = b.addTest(.{
         .root_module = lib_mod,
@@ -102,7 +125,7 @@ pub fn build(b: *std.Build) !void {
             .name = "xcode_template_update",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("build/xcode_template_update.zig"),
-                .target = target,
+                .target = b.graph.host,
                 .optimize = optimize,
             }),
         });
@@ -131,25 +154,25 @@ pub fn build(b: *std.Build) !void {
         export_xcode_template.dependOn(patch_xcode_template);
 
         if (ios_app_bundle) |name| {
-            copyStep(b, patch_xcode_template, b.getInstallStep(), name, "xcode/Dialectos/app_bundle.bd");
+            copyStep(b, patch_xcode_template, name, "xcode/Dialectos/app_bundle.bd");
         } else {
             //std.log.warn("No ios_app_bundle set", .{});
         }
         if (ios_splash_screen) |jpg| {
-            copyStep(b, patch_xcode_template, copy_xcode_template, jpg, "xcode/startup-screen.jpg");
+            copyStep(b, patch_xcode_template, jpg, "xcode/startup-screen.jpg");
         } else {
             //std.log.warn("No ios_splash_screen set", .{});
         }
         if (ios_icon) |png| {
-            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
-            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
-            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
+            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
         }
         if (ios_icon_light) |png| {
-            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
         }
         if (ios_icon_dark) |png| {
-            copyStep(b, patch_xcode_template, copy_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
         }
         if (ios_icon == null and ios_icon_dark == null and ios_icon_light == null) {
             //std.log.warn("No ios_icon set", .{});
@@ -231,7 +254,7 @@ pub fn build(b: *std.Build) !void {
             .name = "text_replacement",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("build/text_replace.zig"),
-                .target = target,
+                .target = b.graph.host,
                 .optimize = optimize,
             }),
         });
@@ -250,14 +273,11 @@ pub fn build(b: *std.Build) !void {
         run_sdl_mixer_patch.step.dependOn(&do_copy_sdl_mixer.step);
 
         // Ammend the android template with project information
-        var patch_android_template = b.step("patch_android_template", "Update the android template");
-        patch_android_template.dependOn(copy_android_template);
-        patch_android_template.dependOn(&run_sdl_mixer_patch.step);
         const android_update_exe = b.addExecutable(.{
             .name = "android_template_update",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("build/android_template_update.zig"),
-                .target = target,
+                .target = b.graph.host,
                 .optimize = optimize,
             }),
         });
@@ -270,18 +290,14 @@ pub fn build(b: *std.Build) !void {
         run_android_update.addArg(try androidTriple(&android_target.result));
         run_android_update.has_side_effects = true;
         run_android_update.step.dependOn(copy_android_template);
-        patch_android_template.dependOn(&run_android_update.step);
+        run_android_update.step.dependOn(&run_sdl_mixer_patch.step);
 
         if (!b.graph.environ_map.contains("ANDROID_NDK_HOME") and !b.graph.environ_map.contains("ANDROID_SDK_ROOT")) {
             run_android_update.step.dependOn(&b.addFail("The `android` build step requires ANDROID_NDK_HOME or ANDROID_SDK_ROOT to be set.").step);
         }
-        export_android_template.dependOn(copy_android_template);
-        export_android_template.dependOn(&run_sdl_mixer_patch.step);
-        export_android_template.dependOn(&run_android_update.step);
-        export_android_template.dependOn(patch_android_template);
 
         if (android_app_bundle) |name| {
-            copyStep(b, patch_android_template, copy_android_template, name, "android/app/src/main/assets/app_bundle.bd");
+            copyStep(b, &run_android_update.step, name, "android/app/src/main/assets/app_bundle.bd");
         } else {
             //std.log.warn("No ios_app_bundle set", .{});
         }
@@ -320,38 +336,33 @@ pub fn build(b: *std.Build) !void {
 
         inline for (copy) |cp| {
             if (cp[0]) |src| {
-                copyStep(b, export_android_template, patch_android_template, src, cp[1]);
+                run_android_update.step.dependOn(&b.addInstallFile(src, cp[1]).step);
             }
         }
-        copyStep(b, export_android_template, patch_android_template, generated_libc, "android/libc.txt");
+        const copy_libc2 = &b.addInstallFile(generated_libc, "android/libc.txt").step;
+        copy_libc2.dependOn(&run_android_update.step);
+        export_android_template.dependOn(copy_libc2);
+        export_android_template.dependOn(&generate_libc.step);
     }
 }
 
 fn copyStep(
     b: *std.Build,
-    before: *std.Build.Step,
-    after: *std.Build.Step,
+    dependsOn: *std.Build.Step,
     src: std.Build.LazyPath,
     dst: []const u8,
 ) void {
     var cp = b.addInstallFile(src, dst);
-    _ = after;
-    //cp.step.dependOn(after);
-    cp.step.dependOn(b.getInstallStep());
-    before.dependOn(&cp.step);
+    dependsOn.dependOn(&cp.step);
 }
 
 fn define_mixer_module(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
+    libc_file: ?std.Build.LazyPath, // Android needs a libc file for translate_c
 ) error{OutOfMemory}!*std.Build.Module {
-    // Android needs a libc file for translate_c
-    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.lazy_path else null;
-
-    const translate_c_dep = b.dependency("translate_c", .{
-        .libc_paths_file = libc_file,
-    });
+    const translate_c_dep = b.dependency("translate_c", .{});
 
     // Android targets aarch64 android, and not the relatively rare alternatives.
     //   arm-linux-androideabi, armv7-linux-androideabi, i686-linux-android
@@ -414,14 +425,9 @@ fn define_sdl_module(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
     optimize: *const std.builtin.OptimizeMode,
+    libc_file: ?std.Build.LazyPath, // Android needs a libc file for translate_c
 ) error{OutOfMemory}!*std.Build.Module {
-
-    // Android needs a libc file for translate_c
-    const libc_file: ?std.Build.LazyPath = if (b.user_input_options.get("libc_file")) |v| v.lazy_path else null;
-
-    const translate_c_dep = b.dependency("translate_c", .{
-        .libc_paths_file = libc_file,
-    });
+    const translate_c_dep = b.dependency("translate_c", .{});
 
     const c_header = switch (target.result.os.tag) {
         .ios => b.addWriteFiles().add("c.h",
