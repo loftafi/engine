@@ -45,6 +45,7 @@
         "build/FindNDK.zig",
         "build/platforms.zig",
         "build/text_replace.zig",
+        "build/lib_check.zig",
         "build/xcode_template_update.zig",
         "templates/android/",
         "templates/xcode/",
