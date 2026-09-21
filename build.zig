@@ -481,26 +481,26 @@ pub fn link_sdl_framework(
 ) void {
     switch (target.result.os.tag) {
         .macos => {
-            lib.addFrameworkPath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/"));
-            lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/"));
-            lib.addRPath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64/"));
-            lib.addRPath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64/"));
+            lib.addFrameworkPath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64"));
+            lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64"));
+            lib.addRPath(b.path("libs/SDL3.xcframework/macos-arm64_x86_64"));
+            lib.addRPath(b.path("libs/SDL3_mixer.xcframework/macos-arm64_x86_64"));
             lib.linkFramework("SDL3", .{});
             lib.linkFramework("SDL3_mixer", .{});
         },
         .ios => {
             if (target.result.abi == .simulator) {
-                lib.addFrameworkPath(b.path("libs/SDL3.xcframework/ios-arm64_x86_64-simulator/"));
-                lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64_x86_64-simulator/"));
-                lib.addRPath(b.path("libs/SDL3.xcframework/ios-arm64_x86_64-simulator/"));
-                lib.addRPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64_x86_64-simulator/"));
+                lib.addFrameworkPath(b.path("libs/SDL3.xcframework/ios-arm64_x86_64-simulator"));
+                lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64_x86_64-simulator"));
+                lib.addRPath(b.path("libs/SDL3.xcframework/ios-arm64_x86_64-simulator"));
+                lib.addRPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64_x86_64-simulator"));
                 lib.linkFramework("SDL3", .{});
                 lib.linkFramework("SDL3_mixer", .{});
             } else {
-                lib.addFrameworkPath(b.path("libs/SDL3.xcframework/ios-arm64/"));
-                lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64/"));
-                lib.addRPath(b.path("libs/SDL3.xcframework/ios-arm64/"));
-                lib.addRPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64/"));
+                lib.addFrameworkPath(b.path("libs/SDL3.xcframework/ios-arm64"));
+                lib.addFrameworkPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64"));
+                lib.addRPath(b.path("libs/SDL3.xcframework/ios-arm64"));
+                lib.addRPath(b.path("libs/SDL3_mixer.xcframework/ios-arm64"));
                 lib.linkFramework("SDL3", .{});
                 lib.linkFramework("SDL3_mixer", .{});
             }
