@@ -102,6 +102,7 @@ pub fn build(b: *std.Build) !void {
         const ios_app_version = b.option([]const u8, "ios_app_version", "iOS app version");
         const ios_app_bundle = b.option(std.Build.LazyPath, "ios_app_bundle", "Default app resource bundle filename");
         const ios_app_id = b.option([]const u8, "ios_app_id", "iOS the app id");
+        const ios_resources_required = b.option(bool, "ios_resources_required", "If true, build aborts if template resource is missing.");
         const ios_splash_screen = b.option(std.Build.LazyPath, "ios_splash_screen", "iOS app startup splash screen jpg");
         const ios_icon = b.option(std.Build.LazyPath, "ios_icon", "The iOS icon png");
         const ios_icon_light = b.option(std.Build.LazyPath, "ios_icon_light", "Optional iOS light icon png");
@@ -154,28 +155,50 @@ pub fn build(b: *std.Build) !void {
         export_xcode_template.dependOn(patch_xcode_template);
 
         if (ios_app_bundle) |name| {
-            copyStep(b, patch_xcode_template, name, "xcode/Dialectos/app_bundle.bd");
+            copyStep(b, export_xcode_template, &run_xcode_update.step, name, "xcode/Dialectos/app_bundle.bd");
         } else {
             //std.log.warn("No ios_app_bundle set", .{});
         }
         if (ios_splash_screen) |jpg| {
-            copyStep(b, patch_xcode_template, jpg, "xcode/startup-screen.jpg");
+            copyStep(b, export_xcode_template, &run_xcode_update.step, jpg, "xcode/startup-screen.jpg");
         } else {
-            //std.log.warn("No ios_splash_screen set", .{});
+            if (ios_resources_required) |check| {
+                if (check) {
+                    export_xcode_template.dependOn(&b.addFail("missing " ++ "startup screen image").step);
+                }
+            }
         }
+
         if (ios_icon) |png| {
-            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
-            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
-            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+        } else {
+            if (ios_resources_required) |check| {
+                if (check) {
+                    export_xcode_template.dependOn(&b.addFail("missing " ++ "ios_icon").step);
+                }
+            }
         }
+
         if (ios_icon_light) |png| {
-            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+        } else {
+            if (ios_resources_required) |check| {
+                if (check) {
+                    export_xcode_template.dependOn(&b.addFail("missing " ++ " light ios icon").step);
+                }
+            }
         }
+
         if (ios_icon_dark) |png| {
-            copyStep(b, patch_xcode_template, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
-        }
-        if (ios_icon == null and ios_icon_dark == null and ios_icon_light == null) {
-            //std.log.warn("No ios_icon set", .{});
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+        } else {
+            if (ios_resources_required) |check| {
+                if (check) {
+                    export_xcode_template.dependOn(&b.addFail("missing " ++ " dark ios icon").step);
+                }
+            }
         }
     }
 
@@ -190,6 +213,7 @@ pub fn build(b: *std.Build) !void {
         const android_app_id = b.option([]const u8, "android_app_id", "Android app id.");
         const android_app_version = b.option([]const u8, "android_app_version", "Android app version.");
         const android_app_bundle = b.option(std.Build.LazyPath, "android_app_bundle", "Default app resource bundle filename.");
+        const android_resources_required = b.option(bool, "android_resources_required", "If true, missing android resource causes build fail.");
         const android_icon_playstore = b.option(std.Build.LazyPath, "android_icon_playstore", "The android google play store icon png.");
         const android_icon_circle_192 = b.option(std.Build.LazyPath, "android_icon_circle_192", "Circle 192px android icon png.");
         const android_icon_circle_144 = b.option(std.Build.LazyPath, "android_icon_circle_144", "Circle 144px android icon png.");
@@ -297,7 +321,7 @@ pub fn build(b: *std.Build) !void {
         }
 
         if (android_app_bundle) |name| {
-            copyStep(b, &run_android_update.step, name, "android/app/src/main/assets/app_bundle.bd");
+            copyStep(b, &run_android_update.step, &do_copy_template.step, name, "android/app/src/main/assets/app_bundle.bd");
         } else {
             //std.log.warn("No ios_app_bundle set", .{});
         }
@@ -319,7 +343,6 @@ pub fn build(b: *std.Build) !void {
             .{ android_icon_foreground_432, "android/app/src/main/res/mipmap/ic_launcher_foreground.webp" },
             .{ android_icon_foreground_432, "android/app/src/main/res/mipmap/icon_foreground.webp" },
             .{ android_icon_foreground_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp" },
-            .{ android_icon_foreground_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.webp" },
             .{ android_icon_foreground_324, "android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.webp" },
             .{ android_icon_foreground_216, "android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.webp" },
             .{ android_icon_foreground_162, "android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.webp" },
@@ -336,9 +359,18 @@ pub fn build(b: *std.Build) !void {
 
         inline for (copy) |cp| {
             if (cp[0]) |src| {
-                run_android_update.step.dependOn(&b.addInstallFile(src, cp[1]).step);
+                const copy_step = &b.addInstallFile(src, cp[1]).step;
+                export_android_template.dependOn(copy_step);
+                copy_step.dependOn(&run_android_update.step);
+            } else {
+                if (android_resources_required) |check| {
+                    if (check) {
+                        run_android_update.step.dependOn(&b.addFail("missing " ++ cp[1]).step);
+                    }
+                }
             }
         }
+
         const copy_libc2 = &b.addInstallFile(generated_libc, "android/libc.txt").step;
         copy_libc2.dependOn(&run_android_update.step);
         export_android_template.dependOn(copy_libc2);
@@ -348,12 +380,14 @@ pub fn build(b: *std.Build) !void {
 
 fn copyStep(
     b: *std.Build,
-    dependsOn: *std.Build.Step,
+    runBefore: *std.Build.Step,
+    runAfter: *std.Build.Step,
     src: std.Build.LazyPath,
     dst: []const u8,
 ) void {
     var cp = b.addInstallFile(src, dst);
-    dependsOn.dependOn(&cp.step);
+    runBefore.dependOn(&cp.step);
+    cp.step.dependOn(runAfter);
 }
 
 fn define_mixer_module(
