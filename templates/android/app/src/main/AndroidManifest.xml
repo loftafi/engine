@@ -57,7 +57,7 @@
         <profileable
             android:shell="true"
             android:enabled="true"
-            tools:targetApi="29" />
+            tools:targetApi="37" />
 
         <!-- Example of setting SDL hints from AndroidManifest.xml:
         <meta-data android:name="SDL_ENV.SDL_ANDROID_TRAP_BACK_BUTTON" android:value="0"/>

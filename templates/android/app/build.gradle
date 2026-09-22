@@ -9,18 +9,19 @@ android {
     ndkVersion = "30.0.16248370" // Use 28 or higher for 16k page size by default.
     compileSdkVersion 37
     defaultConfig {
+        applicationId 'org.example.application'
         minSdkVersion 29
-        targetSdkVersion 35
+        targetSdkVersion 37
         versionCode 2017
         versionName "1.0"
         externalNativeBuild {
             ndkBuild {
-                arguments "APP_PLATFORM=android-35"
+                arguments "APP_PLATFORM=android-37"
                 // abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
                 abiFilters 'arm64-v8a'
             }
             cmake {
-                arguments "-DANDROID_PLATFORM=android-35", "-DANDROID_STL=c++_static"
+                arguments "-DANDROID_PLATFORM=android-37", "-DANDROID_STL=c++_static"
                 // abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
                 abiFilters 'arm64-v8a'
             }
