@@ -2040,8 +2040,12 @@ pub fn find_under_cursor(
 
         if (query == .clickable or query == .clickable_or_scrollable) {
             if (item.focus != .never_focus) switch (item.type) {
-                .text_input, .checkbox => return item,
+                .text_input => return item,
                 .button => |b| if (b.clickable()) {
+                    if (query == .clickable) return item;
+                    if (top_entity != null) top_entity = item;
+                },
+                .checkbox => |c| if (c.clickable()) {
                     if (query == .clickable) return item;
                     if (top_entity != null) top_entity = item;
                 },
@@ -2554,6 +2558,11 @@ inline fn handleMouseDownEvent(
                 found,
                 &.{ .type = .mouse_down },
             ),
+            .checkbox => try found.type.checkbox.on_ui_event.call(
+                display,
+                found,
+                &.{ .type = .mouse_down },
+            ),
             else => {},
         }
     }
@@ -2660,6 +2669,11 @@ inline fn handleMouseMotionEvent(
                     old_item,
                     &.{ .type = .mouse_exit },
                 ),
+                .checkbox => |b| try b.on_ui_event.call(
+                    display,
+                    old_item,
+                    &.{ .type = .mouse_exit },
+                ),
                 else => {},
             }
             old_item.hovered = false;
@@ -2689,6 +2703,11 @@ inline fn handleMouseMotionEvent(
                     &.{ .type = .mouse_enter },
                 ),
                 .button => |b| try b.on_ui_event.call(
+                    display,
+                    found.?,
+                    &.{ .type = .mouse_enter },
+                ),
+                .checkbox => |b| try b.on_ui_event.call(
                     display,
                     found.?,
                     &.{ .type = .mouse_enter },

@@ -463,6 +463,7 @@ pub fn readOnUiEventAttribute(
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
         .button => &entity.type.button.on_ui_event,
+        .checkbox => &entity.type.checkbox.on_ui_event,
         .label => &entity.type.label.on_ui_event,
         .panel => &entity.type.panel.on_ui_event,
         .sprite => &entity.type.sprite.on_ui_event,

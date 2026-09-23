@@ -15,7 +15,18 @@ on: ?[]const u8 = null,
 on_texture: ?*Texture = null,
 off: ?[]const u8 = null,
 off_texture: ?*Texture = null,
+
 on_change: Entity.Callback = .empty,
+on_ui_event: Entity.Callback = .empty,
+
+/// Return true if this button can be interacted with.
+pub inline fn clickable(checkbox: *const Checkbox) bool {
+    // A button is interactable if it has an event handler
+    // or if it can be toggled.
+    if (checkbox.on_change.func != null) return true;
+    if (checkbox.on_ui_event.func != null) return true;
+    return true;
+}
 
 /// Draw a radio box combined with a text label.
 pub inline fn draw(
