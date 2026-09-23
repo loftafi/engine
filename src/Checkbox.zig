@@ -10,6 +10,8 @@ text: []const u8 = "",
 translated: []const u8 = "",
 elements: ArrayListUnmanaged(TextElement) = .empty,
 line_height: f32 = 1,
+side: enum { start, end } = .end,
+spacing: f32 = 0,
 checkbox_size: Size = .{ .width = 0, .height = 0 },
 on: ?[]const u8 = null,
 on_texture: ?*Texture = null,
@@ -37,9 +39,17 @@ pub inline fn draw(
     parent_clip: ?Clip,
     scroll_offset: Vector,
 ) void {
-    const loc = Vector{
-        .x = entity.rect.x + entity.pad.left + scroll_offset.x,
-        .y = entity.rect.y + entity.pad.top + scroll_offset.y,
+
+    // Draw the text
+    const loc: Vector = switch (self.side) {
+        .start => .{
+            .x = entity.rect.x + entity.pad.left + scroll_offset.x + self.checkbox_size.width + self.spacing,
+            .y = entity.rect.y + entity.pad.top + scroll_offset.y,
+        },
+        .end => .{
+            .x = entity.rect.x + entity.pad.left + scroll_offset.x,
+            .y = entity.rect.y + entity.pad.top + scroll_offset.y,
+        },
     };
     const text_colour = entity.style.text(display.theme, entity.colour);
     drawTextElements(
@@ -51,12 +61,21 @@ pub inline fn draw(
         self.text_size,
     );
 
+    // Draw the checkbox
     const checkbox = self.checkbox_size;
-    var dest = Rect{
-        .x = entity.rect.x + entity.rect.width - checkbox.width - entity.pad.left,
-        .y = entity.rect.y + (entity.rect.height / 2) - (checkbox.height / 2),
-        .width = checkbox.width,
-        .height = checkbox.height,
+    var dest: Rect = switch (self.side) {
+        .start => .{
+            .x = entity.rect.x + entity.pad.left,
+            .y = entity.rect.y + (entity.rect.height / 2) - (checkbox.height / 2),
+            .width = checkbox.width,
+            .height = checkbox.height,
+        },
+        .end => .{
+            .x = entity.rect.x + entity.rect.width - checkbox.width - entity.pad.left,
+            .y = entity.rect.y + (entity.rect.height / 2) - (checkbox.height / 2),
+            .width = checkbox.width,
+            .height = checkbox.height,
+        },
     };
     dest = dest.move(scroll_offset);
     if (self.checked) {

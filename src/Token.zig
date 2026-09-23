@@ -69,6 +69,7 @@ pub const Tag = enum(u8) {
     on_ui_event,
     on_visibility,
     pad,
+    side,
     start,
     centre,
     end,

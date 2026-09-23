@@ -127,6 +127,7 @@ pub fn readEntityType(allocator: Allocator, token: *Token) (Allocator.Error || E
     if (entity.type == .checkbox) {
         result.type.checkbox.checkbox_size.width = entity.type.checkbox.text_size.size();
         result.type.checkbox.checkbox_size.height = entity.type.checkbox.text_size.size();
+        result.type.checkbox.spacing = @round(entity.type.checkbox.text_size.size() / 3);
     }
     return result;
 }
@@ -181,6 +182,7 @@ pub fn readAttributes(
             .image => readStringAttribute(token, &entity.texture_name),
             .aria_label => readStringAttribute(token, &entity.aria_label),
             .@"align" => readAlignAttribute(token, entity),
+            .side => readSideAttribute(token, entity),
             .rect => readRectAttribute(token, &entity.rect, font_size),
             .size => readEntitySizeAttribute(token, entity, font_size),
             .minimum => readSizeAttribute(token, &entity.minimum, font_size),
@@ -590,6 +592,7 @@ pub fn readSpacingAttribute(token: *Token, entity: *Entity, font_size: f32) Erro
     const spacing = switch (entity.type) {
         .panel => &entity.type.panel.spacing,
         .button => &entity.type.button.spacing,
+        .checkbox => &entity.type.checkbox.spacing,
         else => return error.UnexpectedToken,
     };
     spacing.* = @ceil(try readFloatValue(token, font_size));
@@ -911,6 +914,17 @@ pub fn readAlignAttribute(token: *Token, entity: *Entity) Error!void {
             },
         }
     }
+}
+
+pub fn readSideAttribute(token: *Token, entity: *Entity) Error!void {
+    if (entity.type != .checkbox) return error.UnexpectedToken;
+    token.* = try token.next();
+    switch (token.tag) {
+        .start => entity.type.checkbox.side = .start,
+        .end => entity.type.checkbox.side = .end,
+        else => return error.UnexpectedToken,
+    }
+    token.* = try token.next();
 }
 
 pub fn readCheckedAttribute(token: *Token, entity: *Entity) Error!void {
