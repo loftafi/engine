@@ -1160,6 +1160,20 @@ pub fn postAppend(
                 entity.type.button.icon.pressed = try display.requireImage(value);
             }
         },
+        .checkbox => {
+            if (entity.type.checkbox.on) |value| {
+                entity.type.checkbox.on_texture = try display.requireImage(value);
+            }
+            if (entity.type.checkbox.on_texture == null) {
+                entity.type.checkbox.on_texture = try display.requireImage("ios-checkbox-on");
+            }
+            if (entity.type.checkbox.off) |value| {
+                entity.type.checkbox.off_texture = try display.requireImage(value);
+            }
+            if (entity.type.checkbox.off_texture == null) {
+                entity.type.checkbox.off_texture = try display.requireImage("ios-checkbox-off");
+            }
+        },
         .progress_bar => {
             if (entity.texture == null) {
                 if (try display.requireImage("rounded progress bar")) |texture| {

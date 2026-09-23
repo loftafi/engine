@@ -83,7 +83,10 @@ pub fn readEntityTokens(
 pub fn readEntityType(allocator: Allocator, token: *Token) (Allocator.Error || Error)!*Entity {
     const entity: Entity = switch (token.tag) {
         .button => .{ .focus = .can_focus, .type = .{ .button = .{ .text_size = .normal } } },
-        .checkbox => .{ .focus = .can_focus, .type = .{ .checkbox = .{ .text_size = .normal } } },
+        .checkbox => .{ .focus = .can_focus, .type = .{ .checkbox = .{
+            .text_size = .normal,
+            .checkbox_size = .{},
+        } } },
         .expander => .{
             .focus = .never_focus,
             .layout = .{ .x = .grows, .y = .grows },
@@ -121,6 +124,10 @@ pub fn readEntityType(allocator: Allocator, token: *Token) (Allocator.Error || E
     };
     const result = try allocator.create(Entity);
     result.* = entity;
+    if (entity.type == .checkbox) {
+        result.type.checkbox.checkbox_size.width = entity.type.checkbox.text_size.size();
+        result.type.checkbox.checkbox_size.height = entity.type.checkbox.text_size.size();
+    }
     return result;
 }
 
@@ -696,6 +703,7 @@ pub fn readTextAttribute(
             const value = token.data[token.loc.start + 1 .. token.loc.end - 1];
             switch (entity.type) {
                 .label => entity.type.label.text = value,
+                .checkbox => entity.type.checkbox.text = value,
                 .button => entity.type.button.text = value,
                 .text_input => entity.type.text_input.initial_text = if (value.len > 0) value else null,
                 else => return error.UnexpectedToken,
