@@ -420,12 +420,16 @@ pub fn create(
             const data = try loadResourceSdl(gpa, io, &display.resources, resource);
             defer gpa.free(data);
             try display.translation.loadTranslationData(gpa, data);
-            debug("Translation file '{s}' loaded", .{translation_filename});
+            debug("Translation file '{s}' loaded with {d} translations ({f}).", .{
+                translation_filename,
+                display.translation.maps.count(),
+                display.translation,
+            });
         } else {
             err("Translation file '{s}' not found.", .{translation_filename});
         }
     } else {
-        info("No config.translation_filename set", .{});
+        warn("No config.translation_filename set", .{});
     }
 
     // App can accept these keybindings or replace them

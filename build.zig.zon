@@ -1,16 +1,16 @@
 .{
     .name = .engine,
-    .version = "0.48.0",
+    .version = "0.49.0",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
         .translator = .{
-            .url = "git+https://github.com/loftafi/translator#019016942a141e97a291be0cf15d66283b465de2",
-            .hash = "translator-0.1.14-cfHZxjVNAADvp_KHNlsbbAGCLJdCv4NJLfa8DPdoxQjH",
+            .url = "git+https://github.com/loftafi/translator#13a4c148e311a43bea2a382ff25a31e2c78b6d47",
+            .hash = "translator-0.2.1-cfHZxpVQAAAzFuMjjGXcJ_Sagcr_EI83rGN-0t_n6wjO",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources#d892252087c4b437c356caff80d17bf874461aa7",
-            .hash = "resources-3.2.2-J0GwI_qfzADI7MMVse52XFCqmGIDK-Zk8URhHPT395UJ",
+            .url = "git+https://github.com/loftafi/resources#afb8b799b3006d477027184c8eb4d2f181cba00a",
+            .hash = "resources-3.2.3-J0GwI_qfzAClrR-ppBbZzrMn2RWCMG7G0hb7lzCDGkju",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/ziglang/translate-c#0944784e197e419433a21d4b28bfc65e48e7d514",
