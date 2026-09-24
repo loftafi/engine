@@ -100,6 +100,7 @@ pub fn build(b: *std.Build) !void {
 
         const ios_app_name = b.option([]const u8, "ios_app_name", "iOS app name.");
         const ios_app_version = b.option([]const u8, "ios_app_version", "iOS app version");
+        const ios_app_build_code = b.option([]const u8, "ios_app_build_code", "iOS app build code string.");
         const ios_app_bundle = b.option(std.Build.LazyPath, "ios_app_bundle", "Default app resource bundle filename");
         const ios_app_id = b.option([]const u8, "ios_app_id", "iOS the app id");
         const ios_resources_required = b.option(bool, "ios_resources_required", "If true, build aborts if template resource is missing.");
@@ -144,6 +145,7 @@ pub fn build(b: *std.Build) !void {
         } else {
             run_xcode_update.step.dependOn(&b.addFail("Specify -Dios_app_version to build ios package.").step);
         }
+        run_xcode_update.addArg(ios_app_build_code orelse try buildCodeApple(b.graph.arena, b.graph.io));
         if (ios_app_id) |id| {
             run_xcode_update.addArg(id);
         } else {
@@ -212,6 +214,7 @@ pub fn build(b: *std.Build) !void {
         const android_app_name = b.option([]const u8, "android_app_name", "Android app name.");
         const android_app_id = b.option([]const u8, "android_app_id", "Android app id.");
         const android_app_version = b.option([]const u8, "android_app_version", "Android app version.");
+        const android_app_build_code = b.option([]const u8, "android_app_build_code", "Android app build code.");
         const android_app_bundle = b.option(std.Build.LazyPath, "android_app_bundle", "Default app resource bundle filename.");
         const android_resources_required = b.option(bool, "android_resources_required", "If true, missing android resource causes build fail.");
         const android_icon_playstore = b.option(std.Build.LazyPath, "android_icon_playstore", "The android google play store icon png.");
@@ -310,6 +313,7 @@ pub fn build(b: *std.Build) !void {
         const generated_libc = run_android_update.addOutputFileArg2("libc.txt", .{});
         run_android_update.addArg(android_app_name orelse "Example");
         run_android_update.addArg(android_app_version orelse "1");
+        run_android_update.addArg(android_app_build_code orelse try buildCodeAndroid(b.graph.arena, b.graph.io));
         run_android_update.addArg(android_app_id orelse "org.example.app");
         run_android_update.addArg(try androidTriple(&android_target.result));
         run_android_update.has_side_effects = true;
@@ -564,6 +568,20 @@ pub fn link_sdl_framework(
             //@panic("link_sdl_framework not configured for this platform");
         },
     }
+}
+
+// Build number is always minutes since  January 1, 2026.
+pub fn buildCodeAndroid(arena: std.mem.Allocator, io: std.Io) error{OutOfMemory}![]const u8 {
+    const timestamp = std.Io.Clock.real.now(io);
+    const value = @divTrunc((timestamp.toSeconds() - 1767229200), 60);
+    return try std.fmt.allocPrint(arena, "{d}", .{value});
+}
+
+// Build number is always minutes since  January 1, 2026.
+pub fn buildCodeApple(arena: std.mem.Allocator, io: std.Io) error{OutOfMemory}![]const u8 {
+    const timestamp = std.Io.Clock.real.now(io);
+    const value = @divTrunc((timestamp.toSeconds() - 1767229200), 60);
+    return try std.fmt.allocPrint(arena, "{X}", .{value});
 }
 
 const std = @import("std");

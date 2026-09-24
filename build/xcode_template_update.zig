@@ -2,7 +2,7 @@
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
 
-    if (args.len != 6) {
+    if (args.len != 7) {
         std.debug.print("usage: /path/to/install_dir /subfolder/App.xcodeproj/project.pbxfile app_name app_version app_id", .{});
         std.debug.print("\nFound {d} arguments: ", .{args.len});
         for (args) |arg| {
@@ -16,7 +16,8 @@ pub fn main(init: std.process.Init) !void {
     const pbxfile = args[2];
     const app_name = args[3];
     const app_version = args[4];
-    const app_id = args[5];
+    const app_build_code = args[5];
+    const app_id = args[6];
 
     update_xcode_variables(
         init.arena.allocator(),
@@ -25,6 +26,7 @@ pub fn main(init: std.process.Init) !void {
         pbxfile,
         app_name,
         app_version,
+        app_build_code,
         app_id,
     ) catch |e| {
         std.debug.print("Update XCode PBX file failed. {t}", .{e});
@@ -41,6 +43,7 @@ pub fn update_xcode_variables(
     pbx_file: []const u8,
     app_name: []const u8,
     app_version: []const u8,
+    build_code: []const u8,
     app_id: []const u8,
 ) !void {
     var file_buffer: [1024 * 100]u8 = undefined;
@@ -53,7 +56,7 @@ pub fn update_xcode_variables(
         defer allocator.free(out2);
         const out3 = try replace_variable(allocator, out2, "PRODUCT_BUNDLE_IDENTIFIER", app_id);
         defer allocator.free(out3);
-        const out4 = try replace_variable(allocator, out3, "CURRENT_PROJECT_VERSION", app_id);
+        const out4 = try replace_variable(allocator, out3, "CURRENT_PROJECT_VERSION", build_code);
         defer allocator.free(out4);
 
         if (!std.mem.eql(u8, data, out4)) {

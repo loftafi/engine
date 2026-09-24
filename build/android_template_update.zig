@@ -2,8 +2,8 @@
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
 
-    if (args.len != 7) {
-        std.debug.print("usage: /path/to/template /path/to/libc.txt app_name app_version app_id android_target", .{});
+    if (args.len != 8) {
+        std.debug.print("usage: /path/to/template /path/to/libc.txt app_name app_version build_code app_id android_target", .{});
         std.debug.print("\nFound {d} arguments: ", .{args.len});
         for (args) |arg| {
             std.debug.print(" {s} ", .{arg});
@@ -16,8 +16,9 @@ pub fn main(init: std.process.Init) !void {
     const libc_file = args[2];
     const app_name = args[3];
     const app_version = args[4];
-    const app_id = args[5];
-    const android_target = args[6];
+    const app_build_code = args[5];
+    const app_id = args[6];
+    const android_target = args[7];
 
     const ndk_path = FindNDK.find(init.io, init.environ_map) catch |e| {
         err("Error while finding NDK. {any}", .{e});
@@ -49,6 +50,7 @@ pub fn main(init: std.process.Init) !void {
         "app/src/main/res/values/strings.xml",
         app_name,
         app_version,
+        app_build_code,
         app_id,
     );
     std.process.exit(0);
@@ -64,22 +66,19 @@ pub fn updateAndroidMetadata(
     strings: []const u8,
     app_name: []const u8,
     app_version: []const u8,
+    build_code: []const u8,
     app_id: []const u8,
 ) !void {
     var dir = try std.Io.Dir.cwd().openDir(io, android_template_folder, .{});
     defer dir.close(io);
 
-    var version_code = app_version;
-    if (std.mem.indexOf(u8, version_code, ".")) |index| {
-        version_code = version_code[0..index];
-    }
-
     var buff: [500]u8 = undefined;
     try update_android_strings_variable(allocator, io, &dir, strings, "app_name", app_name);
     try updateAndroidManifestVariable(allocator, io, &dir, manifest, "versionName", app_version);
-    try updateAndroidManifestVariable(allocator, io, &dir, manifest, "versionCode", version_code);
+    try updateAndroidManifestVariable(allocator, io, &dir, manifest, "versionCode", build_code);
     try updateAndroidGradleVariable(allocator, io, &dir, gradle, "versionName", try std.fmt.bufPrint(&buff, "\"{s}\"", .{app_version}));
     try updateAndroidGradleVariable(allocator, io, &dir, gradle, "applicationId", try std.fmt.bufPrint(&buff, "'{s}'", .{app_id}));
+    try updateAndroidGradleVariable(allocator, io, &dir, gradle, "versionCode", build_code);
 }
 
 pub fn updateAndroidManifestVariable(
