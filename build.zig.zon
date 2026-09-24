@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
     .dependencies = .{
         .translator = .{
-            .url = "git+https://github.com/loftafi/translator#13a4c148e311a43bea2a382ff25a31e2c78b6d47",
-            .hash = "translator-0.2.1-cfHZxpVQAAAzFuMjjGXcJ_Sagcr_EI83rGN-0t_n6wjO",
+            .url = "git+https://github.com/loftafi/translator#0bff329c00af604a7e1527927c81e9414ce910b0",
+            .hash = "translator-0.2.2-cfHZxpVQAABgy0sOgPdOCCGTdt17v1E04JSsPp3XpRHl",
         },
         .resources = .{
             .url = "git+https://github.com/loftafi/resources#afb8b799b3006d477027184c8eb4d2f181cba00a",
