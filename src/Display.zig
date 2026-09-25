@@ -385,6 +385,7 @@ pub fn create(
             .on_visibility = .empty,
         },
     };
+    errdefer display.bucket.deinit();
 
     if (builtin.abi.isAndroid()) {
         _ = sdl.SDL_AddTimer(500, androidSafeAreaHack, display);
@@ -396,6 +397,7 @@ pub fn create(
     }
 
     zstbi.init(display.io, display.allocator);
+    errdefer zstbi.deinit();
 
     if (config.desktop_icon) |desktop_icon| {
         try display.requireResourceRecord(desktop_icon, .image);
