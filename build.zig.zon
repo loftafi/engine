@@ -1,8 +1,8 @@
 .{
     .name = .engine,
-    .version = "0.51.0",
+    .version = "0.52.0",
     .fingerprint = 0xe8a81a8d0aa558d5,
-    .minimum_zig_version = "0.17.0-dev.1426+58a94eaae",
+    .minimum_zig_version = "0.17.0-dev.2257+3bfb29994",
     .dependencies = .{
         .translator = .{
             .url = "git+https://github.com/loftafi/translator#0bff329c00af604a7e1527927c81e9414ce910b0",
@@ -11,6 +11,16 @@
         .resources = .{
             .url = "git+https://github.com/loftafi/resources#22bfb4f67ddc9bc5407dafd6da5b746be42a7c87",
             .hash = "resources-3.2.4-J0GwI_qfzAD76zo-zxgy3WO1uIYaPZOh1Wvh3GAxtUag",
+        },
+        .sdl = .{
+            // Required by the android template if `zig build android` is requested.
+            .url = "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.4.16.tar.gz",
+            .hash = "N-V-__8AABHq9wIiTHGY4qR6mw45F_TX8FSvqsQQ-Wtq1tzY",
+        },
+        .sdl_mixer = .{
+            // Required by the android template if `zig build android` is requested.
+            .url = "https://github.com/libsdl-org/SDL_mixer/archive/refs/tags/release-3.2.4.tar.gz",
+            .hash = "N-V-__8AADpm6wBISpVEXBiXyYZNjm0JDAI2qa8lydmFKm4W",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/ziglang/translate-c#0944784e197e419433a21d4b28bfc65e48e7d514",
@@ -24,11 +34,6 @@
             // Used on iOS/macOS to register local notifications
             .url = "git+https://github.com/loftafi/zig-objc#3352c12a868f8787ab71bf2ca6eab9fcfb635c52",
             .hash = "zig_objc-0.0.0-Ir_Sp_4tAQDXtPi51nW_jD9LOEzBvU9lofwO9Pzi6IB4",
-        },
-        .sdl_mixer = .{
-            // Required by the android template if `zig build android` is requested.
-            .url = "https://github.com/libsdl-org/SDL_mixer/archive/refs/tags/release-3.2.4.tar.gz",
-            .hash = "N-V-__8AADpm6wBISpVEXBiXyYZNjm0JDAI2qa8lydmFKm4W",
         },
     },
     .paths = .{

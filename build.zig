@@ -260,13 +260,13 @@ pub fn build(b: *std.Build) !void {
         copy_android_template.dependOn(&do_copy_template.step);
 
         // Copy SDL into the android template
-        //const sdl_pkg = b.dependency("sdl", .{});
-        //const do_copy_sdl = b.addInstallDirectory(.{
-        //    .source_dir = sdl_pkg.path(""),
-        //    .install_dir = .{ .custom = "android/app/jni/SDL" },
-        //    .install_subdir = "",
-        //});
-        //copy_android_template.dependOn(&do_copy_sdl.step);
+        const sdl_pkg = b.dependency("sdl", .{});
+        const do_copy_sdl = b.addInstallDirectory(.{
+            .source_dir = sdl_pkg.path(""),
+            .install_dir = .{ .custom = "android/app/jni/SDL" },
+            .install_subdir = "",
+        });
+        copy_android_template.dependOn(&do_copy_sdl.step);
 
         // Copy SDL mixer into the android template
         const sdl_mixer_pkg = b.dependency("sdl_mixer", .{});
