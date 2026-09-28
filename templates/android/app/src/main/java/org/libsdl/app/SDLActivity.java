@@ -1095,6 +1095,23 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     /**
      * This method is called by SDL using JNI.
      */
+    public static boolean scheduleLocalNotification(String id, int delay, String title, String text) {
+        Log.e(TAG, "scheduleLocalNotification unimplemented");
+        return false;
+    }
+
+    /**
+     * This method is called by SDL using JNI.
+     */
+    public static boolean cancelLocalNotification(String id) {
+        Log.e(TAG, "cancelLocalNotification unimplemented");
+        return false;
+    }
+
+
+    /**
+     * This method is called by SDL using JNI.
+     */
     public static boolean setActivityTitle(String title) {
         // Called from SDLMain() thread and can't directly affect the view
         return mSingleton.sendCommand(COMMAND_CHANGE_TITLE, title);

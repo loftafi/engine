@@ -340,6 +340,7 @@ static JavaVM *mJavaVM = NULL;
 static jclass mActivityClass;
 
 // method signatures
+static jmethodID midCancelLocalNotification;
 static jmethodID midClipboardGetText;
 static jmethodID midClipboardHasText;
 static jmethodID midClipboardSetText;
@@ -358,6 +359,7 @@ static jmethodID midManualBackButton;
 static jmethodID midMinimizeWindow;
 static jmethodID midOpenURL;
 static jmethodID midRequestPermission;
+static jmethodID midScheduleLocalNotification;
 static jmethodID midShowToast;
 static jmethodID midSendMessage;
 static jmethodID midSetActivityTitle;
@@ -630,6 +632,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
 
     mActivityClass = (jclass)((*env)->NewGlobalRef(env, cls));
 
+    midCancelLocalNotification = (*env)->GetStaticMethodID(env, mActivityClass, "cancelLocalNotification", "(Ljava/lang/String;)Z");
     midClipboardGetText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardGetText", "()Ljava/lang/String;");
     midClipboardHasText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardHasText", "()Z");
     midClipboardSetText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardSetText", "(Ljava/lang/String;)V");
@@ -648,6 +651,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
     midMinimizeWindow = (*env)->GetStaticMethodID(env, mActivityClass, "minimizeWindow", "()V");
     midOpenURL = (*env)->GetStaticMethodID(env, mActivityClass, "openURL", "(Ljava/lang/String;)Z");
     midRequestPermission = (*env)->GetStaticMethodID(env, mActivityClass, "requestPermission", "(Ljava/lang/String;I)V");
+    midScheduleLocalNotification = (*env)->GetStaticMethodID(env, mActivityClass, "scheduleLocalNotification", "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)Z");
     midShowToast = (*env)->GetStaticMethodID(env, mActivityClass, "showToast", "(Ljava/lang/String;IIII)Z");
     midSendMessage = (*env)->GetStaticMethodID(env, mActivityClass, "sendMessage", "(II)Z");
     midSetActivityTitle = (*env)->GetStaticMethodID(env, mActivityClass, "setActivityTitle", "(Ljava/lang/String;)Z");
@@ -1617,6 +1621,31 @@ void Android_JNI_SetActivityTitle(const char *title)
     jstring jtitle = (*env)->NewStringUTF(env, title);
     (*env)->CallStaticBooleanMethod(env, mActivityClass, midSetActivityTitle, jtitle);
     (*env)->DeleteLocalRef(env, jtitle);
+}
+
+    (*env)->CallStaticBooleanMethod(env, mActivityClass, midSetActivityTitle);
+}
+
+void Android_JNI_ScheduleLocalNotification(const char *id, int delay, const char *title, const char *text)
+{
+    JNIEnv *env = Android_JNI_GetEnv();
+
+    jstring jid = (*env)->NewStringUTF(env, id);
+    jstring jtitle = (*env)->NewStringUTF(env, title);
+    jstring jtext = (*env)->NewStringUTF(env, text);
+    (*env)->CallStaticBooleanMethod(env, mActivityClass, midScheduleLocalNotification, jid, jtitle, jtext);
+    (*env)->DeleteLocalRef(env, jid);
+    (*env)->DeleteLocalRef(env, jtitle);
+    (*env)->DeleteLocalRef(env, jtext);
+}
+
+void Android_JNI_CancelLocalNotification(const char *id)
+{
+    JNIEnv *env = Android_JNI_GetEnv();
+
+    jstring jid = (*env)->NewStringUTF(env, id);
+    (*env)->CallStaticBooleanMethod(env, mActivityClass, midCancelLocalNotification, jid);
+    (*env)->DeleteLocalRef(env, jid);
 }
 
 void Android_JNI_SetWindowStyle(bool fullscreen)
