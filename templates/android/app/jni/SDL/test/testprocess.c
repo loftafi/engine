@@ -82,7 +82,7 @@ static int SDLCALL process_testArguments(void *arg)
         "",
         "  ",
         "a b c",
-        "a\tb\tc\t",
+        "a\tb\tc\t\v\r\n",
         "\"a b\" c",
         "'a' 'b' 'c'",
         "%d%%%s",
@@ -789,6 +789,8 @@ static int process_testNonExistingExecutable(void *arg)
     char *random_stem;
     char *random_path;
     SDL_Process *process = NULL;
+    bool result;
+    int exit_code = 0;
 
     random_stem = SDLTest_RandomAsciiStringOfSize(STEM_LENGTH);
     random_path = SDL_malloc(STEM_LENGTH + SDL_strlen(EXE) + 1);
@@ -801,7 +803,15 @@ static int process_testNonExistingExecutable(void *arg)
 
     SDLTest_AssertPass("About to call SDL_CreateProcess");
     process = SDL_CreateProcess((const char * const *)process_args, false);
-    SDLTest_AssertCheck(process == NULL, "SDL_CreateProcess() should have failed (%s)", SDL_GetError());
+    if (process) {
+        SDLTest_AssertPass("SDL_CreateProcess() returned a process, waiting for exec failure");
+        result = SDL_WaitProcess(process, true, &exit_code);
+        SDLTest_AssertCheck(result, "SDL_WaitProcess()");
+        SDLTest_AssertCheck(exit_code != 0, "Exit code should be non-zero, is %d", exit_code);
+        SDL_DestroyProcess(process);
+    } else {
+        SDLTest_AssertPass("SDL_CreateProcess() failed synchronously (%s)", SDL_GetError());
+    }
 
     DestroyStringArray(process_args);
     return TEST_COMPLETED;
@@ -968,6 +978,165 @@ cleanup:
     return TEST_COMPLETED;
 }
 
+static int process_testWindowsCmdline(void *arg)
+{
+    TestProcessData *data = (TestProcessData *)arg;
+    const char *process_args[] = {
+        data->childprocess_path,
+        "--print-arguments",
+        "--",
+        "",
+        "  ",
+        "a b c",
+        "a\tb\tc\t",
+        "\"a b\" c",
+        "'a' 'b' 'c'",
+        "%d%%%s",
+        "\\t\\c",
+        "evil\\",
+        "a\\b\"c\\",
+        "\"\\^&|<>%", /* characters with a special meaning */
+        NULL
+    };
+    /* this will have the same result as process_args, but escaped in a different way */
+    const char *process_cmdline_template =
+        "%s "
+        "--print-arguments "
+        "-- "
+        "\"\" "
+        "\"  \" "
+        "a\" \"b\" \"c\t" /* using tab as delimiter */
+        "\"a\tb\tc\t\" "
+        "\"\"\"\"a b\"\"\" c\" "
+        "\"'a' 'b' 'c'\" "
+        "%%d%%%%%%s " /* will be passed to sprintf */
+        "\\t\\c "
+        "evil\\ "
+        "a\\b\"\\\"\"c\\ "
+        "\\\"\\^&|<>%%";
+    char process_cmdline[65535];
+    SDL_PropertiesID props;
+    SDL_Process *process = NULL;
+    char *buffer;
+    int exit_code;
+    int i;
+    size_t total_read = 0;
+
+#ifndef SDL_PLATFORM_WINDOWS
+    SDLTest_AssertPass("SDL_PROP_PROCESS_CREATE_CMDLINE_STRING only works on Windows");
+    return TEST_SKIPPED;
+#endif
+
+    props = SDL_CreateProperties();
+    SDLTest_AssertCheck(props != 0, "SDL_CreateProperties()");
+    if (!props) {
+        goto failed;
+    }
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+
+    process = SDL_CreateProcessWithProperties(props);
+    SDLTest_AssertCheck(process == NULL, "SDL_CreateProcessWithProperties() should fail");
+
+    SDL_snprintf(process_cmdline, SDL_arraysize(process_cmdline), process_cmdline_template, data->childprocess_path);
+    SDL_SetStringProperty(props, SDL_PROP_PROCESS_CREATE_CMDLINE_STRING, process_cmdline);
+
+    process = SDL_CreateProcessWithProperties(props);
+    SDLTest_AssertCheck(process != NULL, "SDL_CreateProcessWithProperties()");
+    if (!process) {
+        goto failed;
+    }
+
+    exit_code = 0xdeadbeef;
+    buffer = (char *)SDL_ReadProcess(process, &total_read, &exit_code);
+    SDLTest_AssertCheck(buffer != NULL, "SDL_ReadProcess()");
+    SDLTest_AssertCheck(exit_code == 0, "Exit code should be 0, is %d", exit_code);
+    if (!buffer) {
+        goto failed;
+    }
+    SDLTest_LogEscapedString("stdout of process: ", buffer, total_read);
+
+    for (i = 3; process_args[i]; i++) {
+        char line[64];
+        SDL_snprintf(line, sizeof(line), "|%d=%s|", i - 3, process_args[i]);
+        SDLTest_AssertCheck(!!SDL_strstr(buffer, line), "Check %s is in output", line);
+    }
+    SDL_free(buffer);
+
+    SDLTest_AssertPass("About to destroy process");
+    SDL_DestroyProcess(process);
+
+    return TEST_COMPLETED;
+
+failed:
+    SDL_DestroyProcess(process);
+    return TEST_ABORTED;
+}
+
+static int process_testWindowsCmdlinePrecedence(void *arg)
+{
+    TestProcessData *data = (TestProcessData *)arg;
+    const char *process_args[] = {
+        data->childprocess_path,
+        "--print-arguments",
+        "--",
+        "argument 1",
+        NULL
+    };
+    const char *process_cmdline_template = "%s --print-arguments -- \"argument 2\"";
+    char process_cmdline[65535];
+    SDL_PropertiesID props;
+    SDL_Process *process = NULL;
+    char *buffer;
+    int exit_code;
+    size_t total_read = 0;
+
+#ifndef SDL_PLATFORM_WINDOWS
+    SDLTest_AssertPass("SDL_PROP_PROCESS_CREATE_CMDLINE_STRING only works on Windows");
+    return TEST_SKIPPED;
+#endif
+
+    props = SDL_CreateProperties();
+    SDLTest_AssertCheck(props != 0, "SDL_CreateProperties()");
+    if (!props) {
+        goto failed;
+    }
+
+    SDL_snprintf(process_cmdline, SDL_arraysize(process_cmdline), process_cmdline_template, data->childprocess_path);
+    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)process_args);
+    SDL_SetStringProperty(props, SDL_PROP_PROCESS_CREATE_CMDLINE_STRING, (const char *)process_cmdline);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+
+    process = SDL_CreateProcessWithProperties(props);
+    SDLTest_AssertCheck(process != NULL, "SDL_CreateProcessWithProperties()");
+    if (!process) {
+        goto failed;
+    }
+
+    exit_code = 0xdeadbeef;
+    buffer = (char *)SDL_ReadProcess(process, &total_read, &exit_code);
+    SDLTest_AssertCheck(buffer != NULL, "SDL_ReadProcess()");
+    SDLTest_AssertCheck(exit_code == 0, "Exit code should be 0, is %d", exit_code);
+    if (!buffer) {
+        goto failed;
+    }
+    SDLTest_LogEscapedString("stdout of process: ", buffer, total_read);
+    SDLTest_AssertCheck(!!SDL_strstr(buffer, "|0=argument 2|"), "Check |0=argument 2| is printed");
+    SDL_free(buffer);
+
+    SDLTest_AssertPass("About to destroy process");
+    SDL_DestroyProcess(process);
+
+    return TEST_COMPLETED;
+
+failed:
+    SDL_DestroyProcess(process);
+    return TEST_ABORTED;
+}
+
 static const SDLTest_TestCaseReference processTestArguments = {
     process_testArguments, "process_testArguments", "Test passing arguments to child process", TEST_ENABLED
 };
@@ -1020,6 +1189,14 @@ static const SDLTest_TestCaseReference processTestFileRedirection = {
     process_testFileRedirection, "process_testFileRedirection", "Test redirection from/to files", TEST_ENABLED
 };
 
+static const SDLTest_TestCaseReference processTestWindowsCmdline = {
+    process_testWindowsCmdline, "process_testWindowsCmdline", "Test passing cmdline directly to CreateProcess", TEST_ENABLED
+};
+
+static const SDLTest_TestCaseReference processTestWindowsCmdlinePrecedence = {
+    process_testWindowsCmdlinePrecedence, "process_testWindowsCmdlinePrecedence", "Test SDL_PROP_PROCESS_CREATE_CMDLINE_STRING precedence over SDL_PROP_PROCESS_CREATE_ARGS_POINTER", TEST_ENABLED
+};
+
 static const SDLTest_TestCaseReference *processTests[] = {
     &processTestArguments,
     &processTestExitCode,
@@ -1034,6 +1211,8 @@ static const SDLTest_TestCaseReference *processTests[] = {
     &processTestNonExistingExecutable,
     &processTestBatBadButVulnerability,
     &processTestFileRedirection,
+    &processTestWindowsCmdline,
+    &processTestWindowsCmdlinePrecedence,
     NULL
 };
 

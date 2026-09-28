@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -28,6 +28,7 @@
 
 #include "SDL_emscriptenvideo.h"
 #include "SDL_emscriptenopengles.h"
+#include "../../main/SDL_main_callbacks.h"
 
 bool Emscripten_GLES_LoadLibrary(SDL_VideoDevice *_this, const char *path)
 {
@@ -50,10 +51,14 @@ bool Emscripten_GLES_SetSwapInterval(SDL_VideoDevice *_this, int interval)
     }
 
     if (Emscripten_ShouldSetSwapInterval(interval)) {
-        if (interval == 0) {
-            emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, 0);
-        } else {
-            emscripten_set_main_loop_timing(EM_TIMING_RAF, interval);
+        // don't change the mainloop timing if the app is also driving a main callback with this hint,
+        //  as we assume that was the more deliberate action.
+        if (!SDL_HasMainCallbacks() || !SDL_GetHint(SDL_HINT_MAIN_CALLBACK_RATE)) {
+            if (interval == 0) {
+                emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, 0);
+            } else {
+                emscripten_set_main_loop_timing(EM_TIMING_RAF, interval);
+            }
         }
     }
 
@@ -62,6 +67,12 @@ bool Emscripten_GLES_SetSwapInterval(SDL_VideoDevice *_this, int interval)
 
 bool Emscripten_GLES_GetSwapInterval(SDL_VideoDevice *_this, int *interval)
 {
+    const int pending = Emscripten_GetPendingSwapInterval();
+    if (pending >= 0) {
+        *interval = pending;
+        return true;  // we're planning to set it to this once the system settles down.
+    }
+
     int mode, value;
 
     emscripten_get_main_loop_timing(&mode, &value);

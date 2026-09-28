@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -82,6 +82,7 @@ static SDL_Renderer *renderer;
 static SDL_AudioStream *audio;
 static SDL_Texture *video_texture;
 static Uint64 video_start;
+static bool nodelay;
 static bool software_only;
 static bool has_eglCreateImage;
 #ifdef HAVE_EGL
@@ -93,7 +94,6 @@ static PFNGLEGLIMAGETARGETTEXTURE2DOESPROC glEGLImageTargetTexture2DOESFunc;
 #ifdef SDL_PLATFORM_WIN32
 static ID3D11Device *d3d11_device;
 static ID3D11DeviceContext *d3d11_context;
-static const GUID SDL_IID_ID3D11Resource = { 0xdc8e63f3, 0xd12b, 0x4952, { 0xb4, 0x7b, 0x5e, 0x45, 0x02, 0x6a, 0x86, 0x2d } };
 #endif
 static VulkanVideoContext *vulkan_context;
 struct SwsContextContainer
@@ -232,7 +232,7 @@ static SDL_Texture *CreateTexture(SDL_Renderer *r, unsigned char *data, unsigned
     SDL_Surface *surface;
     SDL_IOStream *src = SDL_IOFromConstMem(data, len);
     if (src) {
-        surface = SDL_LoadBMP_IO(src, true);
+        surface = SDL_LoadPNG_IO(src, true);
         if (surface) {
             /* Treat white as transparent */
             SDL_SetSurfaceColorKey(surface, true, SDL_MapSurfaceRGB(surface, 255, 255, 255));
@@ -738,6 +738,7 @@ static bool GetNV12TextureForDRMFrame(AVFrame *frame, SDL_Texture **texture)
             glActiveTextureARBFunc(GL_TEXTURE0_ARB + image_index);
             glBindTexture(GL_TEXTURE_2D, textures[image_index]);
             glEGLImageTargetTexture2DOESFunc(GL_TEXTURE_2D, image);
+            eglDestroyImage(display, image);
             ++image_index;
         }
     }
@@ -923,9 +924,10 @@ static bool GetOESTextureForDRMFrame(AVFrame *frame, SDL_Texture **texture)
     glActiveTextureARBFunc(GL_TEXTURE0_ARB);
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, textureID);
     glEGLImageTargetTexture2DOESFunc(GL_TEXTURE_EXTERNAL_OES, image);
+    eglDestroyImage(display, image);
     return true;
 }
-#endif // HAVE_EGL
+#endif /* HAVE_EGL */
 
 static bool GetTextureForDRMFrame(AVFrame *frame, SDL_Texture **texture)
 {
@@ -1086,6 +1088,10 @@ static void DisplayVideoTexture(AVFrame *frame)
         return;
     }
 
+    if (BeginFrameRendering(frame) < 0) {
+        return;
+    }
+
     SDL_FRect src;
     src.x = 0.0f;
     src.y = 0.0f;
@@ -1096,6 +1102,9 @@ static void DisplayVideoTexture(AVFrame *frame)
     } else {
         SDL_RenderTexture(renderer, video_texture, &src, NULL);
     }
+    SDL_FlushRenderer(renderer);
+
+    FinishFrameRendering(frame);
 }
 
 static void DisplayVideoFrame(AVFrame *frame)
@@ -1105,17 +1114,15 @@ static void DisplayVideoFrame(AVFrame *frame)
 
 static void HandleVideoFrame(AVFrame *frame, double pts)
 {
-    /* Quick and dirty PTS handling */
-    if (!video_start) {
-        video_start = SDL_GetTicks();
-    }
-    double now = (double)(SDL_GetTicks() - video_start) / 1000.0;
-    if (now < pts) {
-        SDL_DelayPrecise((Uint64)((pts - now) * SDL_NS_PER_SECOND));
-    }
-
-    if (BeginFrameRendering(frame) < 0) {
-        return;
+    if (!nodelay) {
+        /* Quick and dirty PTS handling */
+        if (!video_start) {
+            video_start = SDL_GetTicks();
+        }
+        double now = (double)(SDL_GetTicks() - video_start) / 1000.0;
+        if (now < pts) {
+            SDL_DelayPrecise((Uint64)((pts - now) * SDL_NS_PER_SECOND));
+        }
     }
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -1127,8 +1134,6 @@ static void HandleVideoFrame(AVFrame *frame, double pts)
     MoveSprite();
 
     SDL_RenderPresent(renderer);
-
-    FinishFrameRendering(frame);
 }
 
 static AVCodecContext *OpenAudioStream(AVFormatContext *ic, int stream, const AVCodec *codec)
@@ -1286,7 +1291,7 @@ static void av_log_callback(void *avcl, int level, const char *fmt, va_list vl)
 
 static void print_usage(SDLTest_CommonState *state, const char *argv0)
 {
-    static const char *options[] = { "[--verbose]", "[--sprites N]", "[--audio-codec codec]", "[--video-codec codec]", "[--software]", "video_file", NULL };
+    static const char *options[] = { "[--verbose]", "[--sprites N]", "[--audio-codec codec]", "[--video-codec codec]", "[--software]", "[--nodelay]", "video_file", NULL };
     SDLTest_CommonLogUsage(state, argv0, options);
 }
 
@@ -1343,6 +1348,9 @@ int main(int argc, char *argv[])
                 consumed = 2;
             } else if (SDL_strcmp(argv[i], "--software") == 0) {
                 software_only = true;
+                consumed = 1;
+            } else if (SDL_strcmp(argv[i], "--nodelay") == 0) {
+                nodelay = true;
                 consumed = 1;
             } else if (!file) {
                 /* We'll try to open this as a media file */
@@ -1459,7 +1467,7 @@ int main(int argc, char *argv[])
     }
 
     /* Create the sprite */
-    sprite = CreateTexture(renderer, icon_bmp, icon_bmp_len, &sprite_w, &sprite_h);
+    sprite = CreateTexture(renderer, icon_png, icon_png_len, &sprite_w, &sprite_h);
 
     if (!sprite) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't create texture (%s)", SDL_GetError());
@@ -1565,7 +1573,7 @@ int main(int argc, char *argv[])
         }
 
         if (flushing && !decoded) {
-            if (SDL_GetAudioStreamQueued(audio) > 0) {
+            if (SDL_GetAudioStreamQueued(audio) > 0 && !nodelay) {
                 /* Wait a little bit for the audio to finish */
                 SDL_Delay(10);
             } else {

@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -71,7 +71,7 @@ static Bool isUnmapNotify(Display *dpy, XEvent *ev, XPointer win) // NOLINT(read
 /*
 static Bool isConfigureNotify(Display *dpy, XEvent *ev, XPointer win)
 {
-    return ev->type == ConfigureNotify && ev->xconfigure.window == *((Window*)win);
+    return ev->type == ConfigureNotify && ev->xconfigure.window == *((Window *)win);
 }
 static Bool X11_XIfEventTimeout(Display *display, XEvent *event_return, Bool (*predicate)(), XPointer arg, int timeoutMS)
 {
@@ -354,7 +354,7 @@ SDL_WindowFlags X11_GetNetWMState(SDL_VideoDevice *_this, SDL_Window *window, Wi
          */
         {
             XWindowAttributes attr;
-            SDL_memset(&attr, 0, sizeof(attr));
+            SDL_zero(attr);
             X11_XGetWindowAttributes(videodata->display, xwindow, &attr);
             if (attr.map_state == IsUnmapped) {
                 flags |= SDL_WINDOW_HIDDEN;
@@ -374,9 +374,6 @@ static bool SetupWindowData(SDL_VideoDevice *_this, SDL_Window *window, Window w
     SDL_VideoData *videodata = _this->internal;
     SDL_DisplayData *displaydata = SDL_GetDisplayDriverDataForWindow(window);
     SDL_WindowData *data;
-    int numwindows = videodata->numwindows;
-    int windowlistlength = videodata->windowlistlength;
-    SDL_WindowData **windowlist = videodata->windowlist;
 
     // Allocate the window data
     data = (SDL_WindowData *)SDL_calloc(1, sizeof(*data));
@@ -392,20 +389,13 @@ static bool SetupWindowData(SDL_VideoDevice *_this, SDL_Window *window, Window w
 
     // Associate the data with the window
 
-    if (numwindows < windowlistlength) {
-        windowlist[numwindows] = data;
-        videodata->numwindows++;
-    } else {
-        SDL_WindowData ** new_windowlist = (SDL_WindowData **)SDL_realloc(windowlist, (numwindows + 1) * sizeof(*windowlist));
+    if (videodata->numwindows >= videodata->windowlistlength) {
+        SDL_WindowData ** new_windowlist = (SDL_WindowData **)SDL_realloc(videodata->windowlist, (videodata->numwindows + 1) * sizeof(*videodata->windowlist));
         if (!new_windowlist) {
-            SDL_free(data);
-            return false;
+            goto error_cleanup;
         }
-        windowlist = new_windowlist;
-        windowlist[numwindows] = data;
-        videodata->numwindows++;
         videodata->windowlistlength++;
-        videodata->windowlist = windowlist;
+        videodata->windowlist = new_windowlist;
     }
 
     // Fill in the SDL window with the window data
@@ -458,9 +448,43 @@ static bool SetupWindowData(SDL_VideoDevice *_this, SDL_Window *window, Window w
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_X11_SCREEN_NUMBER, screen);
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, data->xwindow);
 
+
+#if defined(SDL_VIDEO_OPENGL_ES) || defined(SDL_VIDEO_OPENGL_ES2) || defined(SDL_VIDEO_OPENGL_EGL)
+    if ((window->flags & SDL_WINDOW_OPENGL) &&
+        ((_this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_ES) ||
+         SDL_GetHintBoolean(SDL_HINT_VIDEO_FORCE_EGL, false))
+#ifdef SDL_VIDEO_OPENGL_GLX
+        && (!_this->gl_data || X11_GL_UseEGL(_this))
+#endif
+    ) {
+#ifdef SDL_VIDEO_OPENGL_EGL
+        if (!_this->egl_data) {
+            goto error_cleanup;
+        }
+
+        // Create the GLES window surface
+        data->egl_surface = SDL_EGL_CreateSurface(_this, window, (NativeWindowType)w);
+
+        if (data->egl_surface == EGL_NO_SURFACE) {
+            SDL_SetError("Could not create GLES window surface");
+            goto error_cleanup;
+        }
+#else
+        SDL_SetError("Could not create GLES window surface (EGL support not configured)");
+        goto error_cleanup;
+#endif // SDL_VIDEO_OPENGL_EGL
+    }
+#endif
+
     // All done!
     window->internal = data;
+    videodata->windowlist[videodata->numwindows++] = data;
     return true;
+
+error_cleanup:
+    X11_DestroyInputContext(data);
+    SDL_free(data);
+    return false;
 }
 
 static void SetupWindowInput(SDL_VideoDevice *_this, SDL_Window *window)
@@ -475,7 +499,7 @@ static void SetupWindowInput(SDL_VideoDevice *_this, SDL_Window *window)
     }
 #endif
 
-    X11_Xinput2SelectTouch(_this, window);
+    X11_Xinput2Select(_this, window);
 
     {
         unsigned int x11_keyboard_events = KeyPressMask | KeyReleaseMask;
@@ -553,7 +577,8 @@ bool X11_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Properties
     }
 
     const bool force_override_redirect = SDL_GetHintBoolean(SDL_HINT_X11_FORCE_OVERRIDE_REDIRECT, false);
-    const bool use_resize_sync = !!(window->flags & SDL_WINDOW_OPENGL); // Doesn't work well with Vulkan
+    const bool use_resize_sync = SDL_GetHintBoolean(SDL_HINT_VIDEO_X11_ENABLE_XSYNC_EXT, false) &&
+                                 (window->flags & SDL_WINDOW_OPENGL) != 0; // Doesn't work well with Vulkan
     SDL_WindowData *windowdata;
     Display *display = data->display;
     int screen = displaydata->screen;
@@ -710,7 +735,7 @@ bool X11_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Properties
     }
 
     if (window->undefined_x && window->undefined_y &&
-        window->last_displayID == SDL_GetPrimaryDisplay()) {
+        window->displayID == SDL_GetPrimaryDisplay()) {
         undefined_position = true;
     }
 
@@ -819,7 +844,6 @@ bool X11_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Properties
         int proto_count = 0;
 
         protocols[proto_count++] = data->atoms.WM_DELETE_WINDOW; // Allow window to be deleted by the WM
-        protocols[proto_count++] = data->atoms.WM_TAKE_FOCUS;    // Since we will want to set input focus explicitly
 
         // Default to using ping if there is no hint
         if (SDL_GetHintBoolean(SDL_HINT_VIDEO_X11_NET_WM_PING, true)) {
@@ -832,7 +856,7 @@ bool X11_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Properties
         }
 #endif /* SDL_VIDEO_DRIVER_X11_XSYNC */
 
-        SDL_assert(proto_count <= sizeof(protocols) / sizeof(protocols[0]));
+        SDL_assert(proto_count <= SDL_arraysize(protocols));
 
         X11_XSetWMProtocols(display, w, protocols, proto_count);
     }
@@ -857,31 +881,6 @@ bool X11_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Properties
         X11_InitResizeSync(window);
     }
 #endif /* SDL_VIDEO_DRIVER_X11_XSYNC */
-
-#if defined(SDL_VIDEO_OPENGL_ES) || defined(SDL_VIDEO_OPENGL_ES2) || defined(SDL_VIDEO_OPENGL_EGL)
-    if ((window->flags & SDL_WINDOW_OPENGL) &&
-        ((_this->gl_config.profile_mask == SDL_GL_CONTEXT_PROFILE_ES) ||
-         SDL_GetHintBoolean(SDL_HINT_VIDEO_FORCE_EGL, false))
-#ifdef SDL_VIDEO_OPENGL_GLX
-        && (!_this->gl_data || X11_GL_UseEGL(_this))
-#endif
-    ) {
-#ifdef SDL_VIDEO_OPENGL_EGL
-        if (!_this->egl_data) {
-            return false;
-        }
-
-        // Create the GLES window surface
-        windowdata->egl_surface = SDL_EGL_CreateSurface(_this, window, (NativeWindowType)w);
-
-        if (windowdata->egl_surface == EGL_NO_SURFACE) {
-            return SDL_SetError("Could not create GLES window surface");
-        }
-#else
-        return SDL_SetError("Could not create GLES window surface (EGL support not configured)");
-#endif // SDL_VIDEO_OPENGL_EGL
-    }
-#endif
 
 #ifdef SDL_VIDEO_DRIVER_X11_XSHAPE
     // Tooltips do not receive input
@@ -1192,6 +1191,7 @@ bool X11_SetWindowPosition(SDL_VideoDevice *_this, SDL_Window *window)
         }
         X11_UpdateWindowPosition(window, false);
     } else {
+        window->internal->fs_repositioned = true;
         SDL_UpdateFullscreenMode(window, SDL_FULLSCREEN_OP_UPDATE, true);
     }
     return true;
@@ -1347,6 +1347,14 @@ void X11_SetWindowSize(SDL_VideoDevice *_this, SDL_Window *window)
         data->expected.h = window->pending.h;
         data->pending_operation |= X11_PENDING_OP_RESIZE;
         X11_XResizeWindow(display, data->xwindow, data->expected.w, data->expected.h);
+    }
+
+    /* External windows may call this to update the renderer size, but not pump SDL events,
+     * so the size event needs to be synthesized for external windows. If it is wrong, the
+     * true size will be sent if/when events are processed.
+     */
+    if (window->flags & SDL_WINDOW_EXTERNAL) {
+        SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_RESIZED, window->pending.w, window->pending.h);
     }
 }
 
@@ -1633,14 +1641,16 @@ void X11_HideWindow(SDL_VideoDevice *_this, SDL_Window *window)
     Display *display = data->videodata->display;
     XEvent event;
 
-    if (X11_IsWindowMapped(_this, window)) {
-        X11_XWithdrawWindow(display, data->xwindow, screen);
-        // Blocking wait for "UnmapNotify" event
-        if (!(window->flags & SDL_WINDOW_EXTERNAL) && X11_IsDisplayOk(display)) {
-            X11_XIfEvent(display, &event, &isUnmapNotify, (XPointer)&data->xwindow);
-        }
-        X11_XFlush(display);
+    /* Some window managers will mark minimized or offscreen windows as unmapped, so we
+     * must not block while waiting for an UnmapNotify event that will never arrive.
+     */
+    const bool is_mapped = X11_IsWindowMapped(_this, window);
+    X11_XWithdrawWindow(display, data->xwindow, screen);
+    if (is_mapped && !(window->flags & SDL_WINDOW_EXTERNAL) && X11_IsDisplayOk(display)) {
+        // Blocking wait for "UnmapNotify" event.
+        X11_XIfEvent(display, &event, &isUnmapNotify, (XPointer)&data->xwindow);
     }
+    X11_XFlush(display);
 
     // Transfer keyboard focus back to the parent
     if ((window->flags & SDL_WINDOW_POPUP_MENU) && !(window->flags & SDL_WINDOW_NOT_FOCUSABLE)) {
@@ -1882,7 +1892,8 @@ static SDL_FullscreenResult X11_SetWindowFullscreenViaWM(SDL_VideoDevice *_this,
         X11_XSendEvent(display, RootWindow(display, displaydata->screen), 0,
                        SubstructureNotifyMask | SubstructureRedirectMask, &e);
 
-        if (!!(window->flags & SDL_WINDOW_FULLSCREEN) != fullscreen) {
+        // Only set the pending flag if the fullscreen state actually changed.
+        if (((window->flags & SDL_WINDOW_FULLSCREEN) != 0) != (fullscreen != 0)) {
             data->pending_operation |= X11_PENDING_OP_FULLSCREEN;
         }
 
@@ -1898,13 +1909,15 @@ static SDL_FullscreenResult X11_SetWindowFullscreenViaWM(SDL_VideoDevice *_this,
             data->expected.w = _display->current_mode->w;
             data->expected.h = _display->current_mode->h;
 
-            // Only move the window if it isn't fullscreen or already on the target display.
-            if (!(window->flags & SDL_WINDOW_FULLSCREEN) || (!current || current != _display->id)) {
+            // Only move the window if it isn't already on the target display.
+            if (!current || current != _display->id) {
                 X11_XMoveWindow(display, data->xwindow, displaydata->x, displaydata->y);
                 data->pending_operation |= X11_PENDING_OP_MOVE;
             }
         } else {
             SDL_zero(data->requested_fullscreen_mode);
+            data->pending_position = data->fs_repositioned;
+            data->fs_repositioned = false;
 
             /* Fullscreen windows sometimes end up being marked maximized by
              * window managers. Force it back to how we expect it to be.
@@ -2043,6 +2056,7 @@ bool X11_SetWindowMouseGrab(SDL_VideoDevice *_this, SDL_Window *window, bool gra
         return SDL_SetError("Invalid window data");
     }
     data->mouse_grabbed = false;
+    data->pending_grab = false;
 
     display = data->videodata->display;
 
@@ -2060,7 +2074,8 @@ bool X11_SetWindowMouseGrab(SDL_VideoDevice *_this, SDL_Window *window, bool gra
          * the confinement grab.
          */
         if (data->xinput2_mouse_enabled && SDL_GetMouseState(NULL, NULL)) {
-            X11_XUngrabPointer(display, CurrentTime);
+            data->pending_grab = true;
+            return true;
         }
 
         // Try to grab the mouse
@@ -2180,13 +2195,8 @@ void X11_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window)
                 }
             }
         }
-#ifdef X_HAVE_UTF8_STRING
-        if (data->ic) {
-            X11_XDestroyIC(data->ic);
-            SDL_free(data->preedit_text);
-            SDL_free(data->preedit_feedback);
-        }
-#endif
+
+        X11_DestroyInputContext(data);
 
 #ifdef SDL_VIDEO_DRIVER_X11_XSYNC
         X11_TermResizeSync(window);
