@@ -1623,9 +1623,6 @@ void Android_JNI_SetActivityTitle(const char *title)
     (*env)->DeleteLocalRef(env, jtitle);
 }
 
-    (*env)->CallStaticBooleanMethod(env, mActivityClass, midSetActivityTitle);
-}
-
 void Android_JNI_ScheduleLocalNotification(const char *id, int delay, const char *title, const char *text)
 {
     JNIEnv *env = Android_JNI_GetEnv();
