@@ -70,9 +70,6 @@ extern void Android_JNI_HideScreenKeyboard(void);
 extern bool Android_JNI_IsScreenKeyboardShown(void);
 extern ANativeWindow *Android_JNI_GetNativeWindow(void);
 
-extern void Android_JNI_ScheduleLocalNotification(const char *id, int delay, const char *title, const char *text);
-extern void Android_JNI_CancelLocalNotification(const char *id);
-
 extern SDL_DisplayOrientation Android_JNI_GetDisplayNaturalOrientation(void);
 extern SDL_DisplayOrientation Android_JNI_GetDisplayCurrentOrientation(void);
 
@@ -154,7 +151,7 @@ bool SDL_IsAndroidTablet(void);
 bool SDL_IsAndroidTV(void);
 
 // File Dialogs
-bool Android_JNI_OpenFileDialog(SDL_DialogFileCallback callback, void *userdata,
+bool Android_JNI_OpenFileDialog(SDL_DialogFileCallback callback, void* userdata,
     const SDL_DialogFileFilter *filters, int nfilters, bool forwrite,
     bool multiple);
 

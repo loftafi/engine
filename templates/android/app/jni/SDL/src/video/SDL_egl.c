@@ -51,12 +51,7 @@
 #define EGL_COLOR_COMPONENT_TYPE_EXT       0x3339
 #define EGL_COLOR_COMPONENT_TYPE_FIXED_EXT 0x333A
 #define EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT 0x333B
-#endif // EGL_EXT_pixel_format_float
-
-#ifndef EGL_EXT_platform_device
-#define EGL_EXT_platform_device 1
-#define EGL_PLATFORM_DEVICE_EXT 0x313F
-#endif // EGL_EXT_platform_device
+#endif
 
 #ifndef EGL_EXT_present_opaque
 #define EGL_EXT_present_opaque 1
@@ -114,6 +109,13 @@
 
 #if defined(SDL_VIDEO_OPENGL) && !defined(SDL_VIDEO_VITA_PVR_OGL)
 #include <SDL3/SDL_opengl.h>
+#endif
+
+/** If we happen to not have this defined because of an older EGL version, just define it 0x0
+    as eglGetPlatformDisplayEXT will most likely be NULL if this is missing
+*/
+#ifndef EGL_PLATFORM_DEVICE_EXT
+#define EGL_PLATFORM_DEVICE_EXT 0x0
 #endif
 
 #ifdef SDL_VIDEO_OPENGL
@@ -258,7 +260,7 @@ SDL_FunctionPointer SDL_EGL_GetProcAddressInternal(SDL_VideoDevice *_this, const
             result = _this->egl_data->eglGetProcAddress(proc);
         }
 
-#if !defined(SDL_VIDEO_DRIVER_VITA)
+#if !defined(SDL_PLATFORM_EMSCRIPTEN) && !defined(SDL_VIDEO_DRIVER_VITA) // LoadFunction isn't needed on Emscripten and will call dlsym(), causing other problems.
         // Try SDL_LoadFunction() first for EGL <= 1.4, or as a fallback for >= 1.5.
         if (!result) {
             result = SDL_LoadFunction(_this->egl_data->opengl_dll_handle, proc);
@@ -1076,7 +1078,8 @@ SDL_GLContext SDL_EGL_CreateContext(SDL_VideoDevice *_this, EGLSurface egl_surfa
         return NULL;
     }
 
-    _this->egl_data->egl_swapinterval = 0;
+    // The default swap interval is 1, according to the spec
+    _this->egl_data->egl_swapinterval = 1;
 
     if (!SDL_EGL_MakeCurrent(_this, egl_surface, (SDL_GLContext)egl_context)) {
         // Delete the context
@@ -1249,8 +1252,11 @@ EGLSurface SDL_EGL_CreateSurface(SDL_VideoDevice *_this, SDL_Window *window, Nat
         }
     }
 
+    int opaque_ext_idx = -1;
+
 #ifdef EGL_EXT_present_opaque
     if (SDL_EGL_HasExtension(_this, SDL_EGL_DISPLAY_EXTENSION, "EGL_EXT_present_opaque")) {
+        opaque_ext_idx = attr;
         bool allow_transparent = false;
         if (window && (window->flags & SDL_WINDOW_TRANSPARENT)) {
             allow_transparent = true;
@@ -1286,10 +1292,17 @@ EGLSurface SDL_EGL_CreateSurface(SDL_VideoDevice *_this, SDL_Window *window, Nat
 
     attribs[attr++] = EGL_NONE;
 
-    surface = _this->egl_data->eglCreateWindowSurface(
-        _this->egl_data->egl_display,
-        _this->egl_data->egl_config,
-        nw, &attribs[0]);
+    surface = _this->egl_data->eglCreateWindowSurface(_this->egl_data->egl_display, _this->egl_data->egl_config, nw, &attribs[0]);
+    if (surface == EGL_NO_SURFACE) {
+        // we had a report of Nvidia drivers that report EGL_BAD_ATTRIBUTE if you try to
+        //  use EGL_PRESENT_OPAQUE_EXT, even when EGL_EXT_present_opaque is reported as available.
+        //  If we used it, try a second time without this attribute.
+        if ((_this->egl_data->eglGetError() == EGL_BAD_ATTRIBUTE) && (opaque_ext_idx >= 0)) {
+            SDL_memmove(&attribs[opaque_ext_idx], &attribs[opaque_ext_idx + 2], sizeof (attribs[0]) * ((attr - opaque_ext_idx) - 2));
+            surface = _this->egl_data->eglCreateWindowSurface(_this->egl_data->egl_display, _this->egl_data->egl_config, nw, &attribs[0]);
+        }
+    }
+
     if (surface == EGL_NO_SURFACE) {
         SDL_EGL_SetError("unable to create an EGL window surface", "eglCreateWindowSurface");
     }

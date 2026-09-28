@@ -94,7 +94,6 @@ struct SDL_WindowData
     SDL_DisplayID last_displayID;
     WCHAR *ICMFileName;
     SDL_WindowEraseBackgroundMode hint_erase_background_mode;
-    bool taskbar_button_created;
     struct SDL_VideoData *videodata;
 #ifdef SDL_VIDEO_OPENGL_EGL
     EGLSurface egl_surface;
@@ -135,7 +134,6 @@ extern void WIN_UnclipCursorForWindow(SDL_Window *window);
 extern bool WIN_SetWindowHitTest(SDL_Window *window, bool enabled);
 extern void WIN_AcceptDragAndDrop(SDL_Window *window, bool accept);
 extern bool WIN_FlashWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_FlashOperation operation);
-extern bool WIN_ApplyWindowProgress(SDL_VideoDevice *_this, SDL_Window *window);
 extern void WIN_UpdateDarkModeForHWND(HWND hwnd);
 extern bool WIN_SetWindowPositionInternal(SDL_Window *window, UINT flags, SDL_WindowRect rect_type);
 extern void WIN_ShowWindowSystemMenu(SDL_Window *window, int x, int y);

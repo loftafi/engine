@@ -40,11 +40,7 @@
 #define CONVERT_MAGNITUDE(x) (((x)*10000) / 0x7FFF)
 
 // external variables referenced.
-#ifdef SDL_VIDEO_DRIVER_WINDOWS
 extern HWND SDL_HelperWindow;
-#else
-static const HWND SDL_HelperWindow = NULL;
-#endif
 
 // local variables
 static bool coinitialized = false;
@@ -293,7 +289,7 @@ static bool QueryDeviceName(LPDIRECTINPUTDEVICE8 device, Uint16 vendor_id, Uint1
     }
 
     *manufacturer_string = NULL;
-    *product_string = WIN_StringToUTF8W(dipstr.wsz);
+    *product_string = WIN_StringToUTF8(dipstr.wsz);
 
     return true;
 }

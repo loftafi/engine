@@ -119,7 +119,7 @@ void *SDL_GetAndroidActivity(void)
 }
 
 SDL_DECLSPEC const char * SDLCALL SDL_GetAndroidCachePath(void);
-const char *SDL_GetAndroidCachePath(void)
+const char* SDL_GetAndroidCachePath(void)
 {
     SDL_Unsupported();
     return NULL;
@@ -127,7 +127,7 @@ const char *SDL_GetAndroidCachePath(void)
 
 
 SDL_DECLSPEC const char * SDLCALL SDL_GetAndroidExternalStoragePath(void);
-const char *SDL_GetAndroidExternalStoragePath(void)
+const char* SDL_GetAndroidExternalStoragePath(void)
 {
     SDL_Unsupported();
     return NULL;
@@ -172,7 +172,7 @@ bool SDL_SendAndroidMessage(Uint32 command, int param)
 }
 
 SDL_DECLSPEC bool SDLCALL SDL_ShowAndroidToast(const char *message, int duration, int gravity, int xoffset, int yoffset);
-bool SDL_ShowAndroidToast(const char *message, int duration, int gravity, int xoffset, int yoffset)
+bool SDL_ShowAndroidToast(const char* message, int duration, int gravity, int xoffset, int yoffset)
 {
     (void)message;
     (void)duration;
@@ -207,7 +207,6 @@ Sint32 JNI_OnLoad(void *vm, void *reserved)
 {
     (void)vm;
     (void)reserved;
-    SDL_Unsupported();
-    return -1; // JNI_ERR
+    return 0x00010004; // JNI_VERSION_1_4
 }
 #endif

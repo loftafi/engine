@@ -12,7 +12,6 @@
 - [NetBSD](README-bsd.md)
 - [Nintendo Switch](README-switch.md)
 - [Nintendo 3DS](README-n3ds.md)
-- [Nokia N-Gage](README-ngage.md)
 - [OpenBSD](README-bsd.md)
 - [PlayStation 2](README-ps2.md)
 - [PlayStation 4](README-ps4.md)
@@ -34,7 +33,23 @@ All of these still work with [SDL2](/SDL2), which is an incompatible API, but an
 
 - Google Stadia
 - NaCL
+- Nokia N-Gage
 - OS/2
 - QNX
 - WinPhone
 - WinRT/UWP
+
+## General notes for Unix platforms
+
+Some aspects of SDL functionality are common to all Unix-based platforms.
+
+### <a name=setuid></a>Privileged processes (setuid, setgid, setcap)
+
+SDL is not designed to be used in programs with elevated privileges,
+such as setuid (`chmod u+s`) or setgid (`chmod g+s`) executables,
+or executables with file-based capabilities
+(`setcap cap_sys_nice+ep` or similar).
+It does not make any attempt to avoid trusting environment variables
+or other aspects of the inherited execution environment.
+Programs running with elevated privileges in an attacker-controlled
+execution environment should not call SDL functions.

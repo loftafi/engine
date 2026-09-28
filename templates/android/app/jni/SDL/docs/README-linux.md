@@ -8,6 +8,7 @@ system does not have the XRandR libraries installed, it will be disabled
 at runtime, and you won't get a missing library error, at least with the
 default configuration parameters.
 
+SDL is [not designed to be used in setuid or setgid executables](README-platforms.md#setuid).
 
 Build Dependencies
 --------------------------------------------------------------------------------
@@ -17,7 +18,7 @@ Ubuntu 18.04, all available features enabled:
     sudo apt-get install build-essential git make \
     pkg-config cmake ninja-build gnome-desktop-testing libasound2-dev libpulse-dev \
     libaudio-dev libjack-dev libsndio-dev libx11-dev libxext-dev \
-    libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev \
+    libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev \
     libxkbcommon-dev libdrm-dev libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
     libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev
 
@@ -46,8 +47,7 @@ openSUSE Tumbleweed:
     libgbm-devel pipewire-devel libpulse-devel sndio-devel Mesa-libEGL-devel
 
 Arch:
-
-    sudo pacman -S alsa-lib cmake hidapi ibus jack libdecor libgl libpulse libusb libx11 libxcursor libxext libxinerama libxkbcommon libxrandr libxrender libxss libxtst mesa ninja pipewire sndio vulkan-driver vulkan-headers wayland wayland-protocols
+    sudo pacman -S alsa-lib cmake hidapi ibus jack libdecor libgl libpulse libusb libx11 libxcursor libxext libxinerama libxkbcommon libxrandr libxrender libxss mesa ninja pipewire sndio vulkan-driver vulkan-headers wayland wayland-protocols
 
 
 Joystick does not work

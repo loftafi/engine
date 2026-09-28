@@ -411,6 +411,19 @@ bool Cocoa_IsWindowInFullscreenSpace(SDL_Window *window)
     }
 }
 
+bool Cocoa_IsWindowInFullscreenSpaceTransition(SDL_Window *window)
+{
+    @autoreleasepool {
+        SDL_CocoaWindowData *data = (__bridge SDL_CocoaWindowData *)window->internal;
+
+        if ([data.listener isInFullscreenSpaceTransition]) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
 bool Cocoa_IsWindowZoomed(SDL_Window *window)
 {
     SDL_CocoaWindowData *data = (__bridge SDL_CocoaWindowData *)window->internal;
@@ -430,6 +443,18 @@ bool Cocoa_IsWindowZoomed(SDL_Window *window)
         }
     }
     return zoomed;
+}
+
+bool Cocoa_IsShowingModalDialog(SDL_Window *window)
+{
+    SDL_CocoaWindowData *data = (__bridge SDL_CocoaWindowData *)window->internal;
+    return data.has_modal_dialog;
+}
+
+void Cocoa_SetWindowHasModalDialog(SDL_Window *window, bool has_modal)
+{
+    SDL_CocoaWindowData *data = (__bridge SDL_CocoaWindowData *)window->internal;
+    data.has_modal_dialog = has_modal;
 }
 
 typedef enum CocoaMenuVisibility
@@ -740,7 +765,7 @@ static NSCursor *Cocoa_GetDesiredCursor(void)
 {
     SDL_Mouse *mouse = SDL_GetMouse();
 
-    if (mouse->cursor_visible && mouse->cur_cursor && !mouse->relative_mode) {
+    if (mouse->cursor_shown && mouse->cur_cursor && !mouse->relative_mode) {
         return (__bridge NSCursor *)mouse->cur_cursor->internal;
     }
 
@@ -1187,21 +1212,27 @@ static NSCursor *Cocoa_GetDesiredCursor(void)
 
     ScheduleContextUpdates(_data);
 
-    /* isZoomed always returns true if the window is not resizable
-     * and fullscreen windows are considered zoomed.
+    /* The OS can resize the window automatically if the display density
+     *  changes while the window is miniaturized or hidden.
      */
-    if ((window->flags & SDL_WINDOW_RESIZABLE) && [nswindow isZoomed] &&
-        !(window->flags & SDL_WINDOW_FULLSCREEN) && ![self isInFullscreenSpace]) {
-        zoomed = YES;
-    } else {
-        zoomed = NO;
-    }
-    if (!zoomed) {
-        SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_RESTORED, 0, 0);
-    } else {
-        SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_MAXIMIZED, 0, 0);
-        if ([self windowOperationIsPending:PENDING_OPERATION_MINIMIZE]) {
-            [nswindow miniaturize:nil];
+    if ([nswindow isVisible])
+    {
+        /* isZoomed always returns true if the window is not resizable
+         * and fullscreen windows are considered zoomed.
+         */
+        if ((window->flags & SDL_WINDOW_RESIZABLE) && [nswindow isZoomed] &&
+            !(window->flags & SDL_WINDOW_FULLSCREEN) && ![self isInFullscreenSpace]) {
+            zoomed = YES;
+        } else {
+            zoomed = NO;
+        }
+        if (!zoomed) {
+            SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_RESTORED, 0, 0);
+        } else {
+            SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_MAXIMIZED, 0, 0);
+            if ([self windowOperationIsPending:PENDING_OPERATION_MINIMIZE]) {
+                [nswindow miniaturize:nil];
+            }
         }
     }
 
@@ -2112,19 +2143,20 @@ static void Cocoa_SendMouseButtonClicks(SDL_Mouse *mouse, NSEvent *theEvent, SDL
     }
 }
 
-// NSTrackingArea is how Cocoa tells you when the mouse cursor has entered or
-//  left certain regions. We put one over our entire window so we know when
-//  it has "mouse focus."
 - (void)updateTrackingAreas
 {
     [super updateTrackingAreas];
 
-    SDL_CocoaWindowData *windata = (__bridge SDL_CocoaWindowData *)_sdlWindow->internal;
-    if (_trackingArea) {
-        [self removeTrackingArea:_trackingArea];
+    if (@available(macOS 12.0, *)) {
+        // we (currently) use the tracking areas as a workaround for older macOSes, but we might be safe everywhere...
+    } else {
+        SDL_CocoaWindowData *windata = (__bridge SDL_CocoaWindowData *)_sdlWindow->internal;
+        if (_trackingArea) {
+            [self removeTrackingArea:_trackingArea];
+        }
+        _trackingArea = [[NSTrackingArea alloc] initWithRect:[self bounds] options:NSTrackingMouseEnteredAndExited|NSTrackingActiveAlways owner:windata.listener userInfo:nil];
+        [self addTrackingArea:_trackingArea];
     }
-    _trackingArea = [[NSTrackingArea alloc] initWithRect:[self bounds] options:NSTrackingMouseEnteredAndExited|NSTrackingActiveAlways owner:windata.listener userInfo:nil];
-    [self addTrackingArea:_trackingArea];
 }
 @end
 

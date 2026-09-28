@@ -110,7 +110,8 @@ void Android_Vulkan_UnloadLibrary(SDL_VideoDevice *_this)
     }
 }
 
-char const * const *Android_Vulkan_GetInstanceExtensions(SDL_VideoDevice *_this, Uint32 *count)
+char const* const* Android_Vulkan_GetInstanceExtensions(SDL_VideoDevice *_this,
+                                              Uint32 *count)
 {
     static const char *const extensionsForAndroid[] = {
         VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME

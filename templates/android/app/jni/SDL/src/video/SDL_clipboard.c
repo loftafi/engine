@@ -42,6 +42,10 @@ void SDL_CancelClipboardData(Uint32 sequence)
 {
     SDL_VideoDevice *_this = SDL_GetVideoDevice();
 
+    if (!_this) {
+        return;
+    }
+
     if (sequence && sequence != _this->clipboard_sequence) {
         // This clipboard data was already canceled
         return;
@@ -61,6 +65,10 @@ void SDL_CancelClipboardData(Uint32 sequence)
 bool SDL_SaveClipboardMimeTypes(const char **mime_types, size_t num_mime_types)
 {
     SDL_VideoDevice *_this = SDL_GetVideoDevice();
+
+    if (!_this) {
+        return SDL_UninitializedVideo();
+    }
 
     SDL_FreeClipboardMimeTypes(_this);
 
@@ -165,6 +173,11 @@ void *SDL_GetInternalClipboardData(SDL_VideoDevice *_this, const char *mime_type
     void *data = NULL;
 
     if (_this->clipboard_callback) {
+        if (!SDL_HasInternalClipboardData(_this, mime_type)) {
+            // The callback hasn't advertised that it can handle this mime type
+            return NULL;
+        }
+
         const void *provided_data = _this->clipboard_callback(_this->clipboard_userdata, mime_type, size);
         if (provided_data) {
             // Make a copy of it for the caller and guarantee null termination
@@ -172,6 +185,8 @@ void *SDL_GetInternalClipboardData(SDL_VideoDevice *_this, const char *mime_type
             if (data) {
                 SDL_memcpy(data, provided_data, *size);
                 SDL_memset((Uint8 *)data + *size, 0, sizeof(Uint32));
+            } else {
+                *size = 0;
             }
         }
     }
@@ -234,13 +249,11 @@ bool SDL_HasClipboardData(const char *mime_type)
     SDL_VideoDevice *_this = SDL_GetVideoDevice();
 
     if (!_this) {
-        SDL_UninitializedVideo();
-        return false;
+        return SDL_UninitializedVideo();
     }
 
     if (!mime_type) {
-        SDL_InvalidParamError("mime_type");
-        return false;
+        return SDL_InvalidParamError("mime_type");
     }
 
     if (_this->HasClipboardData) {

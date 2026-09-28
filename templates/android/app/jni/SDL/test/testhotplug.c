@@ -96,11 +96,6 @@ int main(int argc, char *argv[])
             case SDL_EVENT_QUIT:
                 keepGoing = false;
                 break;
-            case SDL_EVENT_KEY_DOWN:
-                if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
-                    keepGoing = false;
-                }
-                break;
             case SDL_EVENT_KEYBOARD_ADDED:
                 SDL_Log("Keyboard '%s' added  : %" SDL_PRIu32, SDL_GetKeyboardNameForID(event.kdevice.which), event.kdevice.which);
                 break;

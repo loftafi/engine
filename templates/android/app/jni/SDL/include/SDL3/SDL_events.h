@@ -135,8 +135,7 @@ typedef enum SDL_EventType
     /* 0x201 was SDL_SYSWMEVENT, reserve the number for sdl2-compat */
     SDL_EVENT_WINDOW_SHOWN = 0x202,     /**< Window has been shown */
     SDL_EVENT_WINDOW_HIDDEN,            /**< Window has been hidden */
-    SDL_EVENT_WINDOW_EXPOSED,           /**< Window has been exposed and should be redrawn, and can be redrawn directly from event watchers for this event.
-                                             data1 is 1 for live-resize expose events, 0 otherwise. */
+    SDL_EVENT_WINDOW_EXPOSED,           /**< Window has been exposed and should be redrawn, and can be redrawn directly from event watchers for this event */
     SDL_EVENT_WINDOW_MOVED,             /**< Window has been moved to data1, data2 */
     SDL_EVENT_WINDOW_RESIZED,           /**< Window has been resized to data1xdata2 */
     SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED,/**< The pixel size of the window has changed to data1xdata2 */
@@ -782,7 +781,7 @@ typedef struct SDL_TouchFingerEvent
 } SDL_TouchFingerEvent;
 
 /**
- * Pressure-sensitive pen proximity event structure (event.pproximity.*)
+ * Pressure-sensitive pen proximity event structure (event.pmotion.*)
  *
  * When a pen becomes visible to the system (it is close enough to a tablet,
  * etc), SDL will send an SDL_EVENT_PEN_PROXIMITY_IN event with the new pen's
@@ -1044,7 +1043,7 @@ typedef union SDL_Event
 } SDL_Event;
 
 /* Make sure we haven't broken binary compatibility */
-SDL_COMPILE_TIME_ASSERT(SDL_Event, sizeof(SDL_Event) == sizeof(((SDL_Event *)NULL)->padding));
+SDL_COMPILE_TIME_ASSERT(SDL_Event, sizeof(SDL_Event) == sizeof((SDL_static_cast(SDL_Event *, NULL))->padding));
 
 
 /* Function prototypes */
@@ -1567,38 +1566,6 @@ extern SDL_DECLSPEC Uint32 SDLCALL SDL_RegisterEvents(int numevents);
  * \sa SDL_WaitEventTimeout
  */
 extern SDL_DECLSPEC SDL_Window * SDLCALL SDL_GetWindowFromEvent(const SDL_Event *event);
-
-/**
- * Generate a human-readable description of an event.
- *
- * This will fill `buf` with a null-terminated string that might look
- * something like this:
- *
- * ```
- * SDL_EVENT_MOUSE_MOTION (timestamp=1140256324 windowid=2 which=0 state=0 x=492.99 y=139.09 xrel=52 yrel=6)
- * ```
- *
- * The exact format of the string is not guaranteed; it is intended for
- * logging purposes, to be read by a human, and not parsed by a computer.
- *
- * The returned value follows the same rules as SDL_snprintf(): `buf` will
- * always be NULL-terminated (unless `buflen` is zero), and will be truncated
- * if `buflen` is too small. The return code is the number of bytes needed for
- * the complete string, not counting the NULL-terminator, whether the string
- * was truncated or not. Unlike SDL_snprintf(), though, this function never
- * returns -1.
- *
- * \param event an event to describe. May be NULL.
- * \param buf the buffer to fill with the description string. May be NULL.
- * \param buflen the maximum bytes that can be written to `buf`.
- * \returns number of bytes needed for the full string, not counting the
- *          null-terminator byte.
- *
- * \threadsafety It is safe to call this function from any thread.
- *
- * \since This function is available since SDL 3.4.0.
- */
-extern SDL_DECLSPEC int SDLCALL SDL_GetEventDescription(const SDL_Event *event, char *buf, int buflen);
 
 /* Ends C function definitions when using C++ */
 #ifdef __cplusplus

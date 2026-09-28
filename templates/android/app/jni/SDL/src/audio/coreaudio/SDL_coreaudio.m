@@ -341,7 +341,7 @@ static void ResumeAudioDevices(void)
 
 static void InterruptionBegin(SDL_AudioDevice *device)
 {
-    if (device != NULL && device->hidden != NULL && device->hidden->audioQueue != NULL) {
+    if (device != NULL && device->hidden->audioQueue != NULL) {
         device->hidden->interrupted = true;
         AudioQueuePause(device->hidden->audioQueue);
     }
@@ -366,7 +366,7 @@ static void InterruptionEnd(SDL_AudioDevice *device)
 {
     @synchronized(self) {
         NSNumber *type = note.userInfo[AVAudioSessionInterruptionTypeKey];
-        if (type && (type.unsignedIntegerValue == AVAudioSessionInterruptionTypeBegan)) {
+        if (type.unsignedIntegerValue == AVAudioSessionInterruptionTypeBegan) {
             InterruptionBegin(self.device);
         } else {
             InterruptionEnd(self.device);
@@ -420,7 +420,8 @@ static bool UpdateAudioSession(SDL_AudioDevice *device, bool open, bool allow_pl
 
         hint = SDL_GetHint(SDL_HINT_AUDIO_CATEGORY);
         if (hint) {
-            if (SDL_strcasecmp(hint, "AVAudioSessionCategoryAmbient") == 0) {
+            if (SDL_strcasecmp(hint, "AVAudioSessionCategoryAmbient") == 0 ||
+                SDL_strcasecmp(hint, "ambient") == 0) {
                 category = AVAudioSessionCategoryAmbient;
             } else if (SDL_strcasecmp(hint, "AVAudioSessionCategorySoloAmbient") == 0) {
                 category = AVAudioSessionCategorySoloAmbient;

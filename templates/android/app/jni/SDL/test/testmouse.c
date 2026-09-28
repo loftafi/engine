@@ -117,8 +117,6 @@ static void loop(void *arg)
     struct mouse_loop_data *loop_data = (struct mouse_loop_data *)arg;
     SDL_Event event;
     SDL_Renderer *renderer = loop_data->renderer;
-    float fx, fy;
-    SDL_MouseButtonFlags flags;
 
     /* Check for events */
     while (SDL_PollEvent(&event)) {
@@ -213,10 +211,6 @@ static void loop(void *arg)
             break;
 
         case SDL_EVENT_KEY_DOWN:
-            if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
-                loop_data->done = true;
-                break;
-            }
             if (event.key.key == SDLK_C) {
                 int x, y, w, h;
                 SDL_GetWindowPosition(window, &x, &y);
@@ -270,10 +264,6 @@ static void loop(void *arg)
     if (active) {
         DrawObject(renderer, active);
     }
-
-    flags = SDL_GetGlobalMouseState(&fx, &fy);
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderDebugTextFormat(renderer, 0, 0, "Global Mouse State: x=%f y=%f flags=%" SDL_PRIu32, fx, fy, flags);
 
     SDL_RenderPresent(renderer);
 

@@ -106,12 +106,9 @@ static bool join_arguments(const char * const *args, LPWSTR *args_out)
     len = 0;
     for (i = 0; args[i]; i++) {
         const char *a = args[i];
-        bool quotes = *a == '\0' || SDL_strpbrk(a, " \r\n\t\v") != NULL;
 
-        if (quotes) {
-            /* surround the argument with double quote if it is empty or contains whitespaces */
-            len += 2;
-        }
+        /* two double quotes to surround an argument with */
+        len += 2;
 
         for (; *a; a++) {
             switch (*a) {
@@ -119,8 +116,8 @@ static bool join_arguments(const char * const *args, LPWSTR *args_out)
                 len += 2;
                 break;
             case '\\':
-                /* only escape backslashes that precede a double quote (including the enclosing double quote) */
-                len += (a[1] == '"' || (quotes && a[1] == '\0')) ? 2 : 1;
+                /* only escape backslashes that precede a double quote */
+                len += (a[1] == '"' || a[1] == '\0') ? 2 : 1;
                 break;
             case ' ':
             case '^':
@@ -152,11 +149,8 @@ static bool join_arguments(const char * const *args, LPWSTR *args_out)
     i_out = 0;
     for (i = 0; args[i]; i++) {
         const char *a = args[i];
-        bool quotes = *a == '\0' || SDL_strpbrk(a, " \r\n\t\v") != NULL;
 
-        if (quotes) {
-            result[i_out++] = '"';
-        }
+        result[i_out++] = '"';
         for (; *a; a++) {
             switch (*a) {
             case '"':
@@ -169,7 +163,7 @@ static bool join_arguments(const char * const *args, LPWSTR *args_out)
                 break;
             case '\\':
                 result[i_out++] = *a;
-                if (a[1] == '"' || (quotes && a[1] == '\0')) {
+                if (a[1] == '"' || a[1] == '\0') {
                     result[i_out++] = *a;
                 }
                 break;
@@ -194,9 +188,7 @@ static bool join_arguments(const char * const *args, LPWSTR *args_out)
                 break;
             }
         }
-        if (quotes) {
-            result[i_out++] = '"';
-        }
+        result[i_out++] = '"';
         result[i_out++] = ' ';
     }
     SDL_assert(i_out == len);
@@ -245,10 +237,8 @@ static bool join_env(char **env, LPWSTR *env_out)
 bool SDL_SYS_CreateProcessWithProperties(SDL_Process *process, SDL_PropertiesID props)
 {
     const char * const *args = SDL_GetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, NULL);
-    const char *cmdline = SDL_GetStringProperty(props, SDL_PROP_PROCESS_CREATE_CMDLINE_STRING, NULL);
     SDL_Environment *env = SDL_GetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ENVIRONMENT_POINTER, SDL_GetEnvironment());
     char **envp = NULL;
-    const char *working_directory = SDL_GetStringProperty(props, SDL_PROP_PROCESS_CREATE_WORKING_DIRECTORY_STRING, NULL);
     SDL_ProcessIO stdin_option = (SDL_ProcessIO)SDL_GetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
     SDL_ProcessIO stdout_option = (SDL_ProcessIO)SDL_GetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_INHERITED);
     SDL_ProcessIO stderr_option = (SDL_ProcessIO)SDL_GetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_INHERITED);
@@ -256,7 +246,6 @@ bool SDL_SYS_CreateProcessWithProperties(SDL_Process *process, SDL_PropertiesID 
                            !SDL_HasProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER);
     LPWSTR createprocess_cmdline = NULL;
     LPWSTR createprocess_env = NULL;
-    LPWSTR createprocess_cwd = NULL;
     STARTUPINFOW startup_info;
     DWORD creation_flags;
     SECURITY_ATTRIBUTES security_attributes;
@@ -295,24 +284,12 @@ bool SDL_SYS_CreateProcessWithProperties(SDL_Process *process, SDL_PropertiesID 
     security_attributes.bInheritHandle = TRUE;
     security_attributes.lpSecurityDescriptor = NULL;
 
-    if (cmdline) {
-        createprocess_cmdline = WIN_UTF8ToString(cmdline);
-        if (!createprocess_cmdline) {
-            goto done;
-        }
-    } else if (!join_arguments(args, &createprocess_cmdline)) {
+    if (!join_arguments(args, &createprocess_cmdline)) {
         goto done;
     }
 
     if (!join_env(envp, &createprocess_env)) {
         goto done;
-    }
-
-    if (working_directory) {
-        createprocess_cwd = WIN_UTF8ToStringW(working_directory);
-        if (!createprocess_cwd) {
-            goto done;
-        }
     }
 
     // Background processes don't have access to the terminal
@@ -451,7 +428,7 @@ bool SDL_SYS_CreateProcessWithProperties(SDL_Process *process, SDL_PropertiesID 
         }
     }
 
-    if (!CreateProcessW(NULL, createprocess_cmdline, NULL, NULL, TRUE, creation_flags, createprocess_env, createprocess_cwd, &startup_info, &data->process_information)) {
+    if (!CreateProcessW(NULL, createprocess_cmdline, NULL, NULL, TRUE, creation_flags, createprocess_env, NULL, &startup_info, &data->process_information)) {
         WIN_SetError("CreateProcess");
         goto done;
     }
@@ -503,7 +480,6 @@ done:
     }
     SDL_free(createprocess_cmdline);
     SDL_free(createprocess_env);
-    SDL_free(createprocess_cwd);
     SDL_free(envp);
 
     if (!result) {

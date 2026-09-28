@@ -58,6 +58,9 @@ typedef struct SDL_Keyboard
     Uint8 keysource[SDL_SCANCODE_COUNT];
     bool keystate[SDL_SCANCODE_COUNT];
     SDL_Keymap *keymap;
+    bool french_numbers;
+    bool latin_letters;
+    bool thai_keyboard;
     Uint32 keycode_options;
     bool autorelease_pending;
     Uint64 hardware_timestamp;
@@ -226,22 +229,19 @@ void SDL_ResetKeyboard(void)
     }
 }
 
-SDL_Keymap *SDL_GetCurrentKeymap(bool ignore_options)
+SDL_Keymap *SDL_GetCurrentKeymap(void)
 {
     SDL_Keyboard *keyboard = &SDL_keyboard;
-    SDL_Keymap *keymap = SDL_keyboard.keymap;
 
-    if (!ignore_options) {
-        if (keymap && keymap->thai_keyboard) {
-            // Thai keyboards are QWERTY plus Thai characters, use the default QWERTY keymap
-            return NULL;
-        }
+    if (keyboard->thai_keyboard) {
+        // Thai keyboards are QWERTY plus Thai characters, use the default QWERTY keymap
+        return NULL;
+    }
 
-        if ((keyboard->keycode_options & KEYCODE_OPTION_LATIN_LETTERS) &&
-            keymap && !keymap->latin_letters) {
-            // We'll use the default QWERTY keymap
-            return NULL;
-        }
+    if ((keyboard->keycode_options & KEYCODE_OPTION_LATIN_LETTERS) &&
+        !keyboard->latin_letters) {
+        // We'll use the default QWERTY keymap
+        return NULL;
     }
 
     return keyboard->keymap;
@@ -251,39 +251,35 @@ void SDL_SetKeymap(SDL_Keymap *keymap, bool send_event)
 {
     SDL_Keyboard *keyboard = &SDL_keyboard;
 
-    if (keyboard->keymap && keyboard->keymap->auto_release) {
+    if (keyboard->keymap) {
         SDL_DestroyKeymap(keyboard->keymap);
     }
 
     keyboard->keymap = keymap;
 
-    if (keymap && !keymap->layout_determined) {
-        keymap->layout_determined = true;
+    // Detect French number row (all symbols)
+    keyboard->french_numbers = true;
+    for (int i = SDL_SCANCODE_1; i <= SDL_SCANCODE_0; ++i) {
+        if (SDL_isdigit(SDL_GetKeymapKeycode(keymap, (SDL_Scancode)i, SDL_KMOD_NONE)) ||
+            !SDL_isdigit(SDL_GetKeymapKeycode(keymap, (SDL_Scancode)i, SDL_KMOD_SHIFT))) {
+            keyboard->french_numbers = false;
+            break;
+        }
+    }
 
-        // Detect French number row (all symbols)
-        keymap->french_numbers = true;
-        for (int i = SDL_SCANCODE_1; i <= SDL_SCANCODE_0; ++i) {
-            if (SDL_isdigit(SDL_GetKeymapKeycode(keymap, (SDL_Scancode)i, SDL_KMOD_NONE)) ||
-                !SDL_isdigit(SDL_GetKeymapKeycode(keymap, (SDL_Scancode)i, SDL_KMOD_SHIFT))) {
-                keymap->french_numbers = false;
-                break;
-                }
+    // Detect non-Latin keymap
+    keyboard->thai_keyboard = false;
+    keyboard->latin_letters = false;
+    for (int i = SDL_SCANCODE_A; i <= SDL_SCANCODE_D; ++i) {
+        SDL_Keycode key = SDL_GetKeymapKeycode(keymap, (SDL_Scancode)i, SDL_KMOD_NONE);
+        if (key <= 0xFF) {
+            keyboard->latin_letters = true;
+            break;
         }
 
-        // Detect non-Latin keymap
-        keymap->thai_keyboard = false;
-        keymap->latin_letters = false;
-        for (int i = SDL_SCANCODE_A; i <= SDL_SCANCODE_D; ++i) {
-            SDL_Keycode key = SDL_GetKeymapKeycode(keymap, (SDL_Scancode)i, SDL_KMOD_NONE);
-            if (key <= 0xFF) {
-                keymap->latin_letters = true;
-                break;
-            }
-
-            if (key >= 0x0E00 && key <= 0x0E7F) {
-                keymap->thai_keyboard = true;
-                break;
-            }
+        if (key >= 0x0E00 && key <= 0x0E7F) {
+            keyboard->thai_keyboard = true;
+            break;
         }
     }
 
@@ -312,7 +308,7 @@ static void SetKeymapEntry(SDL_Scancode scancode, SDL_Keymod modstate, SDL_Keyco
     SDL_Keyboard *keyboard = &SDL_keyboard;
 
     if (!keyboard->keymap) {
-        keyboard->keymap = SDL_CreateKeymap(true);
+        keyboard->keymap = SDL_CreateKeymap();
     }
 
     SDL_SetKeymapEntry(keyboard->keymap, scancode, modstate, keycode);
@@ -337,6 +333,18 @@ bool SDL_SetKeyboardFocus(SDL_Window *window)
         }
     }
 
+    // See if the current window has lost focus
+    if (keyboard->focus && keyboard->focus != window) {
+        SDL_SendWindowEvent(keyboard->focus, SDL_EVENT_WINDOW_FOCUS_LOST, 0, 0);
+
+        // Ensures IME compositions are committed
+        if (SDL_TextInputActive(keyboard->focus)) {
+            if (video && video->StopTextInput) {
+                video->StopTextInput(video, keyboard->focus);
+            }
+        }
+    }
+
     if (keyboard->focus && !window) {
         // We won't get anymore keyboard messages, so reset keyboard state
         SDL_ResetKeyboard();
@@ -351,18 +359,6 @@ bool SDL_SetKeyboardFocus(SDL_Window *window)
                 float x = focus->x + mouse->x;
                 float y = focus->y + mouse->y;
                 SDL_WarpMouseGlobal(x, y);
-            }
-        }
-    }
-
-    // See if the current window has lost focus
-    if (keyboard->focus && keyboard->focus != window) {
-        SDL_SendWindowEvent(keyboard->focus, SDL_EVENT_WINDOW_FOCUS_LOST, 0, 0);
-
-        // Ensures IME compositions are committed
-        if (SDL_TextInputActive(keyboard->focus)) {
-            if (video && video->StopTextInput) {
-                video->StopTextInput(video, keyboard->focus);
             }
         }
     }
@@ -479,7 +475,7 @@ SDL_Keycode SDL_GetKeyFromScancode(SDL_Scancode scancode, SDL_Keymod modstate, b
     SDL_Keyboard *keyboard = &SDL_keyboard;
 
     if (key_event) {
-        SDL_Keymap *keymap = SDL_GetCurrentKeymap(false);
+        SDL_Keymap *keymap = SDL_GetCurrentKeymap();
         bool numlock = (modstate & SDL_KMOD_NUM) != 0;
         SDL_Keycode keycode;
 
@@ -487,7 +483,7 @@ SDL_Keycode SDL_GetKeyFromScancode(SDL_Scancode scancode, SDL_Keymod modstate, b
         modstate = SDL_KMOD_NONE;
 
         if ((keyboard->keycode_options & KEYCODE_OPTION_FRENCH_NUMBERS) &&
-            keymap && keymap->french_numbers &&
+            keyboard->french_numbers &&
             (scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_0)) {
             // Add the shift state to generate a numeric keycode
             modstate |= SDL_KMOD_SHIFT;
@@ -880,7 +876,7 @@ void SDL_QuitKeyboard(void)
     SDL_free(SDL_keyboards);
     SDL_keyboards = NULL;
 
-    if (SDL_keyboard.keymap && SDL_keyboard.keymap->auto_release) {
+    if (SDL_keyboard.keymap) {
         SDL_DestroyKeymap(SDL_keyboard.keymap);
         SDL_keyboard.keymap = NULL;
     }

@@ -25,7 +25,6 @@
 #include <unistd.h> // For getpid() and readlink()
 
 #include "../../core/linux/SDL_system_theme.h"
-#include "../../core/linux/SDL_progressbar.h"
 #include "../../events/SDL_keyboard_c.h"
 #include "../../events/SDL_mouse_c.h"
 #include "../SDL_pixels_c.h"
@@ -40,7 +39,6 @@
 #include "SDL_x11messagebox.h"
 #include "SDL_x11shape.h"
 #include "SDL_x11xsync.h"
-#include "SDL_x11xtest.h"
 
 #ifdef SDL_VIDEO_OPENGL_EGL
 #include "SDL_x11opengles.h"
@@ -183,9 +181,6 @@ static SDL_VideoDevice *X11_CreateDevice(void)
     device->AcceptDragAndDrop = X11_AcceptDragAndDrop;
     device->UpdateWindowShape = X11_UpdateWindowShape;
     device->FlashWindow = X11_FlashWindow;
-#ifdef SDL_USE_LIBDBUS
-    device->ApplyWindowProgress = DBUS_ApplyWindowProgress;
-#endif // SDL_USE_LIBDBUS
     device->ShowWindowSystemMenu = X11_ShowWindowSystemMenu;
     device->SetWindowFocusable = X11_SetWindowFocusable;
     device->SyncWindow = X11_SyncWindow;
@@ -260,8 +255,6 @@ static SDL_VideoDevice *X11_CreateDevice(void)
 
     data->is_xwayland = X11_IsXWayland(x11_display);
     if (data->is_xwayland) {
-        SDL_LogInfo(SDL_LOG_CATEGORY_VIDEO, "Detected XWayland");
-
         device->device_caps |= VIDEO_DEVICE_CAPS_MODE_SWITCHING_EMULATED |
                                VIDEO_DEVICE_CAPS_DISABLE_MOUSE_WARP_ON_FULLSCREEN_TRANSITIONS |
                                VIDEO_DEVICE_CAPS_SENDS_FULLSCREEN_DIMENSIONS;
@@ -422,17 +415,13 @@ static bool X11_VideoInit(SDL_VideoDevice *_this)
 
 #ifdef SDL_VIDEO_DRIVER_X11_XFIXES
     X11_InitXfixes(_this);
-#endif
+#endif // SDL_VIDEO_DRIVER_X11_XFIXES
 
     X11_InitXsettings(_this);
 
 #ifdef SDL_VIDEO_DRIVER_X11_XSYNC
     X11_InitXsync(_this);
-#endif
-
-#ifdef SDL_VIDEO_DRIVER_X11_XTEST
-    X11_InitXTest(_this);
-#endif
+#endif /* SDL_VIDEO_DRIVER_X11_XSYNC */
 
 #ifndef X_HAVE_UTF8_STRING
 #warning X server does not support UTF8_STRING, a feature introduced in 2000! This is likely to become a hard error in a future libSDL3.

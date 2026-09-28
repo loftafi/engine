@@ -32,7 +32,6 @@ my $wikisubdir = '';
 my $incsubdir = 'include';
 my $readmesubdir = undef;
 my $apiprefixregex = undef;
-my $apipropertyregex = undef;
 my $versionfname = 'include/SDL_version.h';
 my $versionmajorregex = '\A\#define\s+SDL_MAJOR_VERSION\s+(\d+)\Z';
 my $versionminorregex = '\A\#define\s+SDL_MINOR_VERSION\s+(\d+)\Z';
@@ -44,6 +43,7 @@ my $wikiurl = 'https://wiki.libsdl.org';
 my $bugreporturl = 'https://github.com/libsdl-org/sdlwiki/issues/new';
 my $srcpath = undef;
 my $wikipath = undef;
+my $wikireadmesubdir = 'README';
 my $warn_about_missing = 0;
 my $copy_direction = 0;
 my $optionsfname = undef;
@@ -111,7 +111,6 @@ if (defined $optionsfname) {
             $srcpath = $val, next if $key eq 'srcpath';
             $wikipath = $val, next if $key eq 'wikipath';
             $apiprefixregex = $val, next if $key eq 'apiprefixregex';
-            $apipropertyregex = $val, next if $key eq 'apipropertyregex';
             $projectfullname = $val, next if $key eq 'projectfullname';
             $projectshortname = $val, next if $key eq 'projectshortname';
             $wikisubdir = $val, next if $key eq 'wikisubdir';
@@ -827,23 +826,21 @@ sub print_big_ascii_string {
             die("Don't have a big ascii entry for '$ch'!\n") if not defined $rowsref;
             my $row = @$rowsref[$rownum];
 
-            my $outstr = '';
             if ($lowascii) {
                 my @x = split //, $row;
                 foreach (@x) {
-                    $outstr .= ($_ eq "\x{2588}") ? 'X' : ' ';
+                    my $v = ($_ eq "\x{2588}") ? 'X' : ' ';
+                    print $fh $v;
                 }
             } else {
-                $outstr = $row;
+                print $fh $row;
             }
 
             $charidx++;
-            if ($charidx == $charcount) {
-                $outstr =~ s/\s*\Z//;  # dump extra spaces at the end of the line.
-            } else {
-                $outstr .= ' ';   # space between glyphs.
+
+            if ($charidx < $charcount) {
+                print $fh " ";
             }
-            print $fh $outstr;
         }
         print $fh "\n";
     }
@@ -1037,6 +1034,7 @@ sub generate_quickref {
 my $incpath = "$srcpath";
 $incpath .= "/$incsubdir" if $incsubdir ne '';
 
+my $wikireadmepath = "$wikipath/$wikireadmesubdir";
 my $readmepath = undef;
 if (defined $readmesubdir) {
     $readmepath = "$srcpath/$readmesubdir";
@@ -1368,7 +1366,7 @@ while (my $d = readdir(DH)) {
                     # update strings now that we know everything pending is to be applied to this declaration. Add pending blank lines and the new text.
 
                     # At Sam's request, don't list property defines with functions. (See #9440)
-                    my $is_property = (defined $apipropertyregex) ? /$apipropertyregex/ : 0;
+                    my $is_property = /\A\s*\#\s*define\s+SDL_PROP_/;
                     if (!$is_property) {
                         if ($blank_lines > 0) {
                             while ($blank_lines > 0) {
@@ -2085,15 +2083,18 @@ if ($copy_direction == 1) {  # --copy-to-headers
     }
 
     if (defined $readmepath) {
-        mkdir($readmepath);  # just in case
-        opendir(DH, $wikipath) or die("Can't opendir '$wikipath': $!\n");
-        while (readdir(DH)) {
-            my $dent = $_;
-            if ($dent =~ /\AREADME\-.*?\.md\Z/) {  # we only bridge Markdown files here that start with "README-".
-                filecopy("$wikipath/$dent", "$readmepath/$dent", "\n");
+        if ( -d $wikireadmepath ) {
+            mkdir($readmepath);  # just in case
+            opendir(DH, $wikireadmepath) or die("Can't opendir '$wikireadmepath': $!\n");
+            while (readdir(DH)) {
+                my $dent = $_;
+                if ($dent =~ /\A(.*?)\.md\Z/) {  # we only bridge Markdown files here.
+                    next if $1 eq 'FrontPage';
+                    filecopy("$wikireadmepath/$dent", "$readmepath/README-$dent", "\n");
+                }
             }
+            closedir(DH);
         }
-        closedir(DH);
     }
 
 } elsif ($copy_direction == -1) { # --copy-to-wiki
@@ -2698,27 +2699,31 @@ __EOF__
     # Write out READMEs...
     if (defined $readmepath) {
         if ( -d $readmepath ) {
-            mkdir($wikipath);  # just in case
+            mkdir($wikireadmepath);  # just in case
             opendir(DH, $readmepath) or die("Can't opendir '$readmepath': $!\n");
             while (my $d = readdir(DH)) {
                 my $dent = $d;
-                if ($dent =~ /\AREADME\-.*?\.md\Z/) {  # we only bridge Markdown files here that start with "README-".
-                    filecopy("$readmepath/$dent", "$wikipath/$dent", "\n");
+                if ($dent =~ /\AREADME\-(.*?\.md)\Z/) {  # we only bridge Markdown files here.
+                    my $wikifname = $1;
+                    next if $wikifname eq 'FrontPage.md';
+                    filecopy("$readmepath/$dent", "$wikireadmepath/$wikifname", "\n");
                 }
             }
             closedir(DH);
 
             my @pages = ();
-            opendir(DH, $wikipath) or die("Can't opendir '$wikipath': $!\n");
+            opendir(DH, $wikireadmepath) or die("Can't opendir '$wikireadmepath': $!\n");
             while (my $d = readdir(DH)) {
                 my $dent = $d;
-                if ($dent =~ /\A(README\-.*?)\.md\Z/) {
-                    push @pages, $1;
+                if ($dent =~ /\A(.*?)\.(mediawiki|md)\Z/) {
+                    my $wikiname = $1;
+                    next if $wikiname eq 'FrontPage';
+                    push @pages, $wikiname;
                 }
             }
             closedir(DH);
 
-            open(FH, '>', "$wikipath/READMEs.md") or die("Can't open '$wikipath/READMEs.md': $!\n");
+            open(FH, '>', "$wikireadmepath/FrontPage.md") or die("Can't open '$wikireadmepath/FrontPage.md': $!\n");
             print FH "# All READMEs available here\n\n";
             foreach (sort @pages) {
                 my $wikiname = $_;
@@ -2976,12 +2981,10 @@ __EOF__
         }
 
         if (defined $returns) {
-            # Check for md link in return type: ([SDL_Renderer](SDL_Renderer) *)
-            # This would've prevented the next regex from working properly (it'd leave " *)")
-            $returns =~ s/\A\(\[.*?\]\((.*?)\)/\($1/ms;
             # Chop datatype in parentheses off the front.
-            $returns =~ s/\A\(.*?\) //;
-
+            if(!($returns =~ s/\A\([^\[]*\[[^\]]*\]\([^\)]*\)[^\)]*\) //ms)) {
+                $returns =~ s/\A\([^\)]*\) //ms;
+            }
             $returns = dewikify($wikitype, $returns);
             $str .= ".SH RETURN VALUE\n";
             $str .= "$returns\n";

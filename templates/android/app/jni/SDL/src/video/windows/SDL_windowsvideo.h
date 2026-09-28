@@ -28,10 +28,8 @@
 #include "../SDL_sysvideo.h"
 
 #ifdef HAVE_DXGI_H
-#ifndef __cplusplus
 #define CINTERFACE
 #define COBJMACROS
-#endif
 #include <dxgi.h>
 #endif
 
@@ -310,8 +308,6 @@ typedef enum PROCESS_DPI_AWARENESS
 #include <shellscalingapi.h>
 #endif
 
-typedef struct ITaskbarList3 ITaskbarList3;
-
 #ifndef _DPI_AWARENESS_CONTEXTS_
 
 typedef enum DPI_AWARENESS
@@ -448,8 +444,8 @@ struct SDL_VideoData
     BOOL (WINAPI *AreDpiAwarenessContextsEqual)(DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT);
     BOOL (WINAPI *IsValidDpiAwarenessContext)(DPI_AWARENESS_CONTEXT);
     // DisplayConfig functions
-    LONG (WINAPI *GetDisplayConfigBufferSizes)( UINT32, UINT32 *, UINT32 *);
-    LONG (WINAPI *QueryDisplayConfig)( UINT32, UINT32 *, DISPLAYCONFIG_PATH_INFO*, UINT32 *, DISPLAYCONFIG_MODE_INFO*, DISPLAYCONFIG_TOPOLOGY_ID*);
+    LONG (WINAPI *GetDisplayConfigBufferSizes)( UINT32, UINT32*, UINT32* );
+    LONG (WINAPI *QueryDisplayConfig)( UINT32, UINT32*, DISPLAYCONFIG_PATH_INFO*, UINT32*, DISPLAYCONFIG_MODE_INFO*, DISPLAYCONFIG_TOPOLOGY_ID*);
     LONG (WINAPI *DisplayConfigGetDeviceInfo)( DISPLAYCONFIG_DEVICE_INFO_HEADER*);
     /* *INDENT-ON* */ // clang-format on
 
@@ -540,11 +536,6 @@ struct SDL_VideoData
 
     BYTE pre_hook_key_state[256];
     UINT _SDL_WAKEUP;
-
-#ifdef HAVE_SHOBJIDL_CORE_H
-    UINT WM_TASKBAR_BUTTON_CREATED;
-    ITaskbarList3 *taskbar_list;
-#endif
 };
 
 extern bool g_WindowsEnableMessageLoop;

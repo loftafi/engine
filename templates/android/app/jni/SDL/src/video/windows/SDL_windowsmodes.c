@@ -46,7 +46,7 @@ static void WIN_UpdateDisplayMode(SDL_VideoDevice *_this, LPCWSTR deviceName, DW
     data->DeviceMode.dmFields = (DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY | DM_DISPLAYFLAGS);
 
     // NOLINTNEXTLINE(bugprone-assignment-in-if-condition): No simple way to extract the assignment
-    if (index == ENUM_CURRENT_SETTINGS && (hdc = CreateDCW(deviceName, NULL, NULL, NULL)) != NULL) {
+    if (index == ENUM_CURRENT_SETTINGS && (hdc = CreateDC(deviceName, NULL, NULL, NULL)) != NULL) {
         char bmi_data[sizeof(BITMAPINFOHEADER) + 256 * sizeof(RGBQUAD)];
         LPBITMAPINFO bmi;
         HBITMAP hbm;
@@ -158,7 +158,7 @@ static void WIN_ReleaseDXGIOutput(void *dxgi_output)
 #endif
 }
 
-static SDL_DisplayOrientation WIN_GetNaturalOrientation(DEVMODEW *mode)
+static SDL_DisplayOrientation WIN_GetNaturalOrientation(DEVMODE *mode)
 {
     int width = mode->dmPelsWidth;
     int height = mode->dmPelsHeight;
@@ -177,7 +177,7 @@ static SDL_DisplayOrientation WIN_GetNaturalOrientation(DEVMODEW *mode)
     }
 }
 
-static SDL_DisplayOrientation WIN_GetDisplayOrientation(DEVMODEW *mode)
+static SDL_DisplayOrientation WIN_GetDisplayOrientation(DEVMODE *mode)
 {
     if (WIN_GetNaturalOrientation(mode) == SDL_ORIENTATION_LANDSCAPE) {
         switch (mode->dmDisplayOrientation) {
@@ -208,7 +208,7 @@ static SDL_DisplayOrientation WIN_GetDisplayOrientation(DEVMODEW *mode)
     }
 }
 
-static void WIN_GetRefreshRate(void *dxgi_output, DEVMODEW *mode, int *numerator, int *denominator)
+static void WIN_GetRefreshRate(void *dxgi_output, DEVMODE *mode, int *numerator, int *denominator)
 {
     // We're not currently using DXGI to query display modes, so fake NTSC timings
     switch (mode->dmDisplayFrequency) {
@@ -274,7 +274,7 @@ static float WIN_GetContentScale(SDL_VideoDevice *_this, HMONITOR hMonitor)
 static bool WIN_GetDisplayMode(SDL_VideoDevice *_this, void *dxgi_output, HMONITOR hMonitor, LPCWSTR deviceName, DWORD index, SDL_DisplayMode *mode, SDL_DisplayOrientation *natural_orientation, SDL_DisplayOrientation *current_orientation)
 {
     SDL_DisplayModeData *data;
-    DEVMODEW devmode;
+    DEVMODE devmode;
 
     devmode.dmSize = sizeof(devmode);
     devmode.dmDriverExtra = 0;
@@ -770,7 +770,8 @@ bool WIN_GetDisplayModes(SDL_VideoDevice *_this, SDL_VideoDisplay *display)
 
     dxgi_output = WIN_GetDXGIOutput(_this, data->DeviceName);
 
-    for (i = 0;; ++i) {
+    // Make sure we add the current mode to the list in case it's a custom mode that doesn't enumerate
+    for (i = ENUM_CURRENT_SETTINGS; ; ++i) {
         if (!WIN_GetDisplayMode(_this, dxgi_output, data->MonitorHandle, data->DeviceName, i, &mode, NULL, NULL)) {
             break;
         }

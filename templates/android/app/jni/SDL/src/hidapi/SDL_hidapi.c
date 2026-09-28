@@ -1109,11 +1109,6 @@ bool SDL_HIDAPI_ShouldIgnoreDevice(int bus, Uint16 vendor_id, Uint16 product_id,
                 (usage == USB_USAGE_GENERIC_KEYBOARD || usage == USB_USAGE_GENERIC_MOUSE)) {
                 return true;
             }
-        } else if (vendor_id == USB_VENDOR_FLYDIGI && product_id == USB_PRODUCT_FLYDIGI_GAMEPAD) {
-            if (usage_page == USB_USAGEPAGE_VENDOR_FLYDIGI) {
-                return false;
-            }
-            return true;
         } else if (usage_page == USB_USAGEPAGE_GENERIC_DESKTOP &&
                    (usage == USB_USAGE_GENERIC_JOYSTICK || usage == USB_USAGE_GENERIC_GAMEPAD || usage == USB_USAGE_GENERIC_MULTIAXISCONTROLLER)) {
             // This is a controller
@@ -1178,9 +1173,9 @@ int SDL_hid_init(void)
         if (libusb_ctx.libhandle != NULL) {
             bool loaded = true;
 #ifdef SDL_LIBUSB_DYNAMIC
-#define LOAD_LIBUSB_SYMBOL(type, func)                                                                  \
-    if ((libusb_ctx.func = (type)SDL_LoadFunction(libusb_ctx.libhandle, "libusb_" #func)) == NULL) {    \
-        loaded = false;                                                                                 \
+#define LOAD_LIBUSB_SYMBOL(type, func)                                                        \
+    if (!(libusb_ctx.func = (type)SDL_LoadFunction(libusb_ctx.libhandle, "libusb_" #func))) { \
+        loaded = false;                                                                   \
     }
 #else
 #define LOAD_LIBUSB_SYMBOL(type, func) \

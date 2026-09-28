@@ -587,25 +587,6 @@ void SDL_LogMessageV(int category, SDL_LogPriority priority, SDL_PRINTF_FORMAT_S
         return;
     }
 
-#if defined(SDL_PLATFORM_NGAGE)
-    extern void NGAGE_vnprintf(char *buf, size_t size, const char *fmt, va_list ap);
-    char buf[1024];
-    NGAGE_vnprintf(buf, sizeof(buf), fmt, ap);
-
-#ifdef ENABLE_FILE_LOG
-    FILE* file;
-    file = fopen("E:/SDL_Log.txt", "a");
-    if (file)
-    {
-        vfprintf(file, fmt, ap);
-        fprintf(file, "\n");
-        (void)fclose(file);
-    }
-#endif
-
-    return;
-#endif
-
     // Render into stack buffer
     va_copy(aq, ap);
     len = SDL_vsnprintf(stack_buf, sizeof(stack_buf), fmt, aq);
@@ -616,15 +597,21 @@ void SDL_LogMessageV(int category, SDL_LogPriority priority, SDL_PRINTF_FORMAT_S
     }
 
     // If message truncated, allocate and re-render
-    if (len >= sizeof(stack_buf) && SDL_size_add_check_overflow(len, 1, &len_plus_term)) {
-        // Allocate exactly what we need, including the zero-terminator
-        message = (char *)SDL_malloc(len_plus_term);
-        if (!message) {
-            return;
+    if (len >= sizeof(stack_buf)) {
+        if (SDL_size_add_check_overflow(len, 1, &len_plus_term)) {
+            // Allocate exactly what we need, including the zero-terminator
+            message = (char *)SDL_malloc(len_plus_term);
+            if (!message) {
+                return;
+            }
+            va_copy(aq, ap);
+            len = SDL_vsnprintf(message, len_plus_term, fmt, aq);
+            va_end(aq);
+        } else {
+            // Allocation would overflow, use truncated message
+            message = stack_buf;
+            len = sizeof(stack_buf);
         }
-        va_copy(aq, ap);
-        len = SDL_vsnprintf(message, len_plus_term, fmt, aq);
-        va_end(aq);
     } else {
         message = stack_buf;
     }
@@ -786,14 +773,9 @@ static void SDLCALL SDL_LogOutput(void *userdata, int category, SDL_LogPriority 
             (void)fclose(pFile);
         }
     }
-#elif defined(SDL_PLATFORM_NGAGE)
-    {
-        /* Nothing to do here. */
-    }
 #endif
 #if defined(HAVE_STDIO_H) && \
     !(defined(SDL_PLATFORM_APPLE) && (defined(SDL_VIDEO_DRIVER_COCOA) || defined(SDL_VIDEO_DRIVER_UIKIT))) && \
-    !(defined(SDL_PLATFORM_NGAGE)) && \
     !(defined(SDL_PLATFORM_WIN32))
     (void)fprintf(stderr, "%s%s\n", GetLogPriorityPrefix(priority), message);
 #endif

@@ -61,6 +61,10 @@
         return;                                              \
     }
 
+#if 0
+// The below validation is too aggressive, since there are advanced situations
+// where this is legal. This is being temporarily disabled for further review.
+// See: https://github.com/libsdl-org/SDL/issues/13871
 #define CHECK_SAMPLER_TEXTURES                                                                                                          \
     RenderPass *rp = (RenderPass *)render_pass;                                                                                         \
     for (Uint32 color_target_index = 0; color_target_index < rp->num_color_targets; color_target_index += 1) {                          \
@@ -92,6 +96,10 @@
             SDL_assert_release(!"Texture cannot be simultaneously bound as a depth stencil target and a storage texture!"); \
         }                                                                                                                   \
     }
+#else
+#define CHECK_SAMPLER_TEXTURES
+#define CHECK_STORAGE_TEXTURES
+#endif
 
 #define CHECK_GRAPHICS_PIPELINE_BOUND                                                   \
     if (!((RenderPass *)render_pass)->graphics_pipeline) { \
@@ -590,12 +598,32 @@ static void SDL_GPU_CheckComputeBindings(SDL_GPUComputePass *compute_pass)
 static const SDL_GPUBootstrap * SDL_GPUSelectBackend(SDL_PropertiesID props)
 {
     Uint32 i;
+    SDL_GPUShaderFormat format_flags = 0;
     const char *gpudriver;
     SDL_VideoDevice *_this = SDL_GetVideoDevice();
 
     if (_this == NULL) {
         SDL_SetError("Video subsystem not initialized");
         return NULL;
+    }
+
+    if (SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_PRIVATE_BOOLEAN, false)) {
+        format_flags |= SDL_GPU_SHADERFORMAT_PRIVATE;
+    }
+    if (SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, false)) {
+        format_flags |= SDL_GPU_SHADERFORMAT_SPIRV;
+    }
+    if (SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_DXBC_BOOLEAN, false)) {
+        format_flags |= SDL_GPU_SHADERFORMAT_DXBC;
+    }
+    if (SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_DXIL_BOOLEAN, false)) {
+        format_flags |= SDL_GPU_SHADERFORMAT_DXIL;
+    }
+    if (SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_MSL_BOOLEAN, false)) {
+        format_flags |= SDL_GPU_SHADERFORMAT_MSL;
+    }
+    if (SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_METALLIB_BOOLEAN, false)) {
+        format_flags |= SDL_GPU_SHADERFORMAT_METALLIB;
     }
 
     gpudriver = SDL_GetHint(SDL_HINT_GPU_DRIVER);
@@ -607,7 +635,11 @@ static const SDL_GPUBootstrap * SDL_GPUSelectBackend(SDL_PropertiesID props)
     if (gpudriver != NULL) {
         for (i = 0; backends[i]; i += 1) {
             if (SDL_strcasecmp(gpudriver, backends[i]->name) == 0) {
-                if (backends[i]->PrepareDriver(_this, props)) {
+                if (!(backends[i]->shader_formats & format_flags)) {
+                    SDL_SetError("Required shader format for backend %s not provided!", gpudriver);
+                    return NULL;
+                }
+                if (backends[i]->PrepareDriver(_this)) {
                     return backends[i];
                 }
             }
@@ -618,7 +650,11 @@ static const SDL_GPUBootstrap * SDL_GPUSelectBackend(SDL_PropertiesID props)
     }
 
     for (i = 0; backends[i]; i += 1) {
-        if (backends[i]->PrepareDriver(_this, props)) {
+        if ((backends[i]->shader_formats & format_flags) == 0) {
+            // Don't select a backend which doesn't support the app's shaders.
+            continue;
+        }
+        if (backends[i]->PrepareDriver(_this)) {
             return backends[i];
         }
     }
@@ -768,13 +804,6 @@ SDL_GPUShaderFormat SDL_GetGPUShaderFormats(SDL_GPUDevice *device)
     CHECK_DEVICE_MAGIC(device, SDL_GPU_SHADERFORMAT_INVALID);
 
     return device->shader_formats;
-}
-
-SDL_PropertiesID SDL_GetGPUDeviceProperties(SDL_GPUDevice *device)
-{
-    CHECK_DEVICE_MAGIC(device, 0);
-
-    return device->GetDeviceProperties(device);
 }
 
 Uint32 SDL_GPUTextureFormatTexelBlockSize(
@@ -1026,8 +1055,6 @@ SDL_GPUGraphicsPipeline *SDL_CreateGPUGraphicsPipeline(
                 CHECK_BLENDFACTOR_ENUM_INVALID(blend_state->src_alpha_blendfactor, NULL)
                 CHECK_BLENDFACTOR_ENUM_INVALID(blend_state->dst_alpha_blendfactor, NULL)
                 CHECK_BLENDOP_ENUM_INVALID(blend_state->alpha_blend_op, NULL)
-
-                // TODO: validate that format support blending?
             }
         }
         if (graphicsPipelineCreateInfo->target_info.has_depth_stencil_target) {
@@ -1040,18 +1067,6 @@ SDL_GPUGraphicsPipeline *SDL_CreateGPUGraphicsPipeline(
                 SDL_assert_release(!"Format is not supported for depth targets on this device!");
                 return NULL;
             }
-        }
-        if (graphicsPipelineCreateInfo->multisample_state.enable_alpha_to_coverage) {
-            if (graphicsPipelineCreateInfo->target_info.num_color_targets < 1) {
-                SDL_assert_release(!"Alpha-to-coverage enabled but no color targets present!");
-                return NULL;
-            }
-            if (!FormatHasAlpha(graphicsPipelineCreateInfo->target_info.color_target_descriptions[0].format)) {
-                SDL_assert_release(!"Format is not compatible with alpha-to-coverage!");
-                return NULL;
-            }
-
-            // TODO: validate that format supports belnding? This is only required on Metal.
         }
         if (graphicsPipelineCreateInfo->vertex_input_state.num_vertex_buffers > 0 && graphicsPipelineCreateInfo->vertex_input_state.vertex_buffer_descriptions == NULL) {
             SDL_assert_release(!"Vertex buffer descriptions array pointer cannot be NULL!");
@@ -1303,6 +1318,12 @@ SDL_GPUBuffer *SDL_CreateGPUBuffer(
     if (createinfo == NULL) {
         SDL_InvalidParamError("createinfo");
         return NULL;
+    }
+
+    if (device->debug_mode) {
+        if (createinfo->size < 4) {
+            SDL_assert_release(!"Cannot create a buffer with size less than 4 bytes!");
+        }
     }
 
     const char *debugName = SDL_GetStringProperty(createinfo->props, SDL_PROP_GPU_BUFFER_CREATE_NAME_STRING, NULL);
@@ -1566,6 +1587,7 @@ SDL_GPUCommandBuffer *SDL_AcquireGPUCommandBuffer(
         commandBufferHeader->copy_pass.in_progress = false;
         commandBufferHeader->swapchain_texture_acquired = false;
         commandBufferHeader->submitted = false;
+        commandBufferHeader->ignore_render_pass_texture_validation = false;
         SDL_zeroa(commandBufferHeader->render_pass.vertex_sampler_bound);
         SDL_zeroa(commandBufferHeader->render_pass.vertex_storage_texture_bound);
         SDL_zeroa(commandBufferHeader->render_pass.vertex_storage_buffer_bound);
@@ -1777,6 +1799,8 @@ SDL_GPURenderPass *SDL_BeginGPURenderPass(
         commandBufferHeader->render_pass.num_color_targets = num_color_targets;
         if (depth_stencil_target_info != NULL) {
             commandBufferHeader->render_pass.depth_stencil_target = depth_stencil_target_info->texture;
+        } else {
+            commandBufferHeader->render_pass.depth_stencil_target = NULL;
         }
     }
 
@@ -1954,7 +1978,7 @@ void SDL_BindGPUVertexSamplers(
     if (RENDERPASS_DEVICE->debug_mode) {
         CHECK_RENDERPASS
 
-        if (!((CommandBufferCommonHeader *)RENDERPASS_COMMAND_BUFFER)->ignore_render_pass_texture_validation)
+        if (!((CommandBufferCommonHeader*)RENDERPASS_COMMAND_BUFFER)->ignore_render_pass_texture_validation)
         {
             CHECK_SAMPLER_TEXTURES
         }
@@ -2050,7 +2074,7 @@ void SDL_BindGPUFragmentSamplers(
     if (RENDERPASS_DEVICE->debug_mode) {
         CHECK_RENDERPASS
 
-        if (!((CommandBufferCommonHeader *)RENDERPASS_COMMAND_BUFFER)->ignore_render_pass_texture_validation) {
+        if (!((CommandBufferCommonHeader*)RENDERPASS_COMMAND_BUFFER)->ignore_render_pass_texture_validation) {
             CHECK_SAMPLER_TEXTURES
         }
 
@@ -2240,13 +2264,13 @@ void SDL_DrawGPUIndexedPrimitivesIndirect(
 void SDL_EndGPURenderPass(
     SDL_GPURenderPass *render_pass)
 {
-    CommandBufferCommonHeader *commandBufferCommonHeader;
-    commandBufferCommonHeader = (CommandBufferCommonHeader *)RENDERPASS_COMMAND_BUFFER;
-
     if (render_pass == NULL) {
         SDL_InvalidParamError("render_pass");
         return;
     }
+
+    CommandBufferCommonHeader *commandBufferCommonHeader;
+    commandBufferCommonHeader = (CommandBufferCommonHeader *)RENDERPASS_COMMAND_BUFFER;
 
     if (RENDERPASS_DEVICE->debug_mode) {
         CHECK_RENDERPASS
@@ -2714,13 +2738,6 @@ void SDL_CopyGPUTextureToTexture(
         }
         if (destination->texture == NULL) {
             SDL_assert_release(!"Destination texture cannot be NULL!");
-            return;
-        }
-
-        TextureCommonHeader *srcHeader = (TextureCommonHeader *)source->texture;
-        TextureCommonHeader *dstHeader = (TextureCommonHeader *)destination->texture;
-        if (srcHeader->info.format != dstHeader->info.format) {
-            SDL_assert_release(!"Source and destination textures must have the same format!");
             return;
         }
     }

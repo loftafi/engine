@@ -80,16 +80,12 @@ bool SDL_StretchSurface(SDL_Surface *src, const SDL_Rect *srcrect, SDL_Surface *
         return result;
     }
 
-    switch (scaleMode) {
-    case SDL_SCALEMODE_NEAREST:
-        break;
-    case SDL_SCALEMODE_LINEAR:
-        break;
-    case SDL_SCALEMODE_PIXELART:
-        scaleMode = SDL_SCALEMODE_NEAREST;
-        break;
-    default:
+    if (scaleMode != SDL_SCALEMODE_NEAREST && scaleMode != SDL_SCALEMODE_LINEAR) {
         return SDL_InvalidParamError("scaleMode");
+    }
+
+    if (scaleMode != SDL_SCALEMODE_NEAREST) {
+        scaleMode = SDL_SCALEMODE_LINEAR;
     }
 
     if (scaleMode == SDL_SCALEMODE_LINEAR) {
@@ -288,7 +284,7 @@ typedef struct color_t
 #if 0
 static void printf_64(const char *str, void *var)
 {
-    uint8_t *val = (uint8_t *)var;
+    uint8_t *val = (uint8_t*) var;
     printf(" *   %s: %02x %02x %02x %02x _ %02x %02x %02x %02x\n",
            str, val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7]);
 }
@@ -394,7 +390,7 @@ static bool scale_mat(const Uint32 *src, int src_w, int src_h, int src_pitch, Ui
 #if 0
 static void SDL_TARGETING("sse2") printf_128(const char *str, __m128i var)
 {
-    uint16_t *val = (uint16_t *)&var;
+    uint16_t *val = (uint16_t*) &var;
     printf(" *   %s: %04x %04x %04x %04x _ %04x %04x %04x %04x\n",
            str, val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7]);
 }

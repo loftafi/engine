@@ -205,30 +205,39 @@ static HBITMAP CreateMaskBitmap(SDL_Surface *surface, bool is_monochrome)
 
 static HCURSOR WIN_CreateHCursor(SDL_Surface *surface, int hot_x, int hot_y)
 {
-    HCURSOR hcursor = NULL;
+    HCURSOR hcursor;
+    ICONINFO ii;
     bool is_monochrome = IsMonochromeSurface(surface);
-    ICONINFO ii = { 
-        .fIcon = FALSE, 
-        .xHotspot = (DWORD)hot_x, 
-        .yHotspot = (DWORD)hot_y,
-        .hbmMask = CreateMaskBitmap(surface, is_monochrome),
-        .hbmColor = is_monochrome ? NULL : CreateColorBitmap(surface) 
-    };
+
+    SDL_zero(ii);
+    ii.fIcon = FALSE;
+    ii.xHotspot = (DWORD)hot_x;
+    ii.yHotspot = (DWORD)hot_y;
+    ii.hbmMask = CreateMaskBitmap(surface, is_monochrome);
+    ii.hbmColor = is_monochrome ? NULL : CreateColorBitmap(surface);
 
     if (!ii.hbmMask || (!is_monochrome && !ii.hbmColor)) {
         SDL_SetError("Couldn't create cursor bitmaps");
-        goto cleanup;
+        if (ii.hbmMask) {
+            DeleteObject(ii.hbmMask);
+        }
+        if (ii.hbmColor) {
+            DeleteObject(ii.hbmColor);
+        }
+        return NULL;
     }
 
     hcursor = CreateIconIndirect(&ii);
     if (!hcursor) {
-        WIN_SetError("CreateIconIndirect failed");
+        WIN_SetError("CreateIconIndirect()");
+        DeleteObject(ii.hbmMask);
+        if (ii.hbmColor) {
+            DeleteObject(ii.hbmColor);
+        }
+        return NULL;
     }
 
-cleanup:
-    if (ii.hbmMask) {
-        DeleteObject(ii.hbmMask);
-    }
+    DeleteObject(ii.hbmMask);
     if (ii.hbmColor) {
         DeleteObject(ii.hbmColor);
     }
@@ -434,7 +443,10 @@ error:
 static bool WIN_ShowCursor(SDL_Cursor *cursor)
 {
     if (!cursor) {
-        cursor = SDL_blank_cursor;
+        if (GetSystemMetrics(SM_REMOTESESSION)) {
+            // Use a blank cursor so we continue to get relative motion over RDP
+            cursor = SDL_blank_cursor;
+        }
     }
     if (cursor) {
         if (cursor->internal->surface) {
@@ -696,8 +708,8 @@ static void ReadMouseCurve(int v, Uint64 xs[5], Uint64 ys[5])
     ys[0] = 0; // first node must always be origin
     int i;
     for (i = 1; i < 5; i++) {
-        xs[i] = (7 * (Uint64)xbuff[i * 2]);
-        ys[i] = (v * (Uint64)ybuff[i * 2]) << 17;
+        xs[i] = (7 * (Uint64)xbuff[i*2]);
+        ys[i] = (v * (Uint64)ybuff[i*2]) << 17;
     }
 }
 

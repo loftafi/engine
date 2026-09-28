@@ -257,17 +257,17 @@ JNIEXPORT void JNICALL SDL_JAVA_AUDIO_INTERFACE(nativeSetupJNI)(
     JNIEnv *env, jclass jcls);
 
 JNIEXPORT void JNICALL
-    SDL_JAVA_AUDIO_INTERFACE(nativeAddAudioDevice)(JNIEnv *env, jclass jcls, jboolean recording, jstring name,
+    SDL_JAVA_AUDIO_INTERFACE(addAudioDevice)(JNIEnv *env, jclass jcls, jboolean recording, jstring name,
                                              jint device_id);
 
 JNIEXPORT void JNICALL
-    SDL_JAVA_AUDIO_INTERFACE(nativeRemoveAudioDevice)(JNIEnv *env, jclass jcls, jboolean recording,
+    SDL_JAVA_AUDIO_INTERFACE(removeAudioDevice)(JNIEnv *env, jclass jcls, jboolean recording,
                                                 jint device_id);
 
 static JNINativeMethod SDLAudioManager_tab[] = {
     { "nativeSetupJNI", "()I", SDL_JAVA_AUDIO_INTERFACE(nativeSetupJNI) },
-    { "nativeAddAudioDevice", "(ZLjava/lang/String;I)V", SDL_JAVA_AUDIO_INTERFACE(nativeAddAudioDevice) },
-    { "nativeRemoveAudioDevice", "(ZI)V", SDL_JAVA_AUDIO_INTERFACE(nativeRemoveAudioDevice) }
+    { "addAudioDevice", "(ZLjava/lang/String;I)V", SDL_JAVA_AUDIO_INTERFACE(addAudioDevice) },
+    { "removeAudioDevice", "(ZI)V", SDL_JAVA_AUDIO_INTERFACE(removeAudioDevice) }
 };
 
 // Java class SDLControllerManager
@@ -340,7 +340,6 @@ static JavaVM *mJavaVM = NULL;
 static jclass mActivityClass;
 
 // method signatures
-static jmethodID midCancelLocalNotification;
 static jmethodID midClipboardGetText;
 static jmethodID midClipboardHasText;
 static jmethodID midClipboardSetText;
@@ -359,7 +358,6 @@ static jmethodID midManualBackButton;
 static jmethodID midMinimizeWindow;
 static jmethodID midOpenURL;
 static jmethodID midRequestPermission;
-static jmethodID midScheduleLocalNotification;
 static jmethodID midShowToast;
 static jmethodID midSendMessage;
 static jmethodID midSetActivityTitle;
@@ -632,7 +630,6 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
 
     mActivityClass = (jclass)((*env)->NewGlobalRef(env, cls));
 
-    midCancelLocalNotification = (*env)->GetStaticMethodID(env, mActivityClass, "cancelLocalNotification", "(Ljava/lang/String;)Z");
     midClipboardGetText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardGetText", "()Ljava/lang/String;");
     midClipboardHasText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardHasText", "()Z");
     midClipboardSetText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardSetText", "(Ljava/lang/String;)V");
@@ -651,7 +648,6 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
     midMinimizeWindow = (*env)->GetStaticMethodID(env, mActivityClass, "minimizeWindow", "()V");
     midOpenURL = (*env)->GetStaticMethodID(env, mActivityClass, "openURL", "(Ljava/lang/String;)Z");
     midRequestPermission = (*env)->GetStaticMethodID(env, mActivityClass, "requestPermission", "(Ljava/lang/String;I)V");
-    midScheduleLocalNotification = (*env)->GetStaticMethodID(env, mActivityClass, "scheduleLocalNotification", "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)Z");
     midShowToast = (*env)->GetStaticMethodID(env, mActivityClass, "showToast", "(Ljava/lang/String;IIII)Z");
     midSendMessage = (*env)->GetStaticMethodID(env, mActivityClass, "sendMessage", "(II)Z");
     midSetActivityTitle = (*env)->GetStaticMethodID(env, mActivityClass, "setActivityTitle", "(Ljava/lang/String;)Z");
@@ -1084,13 +1080,14 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeAddTouch)(
 {
     const char *utfname = (*env)->GetStringUTFChars(env, name, NULL);
 
-    SDL_AddTouch((SDL_TouchID)touchId, SDL_TOUCH_DEVICE_DIRECT, utfname);
+    SDL_AddTouch(Android_ConvertJavaTouchID(touchId),
+            SDL_TOUCH_DEVICE_DIRECT, utfname);
 
     (*env)->ReleaseStringUTFChars(env, name, utfname);
 }
 
 JNIEXPORT void JNICALL
-SDL_JAVA_AUDIO_INTERFACE(nativeAddAudioDevice)(JNIEnv *env, jclass jcls, jboolean recording,
+SDL_JAVA_AUDIO_INTERFACE(addAudioDevice)(JNIEnv *env, jclass jcls, jboolean recording,
                                          jstring name, jint device_id)
 {
 #if ALLOW_MULTIPLE_ANDROID_AUDIO_DEVICES
@@ -1106,7 +1103,7 @@ SDL_JAVA_AUDIO_INTERFACE(nativeAddAudioDevice)(JNIEnv *env, jclass jcls, jboolea
 }
 
 JNIEXPORT void JNICALL
-SDL_JAVA_AUDIO_INTERFACE(nativeRemoveAudioDevice)(JNIEnv *env, jclass jcls, jboolean recording,
+SDL_JAVA_AUDIO_INTERFACE(removeAudioDevice)(JNIEnv *env, jclass jcls, jboolean recording,
                                             jint device_id)
 {
 #if ALLOW_MULTIPLE_ANDROID_AUDIO_DEVICES
@@ -1623,28 +1620,6 @@ void Android_JNI_SetActivityTitle(const char *title)
     (*env)->DeleteLocalRef(env, jtitle);
 }
 
-void Android_JNI_ScheduleLocalNotification(const char *id, int delay, const char *title, const char *text)
-{
-    JNIEnv *env = Android_JNI_GetEnv();
-
-    jstring jid = (*env)->NewStringUTF(env, id);
-    jstring jtitle = (*env)->NewStringUTF(env, title);
-    jstring jtext = (*env)->NewStringUTF(env, text);
-    (*env)->CallStaticBooleanMethod(env, mActivityClass, midScheduleLocalNotification, jid, jtitle, jtext);
-    (*env)->DeleteLocalRef(env, jid);
-    (*env)->DeleteLocalRef(env, jtitle);
-    (*env)->DeleteLocalRef(env, jtext);
-}
-
-void Android_JNI_CancelLocalNotification(const char *id)
-{
-    JNIEnv *env = Android_JNI_GetEnv();
-
-    jstring jid = (*env)->NewStringUTF(env, id);
-    (*env)->CallStaticBooleanMethod(env, mActivityClass, midCancelLocalNotification, jid);
-    (*env)->DeleteLocalRef(env, jid);
-}
-
 void Android_JNI_SetWindowStyle(bool fullscreen)
 {
     JNIEnv *env = Android_JNI_GetEnv();
@@ -1754,18 +1729,24 @@ static bool Android_JNI_ExceptionOccurred(bool silent)
             exceptionName = (jstring)(*env)->CallObjectMethod(env, exceptionClass, mid);
             exceptionNameUTF8 = (*env)->GetStringUTFChars(env, exceptionName, 0);
 
+            (*env)->DeleteLocalRef(env, classClass);
+
             mid = (*env)->GetMethodID(env, exceptionClass, "getMessage", "()Ljava/lang/String;");
             exceptionMessage = (jstring)(*env)->CallObjectMethod(env, exception, mid);
+
+            (*env)->DeleteLocalRef(env, exceptionClass);
 
             if (exceptionMessage != NULL) {
                 const char *exceptionMessageUTF8 = (*env)->GetStringUTFChars(env, exceptionMessage, 0);
                 SDL_SetError("%s: %s", exceptionNameUTF8, exceptionMessageUTF8);
                 (*env)->ReleaseStringUTFChars(env, exceptionMessage, exceptionMessageUTF8);
+                (*env)->DeleteLocalRef(env, exceptionMessage);
             } else {
                 SDL_SetError("%s", exceptionNameUTF8);
             }
 
             (*env)->ReleaseStringUTFChars(env, exceptionName, exceptionNameUTF8);
+            (*env)->DeleteLocalRef(env, exceptionName);
         }
 
         return true;
@@ -2189,7 +2170,7 @@ bool Android_JNI_ShowMessageBox(const SDL_MessageBoxData *messageboxdata, int *b
     mid = (*env)->GetMethodID(env, clazz,
                               "messageboxShowMessageBox", "(ILjava/lang/String;Ljava/lang/String;[I[I[Ljava/lang/String;[I)I");
     *buttonID = (*env)->CallIntMethod(env, context, mid,
-                                      messageboxdata->flags,
+                                      (jint)messageboxdata->flags,
                                       title,
                                       message,
                                       button_flags,
@@ -2443,7 +2424,7 @@ const char *SDL_GetAndroidCachePath(void)
         // fileObj = context.getExternalFilesDir();
         mid = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, context),
                                   "getCacheDir", "()Ljava/io/File;");
-        fileObject = (*env)->CallObjectMethod(env, context, mid, NULL);
+        fileObject = (*env)->CallObjectMethod(env, context, mid);
         if (!fileObject) {
             SDL_SetError("Couldn't get cache directory");
             LocalReferenceHolder_Cleanup(&refs);
@@ -2717,7 +2698,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeFileDialog)(
 
         // Convert fileList to string
         size_t count = (*env)->GetArrayLength(env, fileList);
-        char **charFileList = SDL_calloc(count + 1, sizeof(char *));
+        char **charFileList = SDL_calloc(count + 1, sizeof(char*));
 
         if (charFileList == NULL) {
             mAndroidFileDialogData.callback(mAndroidFileDialogData.userdata, NULL, -1);
@@ -2773,7 +2754,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeFileDialog)(
 }
 
 bool Android_JNI_OpenFileDialog(
-    SDL_DialogFileCallback callback, void *userdata,
+    SDL_DialogFileCallback callback, void* userdata,
     const SDL_DialogFileFilter *filters, int nfilters, bool forwrite,
     bool multiple)
 {
@@ -2793,6 +2774,7 @@ bool Android_JNI_OpenFileDialog(
     if (filters) {
         jclass stringClass = (*env)->FindClass(env, "java/lang/String");
         filtersArray = (*env)->NewObjectArray(env, nfilters, stringClass, NULL);
+        (*env)->DeleteLocalRef(env, stringClass);
 
         // Convert to string
         for (int i = 0; i < nfilters; i++) {

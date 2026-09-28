@@ -32,6 +32,9 @@
 #include <SDL3/SDL_vulkan.h>
 
 #include "../SDL_sysgpu.h"
+#include "../../events/SDL_windowevents_c.h"
+
+#define VULKAN_INTERNAL_clamp(val, min, max) SDL_max(min, SDL_min(val, max))
 
 // Global Vulkan Loader Entry Points
 
@@ -76,6 +79,33 @@ typedef struct VulkanExtensions
         VK_COMPONENT_SWIZZLE_IDENTITY, \
         VK_COMPONENT_SWIZZLE_IDENTITY  \
     }
+
+#define NULL_DESC_LAYOUT     (VkDescriptorSetLayout)0
+#define NULL_PIPELINE_LAYOUT (VkPipelineLayout)0
+#define NULL_RENDER_PASS     (SDL_GPURenderPass *)0
+
+#define EXPAND_ELEMENTS_IF_NEEDED(arr, initialValue, type) \
+    do {                                                   \
+        if (arr->count == arr->capacity) {                 \
+            if (arr->capacity == 0) {                      \
+                arr->capacity = initialValue;              \
+            } else {                                       \
+                arr->capacity *= 2;                        \
+            }                                              \
+            arr->elements = (type *)SDL_realloc(           \
+                arr->elements,                             \
+                arr->capacity * sizeof(type));             \
+        }                                                  \
+    } while (0)
+
+#define MOVE_ARRAY_CONTENTS_AND_RESET(i, dstArr, dstCount, srcArr, srcCount) \
+    do {                                                                     \
+        for ((i) = 0; (i) < (srcCount); (i) += 1) {                          \
+            (dstArr)[i] = (srcArr)[i];                                       \
+        }                                                                    \
+        (dstCount) = (srcCount);                                             \
+        (srcCount) = 0;                                                      \
+    while (0)
 
 // Conversions
 
@@ -1079,6 +1109,7 @@ typedef struct VulkanCommandBuffer
     VulkanFenceHandle *inFlightFence;
     bool autoReleaseFence;
 
+    bool swapchainRequested;
     bool isDefrag; // Whether this CB was created for defragging
 } VulkanCommandBuffer;
 
@@ -1100,7 +1131,6 @@ struct VulkanRenderer
     VkPhysicalDevice physicalDevice;
     VkPhysicalDeviceProperties2KHR physicalDeviceProperties;
     VkPhysicalDeviceDriverPropertiesKHR physicalDeviceDriverProperties;
-    VkPhysicalDeviceFeatures desiredDeviceFeatures;
     VkDevice logicalDevice;
     Uint8 integratedMemoryNotification;
     Uint8 outOfDeviceLocalMemoryWarning;
@@ -1109,12 +1139,12 @@ struct VulkanRenderer
 
     bool debugMode;
     bool preferLowPower;
-    SDL_PropertiesID props;
     Uint32 allowedFramesInFlight;
 
     VulkanExtensions supports;
     bool supportsDebugUtils;
     bool supportsColorspace;
+    bool supportsPhysicalDeviceProperties2;
     bool supportsFillModeNonSolid;
     bool supportsMultiDrawIndirect;
 
@@ -1250,13 +1280,20 @@ static inline const char *VkErrorMessages(VkResult code)
 #undef ERR_TO_STR
 }
 
-#define SET_ERROR_AND_RETURN(fmt, msg, ret)               \
+#define SET_ERROR(fmt, msg)                               \
     do {                                                  \
         if (renderer->debugMode) {                        \
             SDL_LogError(SDL_LOG_CATEGORY_GPU, fmt, msg); \
         }                                                 \
         SDL_SetError((fmt), (msg));                       \
-        return ret;                                       \
+    } while (0)
+
+#define SET_STRING_ERROR(msg) SET_ERROR("%s", msg)
+
+#define SET_ERROR_AND_RETURN(fmt, msg, ret) \
+    do {                                    \
+        SET_ERROR(fmt, msg);                \
+        return ret;                         \
     } while (0)
 
 #define SET_STRING_ERROR_AND_RETURN(msg, ret) SET_ERROR_AND_RETURN("%s", msg, ret)
@@ -1312,6 +1349,7 @@ static inline Uint32 VULKAN_INTERNAL_NextHighestAlignment32(
 }
 
 static void VULKAN_INTERNAL_MakeMemoryUnavailable(
+    VulkanRenderer *renderer,
     VulkanMemoryAllocation *allocation)
 {
     Uint32 i, j;
@@ -1361,6 +1399,7 @@ static void VULKAN_INTERNAL_MarkAllocationsForDefrag(
                     renderer->allocationsToDefragCount += 1;
 
                     VULKAN_INTERNAL_MakeMemoryUnavailable(
+                        renderer,
                         currentAllocator->allocations[allocationIndex]);
                 }
             }
@@ -1780,6 +1819,8 @@ static void VULKAN_INTERNAL_DeallocateMemory(
 
 static Uint8 VULKAN_INTERNAL_AllocateMemory(
     VulkanRenderer *renderer,
+    VkBuffer buffer,
+    VkImage image,
     Uint32 memoryTypeIndex,
     VkDeviceSize allocationSize,
     Uint8 isHostVisible,
@@ -2060,6 +2101,8 @@ static Uint8 VULKAN_INTERNAL_BindResourceMemory(
 
     allocationResult = VULKAN_INTERNAL_AllocateMemory(
         renderer,
+        buffer,
+        image,
         memoryTypeIndex,
         allocationSize,
         isHostVisible,
@@ -2356,6 +2399,24 @@ static Uint8 VULKAN_INTERNAL_BindMemoryForBuffer(
 
 // Resource tracking
 
+#define ADD_TO_ARRAY_UNIQUE(resource, type, array, count, capacity) \
+    Uint32 i;                                                       \
+                                                                    \
+    for (i = 0; i < commandBuffer->count; i += 1) {                 \
+        if (commandBuffer->array[i] == resource) {                  \
+            return;                                                 \
+        }                                                           \
+    }                                                               \
+                                                                    \
+    if (commandBuffer->count == commandBuffer->capacity) {          \
+        commandBuffer->capacity += 1;                               \
+        commandBuffer->array = SDL_realloc(                         \
+            commandBuffer->array,                                   \
+            commandBuffer->capacity * sizeof(type));                \
+    }                                                               \
+    commandBuffer->array[commandBuffer->count] = resource;          \
+    commandBuffer->count += 1;
+
 #define TRACK_RESOURCE(resource, type, array, count, capacity)  \
     for (Sint32 i = commandBuffer->count - 1; i >= 0; i -= 1) { \
         if (commandBuffer->array[i] == resource) {              \
@@ -2434,6 +2495,7 @@ static void VULKAN_INTERNAL_TrackComputePipeline(
 }
 
 static void VULKAN_INTERNAL_TrackFramebuffer(
+    VulkanRenderer *renderer,
     VulkanCommandBuffer *commandBuffer,
     VulkanFramebuffer *framebuffer)
 {
@@ -3297,7 +3359,7 @@ static void SDLCALL VULKAN_INTERNAL_GraphicsPipelineResourceLayoutHashDestroy(vo
     VulkanRenderer *renderer = (VulkanRenderer *)userdata;
     VulkanGraphicsPipelineResourceLayout *resourceLayout = (VulkanGraphicsPipelineResourceLayout *)value;
     VULKAN_INTERNAL_DestroyGraphicsPipelineResourceLayout(renderer, resourceLayout);
-    SDL_free((void *)key);
+    SDL_free((void*)key);
 }
 
 static Uint32 SDLCALL VULKAN_INTERNAL_ComputePipelineResourceLayoutHashFunction(void *userdata, const void *key)
@@ -3328,7 +3390,7 @@ static void SDLCALL VULKAN_INTERNAL_ComputePipelineResourceLayoutHashDestroy(voi
     VulkanRenderer *renderer = (VulkanRenderer *)userdata;
     VulkanComputePipelineResourceLayout *resourceLayout = (VulkanComputePipelineResourceLayout *)value;
     VULKAN_INTERNAL_DestroyComputePipelineResourceLayout(renderer, resourceLayout);
-    SDL_free((void *)key);
+    SDL_free((void*)key);
 }
 
 static Uint32 SDLCALL VULKAN_INTERNAL_DescriptorSetLayoutHashFunction(void *userdata, const void *key)
@@ -3361,7 +3423,7 @@ static void SDLCALL VULKAN_INTERNAL_DescriptorSetLayoutHashDestroy(void *userdat
     VulkanRenderer *renderer = (VulkanRenderer *)userdata;
     DescriptorSetLayout *layout = (DescriptorSetLayout *)value;
     VULKAN_INTERNAL_DestroyDescriptorSetLayout(renderer, layout);
-    SDL_free((void *)key);
+    SDL_free((void*)key);
 }
 
 static Uint32 SDLCALL VULKAN_INTERNAL_CommandPoolHashFunction(void *userdata, const void *key)
@@ -4339,7 +4401,9 @@ static bool VULKAN_INTERNAL_QuerySwapchainSupport(
         &supportsPresent);
 
     // Initialize these in case anything fails
+    outputDetails->formats = NULL;
     outputDetails->formatsLength = 0;
+    outputDetails->presentModes = NULL;
     outputDetails->presentModesLength = 0;
 
     if (!supportsPresent) {
@@ -4362,22 +4426,33 @@ static bool VULKAN_INTERNAL_QuerySwapchainSupport(
         surface,
         &outputDetails->formatsLength,
         NULL);
-    CHECK_VULKAN_ERROR_AND_RETURN(result, vkGetPhysicalDeviceSurfaceFormatsKHR, false);
+    if (result != VK_SUCCESS) {
+        // Make sure the driver didn't mess up this value.
+        outputDetails->formatsLength = 0;
+        CHECK_VULKAN_ERROR_AND_RETURN(result, vkGetPhysicalDeviceSurfaceFormatsKHR, false);
+    }
     result = renderer->vkGetPhysicalDeviceSurfacePresentModesKHR(
         physicalDevice,
         surface,
         &outputDetails->presentModesLength,
         NULL);
-    CHECK_VULKAN_ERROR_AND_RETURN(result, vkGetPhysicalDeviceSurfacePresentModesKHR, false);
+    if (result != VK_SUCCESS) {
+        // Make sure the driver didn't mess up this value.
+        outputDetails->presentModesLength = 0;
+        // Reset this one, too.
+        outputDetails->formatsLength = 0;
+        CHECK_VULKAN_ERROR_AND_RETURN(result, vkGetPhysicalDeviceSurfacePresentModesKHR, false);
+    }
 
     // Generate the arrays, if applicable
 
-    outputDetails->formats = NULL;
     if (outputDetails->formatsLength != 0) {
         outputDetails->formats = (VkSurfaceFormatKHR *)SDL_malloc(
             sizeof(VkSurfaceFormatKHR) * outputDetails->formatsLength);
 
         if (!outputDetails->formats) { // OOM
+            outputDetails->formatsLength = 0;
+            outputDetails->presentModesLength = 0;
             return false;
         }
 
@@ -4388,17 +4463,22 @@ static bool VULKAN_INTERNAL_QuerySwapchainSupport(
             outputDetails->formats);
         if (result != VK_SUCCESS) {
             SDL_free(outputDetails->formats);
+            outputDetails->formats = NULL;
+            outputDetails->formatsLength = 0;
+            outputDetails->presentModesLength = 0;
             CHECK_VULKAN_ERROR_AND_RETURN(result, vkGetPhysicalDeviceSurfaceFormatsKHR, false);
         }
     }
 
-    outputDetails->presentModes = NULL;
     if (outputDetails->presentModesLength != 0) {
         outputDetails->presentModes = (VkPresentModeKHR *)SDL_malloc(
             sizeof(VkPresentModeKHR) * outputDetails->presentModesLength);
 
         if (!outputDetails->presentModes) { // OOM
             SDL_free(outputDetails->formats);
+            outputDetails->formats = NULL;
+            outputDetails->formatsLength = 0;
+            outputDetails->presentModesLength = 0;
             return false;
         }
 
@@ -4410,6 +4490,10 @@ static bool VULKAN_INTERNAL_QuerySwapchainSupport(
         if (result != VK_SUCCESS) {
             SDL_free(outputDetails->formats);
             SDL_free(outputDetails->presentModes);
+            outputDetails->formats = NULL;
+            outputDetails->presentModes = NULL;
+            outputDetails->formatsLength = 0;
+            outputDetails->presentModesLength = 0;
             CHECK_VULKAN_ERROR_AND_RETURN(result, vkGetPhysicalDeviceSurfacePresentModesKHR, false);
         }
     }
@@ -4470,7 +4554,6 @@ static Uint32 VULKAN_INTERNAL_CreateSwapchain(
     VkSemaphoreCreateInfo semaphoreCreateInfo;
     SwapchainSupportDetails swapchainSupportDetails;
     bool hasValidSwapchainComposition, hasValidPresentMode;
-    VkCompositeAlphaFlagsKHR compositeAlphaFlag = 0;
     Uint32 i;
 
     windowData->frameCounter = 0;
@@ -4499,12 +4582,6 @@ static Uint32 VULKAN_INTERNAL_CreateSwapchain(
             windowData->surface,
             NULL);
         windowData->surface = VK_NULL_HANDLE;
-        if (swapchainSupportDetails.formatsLength > 0) {
-            SDL_free(swapchainSupportDetails.formats);
-        }
-        if (swapchainSupportDetails.presentModesLength > 0) {
-            SDL_free(swapchainSupportDetails.presentModes);
-        }
         return false;
     }
 
@@ -4611,25 +4688,6 @@ static Uint32 VULKAN_INTERNAL_CreateSwapchain(
         requestedImageCount = SDL_max(requestedImageCount, 3);
     }
 
-    // Default to opaque, if available, followed by inherit, and overwrite with a value that supports transparency, if necessary.
-    if (swapchainSupportDetails.capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
-        compositeAlphaFlag = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    } else if (swapchainSupportDetails.capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
-        compositeAlphaFlag = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
-    }
-
-    if ((windowData->window->flags & SDL_WINDOW_TRANSPARENT) || !compositeAlphaFlag) {
-        if (swapchainSupportDetails.capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR) {
-            compositeAlphaFlag = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
-        } else if (swapchainSupportDetails.capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR) {
-            compositeAlphaFlag = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
-        } else if (swapchainSupportDetails.capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
-            compositeAlphaFlag = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
-        } else {
-            SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "SDL_WINDOW_TRANSPARENT flag set, but no suitable swapchain composite alpha value supported!");
-        }
-    }
-
     swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchainCreateInfo.pNext = NULL;
     swapchainCreateInfo.flags = 0;
@@ -4651,7 +4709,7 @@ static Uint32 VULKAN_INTERNAL_CreateSwapchain(
 #else
     swapchainCreateInfo.preTransform = swapchainSupportDetails.capabilities.currentTransform;
 #endif
-    swapchainCreateInfo.compositeAlpha = compositeAlphaFlag;
+    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     swapchainCreateInfo.presentMode = SDLToVK_PresentMode[windowData->presentMode];
     swapchainCreateInfo.clipped = VK_TRUE;
     swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
@@ -4964,18 +5022,9 @@ static void VULKAN_DestroyDevice(
     renderer->vkDestroyDevice(renderer->logicalDevice, NULL);
     renderer->vkDestroyInstance(renderer->instance, NULL);
 
-    SDL_DestroyProperties(renderer->props);
-
     SDL_free(renderer);
     SDL_free(device);
     SDL_Vulkan_UnloadLibrary();
-}
-
-static SDL_PropertiesID VULKAN_GetDeviceProperties(
-    SDL_GPUDevice *device)
-{
-    VulkanRenderer *renderer = (VulkanRenderer *)device->driverData;
-    return renderer->props;
 }
 
 static DescriptorSetCache *VULKAN_INTERNAL_AcquireDescriptorSetCache(
@@ -5861,7 +5910,10 @@ static VulkanTexture *VULKAN_INTERNAL_CreateTexture(
             VULKAN_TEXTURE_USAGE_MODE_UNINITIALIZED,
             texture);
         VULKAN_INTERNAL_TrackTexture(barrierCommandBuffer, texture);
-        VULKAN_Submit((SDL_GPUCommandBuffer *)barrierCommandBuffer);
+        if (!VULKAN_Submit((SDL_GPUCommandBuffer *)barrierCommandBuffer)) {
+            VULKAN_INTERNAL_DestroyTexture(renderer, texture);
+            return NULL;
+        }
     }
 
     return texture;
@@ -6023,6 +6075,7 @@ static VulkanTextureSubresource *VULKAN_INTERNAL_PrepareTextureSubresourceForWri
 
 static VkRenderPass VULKAN_INTERNAL_CreateRenderPass(
     VulkanRenderer *renderer,
+    VulkanCommandBuffer *commandBuffer,
     const SDL_GPUColorTargetInfo *colorTargetInfos,
     Uint32 numColorTargets,
     const SDL_GPUDepthStencilTargetInfo *depthStencilTargetInfo)
@@ -6057,7 +6110,6 @@ static VkRenderPass VULKAN_INTERNAL_CreateRenderPass(
         colorAttachmentReferences[colorAttachmentReferenceCount].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         attachmentDescriptionCount += 1;
-        colorAttachmentReferenceCount += 1;
 
         if (colorTargetInfos[i].store_op == SDL_GPU_STOREOP_RESOLVE || colorTargetInfos[i].store_op == SDL_GPU_STOREOP_RESOLVE_AND_STORE) {
             VulkanTextureContainer *resolveContainer = (VulkanTextureContainer *)colorTargetInfos[i].resolve_texture;
@@ -6072,12 +6124,16 @@ static VkRenderPass VULKAN_INTERNAL_CreateRenderPass(
             attachmentDescriptions[attachmentDescriptionCount].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachmentDescriptions[attachmentDescriptionCount].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-            resolveReferences[resolveReferenceCount].attachment = attachmentDescriptionCount;
-            resolveReferences[resolveReferenceCount].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            resolveReferences[colorAttachmentReferenceCount].attachment = attachmentDescriptionCount;
+            resolveReferences[colorAttachmentReferenceCount].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             attachmentDescriptionCount += 1;
             resolveReferenceCount += 1;
+        } else {
+            resolveReferences[colorAttachmentReferenceCount].attachment = VK_ATTACHMENT_UNUSED;
         }
+
+        colorAttachmentReferenceCount += 1;
     }
 
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -6400,7 +6456,7 @@ static SDL_GPUGraphicsPipeline *VULKAN_CreateGraphicsPipeline(
     multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
     multisampleStateCreateInfo.minSampleShading = 1.0f;
     multisampleStateCreateInfo.pSampleMask = &sampleMask;
-    multisampleStateCreateInfo.alphaToCoverageEnable = createinfo->multisample_state.enable_alpha_to_coverage;
+    multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
     multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
 
     // Depth Stencil State
@@ -6566,25 +6622,6 @@ static SDL_GPUGraphicsPipeline *VULKAN_CreateGraphicsPipeline(
     return (SDL_GPUGraphicsPipeline *)graphicsPipeline;
 }
 
-static bool VULKAN_INTERNAL_IsValidShaderBytecode(
-    const Uint8 *code,
-    size_t codeSize)
-{
-    // SPIR-V bytecode has a 4 byte header containing 0x07230203. SPIR-V is
-    // defined as a stream of words and not a stream of bytes so both byte
-    // orders need to be considered.
-    //
-    // FIXME: It is uncertain if drivers are able to load both byte orders. If
-    // needed we may need to do an optional swizzle internally so apps can
-    // continue to treat shader code as an opaque blob.
-    if (codeSize < 4 || code == NULL) {
-        return false;
-    }
-    const Uint32 magic = 0x07230203;
-    const Uint32 magicInv = 0x03022307;
-    return SDL_memcmp(code, &magic, 4) == 0 || SDL_memcmp(code, &magicInv, 4) == 0;
-}
-
 static SDL_GPUComputePipeline *VULKAN_CreateComputePipeline(
     SDL_GPURenderer *driverData,
     const SDL_GPUComputePipelineCreateInfo *createinfo)
@@ -6598,10 +6635,6 @@ static SDL_GPUComputePipeline *VULKAN_CreateComputePipeline(
 
     if (createinfo->format != SDL_GPU_SHADERFORMAT_SPIRV) {
         SET_STRING_ERROR_AND_RETURN("Incompatible shader format for Vulkan!", NULL);
-    }
-
-    if (!VULKAN_INTERNAL_IsValidShaderBytecode(createinfo->code, createinfo->code_size)) {
-        SET_STRING_ERROR_AND_RETURN("The provided shader code is not valid SPIR-V!", NULL);
     }
 
     vulkanComputePipeline = SDL_malloc(sizeof(VulkanComputePipeline));
@@ -6756,10 +6789,6 @@ static SDL_GPUShader *VULKAN_CreateShader(
     VkResult vulkanResult;
     VkShaderModuleCreateInfo vkShaderModuleCreateInfo;
     VulkanRenderer *renderer = (VulkanRenderer *)driverData;
-
-    if (!VULKAN_INTERNAL_IsValidShaderBytecode(createinfo->code, createinfo->code_size)) {
-        SET_STRING_ERROR_AND_RETURN("The provided shader code is not valid SPIR-V!", NULL);
-    }
 
     vulkanShader = SDL_malloc(sizeof(VulkanShader));
     vkShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -6954,6 +6983,8 @@ static void VULKAN_ReleaseTexture(
         VULKAN_INTERNAL_ReleaseTexture(renderer, vulkanTextureContainer->textures[i]);
     }
 
+    SDL_DestroyProperties(vulkanTextureContainer->header.info.props);
+
     // Containers are just client handles, so we can destroy immediately
     if (vulkanTextureContainer->debugName != NULL) {
         SDL_free(vulkanTextureContainer->debugName);
@@ -7129,6 +7160,7 @@ static void VULKAN_ReleaseGraphicsPipeline(
 
 static VkRenderPass VULKAN_INTERNAL_FetchRenderPass(
     VulkanRenderer *renderer,
+    VulkanCommandBuffer *commandBuffer,
     const SDL_GPUColorTargetInfo *colorTargetInfos,
     Uint32 numColorTargets,
     const SDL_GPUDepthStencilTargetInfo *depthStencilTargetInfo)
@@ -7154,6 +7186,8 @@ static VkRenderPass VULKAN_INTERNAL_FetchRenderPass(
     key.sampleCount = VK_SAMPLE_COUNT_1_BIT;
     if (numColorTargets > 0) {
         key.sampleCount = SDLToVK_SampleCount[((VulkanTextureContainer *)colorTargetInfos[0].texture)->header.info.sample_count];
+    } else if (numColorTargets == 0 && depthStencilTargetInfo != NULL) {
+        key.sampleCount = SDLToVK_SampleCount[((VulkanTextureContainer *)depthStencilTargetInfo->texture)->header.info.sample_count];
     }
 
     key.numColorTargets = numColorTargets;
@@ -7186,6 +7220,7 @@ static VkRenderPass VULKAN_INTERNAL_FetchRenderPass(
 
     renderPassHandle = VULKAN_INTERNAL_CreateRenderPass(
         renderer,
+        commandBuffer,
         colorTargetInfos,
         numColorTargets,
         depthStencilTargetInfo);
@@ -7869,6 +7904,7 @@ static void VULKAN_BeginRenderPass(
 
     renderPass = VULKAN_INTERNAL_FetchRenderPass(
         renderer,
+        vulkanCommandBuffer,
         colorTargetInfos,
         numColorTargets,
         depthStencilTargetInfo);
@@ -7890,21 +7926,23 @@ static void VULKAN_BeginRenderPass(
         return;
     }
 
-    VULKAN_INTERNAL_TrackFramebuffer(vulkanCommandBuffer, framebuffer);
+    VULKAN_INTERNAL_TrackFramebuffer(renderer, vulkanCommandBuffer, framebuffer);
 
     // Set clear values
 
     clearValues = SDL_stack_alloc(VkClearValue, clearCount);
 
-    for (i = 0; i < totalColorAttachmentCount; i += 1) {
-        clearValues[i].color.float32[0] = colorTargetInfos[i].clear_color.r;
-        clearValues[i].color.float32[1] = colorTargetInfos[i].clear_color.g;
-        clearValues[i].color.float32[2] = colorTargetInfos[i].clear_color.b;
-        clearValues[i].color.float32[3] = colorTargetInfos[i].clear_color.a;
+    int clearIndex = 0;
+    for (i = 0; i < numColorTargets; i += 1) {
+        clearValues[clearIndex].color.float32[0] = colorTargetInfos[i].clear_color.r;
+        clearValues[clearIndex].color.float32[1] = colorTargetInfos[i].clear_color.g;
+        clearValues[clearIndex].color.float32[2] = colorTargetInfos[i].clear_color.b;
+        clearValues[clearIndex].color.float32[3] = colorTargetInfos[i].clear_color.a;
+        clearIndex += 1;
 
         if (colorTargetInfos[i].store_op == SDL_GPU_STOREOP_RESOLVE || colorTargetInfos[i].store_op == SDL_GPU_STOREOP_RESOLVE_AND_STORE) {
             // Skip over the resolve texture, we're not clearing it
-            i += 1;
+            clearIndex += 1;
         }
     }
 
@@ -8592,7 +8630,7 @@ static void VULKAN_INTERNAL_BindComputeDescriptorSets(
         dynamicOffsetCount,
         dynamicOffsets);
 
-    commandBuffer->needNewVertexUniformOffsets = false;
+    commandBuffer->needNewComputeUniformOffsets = false;
 }
 
 static void VULKAN_DispatchCompute(
@@ -9395,6 +9433,8 @@ static bool VULKAN_INTERNAL_AllocateCommandBuffer(
     commandBuffer->usedUniformBuffers = SDL_malloc(
         commandBuffer->usedUniformBufferCapacity * sizeof(VulkanUniformBuffer *));
 
+    commandBuffer->swapchainRequested = false;
+
     // Pool it!
 
     vulkanCommandPool->inactiveCommandBuffers[vulkanCommandPool->inactiveCommandBufferCount] = commandBuffer;
@@ -9505,13 +9545,16 @@ static SDL_GPUCommandBuffer *VULKAN_AcquireCommandBuffer(
     VulkanCommandBuffer *commandBuffer =
         VULKAN_INTERNAL_GetInactiveCommandBufferFromPool(renderer, threadID);
 
-    commandBuffer->descriptorSetCache = VULKAN_INTERNAL_AcquireDescriptorSetCache(renderer);
+    DescriptorSetCache *descriptorSetCache =
+        VULKAN_INTERNAL_AcquireDescriptorSetCache(renderer);
 
     SDL_UnlockMutex(renderer->acquireCommandBufferLock);
 
     if (commandBuffer == NULL) {
         return NULL;
     }
+
+    commandBuffer->descriptorSetCache = descriptorSetCache;
 
     // Reset state
 
@@ -9577,6 +9620,7 @@ static SDL_GPUCommandBuffer *VULKAN_AcquireCommandBuffer(
 
     commandBuffer->autoReleaseFence = true;
 
+    commandBuffer->swapchainRequested = false;
     commandBuffer->isDefrag = 0;
 
     /* Reset the command buffer here to avoid resets being called
@@ -9662,6 +9706,13 @@ static bool VULKAN_INTERNAL_OnWindowResize(void *userdata, SDL_Event *e)
         data->swapchainCreateWidth = e->window.data1;
         data->swapchainCreateHeight = e->window.data2;
     }
+
+#ifdef SDL_PLATFORM_ANDROID
+    if (e->type == SDL_EVENT_DID_ENTER_BACKGROUND) {
+        data = VULKAN_INTERNAL_FetchWindowData(w);
+        data->needsSwapchainRecreate = true;
+    }
+#endif
 
     return true;
 }
@@ -9791,7 +9842,7 @@ static bool VULKAN_ClaimWindow(
             renderer->claimedWindowCount += 1;
             SDL_UnlockMutex(renderer->windowLock);
 
-            SDL_AddEventWatch(VULKAN_INTERNAL_OnWindowResize, window);
+            SDL_AddWindowEventWatch(SDL_WINDOW_EVENT_WATCH_NORMAL, VULKAN_INTERNAL_OnWindowResize, window);
 
             return true;
         } else if (createSwapchainResult == VULKAN_INTERNAL_TRY_AGAIN) {
@@ -9846,7 +9897,7 @@ static void VULKAN_ReleaseWindow(
     SDL_free(windowData);
 
     SDL_ClearProperty(SDL_GetWindowProperties(window), WINDOW_PROPERTY_DATA);
-    SDL_RemoveEventWatch(VULKAN_INTERNAL_OnWindowResize, window);
+    SDL_RemoveWindowEventWatch(SDL_WINDOW_EVENT_WATCH_NORMAL, VULKAN_INTERNAL_OnWindowResize, window);
 }
 
 static Uint32 VULKAN_INTERNAL_RecreateSwapchain(
@@ -9925,6 +9976,14 @@ static bool VULKAN_INTERNAL_AcquireSwapchainTexture(
         SET_STRING_ERROR_AND_RETURN("Cannot acquire a swapchain texture from an unclaimed window!", false);
     }
 
+    // The command buffer is flagged for cleanup when the swapchain is requested as a cleanup timing mechanism
+    vulkanCommandBuffer->swapchainRequested = true;
+
+    if (window->flags & SDL_WINDOW_HIDDEN) {
+        // Edge case, texture is filled in with NULL but not an error
+        return true;
+    }
+
     // If window data marked as needing swapchain recreate, try to recreate
     if (windowData->needsSwapchainRecreate) {
         Uint32 recreateSwapchainResult = VULKAN_INTERNAL_RecreateSwapchain(renderer, windowData);
@@ -9940,13 +9999,6 @@ static bool VULKAN_INTERNAL_AcquireSwapchainTexture(
             }
             return true;
         }
-    }
-
-    if (swapchainTextureWidth) {
-        *swapchainTextureWidth = windowData->width;
-    }
-    if (swapchainTextureHeight) {
-        *swapchainTextureHeight = windowData->height;
     }
 
     if (windowData->inFlightFences[windowData->frameCounter] != NULL) {
@@ -9998,6 +10050,14 @@ static bool VULKAN_INTERNAL_AcquireSwapchainTexture(
             // Edge case, texture is filled in with NULL but not an error
             return true;
         }
+    }
+
+    if (swapchainTextureWidth) {
+        *swapchainTextureWidth = windowData->width;
+    }
+
+    if (swapchainTextureHeight) {
+        *swapchainTextureHeight = windowData->height;
     }
 
     swapchainTextureContainer = &windowData->textureContainers[swapchainImageIndex];
@@ -10111,7 +10171,7 @@ static SDL_GPUTextureFormat VULKAN_GetSwapchainTextureFormat(
     SDL_GPURenderer *driverData,
     SDL_Window *window)
 {
-    VulkanRenderer *renderer = (VulkanRenderer *)driverData;
+    VulkanRenderer *renderer = (VulkanRenderer*)driverData;
     WindowData *windowData = VULKAN_INTERNAL_FetchWindowData(window);
 
     if (windowData == NULL) {
@@ -10377,6 +10437,7 @@ static void VULKAN_INTERNAL_CleanCommandBuffer(
     commandBuffer->presentDataCount = 0;
     commandBuffer->waitSemaphoreCount = 0;
     commandBuffer->signalSemaphoreCount = 0;
+    commandBuffer->swapchainRequested = false;
 
     // Reset defrag state
 
@@ -10474,11 +10535,18 @@ static bool VULKAN_Wait(
     VkResult result;
     Sint32 i;
 
+    SDL_LockMutex(renderer->submitLock);
+
     result = renderer->vkDeviceWaitIdle(renderer->logicalDevice);
 
-    CHECK_VULKAN_ERROR_AND_RETURN(result, vkDeviceWaitIdle, false);
-
-    SDL_LockMutex(renderer->submitLock);
+    if (result != VK_SUCCESS) {
+        if (renderer->debugMode) {
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "%s %s", "vkDeviceWaitIdle", VkErrorMessages(result));
+        }
+        SDL_SetError("%s %s", "vkDeviceWaitIdle", VkErrorMessages(result));
+        SDL_UnlockMutex(renderer->submitLock);
+        return false;
+    }
 
     for (i = renderer->submittedCommandBufferCount - 1; i >= 0; i -= 1) {
         commandBuffer = renderer->submittedCommandBuffers[i];
@@ -10533,7 +10601,7 @@ static bool VULKAN_Submit(
     VulkanTextureSubresource *swapchainTextureSubresource;
     VulkanMemorySubAllocator *allocator;
     bool performCleanups =
-        (renderer->claimedWindowCount > 0 && vulkanCommandBuffer->presentDataCount > 0) ||
+        (renderer->claimedWindowCount > 0 && vulkanCommandBuffer->swapchainRequested) ||
         renderer->claimedWindowCount == 0;
 
     SDL_LockMutex(renderer->submitLock);
@@ -10622,10 +10690,16 @@ static bool VULKAN_Submit(
 
         if (presentResult == VK_SUCCESS || presentResult == VK_SUBOPTIMAL_KHR || presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
             // If presenting, the swapchain is using the in-flight fence
-            presentData->windowData->inFlightFences[presentData->windowData->frameCounter] = (SDL_GPUFence *)vulkanCommandBuffer->inFlightFence;
+            presentData->windowData->inFlightFences[presentData->windowData->frameCounter] = (SDL_GPUFence*)vulkanCommandBuffer->inFlightFence;
             (void)SDL_AtomicIncRef(&vulkanCommandBuffer->inFlightFence->referenceCount);
 
-            if (presentResult == VK_SUBOPTIMAL_KHR || presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
+// On the Android platform, VK_SUBOPTIMAL_KHR is returned whenever the device is rotated. We'll just ignore this for now.
+#ifndef SDL_PLATFORM_ANDROID
+            if (presentResult == VK_SUBOPTIMAL_KHR) {
+                presentData->windowData->needsSwapchainRecreate = true;
+            }
+#endif
+            if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
                 presentData->windowData->needsSwapchainRecreate = true;
             }
         } else {
@@ -10730,8 +10804,6 @@ static bool VULKAN_INTERNAL_DefragmentMemory(
         VulkanMemoryUsedRegion *currentRegion = allocation->usedRegions[i];
 
         if (currentRegion->isBuffer && !currentRegion->vulkanBuffer->markedForDestroy) {
-            currentRegion->vulkanBuffer->usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
             VulkanBuffer *newBuffer = VULKAN_INTERNAL_CreateBuffer(
                 renderer,
                 currentRegion->vulkanBuffer->size,
@@ -11003,7 +11075,8 @@ static Uint8 VULKAN_INTERNAL_CheckInstanceExtensions(
     const char **requiredExtensions,
     Uint32 requiredExtensionsLength,
     bool *supportsDebugUtils,
-    bool *supportsColorspace)
+    bool *supportsColorspace,
+    bool *supportsPhysicalDeviceProperties2)
 {
     Uint32 extensionCount, i;
     VkExtensionProperties *availableExtensions;
@@ -11039,6 +11112,12 @@ static Uint8 VULKAN_INTERNAL_CheckInstanceExtensions(
     // Also optional and nice to have!
     *supportsColorspace = SupportsInstanceExtension(
         VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
+        availableExtensions,
+        extensionCount);
+
+    // Only needed for KHR_driver_properties!
+    *supportsPhysicalDeviceProperties2 = SupportsInstanceExtension(
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
         availableExtensions,
         extensionCount);
 
@@ -11152,10 +11231,6 @@ static Uint8 VULKAN_INTERNAL_CreateInstance(VulkanRenderer *renderer)
         instanceExtensionCount + 4);
     SDL_memcpy((void *)instanceExtensionNames, originalInstanceExtensionNames, instanceExtensionCount * sizeof(const char *));
 
-    // Core since 1.1
-    instanceExtensionNames[instanceExtensionCount++] =
-        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
-
 #ifdef SDL_PLATFORM_APPLE
     instanceExtensionNames[instanceExtensionCount++] =
         VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
@@ -11166,7 +11241,8 @@ static Uint8 VULKAN_INTERNAL_CreateInstance(VulkanRenderer *renderer)
             instanceExtensionNames,
             instanceExtensionCount,
             &renderer->supportsDebugUtils,
-            &renderer->supportsColorspace)) {
+            &renderer->supportsColorspace,
+            &renderer->supportsPhysicalDeviceProperties2)) {
         SDL_stack_free((char *)instanceExtensionNames);
         SET_STRING_ERROR_AND_RETURN("Required Vulkan instance extensions not supported", false);
     }
@@ -11186,6 +11262,12 @@ static Uint8 VULKAN_INTERNAL_CreateInstance(VulkanRenderer *renderer)
         // Append colorspace extension
         instanceExtensionNames[instanceExtensionCount++] =
             VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME;
+    }
+
+    if (renderer->supportsPhysicalDeviceProperties2) {
+        // Append KHR_physical_device_properties2 extension
+        instanceExtensionNames[instanceExtensionCount++] =
+            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
     }
 
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -11260,14 +11342,11 @@ static Uint8 VULKAN_INTERNAL_IsDeviceSuitable(
     renderer->vkGetPhysicalDeviceFeatures(
         physicalDevice,
         &deviceFeatures);
-
-    if ((!deviceFeatures.independentBlend && renderer->desiredDeviceFeatures.independentBlend) ||
-        (!deviceFeatures.imageCubeArray && renderer->desiredDeviceFeatures.imageCubeArray) ||
-        (!deviceFeatures.depthClamp && renderer->desiredDeviceFeatures.depthClamp) ||
-        (!deviceFeatures.shaderClipDistance && renderer->desiredDeviceFeatures.shaderClipDistance) ||
-        (!deviceFeatures.drawIndirectFirstInstance && renderer->desiredDeviceFeatures.drawIndirectFirstInstance) ||
-        (!deviceFeatures.sampleRateShading && renderer->desiredDeviceFeatures.sampleRateShading) ||
-        (!deviceFeatures.samplerAnisotropy && renderer->desiredDeviceFeatures.samplerAnisotropy)) {
+    if (!deviceFeatures.independentBlend ||
+        !deviceFeatures.imageCubeArray ||
+        !deviceFeatures.depthClamp ||
+        !deviceFeatures.shaderClipDistance ||
+        !deviceFeatures.drawIndirectFirstInstance) {
         return 0;
     }
 
@@ -11483,6 +11562,7 @@ static Uint8 VULKAN_INTERNAL_CreateLogicalDevice(
 {
     VkResult vulkanResult;
     VkDeviceCreateInfo deviceCreateInfo;
+    VkPhysicalDeviceFeatures desiredDeviceFeatures;
     VkPhysicalDeviceFeatures haveDeviceFeatures;
     VkPhysicalDevicePortabilitySubsetFeaturesKHR portabilityFeatures;
     const char **deviceExtensions;
@@ -11506,13 +11586,21 @@ static Uint8 VULKAN_INTERNAL_CreateLogicalDevice(
 
     // specifying used device features
 
+    SDL_zero(desiredDeviceFeatures);
+    desiredDeviceFeatures.independentBlend = VK_TRUE;
+    desiredDeviceFeatures.samplerAnisotropy = VK_TRUE;
+    desiredDeviceFeatures.imageCubeArray = VK_TRUE;
+    desiredDeviceFeatures.depthClamp = VK_TRUE;
+    desiredDeviceFeatures.shaderClipDistance = VK_TRUE;
+    desiredDeviceFeatures.drawIndirectFirstInstance = VK_TRUE;
+
     if (haveDeviceFeatures.fillModeNonSolid) {
-        renderer->desiredDeviceFeatures.fillModeNonSolid = VK_TRUE;
+        desiredDeviceFeatures.fillModeNonSolid = VK_TRUE;
         renderer->supportsFillModeNonSolid = true;
     }
 
     if (haveDeviceFeatures.multiDrawIndirect) {
-        renderer->desiredDeviceFeatures.multiDrawIndirect = VK_TRUE;
+        desiredDeviceFeatures.multiDrawIndirect = VK_TRUE;
         renderer->supportsMultiDrawIndirect = true;
     }
 
@@ -11553,7 +11641,7 @@ static Uint8 VULKAN_INTERNAL_CreateLogicalDevice(
         deviceCreateInfo.enabledExtensionCount);
     CreateDeviceExtensionArray(&renderer->supports, deviceExtensions);
     deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
-    deviceCreateInfo.pEnabledFeatures = &renderer->desiredDeviceFeatures;
+    deviceCreateInfo.pEnabledFeatures = &desiredDeviceFeatures;
 
     vulkanResult = renderer->vkCreateDevice(
         renderer->physicalDevice,
@@ -11638,15 +11726,11 @@ static bool VULKAN_INTERNAL_PrepareVulkan(
     return true;
 }
 
-static bool VULKAN_PrepareDriver(SDL_VideoDevice *_this, SDL_PropertiesID props)
+static bool VULKAN_PrepareDriver(SDL_VideoDevice *_this)
 {
     // Set up dummy VulkanRenderer
     VulkanRenderer *renderer;
     bool result = false;
-
-    if (!SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, false)) {
-        return false;
-    }
 
     if (_this->Vulkan_CreateSurface == NULL) {
         return false;
@@ -11658,17 +11742,6 @@ static bool VULKAN_PrepareDriver(SDL_VideoDevice *_this, SDL_PropertiesID props)
 
     renderer = (VulkanRenderer *)SDL_calloc(1, sizeof(*renderer));
     if (renderer) {
-        // Opt out device features (higher compatibility in exchange for reduced functionality)
-        renderer->desiredDeviceFeatures.samplerAnisotropy = SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_SAMPLERANISOTROPY_BOOLEAN, true) ? VK_TRUE : VK_FALSE;
-        renderer->desiredDeviceFeatures.depthClamp = SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_DEPTHCLAMP_BOOLEAN, true) ? VK_TRUE : VK_FALSE;
-        renderer->desiredDeviceFeatures.shaderClipDistance = SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_SHADERCLIPDISTANCE_BOOLEAN, true) ? VK_TRUE : VK_FALSE;
-        renderer->desiredDeviceFeatures.drawIndirectFirstInstance = SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_DRAWINDIRECTFIRST_BOOLEAN, true) ? VK_TRUE : VK_FALSE;
-
-        // These features have near universal support so they are always enabled
-        renderer->desiredDeviceFeatures.independentBlend = VK_TRUE;
-        renderer->desiredDeviceFeatures.sampleRateShading = VK_TRUE;
-        renderer->desiredDeviceFeatures.imageCubeArray = VK_TRUE;
-
         result = VULKAN_INTERNAL_PrepareVulkan(renderer);
         if (result) {
             renderer->vkDestroyInstance(renderer->instance, NULL);
@@ -11687,11 +11760,6 @@ static SDL_GPUDevice *VULKAN_CreateDevice(bool debugMode, bool preferLowPower, S
     SDL_GPUDevice *result;
     Uint32 i;
 
-    bool verboseLogs = SDL_GetBooleanProperty(
-        props,
-        SDL_PROP_GPU_DEVICE_CREATE_VERBOSE_BOOLEAN,
-        true);
-
     if (!SDL_Vulkan_LoadLibrary(NULL)) {
         SDL_assert(!"This should have failed in PrepareDevice first!");
         return NULL;
@@ -11707,132 +11775,44 @@ static SDL_GPUDevice *VULKAN_CreateDevice(bool debugMode, bool preferLowPower, S
     renderer->preferLowPower = preferLowPower;
     renderer->allowedFramesInFlight = 2;
 
-    // Opt out device features (higher compatibility in exchange for reduced functionality)
-    renderer->desiredDeviceFeatures.samplerAnisotropy = SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_SAMPLERANISOTROPY_BOOLEAN, true) ? VK_TRUE : VK_FALSE;
-    renderer->desiredDeviceFeatures.depthClamp = SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_DEPTHCLAMP_BOOLEAN, true) ? VK_TRUE : VK_FALSE;
-    renderer->desiredDeviceFeatures.shaderClipDistance = SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_SHADERCLIPDISTANCE_BOOLEAN, true) ? VK_TRUE : VK_FALSE;
-    renderer->desiredDeviceFeatures.drawIndirectFirstInstance = SDL_GetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_DRAWINDIRECTFIRST_BOOLEAN, true) ? VK_TRUE : VK_FALSE;
-
-    // These features have near universal support so they are always enabled
-    renderer->desiredDeviceFeatures.independentBlend = VK_TRUE;
-    renderer->desiredDeviceFeatures.sampleRateShading = VK_TRUE;
-    renderer->desiredDeviceFeatures.imageCubeArray = VK_TRUE;
-
     if (!VULKAN_INTERNAL_PrepareVulkan(renderer)) {
+        SET_STRING_ERROR("Failed to initialize Vulkan!");
         SDL_free(renderer);
         SDL_Vulkan_UnloadLibrary();
-        SET_STRING_ERROR_AND_RETURN("Failed to initialize Vulkan!", NULL);
+        return NULL;
     }
 
-    renderer->props = SDL_CreateProperties();
-    if (verboseLogs) {
-        SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "SDL_GPU Driver: Vulkan");
-    }
-
-    // Record device name
-    const char *deviceName = renderer->physicalDeviceProperties.properties.deviceName;
-    SDL_SetStringProperty(
-        renderer->props,
-        SDL_PROP_GPU_DEVICE_NAME_STRING,
-        deviceName);
-    if (verboseLogs) {
-        SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Vulkan Device: %s", deviceName);
-    }
-
-    // Record driver version. This is provided as a backup if
-    // VK_KHR_driver_properties is not available but as most drivers support it
-    // this property should be rarely used.
-    //
-    // This uses a vendor-specific encoding and it isn't well documented. The
-    // vendor ID is the registered PCI ID of the vendor and can be found in
-    // online databases.
-    char driverVer[64];
-    Uint32 rawDriverVer = renderer->physicalDeviceProperties.properties.driverVersion;
-    Uint32 vendorId = renderer->physicalDeviceProperties.properties.vendorID;
-    if (vendorId == 0x10de) {
-        // Nvidia uses 10|8|8|6 encoding.
-        (void)SDL_snprintf(
-            driverVer,
-            SDL_arraysize(driverVer),
-            "%d.%d.%d.%d",
-            (rawDriverVer >> 22) & 0x3ff,
-            (rawDriverVer >> 14) & 0xff,
-            (rawDriverVer >> 6) & 0xff,
-            rawDriverVer & 0x3f);
-    }
-#ifdef SDL_PLATFORM_WINDOWS
-    else if (vendorId == 0x8086) {
-        // Intel uses 18|14 encoding on Windows only.
-        (void)SDL_snprintf(
-            driverVer,
-            SDL_arraysize(driverVer),
-            "%d.%d",
-            (rawDriverVer >> 14) & 0x3ffff,
-            rawDriverVer & 0x3fff);
-    }
-#endif
-    else {
-        // Assume standard Vulkan 10|10|12 encoding for everything else. AMD and
-        // Mesa are known to use this encoding.
-        (void)SDL_snprintf(
-            driverVer,
-            SDL_arraysize(driverVer),
-            "%d.%d.%d",
-            (rawDriverVer >> 22) & 0x3ff,
-            (rawDriverVer >> 12) & 0x3ff,
-            rawDriverVer & 0xfff);
-    }
-    SDL_SetStringProperty(
-        renderer->props,
-        SDL_PROP_GPU_DEVICE_DRIVER_VERSION_STRING,
-        driverVer);
-    // Log this only if VK_KHR_driver_properties is not available.
-
+    SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "SDL_GPU Driver: Vulkan");
+    SDL_LogInfo(
+        SDL_LOG_CATEGORY_GPU,
+        "Vulkan Device: %s",
+        renderer->physicalDeviceProperties.properties.deviceName);
     if (renderer->supports.KHR_driver_properties) {
-        // Record driver name and version
-        const char *driverName = renderer->physicalDeviceDriverProperties.driverName;
-        const char *driverInfo = renderer->physicalDeviceDriverProperties.driverInfo;
-        SDL_SetStringProperty(
-            renderer->props,
-            SDL_PROP_GPU_DEVICE_DRIVER_NAME_STRING,
-            driverName);
-        SDL_SetStringProperty(
-            renderer->props,
-            SDL_PROP_GPU_DEVICE_DRIVER_INFO_STRING,
-            driverInfo);
-        if (verboseLogs) {
-            // FIXME: driverInfo can be a multiline string.
-            SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Vulkan Driver: %s %s", driverName, driverInfo);
-        }
-
-        // Record conformance level
-        if (verboseLogs) {
-            char conformance[64];
-            (void)SDL_snprintf(
-                conformance,
-                SDL_arraysize(conformance),
-                "%u.%u.%u.%u",
-                renderer->physicalDeviceDriverProperties.conformanceVersion.major,
-                renderer->physicalDeviceDriverProperties.conformanceVersion.minor,
-                renderer->physicalDeviceDriverProperties.conformanceVersion.subminor,
-                renderer->physicalDeviceDriverProperties.conformanceVersion.patch);
-            SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Vulkan Conformance: %s", conformance);
-        }
+        SDL_LogInfo(
+            SDL_LOG_CATEGORY_GPU,
+            "Vulkan Driver: %s %s",
+            renderer->physicalDeviceDriverProperties.driverName,
+            renderer->physicalDeviceDriverProperties.driverInfo);
+        SDL_LogInfo(
+            SDL_LOG_CATEGORY_GPU,
+            "Vulkan Conformance: %u.%u.%u",
+            renderer->physicalDeviceDriverProperties.conformanceVersion.major,
+            renderer->physicalDeviceDriverProperties.conformanceVersion.minor,
+            renderer->physicalDeviceDriverProperties.conformanceVersion.patch);
     } else {
-        if (verboseLogs) {
-            SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Vulkan Driver: %s", driverVer);
-        }
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "KHR_driver_properties unsupported! Bother your vendor about this!");
     }
 
     if (!VULKAN_INTERNAL_CreateLogicalDevice(
             renderer)) {
+        SET_STRING_ERROR("Failed to create logical device!");
         SDL_free(renderer);
         SDL_Vulkan_UnloadLibrary();
-        SET_STRING_ERROR_AND_RETURN("Failed to create logical device!", NULL);
+        return NULL;
     }
 
     // FIXME: just move this into this function
-    result = (SDL_GPUDevice *)SDL_malloc(sizeof(SDL_GPUDevice));
+    result = (SDL_GPUDevice *)SDL_calloc(1, sizeof(SDL_GPUDevice));
     ASSIGN_DRIVER(VULKAN)
 
     result->driverData = (SDL_GPURenderer *)renderer;
@@ -12030,6 +12010,7 @@ static SDL_GPUDevice *VULKAN_CreateDevice(bool debugMode, bool preferLowPower, S
 
 SDL_GPUBootstrap VulkanDriver = {
     "vulkan",
+    SDL_GPU_SHADERFORMAT_SPIRV,
     VULKAN_PrepareDriver,
     VULKAN_CreateDevice
 };

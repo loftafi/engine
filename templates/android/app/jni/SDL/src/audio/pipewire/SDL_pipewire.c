@@ -266,11 +266,13 @@ static bool pipewire_core_version_at_least(int major, int minor, int patch)
 static bool io_list_check_add(struct io_node *node)
 {
     struct io_node *n;
+    bool ret = true;
 
     // See if the node is already in the list
     spa_list_for_each (n, &hotplug_io_list, link) {
         if (n->id == node->id) {
-            return false;
+            ret = false;
+            goto dup_found;
         }
     }
 
@@ -281,7 +283,9 @@ static bool io_list_check_add(struct io_node *node)
         SDL_AddAudioDevice(node->recording, node->name, &node->spec, PW_ID_TO_HANDLE(node->id));
     }
 
-    return true;
+dup_found:
+
+    return ret;
 }
 
 static void io_list_remove(Uint32 id)
@@ -546,7 +550,7 @@ static void node_event_info(void *object, const struct pw_node_info *info)
 
         // Need to parse the parameters to get the sample rate
         for (i = 0; i < info->n_params; ++i) {
-            pw_node_enum_params((struct pw_node *)node->proxy, 0, info->params[i].id, 0, 0, NULL);
+            pw_node_enum_params((struct pw_node*)node->proxy, 0, info->params[i].id, 0, 0, NULL);
         }
 
         hotplug_core_sync(node);

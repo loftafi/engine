@@ -167,7 +167,8 @@ void UIKit_Vulkan_UnloadLibrary(SDL_VideoDevice *_this)
     }
 }
 
-char const * const *UIKit_Vulkan_GetInstanceExtensions(SDL_VideoDevice *_this, Uint32 *count)
+char const* const* UIKit_Vulkan_GetInstanceExtensions(SDL_VideoDevice *_this,
+                                            Uint32 *count)
 {
     static const char *const extensionsForUIKit[] = {
         VK_KHR_SURFACE_EXTENSION_NAME, VK_EXT_METAL_SURFACE_EXTENSION_NAME

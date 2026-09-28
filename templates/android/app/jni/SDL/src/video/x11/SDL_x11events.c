@@ -194,7 +194,7 @@ static bool X11_KeyRepeat(Display *display, XEvent *event)
     return d.found;
 }
 
-static bool X11_IsWheelEvent(Display *display, int button, int *xticks, int *yticks)
+bool X11_IsWheelEvent(int button, int *xticks, int *yticks)
 {
     /* according to the xlib docs, no specific mouse wheel events exist.
        However, the defacto standard is that the vertical wheel is X buttons
@@ -771,7 +771,7 @@ static void X11_HandleClipboardEvent(SDL_VideoDevice *_this, const XEvent *xeven
             /* the new mime formats are the SDL_FORMATS property as an array of Atoms */
             Atom atom = None;
             Atom *patom;
-            unsigned char *data = NULL;
+            unsigned char* data = NULL;
             int format_property = 0;
             unsigned long length = 0;
             unsigned long bytes_left = 0;
@@ -780,8 +780,8 @@ static void X11_HandleClipboardEvent(SDL_VideoDevice *_this, const XEvent *xeven
             X11_XGetWindowProperty(display, GetWindow(_this), videodata->atoms.SDL_FORMATS, 0, 200,
                                             0, XA_ATOM, &atom, &format_property, &length, &bytes_left, &data);
 
-            int allocationsize = (length + 1) * sizeof(char *);
-            for (j = 0, patom = (Atom *)data; j < length; j++, patom++) {
+            int allocationsize = (length + 1) * sizeof(char*);
+            for (j = 0, patom = (Atom*)data; j < length; j++, patom++) {
                 char *atomStr = X11_XGetAtomName(display, *patom);
                 allocationsize += SDL_strlen(atomStr) + 1;
                 X11_XFree(atomStr);
@@ -791,7 +791,7 @@ static void X11_HandleClipboardEvent(SDL_VideoDevice *_this, const XEvent *xeven
             if (new_mime_types) {
                 char *strPtr = (char *)(new_mime_types + length + 1);
 
-                for (j = 0, patom = (Atom *)data; j < length; j++, patom++) {
+                for (j = 0, patom = (Atom*)data; j < length; j++, patom++) {
                     char *atomStr = X11_XGetAtomName(display, *patom);
                     new_mime_types[j] = strPtr;
                     strPtr = stpcpy(strPtr, atomStr) + 1;
@@ -1016,8 +1016,6 @@ void X11_HandleKeyEvent(SDL_VideoDevice *_this, SDL_WindowData *windowdata, SDL_
 void X11_HandleButtonPress(SDL_VideoDevice *_this, SDL_WindowData *windowdata, SDL_MouseID mouseID, int button, float x, float y, unsigned long time)
 {
     SDL_Window *window = windowdata->window;
-    const SDL_VideoData *videodata = _this->internal;
-    Display *display = videodata->display;
     int xticks = 0, yticks = 0;
     Uint64 timestamp = X11_GetEventTimestamp(time);
 
@@ -1031,7 +1029,7 @@ void X11_HandleButtonPress(SDL_VideoDevice *_this, SDL_WindowData *windowdata, S
         SDL_SendMouseMotion(timestamp, window, mouseID, false, x, y);
     }
 
-    if (X11_IsWheelEvent(display, button, &xticks, &yticks)) {
+    if (X11_IsWheelEvent(button, &xticks, &yticks)) {
         SDL_SendMouseWheel(timestamp, window, mouseID, (float)-xticks, (float)yticks, SDL_MOUSEWHEEL_NORMAL);
     } else {
         bool ignore_click = false;
@@ -1063,8 +1061,6 @@ void X11_HandleButtonPress(SDL_VideoDevice *_this, SDL_WindowData *windowdata, S
 void X11_HandleButtonRelease(SDL_VideoDevice *_this, SDL_WindowData *windowdata, SDL_MouseID mouseID, int button, unsigned long time)
 {
     SDL_Window *window = windowdata->window;
-    const SDL_VideoData *videodata = _this->internal;
-    Display *display = videodata->display;
     // The X server sends a Release event for each Press for wheels. Ignore them.
     int xticks = 0, yticks = 0;
     Uint64 timestamp = X11_GetEventTimestamp(time);
@@ -1072,7 +1068,7 @@ void X11_HandleButtonRelease(SDL_VideoDevice *_this, SDL_WindowData *windowdata,
 #ifdef DEBUG_XEVENTS
     SDL_Log("window 0x%lx: ButtonRelease (X11 button = %d)", windowdata->xwindow, button);
 #endif
-    if (!X11_IsWheelEvent(display, button, &xticks, &yticks)) {
+    if (!X11_IsWheelEvent(button, &xticks, &yticks)) {
         if (button > 7) {
             // see explanation at case ButtonPress
             button -= (8 - SDL_BUTTON_X1);
@@ -1518,7 +1514,7 @@ static void X11_DispatchEvent(SDL_VideoDevice *_this, XEvent *xevent)
          * expected by SDL and its clients. Defer emitting the size/move events until the corresponding
          * PropertyNotify arrives for consistency.
          */
-        const Uint32 changed = X11_GetNetWMState(_this, data->window, xevent->xproperty.window) ^ data->window->flags;
+        const SDL_WindowFlags changed = X11_GetNetWMState(_this, data->window, xevent->xproperty.window) ^ data->window->flags;
         if (changed & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MAXIMIZED)) {
             SDL_copyp(&data->pending_xconfigure, &xevent->xconfigure);
             data->emit_size_move_after_property_notify = true;

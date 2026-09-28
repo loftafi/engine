@@ -41,7 +41,7 @@ struct SDL_DisplayData
 
 struct SDL_DisplayModeData
 {
-    DEVMODEW DeviceMode;
+    DEVMODE DeviceMode;
 };
 
 extern bool WIN_InitModes(SDL_VideoDevice *_this);

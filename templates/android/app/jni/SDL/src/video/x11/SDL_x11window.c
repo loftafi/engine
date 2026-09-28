@@ -71,7 +71,7 @@ static Bool isUnmapNotify(Display *dpy, XEvent *ev, XPointer win) // NOLINT(read
 /*
 static Bool isConfigureNotify(Display *dpy, XEvent *ev, XPointer win)
 {
-    return ev->type == ConfigureNotify && ev->xconfigure.window == *((Window *)win);
+    return ev->type == ConfigureNotify && ev->xconfigure.window == *((Window*)win);
 }
 static Bool X11_XIfEventTimeout(Display *display, XEvent *event_return, Bool (*predicate)(), XPointer arg, int timeoutMS)
 {
@@ -283,7 +283,7 @@ static void X11_SetKeyboardFocus(SDL_Window *window, bool set_active_focus)
     }
 }
 
-Uint32 X11_GetNetWMState(SDL_VideoDevice *_this, SDL_Window *window, Window xwindow)
+SDL_WindowFlags X11_GetNetWMState(SDL_VideoDevice *_this, SDL_Window *window, Window xwindow)
 {
     SDL_VideoData *videodata = _this->internal;
     Display *display = videodata->display;
@@ -1226,8 +1226,13 @@ void X11_SetWindowMinMax(SDL_Window *window, bool use_current)
     } else {
         // Set the min/max to the same values to make the window non-resizable
         sizehints->flags |= PMinSize | PMaxSize;
-        sizehints->min_width = sizehints->max_width = use_current ? data->window->floating.w : window->windowed.w;
-        sizehints->min_height = sizehints->max_height = use_current ? data->window->floating.h : window->windowed.h;
+        if (use_current) {
+            sizehints->min_width = sizehints->max_width = window->last_size_pending ? window->pending.w : data->window->floating.w;
+            sizehints->min_height = sizehints->max_height = window->last_size_pending ? window->pending.h : data->window->floating.h;
+        } else {
+            sizehints->min_width = sizehints->max_width = window->last_size_pending ? window->pending.w : data->window->windowed.w;
+            sizehints->min_height = sizehints->max_height = window->last_size_pending ? window->pending.h : data->window->windowed.h;
+        }
     }
 
     X11_XSetWMNormalHints(display, data->xwindow, sizehints);
@@ -1343,14 +1348,6 @@ void X11_SetWindowSize(SDL_VideoDevice *_this, SDL_Window *window)
         data->pending_operation |= X11_PENDING_OP_RESIZE;
         X11_XResizeWindow(display, data->xwindow, data->expected.w, data->expected.h);
     }
-
-    /* External windows may call this to update the renderer size, but not pump SDL events,
-     * so the size event needs to be synthesized for external windows. If it is wrong, the
-     * true size will be sent if/when events are processed.
-     */
-    if (window->flags & SDL_WINDOW_EXTERNAL) {
-        SDL_SendWindowEvent(window, SDL_EVENT_WINDOW_RESIZED, window->pending.w, window->pending.h);
-    }
 }
 
 bool X11_GetWindowBordersSize(SDL_VideoDevice *_this, SDL_Window *window, int *top, int *left, int *bottom, int *right)
@@ -1441,8 +1438,8 @@ bool X11_SetWindowModal(SDL_VideoDevice *_this, SDL_Window *window, bool modal)
 
 void X11_SetWindowBordered(SDL_VideoDevice *_this, SDL_Window *window, bool bordered)
 {
-    const bool focused = (window->flags & SDL_WINDOW_INPUT_FOCUS) ? true : false;
-    const bool visible = (!(window->flags & SDL_WINDOW_HIDDEN)) ? true : false;
+    const bool focused = (window->flags & SDL_WINDOW_INPUT_FOCUS) != 0;
+    const bool visible = !(window->flags & SDL_WINDOW_HIDDEN) && !window->is_hiding;
     SDL_WindowData *data = window->internal;
     SDL_DisplayData *displaydata = SDL_GetDisplayDriverDataForWindow(window);
     Display *display = data->videodata->display;
@@ -1538,6 +1535,11 @@ void X11_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
     bool set_position = false;
     XEvent event;
 
+    // If the window was previously shown, pump events to avoid possible positioning issues.
+    if (data->was_shown) {
+        X11_PumpEvents(_this);
+    }
+
     if (SDL_WINDOW_IS_POPUP(window)) {
         // Update the position in case the parent moved while we were hidden
         X11_ConstrainPopup(window, true);
@@ -1580,14 +1582,12 @@ void X11_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
     }
 
     if (set_position) {
-        // Apply the window position, accounting for offsets due to the borders appearing.
-        const int tx = data->pending_position ? window->pending.x : window->x;
-        const int ty = data->pending_position ? window->pending.y : window->y;
+        // Apply the window position, accounting for offsets due to the borders appearing, but only when initially mapping.
+        const int tx = (data->pending_position ? window->pending.x : window->x) - (data->was_shown ? 0 : data->border_left);
+        const int ty = (data->pending_position ? window->pending.y : window->y) - (data->was_shown ? 0 : data->border_top);
         int x, y;
 
-        SDL_RelativeToGlobalForWindow(window,
-                                      tx - data->border_left, ty - data->border_top,
-                                      &x, &y);
+        SDL_RelativeToGlobalForWindow(window, tx, ty, &x, &y);
 
         data->pending_position = false;
         X11_XMoveWindow(display, data->xwindow, x, y);

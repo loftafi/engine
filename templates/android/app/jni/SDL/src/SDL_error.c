@@ -20,8 +20,6 @@
 */
 #include "SDL_internal.h"
 
-#include "stdlib/SDL_vacopy.h"
-
 // Simple error handling in SDL
 
 #include "SDL_error_c.h"
