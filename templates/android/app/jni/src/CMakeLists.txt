@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.6)
 project(my_app)
 
 if(NOT TARGET SDL3::SDL3)
-    find_package(SDL3 CONFIG)
+    find_package(SDL3 CONFIG REQUIRED)
 endif()
 
 if(NOT TARGET SDL3::SDL3)
