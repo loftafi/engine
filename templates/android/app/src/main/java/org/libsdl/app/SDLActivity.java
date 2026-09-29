@@ -1,8 +1,12 @@
 package org.libsdl.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.UiModeManager;
 import android.content.ActivityNotFoundException;
 import android.content.ClipboardManager;
@@ -47,6 +51,10 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
@@ -228,6 +236,8 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     protected static boolean mActivityCreated = false;
     private static SDLFileDialogState mFileDialogState = null;
     protected static boolean mDispatchingKeyEvent = false;
+
+    private static final String DEFAULT_NOTIFICATION_CHANNEL = "Notifications";
 
     public static SDLGenericMotionListener_API14 getMotionListener() {
         if (mMotionListener == null) {
@@ -483,6 +493,21 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
             break;
         }
 
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Notification channels are require Android 8.0 (API 26)+
+
+            NotificationChannel channel = new NotificationChannel(
+                    DEFAULT_NOTIFICATION_CHANNEL,
+                    "Notifications",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+
+            NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
         setContentView(mLayout);
 
         setWindowStyle(false);
@@ -1304,8 +1329,24 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
      */
     public static boolean scheduleLocalNotification(String id, int delay, String title, String text) {
         Log.e(TAG, "scheduleLocalNotification unimplemented");
-        return false;
+
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(getContext());
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(getContext(), DEFAULT_NOTIFICATION_CHANNEL)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setDefaults(Notification.DEFAULT_LIGHTS| Notification.DEFAULT_SOUND)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION);
+        if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "scheduleLocalNotification requires POST_NOTIFICATIONS permission.");
+            return false;
+        }
+        notificationManager.notify(0, notificationBuilder.build());
+        Log.v(TAG, "scheduleLocalNotification scheduled a notification");
+        return true;
     }
+
 
     /**
      * This method is called using JNI to cancel a local notification.

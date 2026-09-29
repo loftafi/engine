@@ -60,5 +60,6 @@ android {
 }
 
 dependencies {
+    implementation 'androidx.core:core:1.19.1'
     implementation fileTree(include: ['*.jar'], dir: 'libs')
 }
