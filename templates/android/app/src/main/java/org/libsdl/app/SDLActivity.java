@@ -1299,6 +1299,22 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         return false;
     }
 
+    /**
+     * This method is called using JNI to schedule a local notification.
+     */
+    public static boolean scheduleLocalNotification(String id, int delay, String title, String text) {
+        Log.e(TAG, "scheduleLocalNotification unimplemented");
+        return false;
+    }
+
+    /**
+     * This method is called using JNI to cancel a local notification.
+     */
+    public static boolean cancelLocalNotification(String id) {
+        Log.e(TAG, "cancelLocalNotification unimplemented");
+        return false;
+    }
+
     public static double getDiagonal()
     {
         DisplayMetrics metrics = new DisplayMetrics();
