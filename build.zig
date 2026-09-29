@@ -63,6 +63,13 @@ pub fn build(b: *std.Build) !void {
         const objc = b.dependency("zig_objc", .{ .target = target, .optimize = optimize });
         lib_mod.addImport("objc", objc.module("objc"));
     }
+    if (target.result.abi.isAndroid()) {
+        if (try define_android_jni(b, &target, &optimize, libc_file)) |jni_module| {
+            lib_mod.addImport("jni", jni_module);
+        } else {
+            //b..step.dependOn(&b.addFail("Failed to define jni module for android target.").step);
+        }
+    }
 
     const lib = b.addLibrary(.{
         .name = "engine",
@@ -455,6 +462,45 @@ fn define_mixer_module(
     //if (platforms.getFrameworkPath(b, target)) |path| headers.mod.addSystemFrameworkPath(path);
 
     return headers.mod;
+}
+
+/// Build an SDL module from the SDL3 and SDL3_mixer header files that we
+/// import as dependencies from zig packages that contain these headers.
+fn define_android_jni(
+    b: *std.Build,
+    target: *const std.Build.ResolvedTarget,
+    optimize: *const std.builtin.OptimizeMode,
+    libc_file: ?std.Build.LazyPath, // Android needs a libc file for translate_c
+) !?*std.Build.Module {
+    const translate_c_dep = b.dependency("translate_c", .{});
+
+    const c_header = switch (target.result.os.tag) {
+        .linux => b.addWriteFiles().add("c.h",
+            \\#define __ANDROID_MIN_SDK_VERSION__ 27
+            \\#define TARGET_ARCH aarch64-linux-android
+            \\#include <jni.h>
+        ),
+        else => @panic("define_android_jni only supported on android target."),
+    };
+
+    var headers = try b.graph.arena.create(Translator);
+    headers.* = .init(translate_c_dep, .{
+        .c_source_file = c_header,
+        .target = target.*,
+        .optimize = optimize.*,
+        .libc_file = libc_file,
+    });
+
+    // /Users/loftafi/Library/Android/sdk/ndk/30.0.16248370/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/jni.h
+    const path = try @import("build/FindNDK.zig").FindNDK.find(b.graph.io, &b.graph.environ_map);
+    if (path) |p| {
+        const include_path = b.pathJoin(&.{ p, "/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/" });
+        //headers.addIncludePath(.{ .cwd_relative = include_path });
+        headers.addSystemIncludePath(.{ .cwd_relative = include_path });
+        return headers.mod;
+    }
+
+    return null;
 }
 
 /// Build an SDL module from the SDL3 and SDL3_mixer header files that we

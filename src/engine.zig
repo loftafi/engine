@@ -461,6 +461,8 @@ pub const readEntity = @import("EntityParser.zig").readEntity;
 
 pub const License = @import("License.zig");
 
+pub const jni = if (builtin.abi.isAndroid()) @import("jni") else void;
+
 pub const test_config = @import("test_config.zig").test_config;
 pub const headless_display = @import("test_config.zig").headless_display;
 pub const resources_sdl = @import("resources_sdl.zig");

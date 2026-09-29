@@ -497,6 +497,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Notification channels are require Android 8.0 (API 26)+
 
+            SDLActivity.nativeNotificationCallback();
             NotificationChannel channel = new NotificationChannel(
                     DEFAULT_NOTIFICATION_CHANNEL,
                     "Notifications",
@@ -1124,6 +1125,8 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     public static native void onNativePinchStart();
     public static native void onNativePinchUpdate(float scale);
     public static native void onNativePinchEnd();
+    public static native void nativeNotificationCallback();
+
 
     /**
      * This method is called by SDL using JNI.
