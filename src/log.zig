@@ -33,6 +33,17 @@ pub const Level = enum {
         return @intFromEnum(self) > @intFromEnum(other);
     }
 
+    pub fn parse(value: []const u8) ?Level {
+        if (std.ascii.eqlIgnoreCase(value, "trace")) return .trace;
+        if (std.ascii.eqlIgnoreCase(value, "debug")) return .debug;
+        if (std.ascii.eqlIgnoreCase(value, "info")) return .info;
+        if (std.ascii.eqlIgnoreCase(value, "notice")) return .notice;
+        if (std.ascii.eqlIgnoreCase(value, "warn")) return .warn;
+        if (std.ascii.eqlIgnoreCase(value, "err")) return .err;
+        if (std.ascii.eqlIgnoreCase(value, "alert")) return .alert;
+        return null;
+    }
+
     fn toSdlLogPriority(self: Level) c_uint {
         return switch (self) {
             .trace => sdl.SDL_LOG_PRIORITY_TRACE,
