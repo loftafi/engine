@@ -80,8 +80,6 @@ pub fn AppInitC(
     argc: c_int,
     argv: [*c][*c]u8, // [*:null]?[*:0]u8
 ) callconv(.c) sdl.SDL_AppResult {
-    debug("App Init event recieved.", .{});
-
     zig_io = .init(gpa, .{
         .argv0 = .empty, //.init(.{ .vector = .empty }),
         .environ = .{ .block = .empty },

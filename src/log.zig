@@ -6,6 +6,14 @@
 //! If `builtin.abi.isAndroid()` then log messeges are diverted to SDL
 //! so that they are sent to the android logging console.
 
+/// Default log level
+pub var log_level: Level = switch (builtin.mode) {
+    .debug => .debug,
+    .safe => .info,
+    .fast => .info,
+    .small => .info,
+};
+
 /// A log level enum that adds `trace`, `notice`, and `alert`
 ///
 /// Zig log levels allow `err` but not an error `alert` that requires a
@@ -20,6 +28,10 @@ pub const Level = enum {
     warn,
     err,
     alert,
+
+    pub fn gt(self: Level, other: Level) bool {
+        return @intFromEnum(self) > @intFromEnum(other);
+    }
 
     fn toSdlLogPriority(self: Level) c_uint {
         return switch (self) {
@@ -128,7 +140,7 @@ pub fn Log(size: usize) type {
 /// helpful during active development. `trace` is only available
 /// in `debug` builds when `engine.dev_mode` is enabled.
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
-    if (dev_build and engine.dev_mode and builtin.mode == .debug)
+    if (dev_build and log_level == .debug and builtin.mode == .debug)
         formatted_log_output(.trace, .engine, format, args);
 }
 
@@ -140,7 +152,7 @@ pub inline fn trace(comptime format: []const u8, args: anytype) void {
 /// size or screen resolution to allow support staff to understand what
 /// actions might have lead to an unexpected program state.
 pub inline fn debug(comptime format: []const u8, args: anytype) void {
-    if (engine.dev_mode or builtin.mode == .debug) {
+    if (engine.dev_mode or log_level == .debug) {
         formatted_log_output(.debug, .engine, format, args);
     }
 }
@@ -224,6 +236,7 @@ fn formatted_log_output(
     args: anytype,
 ) void {
     _ = scope;
+    if (log_level.gt(level)) return;
 
     if (level == .trace and !dev_build) return;
     if (level == .debug and (engine.dev_mode == false and builtin.mode != .debug)) return;
