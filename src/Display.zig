@@ -1159,7 +1159,7 @@ pub inline fn addPanel(
     }
 
     if (self.fonts.items.len == 0) {
-        warn("addPanel called before setDefaultFont.", .{});
+        warn("addPanel '{s}' called before setDefaultFont.", .{item.name});
     }
 
     return self.root.add(item, self);
@@ -1207,7 +1207,7 @@ pub inline fn appendPanel(
         self.need_relayout = true;
 
     if (self.fonts.items.len == 0) {
-        warn("addPanel called before setDefaultFont.", .{});
+        warn("appendPanel '{s}' called before setDefaultFont.", .{child.name});
     }
 
     return child;

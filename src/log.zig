@@ -27,10 +27,10 @@ pub const Level = enum {
             //.trace => sdl.SDL_LOG_PRIORITY_VERBOSE,
             .debug => sdl.SDL_LOG_PRIORITY_DEBUG,
             .info => sdl.SDL_LOG_PRIORITY_INFO,
+            .notice => sdl.SDL_LOG_PRIORITY_INFO,
             .warn => sdl.SDL_LOG_PRIORITY_WARN,
             .err => sdl.SDL_LOG_PRIORITY_ERROR,
             .alert => sdl.SDL_LOG_PRIORITY_CRITICAL,
-            else => sdl.SDL_LOG_PRIORITY_INVALID,
         };
     }
 };

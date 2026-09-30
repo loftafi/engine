@@ -734,7 +734,8 @@ pub fn readColourAttribute(
     switch (entity.type) {
         .expander => return error.UnexpectedToken,
         else => {
-            warn("Entity {t} has style {t} and colour {s}", .{
+            warn("Entity '{s}' '{t}' has style '{t}' and colour '{s}'", .{
+                entity.name,
                 entity.type,
                 entity.style,
                 field,
