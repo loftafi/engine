@@ -493,6 +493,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
             break;
         }
 
+        Log.v(TAG, "Will init local notifications.");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Notification channels are require Android 8.0 (API 26)+
@@ -508,6 +509,9 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
             if (notificationManager != null) {
                 notificationManager.createNotificationChannel(channel);
             }
+            Log.v(TAG, "Did init local notifications.");
+        } else {
+            Log.v(TAG, "Local notifications not available.");
         }
         setContentView(mLayout);
 
@@ -1331,7 +1335,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
      * This method is called using JNI to schedule a local notification.
      */
     public static boolean scheduleLocalNotification(String id, int delay, String title, String text) {
-        Log.e(TAG, "scheduleLocalNotification unimplemented");
+        Log.e(TAG, "scheduleLocalNotification requested.");
 
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(getContext());
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(getContext(), DEFAULT_NOTIFICATION_CHANNEL)
@@ -1346,7 +1350,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
             return false;
         }
         notificationManager.notify(0, notificationBuilder.build());
-        Log.v(TAG, "scheduleLocalNotification scheduled a notification");
+        Log.v(TAG, "scheduleLocalNotification scheduled a notification.");
         return true;
     }
 
@@ -1355,7 +1359,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
      * This method is called using JNI to cancel a local notification.
      */
     public static boolean cancelLocalNotification(String id) {
-        Log.e(TAG, "cancelLocalNotification unimplemented");
+        Log.e(TAG, "cancelLocalNotification unimplemented.");
         return false;
     }
 
