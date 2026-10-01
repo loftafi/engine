@@ -636,4 +636,4 @@ const debug = std.log.debug;
 const Translator = @import("translate_c").Translator;
 
 const platforms = @import("build/platforms.zig");
-const androidTriple = @import("build/android_template_update.zig").androidTriple;
+pub const androidTriple = @import("build/android_template_update.zig").androidTriple;
