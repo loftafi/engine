@@ -80,12 +80,17 @@ pub fn generateLibC(
     // These do not need to be set
     try out.writeAll("msvc_lib_dir=\n");
     try out.writeAll("kernel32_lib_dir=\n");
-    try out.print("gcc_dir={s}/{s}/{s}/{d}\n", .{
+    // gcc_dir is named cc_dir as of zig 0.17
+    try out.print("cc_dir={s}/{s}/{s}/{d}\n", .{
         ndk_path,
         crt_dir,
         android_target,
         min_android_api,
     });
+
+    //const macOSsdk = std.zig.system.darwin.getSdk(allocator, io, &target.result) orelse "";
+    const macOSsdk = "";
+    try out.print("darwin_sdk_dir={s}\n", .{macOSsdk});
 
     var file = try std.Io.Dir.cwd().createFile(io, libc_filename, .{ .truncate = true });
     defer file.close(io);

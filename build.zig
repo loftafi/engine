@@ -20,24 +20,21 @@ pub fn build(b: *std.Build) !void {
     const truetype = b.dependency("TrueType", .{ .target = target, .optimize = optimize });
     const truetype_module = truetype.module("TrueType");
 
-    // If we might be building for android, create a libc.txt for the
+    // If, and only if, building for android, create a libc.txt for the
     // android library, and for the SDL/SDL_mixer libraries.
     var libc_file: ?std.Build.LazyPath = undefined;
-    var generate_libc: *std.Build.Step.Run = undefined;
-    if (b.graph.environ_map.contains("ANDROID_NDK_HOME") or b.graph.environ_map.contains("ANDROID_SDK_ROOT")) {
-        const run_generate_libc = b.addExecutable(.{
-            .name = "generate_libc",
-            .root_module = b.createModule(.{
-                .root_source_file = b.path("build/generate_libc.zig"),
-                .target = b.graph.host,
-                .optimize = optimize,
-            }),
-        });
-        generate_libc = b.addRunArtifact(run_generate_libc);
-        libc_file = generate_libc.addOutputFileArg2("libc.txt", .{});
-        const libc_target = b.resolveTargetQuery(.{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .android });
-        generate_libc.addArg(try androidTriple(&libc_target.result));
-    }
+    const run_generate_libc = b.addExecutable(.{
+        .name = "generate_libc",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("build/generate_libc.zig"),
+            .target = b.graph.host, // Script builds for local machine
+            .optimize = optimize,
+        }),
+    });
+    var generate_libc = b.addRunArtifact(run_generate_libc);
+    libc_file = generate_libc.addOutputFileArg2("libc.txt", .{});
+    const libc_target = b.resolveTargetQuery(.{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .android });
+    generate_libc.addArg(try androidTriple(&libc_target.result));
 
     const sdl_module = try define_sdl_module(b, &target, &optimize, libc_file);
     const mixer_module = try define_mixer_module(b, &target, &optimize, libc_file);
@@ -66,8 +63,6 @@ pub fn build(b: *std.Build) !void {
     if (target.result.abi.isAndroid()) {
         if (try define_android_jni(b, &target, &optimize, libc_file)) |jni_module| {
             lib_mod.addImport("jni", jni_module);
-        } else {
-            //b..step.dependOn(&b.addFail("Failed to define jni module for android target.").step);
         }
     }
 
@@ -77,7 +72,7 @@ pub fn build(b: *std.Build) !void {
     });
     b.installArtifact(lib);
 
-    if (b.graph.environ_map.contains("ANDROID_NDK_HOME") or b.graph.environ_map.contains("ANDROID_SDK_ROOT")) {
+    if (target.result.abi.isAndroid()) {
         lib.step.dependOn(&generate_libc.step);
     }
 
@@ -311,7 +306,7 @@ pub fn build(b: *std.Build) !void {
             .name = "android_template_update",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("build/android_template_update.zig"),
-                .target = b.graph.host,
+                .target = b.graph.host, // Template script runs on local machine.
                 .optimize = optimize,
             }),
         });
@@ -327,9 +322,9 @@ pub fn build(b: *std.Build) !void {
         run_android_update.step.dependOn(copy_android_template);
         run_android_update.step.dependOn(&run_sdl_mixer_patch.step);
 
-        if (!b.graph.environ_map.contains("ANDROID_NDK_HOME") and !b.graph.environ_map.contains("ANDROID_SDK_ROOT")) {
-            run_android_update.step.dependOn(&b.addFail("The `android` build step requires ANDROID_NDK_HOME or ANDROID_SDK_ROOT to be set.").step);
-        }
+        //if (!b.graph.environ_map.contains("ANDROID_NDK_HOME") and !b.graph.environ_map.contains("ANDROID_SDK_ROOT")) {
+        //    run_android_update.step.dependOn(&b.addFail("The `android` build step requires ANDROID_NDK_HOME or ANDROID_SDK_ROOT to be set.").step);
+        //}
 
         if (android_app_bundle) |name| {
             copyStep(b, &run_android_update.step, &do_copy_template.step, name, "android/app/src/main/assets/app_bundle.bd");
@@ -449,7 +444,7 @@ fn define_mixer_module(
         .c_source_file = c_header,
         .target = target.*,
         .optimize = optimize.*,
-        .libc_file = libc_file,
+        .libc_file = if (target.result.abi.isAndroid()) libc_file else null,
     });
 
     for (platforms.getSystemPaths(b, target)) |path| headers.addSystemIncludePath(path);
@@ -488,7 +483,7 @@ fn define_android_jni(
         .c_source_file = c_header,
         .target = target.*,
         .optimize = optimize.*,
-        .libc_file = libc_file,
+        .libc_file = if (target.result.abi.isAndroid()) libc_file else null,
     });
 
     // /Users/loftafi/Library/Android/sdk/ndk/30.0.16248370/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/jni.h
@@ -547,7 +542,7 @@ fn define_sdl_module(
         .c_source_file = c_header,
         .target = target.*,
         .optimize = optimize.*,
-        .libc_file = libc_file,
+        .libc_file = if (target.result.abi.isAndroid()) libc_file else null,
     });
 
     for (platforms.getSystemPaths(b, target)) |path| headers.mod.addSystemIncludePath(path);
