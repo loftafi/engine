@@ -2,7 +2,7 @@
     .name = .engine,
     .version = "0.53.2",
     .fingerprint = 0xe8a81a8d0aa558d5,
-    .minimum_zig_version = "0.17.0-dev.2257+3bfb29994",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .translator = .{
             .url = "git+https://github.com/loftafi/translator#0bff329c00af604a7e1527927c81e9414ce910b0",
