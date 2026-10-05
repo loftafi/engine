@@ -56,7 +56,7 @@ pub fn build(b: *std.Build) !void {
     for (platforms.getSystemPaths(b, &target)) |path| lib_mod.addSystemIncludePath(path);
     if (platforms.getFrameworkPath(b, &target)) |path| lib_mod.addSystemFrameworkPath(path);
     link_sdl_framework(b, &target, lib_mod);
-    if (target.result.os.tag == .ios) {
+    if (target.result.os.tag == .ios or target.result.os.tag == .macos) {
         const objc = b.dependency("zig_objc", .{ .target = target, .optimize = optimize });
         lib_mod.addImport("objc", objc.module("objc"));
     }
@@ -459,8 +459,7 @@ fn define_mixer_module(
     return headers.mod;
 }
 
-/// Build an SDL module from the SDL3 and SDL3_mixer header files that we
-/// import as dependencies from zig packages that contain these headers.
+/// Prepare the jni module required to interact with the android jvm.
 fn define_android_jni(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
