@@ -459,7 +459,8 @@ fn define_mixer_module(
     return headers.mod;
 }
 
-/// Prepare the jni module required to interact with the android jvm.
+/// Prepare the jni module required to interact with the android jvm. The
+/// jni.h file is expected to be part of the android ndk.
 fn define_android_jni(
     b: *std.Build,
     target: *const std.Build.ResolvedTarget,
@@ -485,11 +486,9 @@ fn define_android_jni(
         .libc_file = if (target.result.abi.isAndroid()) libc_file else null,
     });
 
-    // /Users/loftafi/Library/Android/sdk/ndk/30.0.16248370/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/jni.h
     const path = try @import("build/FindNDK.zig").FindNDK.find(b.graph.io, &b.graph.environ_map);
     if (path) |p| {
         const include_path = b.pathJoin(&.{ p, "/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/" });
-        //headers.addIncludePath(.{ .cwd_relative = include_path });
         headers.addSystemIncludePath(.{ .cwd_relative = include_path });
         return headers.mod;
     }
