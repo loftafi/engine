@@ -14,6 +14,14 @@ pub var log_level: Level = switch (builtin.mode) {
     .small => .info,
 };
 
+/// Minimum log level controls what ends up in final binary.
+pub const minimum_log_level: Level = switch (builtin.mode) {
+    .debug => .trace,
+    .safe => .debug,
+    .fast => .debug,
+    .small => .debug,
+};
+
 /// A log level enum that adds `trace`, `notice`, and `alert`
 ///
 /// Zig log levels allow `err` but not an error `alert` that requires a
@@ -30,7 +38,7 @@ pub const Level = enum {
     alert,
 
     pub fn gt(self: Level, other: Level) bool {
-        return @intFromEnum(self) > @intFromEnum(other);
+        return @backingInt(self) > @backingInt(other);
     }
 
     pub fn parse(value: []const u8) ?Level {
@@ -77,11 +85,11 @@ pub fn Log(size: usize) type {
         }
 
         /// A `trace` message can be used liberally for log messages only
-        /// helpful during active development. `trace` is only available
-        /// in `debug` builds when `engine.dev_mode` is enabled.
+        /// helpful during active development.
         pub inline fn trace(self: *Self, comptime format: []const u8, args: anytype) void {
-            if (dev_build and engine.dev_mode and builtin.mode == .debug)
-                self.log(.trace, format, args);
+            if (minimum_log_level.gt(.trace)) return;
+            if (log_level.gt(.trace)) return;
+            self.log(.trace, format, args);
         }
 
         pub inline fn log(
@@ -149,10 +157,10 @@ pub fn Log(size: usize) type {
 
 /// A `trace` message can be used liberally for log messages only
 /// helpful during active development. `trace` is only available
-/// in `debug` builds when `engine.dev_mode` is enabled.
+/// in `minimum_log_level` includes `.trace`.
 pub inline fn trace(comptime format: []const u8, args: anytype) void {
-    if (dev_build and log_level == .debug and builtin.mode == .debug)
-        formatted_log_output(.trace, .engine, format, args);
+    if (minimum_log_level.gt(.trace) or log_level.gt(.trace)) return;
+    formatted_log_output(.trace, .engine, format, args);
 }
 
 /// A `debug` message should only be used when it is generally useful for
@@ -163,9 +171,7 @@ pub inline fn trace(comptime format: []const u8, args: anytype) void {
 /// size or screen resolution to allow support staff to understand what
 /// actions might have lead to an unexpected program state.
 pub inline fn debug(comptime format: []const u8, args: anytype) void {
-    if (engine.dev_mode or log_level == .debug) {
-        formatted_log_output(.debug, .engine, format, args);
-    }
+    formatted_log_output(.debug, .engine, format, args);
 }
 
 /// Log general information that might be useful for collection or human
@@ -247,10 +253,7 @@ fn formatted_log_output(
     args: anytype,
 ) void {
     _ = scope;
-    if (log_level.gt(level)) return;
-
-    if (level == .trace and !dev_build) return;
-    if (level == .debug and (engine.dev_mode == false and builtin.mode != .debug)) return;
+    if (minimum_log_level.gt(level) or log_level.gt(level)) return;
     if (builtin.is_test) return;
 
     var buffer: [max_log_message_size]u8 = undefined;
@@ -282,7 +285,7 @@ fn formatted_log_output(
             const sdl_level = level.toSdlLogPriority();
             msg.print(format, args) catch return;
             msg.writeByte(0) catch return;
-            sdl.SDL_LogMessage(@intFromEnum(SdlLogCategory.application), sdl_level, msg.buffered().ptr);
+            sdl.SDL_LogMessage(@backingInt(SdlLogCategory.application), sdl_level, msg.buffered().ptr);
         },
         .ios => {
             // android and iOS use SDL_LogInfo
@@ -298,7 +301,7 @@ fn formatted_log_output(
             msg.writeAll(prefix) catch return;
             msg.print(format, args) catch return;
             msg.writeByte(0) catch return;
-            sdl.SDL_LogInfo(@intFromEnum(SdlLogCategory.application), msg.buffered().ptr);
+            sdl.SDL_LogInfo(@backingInt(SdlLogCategory.application), msg.buffered().ptr);
         },
     }
 }
@@ -469,4 +472,3 @@ const builtin = @import("builtin");
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;
-const dev_build = engine.dev_build;

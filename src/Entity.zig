@@ -909,7 +909,7 @@ pub inline fn setText(
             return;
         },
     };
-    if (false and engine.dev_build and engine.dev_mode) {
+    if (engine.gui_debug and engine.log.minimum_log_level == .trace) {
         const old_text = switch (self.type) {
             .text_input => self.type.text_input.text.items,
             .checkbox => self.type.checkbox.text,
@@ -917,7 +917,7 @@ pub inline fn setText(
             .button => self.type.button.text,
             else => return,
         };
-        debug("setText {s} {s} \"{s}\" => \"{s}\"", .{ self.name, @tagName(self.type), old_text, new_text });
+        trace("setText {s} {s} \"{s}\" => \"{s}\"", .{ self.name, @tagName(self.type), old_text, new_text });
     }
     const new_translated = display.translation.translate(new_text);
     //trace("setText({s}.{s}) translated \"{s}\" => \"{s}\"", .{
@@ -1389,7 +1389,7 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
     if (entity.visible == .culled)
         entity.visible = .visible;
 
-    if (engine.dev_build and engine.dev_mode) {
+    if (engine.gui_debug) {
         if (display.safe_area.top != 0) {
             display.renderRectangle(2, .blue, .{
                 .x = 0,
@@ -1490,8 +1490,8 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
     }
 
     // Draw a border around an entity if a border is specified, or
-    // if `dev_mode` has been enabled.
-    if (engine.dev_mode) {
+    // if `gui_debug` has been enabled.
+    if (engine.gui_debug) {
         var colour = display.theme.emphasised_text_colour;
         if (entity.type == .panel) {
             colour = display.theme.tinted_text_colour;

@@ -186,7 +186,7 @@ pub fn create(
         if (config.app_id != null) try bucket.addZ(config.app_id.?) else "example",
     );
 
-    if (engine.dev_build) {
+    if (log.minimum_log_level == .trace or log.minimum_log_level == .debug) {
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_GPU, sdl.SDL_LOG_PRIORITY_DEBUG);
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_VIDEO, sdl.SDL_LOG_PRIORITY_DEBUG);
         _ = sdl.SDL_SetLogPriority(sdl.SDL_LOG_CATEGORY_ERROR, sdl.SDL_LOG_PRIORITY_DEBUG);
@@ -447,7 +447,7 @@ pub fn create(
     try display.setKeybinding(.f2, .{ .func = @ptrCast(&dumpEntities), .ptr = display });
     try display.setKeybinding(.f3, .{ .func = @ptrCast(&rotateTheme), .ptr = display });
     try display.setKeybinding(.f9, .{ .func = @ptrCast(&dumpFonts), .ptr = display });
-    if (engine.dev_build) {
+    if (builtin.mode == .debug) {
         try display.setKeybinding(.f10, .{ .func = @ptrCast(&makeBundle), .ptr = display });
     }
 
@@ -597,7 +597,7 @@ pub fn haptic_feedback(_: *Display, duration: u16) void {
         _ = ios_haptic_soft.?.msgSend(
             objc.Object,
             "initWithStyle:",
-            .{@as(isize, @intFromEnum(value))},
+            .{@as(isize, @backingInt(value))},
         );
     }
 
@@ -611,7 +611,7 @@ pub fn haptic_feedback(_: *Display, duration: u16) void {
         _ = ios_haptic_heavy.?.msgSend(
             objc.Object,
             "initWithStyle:",
-            .{@as(isize, @intFromEnum(value))},
+            .{@as(isize, @backingInt(value))},
         );
     }
 
@@ -763,7 +763,7 @@ fn boundScrollerPanels(self: *Display, entity: *Entity, relayout_done: bool) voi
     const panel = &entity.type.panel;
 
     if (panel.scrollable.scroll.x or panel.scrollable.scroll.y)
-        info(" bound check on scroller: {s} {t} align={t}  offset={d}x{d}", .{
+        debug(" bound check on scroller: {s} {t} align={t}  offset={d}x{d}", .{
             entity.name,
             entity.type,
             entity.child_align.x,
@@ -780,7 +780,7 @@ fn boundScrollerPanels(self: *Display, entity: *Entity, relayout_done: bool) voi
         const max_offset = @max(0, panel.scrollable.size.width - entity.rect.width);
         // panel=500, screen=100 screen-panel=400 - Allow down to -400 pixels
         const min_offset = @max(0, entity.rect.width - panel.scrollable.size.width);
-        info("    bound check {s} {t} - screen_width={d} needed_width={d} clamp={d}-{d}-{d}", .{
+        debug("    bound check {s} {t} - screen_width={d} needed_width={d} clamp={d}-{d}-{d}", .{
             entity.name,
             entity.child_align.x,
             entity.rect.width,
@@ -2089,7 +2089,7 @@ pub fn rotateTheme(
     _: *Entity,
     _: Allocator,
 ) void {
-    if (!engine.dev_mode and !engine.dev_build) return;
+    if (!engine.gui_debug and builtin.mode != .debug) return;
 
     var index: usize = 0;
 
@@ -2151,9 +2151,9 @@ fn handleKeyUpEvent(
     display: *Display,
     e: *sdl.SDL_Event,
 ) (Allocator.Error)!void {
-    const key: Key = @enumFromInt(e.key.key);
+    const key: Key = @fromBackingInt(@intCast(e.key.key));
     const event: Event = .{ .type = .key_up, .key = key };
-    trace("handle_key_up_event({any} -> {t} / {d})", .{ e.key.key, key, @intFromEnum(key) });
+    trace("handle_key_up_event({any} -> {t} / {d})", .{ e.key.key, key, @backingInt(key) });
 
     switch (key) {
         .tab => {
@@ -2200,12 +2200,12 @@ fn handleKeyUpEvent(
             .text_input => {
                 switch (key) {
                     .backspace, .delete, .kp_backspace => {
-                        try selected.keypress(display, @intFromEnum(Key.backspace), "", &event);
+                        try selected.keypress(display, @backingInt(Key.backspace), "", &event);
                         return; // keypress consumed by text edit box
                     },
                     .@"return", .kp_enter, .return2 => {
                         switch (selected.type) {
-                            .text_input => try selected.keypress(display, @intFromEnum(Key.@"return"), "", &event),
+                            .text_input => try selected.keypress(display, @backingInt(Key.@"return"), "", &event),
                             .button => |b| try b.on_pressed.call(display, selected, &event),
                             .label => |l| try l.on_pressed.call(display, selected, &event),
                             else => {},
@@ -2261,7 +2261,7 @@ pub inline fn updateScreenMetrics(display: *Display, event_code: usize) void {
     if (!sdl.SDL_GetWindowSizeInPixels(display.window, &width, &height)) {
         err("SDL_GetWindowSizeInPixels failed {s}", .{sdl.SDL_GetError()});
     }
-    info("SDL_GetWindowSizeInPixels width={d} height={d}", .{ width, height });
+    debug("SDL_GetWindowSizeInPixels width={d} height={d}", .{ width, height });
 
     const old_display_scale = display.display_scale;
     display.display_scale = sdl.SDL_GetWindowDisplayScale(display.window);
@@ -2286,7 +2286,7 @@ pub inline fn updateScreenMetrics(display: *Display, event_code: usize) void {
     if (display.root.minimum.height != logical_height) updated = true;
     if (old_display_scale != display.scale) updated = true;
 
-    if (updated or engine.dev_build or engine.dev_mode) {
+    if (updated or engine.gui_debug) {
         info("window resized {d}x{d} (scale={d}) => {d}x{d} ({d}) (scale={d}) mouse_scale={d} user_scale={d}", .{
             display.root.rect.width,
             display.root.rect.height,
@@ -2718,7 +2718,7 @@ inline fn handleMouseMotionEvent(
                     found.?,
                     &.{ .type = .mouse_enter },
                 ),
-                .panel => |p| if (engine.dev_build and engine.dev_mode) {
+                .panel => |p| if (engine.gui_debug) {
                     trace("on_mouse_enter({s} {s}) scrollable.size={d}x{d} rect={d}x{d}", .{
                         @tagName(found.?.type),
                         found.?.name,
@@ -2733,7 +2733,7 @@ inline fn handleMouseMotionEvent(
             display.hovered = found.?;
             display.hovered.?.hovered = true;
         } else {
-            if (engine.dev_build and engine.dev_mode) {
+            if (engine.gui_debug) {
                 //debug("mouse over: {s} {s}", .{ @tagName(found.?.type), found.?.name });
             }
         }
@@ -3042,8 +3042,8 @@ pub fn increaseSize(
     else if (display.user_scale == 1.0)
         1.25
     else if (display.user_scale == 1.25)
-        if (engine.dev_build or engine.dev_mode) 1.5 else 1.25
-    else if (engine.dev_build or engine.dev_mode) 1.5 else 1.25;
+        if (engine.gui_debug and builtin.mode == .debug) 1.5 else 1.25
+    else if (engine.gui_debug and builtin.mode == .debug) 1.5 else 1.25;
 
     self.updateScreenMetrics(0);
     debug("Increase size. {d}*{d} = {d}", .{
@@ -3062,14 +3062,14 @@ pub fn decreaseSize(
 ) void {
     debug("size = {d}", .{display.user_scale});
     display.user_scale = if (display.user_scale == 0.75)
-        if (engine.dev_build or engine.dev_mode) 0.5 else 0.75
+        if (engine.gui_debug and builtin.mode == .debug) 0.5 else 0.75
     else if (display.user_scale == 1.0)
         0.75
     else if (display.user_scale == 1.25)
         1.0
     else if (display.user_scale == 1.5)
         1.25
-    else if (engine.dev_build or engine.dev_mode) 0.5 else 0.75;
+    else if (engine.gui_debug and builtin.mode == .debug) 0.5 else 0.75;
     self.updateScreenMetrics(0);
     debug("Decrease size. {d}*{d} = {d}", .{
         display.display_scale,
@@ -3107,7 +3107,7 @@ pub fn dumpFonts(
     _: *Entity,
     _: *const Event,
 ) Allocator.Error!void {
-    if (!engine.dev_mode and !engine.dev_build) return;
+    if (!engine.gui_debug and builtin.mode != .debug) return;
 
     for (self.fonts.items) |font| {
         var i = font.cache.iterator();
@@ -3139,7 +3139,7 @@ pub fn dumpEntities(
     _: *Entity,
     _: *const Event,
 ) Allocator.Error!void {
-    if (!engine.dev_mode and !engine.dev_build) return;
+    if (!engine.gui_debug and builtin.mode != .debug) return;
     try dumpEntityTree(&self.root, self.allocator, 0);
 }
 
@@ -3150,8 +3150,6 @@ fn makeBundle(
     _: *Entity,
     _: *const Event,
 ) error{OutOfMemory}!void {
-    if (!engine.dev_build) return;
-
     if (display.config.app_bundle_output == null or display.config.app_bundle_output.?.len == 0) {
         info("config.app_bundle_output not specified. Not making bundle.", .{});
         return;
@@ -3217,15 +3215,29 @@ pub fn add_paragraph(
     }, display);
 }
 
-/// Keypress `Callback` handler to toggle dev mode.
-fn toggleDevMode(
+/// Keypress `Callback` handler to toggle development mode related flags.
+pub fn toggleDevMode(
     _: *Display,
     _: *Display,
     _: *Entity,
     _: *const Event,
 ) Allocator.Error!void {
-    engine.dev_mode = !engine.dev_mode;
-    info("Dev mode: {any}", .{engine.dev_mode});
+    log.log_level = switch (log.log_level) {
+        .trace => .debug,
+        .debug => .info,
+        .info => if (builtin.mode == .debug) .trace else .debug,
+        else => if (builtin.mode == .debug) .trace else .debug,
+    };
+
+    engine.gui_debug = if (builtin.mode == .debug)
+        log.log_level == .trace
+    else
+        log.log_level == .debug;
+
+    info("Dev mode: gui_debug={any} log_level={t}", .{
+        engine.gui_debug,
+        log.log_level,
+    });
 }
 
 pub const Callback = struct {
