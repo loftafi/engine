@@ -250,7 +250,7 @@ pub fn create(
         if (config.min_height == 0) 200 else @intCast(config.min_height),
     );
 
-    const renderer = sdl.SDL_CreateRenderer(window, null) orelse {
+    const renderer = sdl.SDL_CreateRenderer(window, pick_driver()) orelse {
         err("No Renderer initialised. {s}", .{sdl.SDL_GetError()});
         return error.GraphicsRendererFailed;
     };
@@ -258,6 +258,7 @@ pub fn create(
     _ = sdl.SDL_SetRenderVSync(renderer, 1);
 
     const current_driver = sdl.SDL_GetRendererName(renderer).?;
+
     const count = sdl.SDL_GetNumRenderDrivers();
     var renderer_info: ArrayListUnmanaged(u8) = .empty;
     defer renderer_info.deinit(gpa);
@@ -455,6 +456,21 @@ pub fn create(
     display.updateScreenMetrics(0);
 
     return display;
+}
+
+/// Return null to indicate any render driver. On Android, prefer vulkan
+/// over opengl. This resolves the safe area bug on Samsung Galaxy S20+
+fn pick_driver() [*c]const u8 {
+    if (!builtin.abi.isAndroid()) return null;
+    const count = sdl.SDL_GetNumRenderDrivers();
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        const driver = sdl.SDL_GetRenderDriver(i).?;
+        //const driver_name = std.mem.span(driver);
+        if (std.mem.orderZ(u8, "vulkan", driver) == .eq)
+            return driver;
+    }
+    return null;
 }
 
 pub fn setKeybinding(
