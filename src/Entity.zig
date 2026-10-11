@@ -221,10 +221,14 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
                 display.releaseTextureResource(texture) catch {};
             }
         },
-        .particles => |*p| {
-            p.deinit(display);
+        .particles => {
+            self.type.particles.deinit(display);
         },
-        .progress_bar, .expander, .rectangle, .sprite => {},
+        .progress_bar,
+        .expander,
+        .rectangle,
+        .sprite,
+        => {},
     }
     self.* = undefined;
 }
@@ -466,6 +470,17 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             _ = try out.print(" offset={d}x{d}", .{ self.offset.x, self.offset.y });
             _ = try out.print(" inner={d}x{d}", .{ self.type.panel.scrollable.size.width, self.type.panel.scrollable.size.height });
         }
+    }
+    if (self.type == .particles) {
+        _ = try out.write(" count=");
+        _ = try out.print("{d}", .{self.type.particles.count});
+        _ = try out.write(" movement=");
+        _ = try out.write(@tagName(self.type.particles.movement));
+        _ = try out.write(" image=\"");
+        if (self.texture_name) |image| {
+            _ = try out.write(image);
+        }
+        _ = try out.write("\"");
     }
     if (self.type == .sprite) {
         if (self.name.len > 0) {
@@ -1188,6 +1203,9 @@ pub fn postAppend(
                 try postAppend(display, child);
             }
         },
+        .particles => {
+            try entity.type.particles.setup(display, entity);
+        },
         else => {},
     }
 }
@@ -1304,10 +1322,16 @@ pub fn update(self: *Entity, display: *Display) void {
     if (display.need_relayout)
         display.relayout();
 
-    if (self.type == .panel) {
-        self.type.panel.on_update.call(display, self);
-        for (self.type.panel.children.items) |child|
-            child.update(display);
+    switch (self.type) {
+        .panel => {
+            self.type.panel.on_update.call(display, self);
+            for (self.type.panel.children.items) |child|
+                child.update(display);
+        },
+        .particles => {
+            self.type.particles.update(display);
+        },
+        else => {},
     }
 }
 

@@ -423,8 +423,8 @@ const Resources = @import("resources").Resources;
 const Resource = @import("resources").Resource;
 const Type = @import("resources").Type;
 
-const random = praxis.random;
-const seed = random.seed;
+pub const random = praxis.random;
+pub const seed = random.seed;
 
 pub const Entity = @import("Entity.zig");
 pub const Background = Entity.Background;

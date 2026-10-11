@@ -69,6 +69,8 @@ pub const Tag = enum(u8) {
     on_ui_event,
     on_visibility,
     pad,
+    plus,
+    minus,
     side,
     start,
     centre,
@@ -128,6 +130,7 @@ pub const Tag = enum(u8) {
     custom,
     checked,
     checkbox_size,
+    particle_size,
     open_bracket,
     close_bracket,
     @"struct",
@@ -135,6 +138,8 @@ pub const Tag = enum(u8) {
     equals,
     comma,
     velocity,
+    velocity_x_range,
+    velocity_y_range,
     @"inline",
     float,
     heading,
@@ -147,6 +152,8 @@ pub const Tag = enum(u8) {
     right,
     top,
     bottom,
+    min,
+    max,
     ignore_safe_area,
     avoid_safe_area,
     choosable,
@@ -165,6 +172,8 @@ pub const Tag = enum(u8) {
     direction,
     top_left,
     bottom_left,
+    width_range,
+    height_range,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does
@@ -224,7 +233,18 @@ pub fn next(self: *const Token) Error!Token {
     }
 
     switch (c) {
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' => {
+        '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' => {
+            const x = try self.peek(loc.end);
+            if (c == '-' and (x < '0' or x > '9')) {
+                err("num c={d} x={d}", .{ c, x });
+                return .{
+                    .tag = .minus,
+                    .begins = begins,
+                    .ends = current,
+                    .loc = loc,
+                    .data = self.data,
+                };
+            }
             while (true) : (_ = try self.char(&loc.end, &current)) {
                 const p = try self.peek(loc.end);
                 if (p >= '0' and p <= '9') continue;
@@ -280,7 +300,17 @@ pub fn next(self: *const Token) Error!Token {
             };
         },
 
-        '\\', '$', '/', '-', '+' => {
+        '+' => {
+            return .{
+                .tag = .plus,
+                .begins = begins,
+                .ends = current,
+                .loc = loc,
+                .data = self.data,
+            };
+        },
+
+        '\\', '$', '/' => {
             return .{
                 .tag = .unexpected,
                 .begins = begins,
@@ -289,6 +319,7 @@ pub fn next(self: *const Token) Error!Token {
                 .data = self.data,
             };
         },
+
         '{' => {
             return .{
                 .tag = .open_bracket,
@@ -515,6 +546,13 @@ test "number" {
     try expectEqualStrings("1", token.slice());
     token = try token.next();
     try expectEqual(.height, token.tag);
+    token = try token.next();
+    try expectEqual(.eof, token.tag);
+}
+
+test "negative_number" {
+    var token = try Token.init("-1.0");
+    try expectEqual(Token.Tag.number, token.tag);
     token = try token.next();
     try expectEqual(.eof, token.tag);
 }

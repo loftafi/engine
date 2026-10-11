@@ -194,7 +194,7 @@ pub fn loadBundleSdl(
         var r = try Resource.create(self.arena.allocator());
         errdefer r.destroy(self.arena.allocator());
         const resource_type = try read_u8(input);
-        r.resource = @enumFromInt(resource_type);
+        r.resource = @fromBackingInt(@intCast(resource_type));
         r.uid = try read_u64(input);
         r.size = try read_u32(input);
         r.filename = bundle_filename_z;
@@ -232,17 +232,19 @@ fn readResourceSdl(
                 try manifest.put(bundle.arena.allocator(), resource.uid, resource);
             }
         }
-        return try sdl_load_file_byte_slice(gpa, resource.filename.?, bundle_offset, resource.size);
+        return try sdl_load_file_byte_slice(gpa, io, resource.filename.?, bundle_offset, resource.size);
     }
     return error.ResourceNotFound;
 }
 
 fn sdl_load_file_byte_slice(
     gpa: Allocator,
+    io: std.Io,
     bundle_filename: []const u8,
     offset: usize,
     size: usize,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]u8 {
+    _ = io;
     const bundle_filename_z = try gpa.dupeSentinel(u8, bundle_filename, 0);
     defer gpa.free(bundle_filename_z);
 

@@ -176,7 +176,19 @@ pub fn readAttributes(
     while (true) {
         //err("reading attribute {t}", .{token.tag});
         try switch (token.tag) {
-            .panel, .button, .sprite, .rectangle, .text_input, .label, .checkbox, .expander, .progress_bar, .open_bracket, .close_bracket => return,
+            .button,
+            .checkbox,
+            .close_bracket,
+            .expander,
+            .label,
+            .open_bracket,
+            .panel,
+            .particles,
+            .progress_bar,
+            .rectangle,
+            .sprite,
+            .text_input,
+            => return,
             .name => readNameAttribute(token, entity),
             .text => readTextAttribute(token, entity),
             .image => readStringAttribute(token, &entity.texture_name),
@@ -194,6 +206,7 @@ pub fn readAttributes(
             .text_size => readTextSizeAttribute(token, entity),
             .line_height => readLineHeightAttribute(token, entity, font_size),
             .weight => readWeightAttribute(token, entity),
+            .count => readCountAttribute(token, entity),
             .progress => readProgressAttribute(token, entity),
             .@"inline" => {
                 entity.layout.position = .@"inline";
@@ -221,7 +234,8 @@ pub fn readAttributes(
             .checked => readCheckedAttribute(token, entity),
             .on => readOnAttribute(token, entity),
             .off => readOffAttribute(token, entity),
-            .checkbox_size => readCheckboxSizeAttribute(token, entity, font_size),
+            .checkbox_size => readSizeAttribute(token, &entity.type.checkbox.checkbox_size, font_size),
+            .particle_size => readSizeAttribute(token, &entity.type.particles.size, font_size),
             .icon_size => readIconSizeAttribute(token, entity, font_size),
             .icon_mod => readIconModAttribute(token, entity),
             .placeholder_text => readPlaceholderTextAttribute(token, entity),
@@ -310,6 +324,50 @@ pub fn readAttributes(
             .background_image => if (entity.type != .button) readStringAttribute(token, &entity.background.image_name) else return error.UnexpectedToken,
             .eof => return,
             else => {
+                if (entity.type == .particles) {
+                    switch (token.tag) {
+                        .width_range => {
+                            try readRangeAttribute(
+                                token,
+                                &entity.type.particles.linear.width_range.min,
+                                &entity.type.particles.linear.width_range.max,
+                                font_size,
+                            );
+                            continue;
+                        },
+                        .height_range => {
+                            try readRangeAttribute(
+                                token,
+                                &entity.type.particles.linear.width_range.min,
+                                &entity.type.particles.linear.width_range.max,
+                                font_size,
+                            );
+                            continue;
+                        },
+                        .velocity_x_range => {
+                            try readFRangeAttribute(
+                                token,
+                                &entity.type.particles.linear.velocity_x_range.min,
+                                &entity.type.particles.linear.velocity_x_range.max,
+                                font_size,
+                            );
+                            continue;
+                        },
+                        .velocity_y_range => {
+                            try readFRangeAttribute(
+                                token,
+                                &entity.type.particles.linear.velocity_y_range.min,
+                                &entity.type.particles.linear.velocity_y_range.max,
+                                font_size,
+                            );
+                            continue;
+                        },
+                        else => {
+                            err("unexpected token {t}={s}", .{ token.tag, token.slice() });
+                            return error.UnexpectedToken;
+                        },
+                    }
+                }
                 if (entity.type == .button) {
                     const button = &entity.type.button;
                     try switch (token.tag) {
@@ -622,6 +680,21 @@ pub fn readWeightAttribute(token: *Token, entity: *Entity) Error!void {
     }
 }
 
+pub fn readCountAttribute(token: *Token, entity: *Entity) Error!void {
+    if (entity.type != .particles) return error.UnexpectedToken;
+    token.* = try token.next();
+    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
+    switch (token.tag) {
+        .number => {
+            const value = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
+            entity.type.particles.count = @trunc(value);
+            token.* = try token.next();
+            return;
+        },
+        else => return error.UnexpectedToken,
+    }
+}
+
 pub fn readProgressAttribute(token: *Token, entity: *Entity) Error!void {
     if (entity.type != .progress_bar) return error.UnexpectedToken;
     token.* = try token.next();
@@ -838,6 +911,41 @@ pub fn readStringAttribute(token: *Token, string: *?[]const u8) Error!void {
     }
 }
 
+pub fn readU16Value(token: *Token, font_size: f32) Error!u16 {
+    token.* = try token.next();
+    return readThisU16Value(token, font_size);
+}
+
+pub fn readThisU16Value(token: *Token, font_size: f32) Error!u16 {
+    if (token.tag == .equals)
+        token.* = try token.next();
+    switch (token.tag) {
+        .number => {
+            const f = std.fmt.parseInt(u16, token.slice(), 10) catch return error.UnexpectedToken;
+            token.* = try token.next();
+            if (token.tag == .em) {
+                token.* = try token.next();
+                return u16em(f, font_size);
+            }
+            return f;
+        },
+        else => {
+            err("expected 'number', not {t} ({s})", .{ token.tag, token.slice() });
+            return error.UnexpectedToken;
+        },
+    }
+}
+
+pub fn u16em(size: u16, font_size: f32) u16 {
+    const newSize: f32 = font_size * size;
+    return @as(u16, @intFromFloat(newSize));
+}
+
+pub fn i16em(size: i16, font_size: f32) i16 {
+    const newSize: f32 = font_size * size;
+    return @as(i16, @intFromFloat(newSize));
+}
+
 pub fn readFloatValue(token: *Token, font_size: f32) Error!f32 {
     token.* = try token.next();
     return readThisFloatValue(token, font_size);
@@ -978,43 +1086,6 @@ pub fn readRectAttribute(token: *Token, rect: *engine.Rect, font_size: f32) Erro
     }
 }
 
-pub fn readSizeAttribute(
-    token: *Token,
-    size: *engine.Size,
-    font_size: f32,
-) Error!void {
-    token.* = try token.next();
-    var value_count: u8 = 0;
-    var read_width = false;
-    var read_height = false;
-    while (true) {
-        switch (token.tag) {
-            .width => {
-                if (read_width == true) return error.UnexpectedToken;
-                token.* = try token.next();
-                size.width = try readFloatValue(token, font_size);
-                read_width = true;
-            },
-            .height => {
-                if (read_height == true) return error.UnexpectedToken;
-                token.* = try token.next();
-                size.height = try readFloatValue(token, font_size);
-                read_height = true;
-            },
-            .number => {
-                if (value_count == 2) return error.UnexpectedToken;
-                if (value_count == 0) size.width = @ceil(try readThisFloatValue(token, font_size));
-                if (value_count == 1) size.height = @ceil(try readThisFloatValue(token, font_size));
-                value_count += 1;
-            },
-            else => {
-                if (read_width == true or read_height == true or value_count > 0) return;
-                return error.UnexpectedToken;
-            },
-        }
-    }
-}
-
 pub fn readFlipAttribute(
     token: *Token,
     entity: *engine.Entity,
@@ -1141,13 +1212,11 @@ pub fn readEntitySizeAttribute(
     }
 }
 
-pub fn readCheckboxSizeAttribute(
+pub fn readSizeAttribute(
     token: *Token,
-    entity: *engine.Entity,
+    size: *engine.Size,
     font_size: f32,
 ) Error!void {
-    if (entity.type != .checkbox) return error.UnexpectedToken;
-    const size = &entity.type.checkbox.checkbox_size;
     token.* = try token.next();
     var value_count: u8 = 0;
     var read_width = false;
@@ -1168,13 +1237,88 @@ pub fn readCheckboxSizeAttribute(
             },
             .number => {
                 if (value_count == 2) return error.UnexpectedToken;
-                if (value_count == 0) size.width = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
-                if (value_count == 1) size.height = std.fmt.parseFloat(f32, token.slice()) catch unreachable;
+                if (value_count == 0) size.width = @ceil(try readThisFloatValue(token, font_size));
+                if (value_count == 1) size.height = @ceil(try readThisFloatValue(token, font_size));
                 value_count += 1;
-                token.* = try token.next();
             },
             else => {
                 if (read_width == true or read_height == true or value_count > 0) return;
+                return error.UnexpectedToken;
+            },
+        }
+    }
+}
+
+pub fn readRangeAttribute(
+    token: *Token,
+    min: *u16,
+    max: *u16,
+    font_size: f32,
+) Error!void {
+    token.* = try token.next();
+    var value_count: u8 = 0;
+    var read_min = false;
+    var read_max = false;
+    while (true) {
+        switch (token.tag) {
+            .min => {
+                if (read_min == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                min.* = try readU16Value(token, font_size);
+                read_min = true;
+            },
+            .max => {
+                if (read_max == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                max.* = try readU16Value(token, font_size);
+                read_max = true;
+            },
+            .number => {
+                if (value_count == 2) return error.UnexpectedToken;
+                if (value_count == 0) min.* = try readThisU16Value(token, font_size);
+                if (value_count == 1) max.* = try readThisU16Value(token, font_size);
+                value_count += 1;
+            },
+            else => {
+                if (read_min == true or read_max == true or value_count > 0) return;
+                return error.UnexpectedToken;
+            },
+        }
+    }
+}
+
+pub fn readFRangeAttribute(
+    token: *Token,
+    min: *f32,
+    max: *f32,
+    font_size: f32,
+) Error!void {
+    token.* = try token.next();
+    var value_count: u8 = 0;
+    var read_min = false;
+    var read_max = false;
+    while (true) {
+        switch (token.tag) {
+            .min => {
+                if (read_min == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                min.* = try readFloatValue(token, font_size);
+                read_min = true;
+            },
+            .max => {
+                if (read_max == true) return error.UnexpectedToken;
+                token.* = try token.next();
+                max.* = try readFloatValue(token, font_size);
+                read_max = true;
+            },
+            .number => {
+                if (value_count == 2) return error.UnexpectedToken;
+                if (value_count == 0) min.* = try readThisFloatValue(token, font_size);
+                if (value_count == 1) max.* = try readThisFloatValue(token, font_size);
+                value_count += 1;
+            },
+            else => {
+                if (read_min == true or read_max == true or value_count > 0) return;
                 return error.UnexpectedToken;
             },
         }
