@@ -244,10 +244,12 @@ fn sdl_load_file_byte_slice(
     offset: usize,
     size: usize,
 ) error{ OutOfMemory, ResourceNotFound, ResourceReadError }![]u8 {
-    _ = io;
     const bundle_filename_z = try gpa.dupeSentinel(u8, bundle_filename, 0);
     defer gpa.free(bundle_filename_z);
 
+    var timer: TraceLoad = undefined;
+
+    timer.init(io);
     const in = sdl.SDL_IOFromFile(bundle_filename_z.ptr, "rb");
     if (in == null) {
         err("Open bundle (to read from {d}) failed: {s}", .{ offset, bundle_filename });
@@ -255,14 +257,20 @@ fn sdl_load_file_byte_slice(
     }
     const input = in.?;
     defer _ = sdl.SDL_CloseIO(input);
+    timer.opened();
 
     if (sdl.SDL_SeekIO(input, @intCast(offset), sdl.SDL_IO_SEEK_SET) == -1) {
         err("Seek file failed: {s} {d} {d}", .{ bundle_filename, offset, size });
         return error.ResourceReadError;
     }
+    timer.seeked();
+
     const buffer = try gpa.alloc(u8, size);
     errdefer gpa.free(buffer);
+    timer.alloced();
+
     if (sdl.SDL_ReadIO(input, buffer.ptr, buffer.len) == size) {
+        timer.log(offset);
         return buffer;
     }
     err("SDL ReadIO from bundle file failed: {s}", .{bundle_filename});
@@ -408,6 +416,10 @@ fn getUserDocumentsPath(
 /// - /Users/user/Library/Application Support/My Company/My App
 /// - C:\Users\user\AppData\Roaming\My Company\My App
 ///
+/// On android, `config.app_org` and `config.app_name` are ignored.
+///
+/// https://github.com/libsdl-org/SDL/blob/930cd0dbf8d1b6fdc5b91711d8d71542c1df0960/src/filesystem/android/SDL_sysfilesystem.c#L41
+///
 fn getUserPreferencesPath(
     gpa: Allocator,
     config: *const engine.Config,
@@ -474,7 +486,15 @@ fn load_folder_file_bytes(
     return data;
 }
 
-/// Output preference data to a file inside the OS's preferenence data folder.
+/// Output preference data to a file inside the OS's local app data folder.
+///
+/// Actual location is OS dependent, and may use `config.app_name` and
+/// `config.app_org` to build the path according to OS conventions, i.e.
+///
+///  - /Users/user/Library/Application Support/Org Name/Program Name/
+///  - C:\\Users\\user\\AppData\\Roaming\\Org Name\\Program Name\\
+///  - /home/user/.local/share/My Program Name/
+///
 /// First writes data to a temporary file to ensure the data can be completely
 /// written, then replaces the data file with the temporary file.
 pub fn savePreferenceData(
@@ -536,6 +556,43 @@ pub fn random_string(data: []u8) void {
         };
     }
 }
+
+/// Track the times for opening and reading a file resource.
+pub const TraceLoad = struct {
+    io: std.Io,
+    start: i96,
+    open: i96,
+    seek: i96,
+    alloc: i96,
+
+    pub fn init(self: *TraceLoad, io: std.Io) void {
+        self.io = io;
+        self.start = std.Io.Timestamp.now(io, .real).toMilliseconds();
+    }
+
+    pub fn opened(self: *TraceLoad) void {
+        self.open = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
+    }
+
+    pub fn seeked(self: *TraceLoad) void {
+        self.seek = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
+    }
+
+    pub fn alloced(self: *TraceLoad) void {
+        self.alloc = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
+    }
+
+    pub fn log(self:*TraceLoad, offset:usize) void {
+        const read = std.Io.Timestamp.now(self.io, .real).toMilliseconds();
+        trace("readBundle open={d}ms seek={d}ms alloc={d}ms read={d}ms (offset={d})", .{
+            self.open - self.start,
+            self.seek - self.open,
+            self.alloc - self.seek,
+            read - self.alloc,
+            offset,
+        });
+    }
+};
 
 test "load_save_preferences" {
     const gpa = std.testing.allocator;
