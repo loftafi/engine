@@ -353,7 +353,7 @@ pub fn build(b: *std.Build) !void {
             .{ android_icon_foreground_216, "android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.webp" },
             .{ android_icon_foreground_162, "android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.webp" },
             .{ android_icon_foreground_108, "android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.webp" },
-            .{ android_icon_background_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp" },
+            .{ android_icon_background_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.webp" },
             .{ android_icon_background_432, "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.webp" },
             .{ android_icon_background_432, "android/app/src/main/res/mipmap/ic_launcher_background.webp" },
             .{ android_icon_background_432, "android/app/src/main/res/mipmap/icon_background.webp" },
