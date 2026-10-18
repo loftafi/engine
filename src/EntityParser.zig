@@ -368,6 +368,17 @@ pub fn readAttributes(
                         },
                     }
                 }
+                if (entity.type == .text_input) {
+                    const input = &entity.type.text_input;
+                    try switch (token.tag) {
+                        .icon_default => readStringAttribute(token, &input.icon_texture_name),
+                        else => {
+                            err("unexpected token {t}={s}", .{ token.tag, token.slice() });
+                            return error.UnexpectedToken;
+                        },
+                    };
+                    continue;
+                }
                 if (entity.type == .button) {
                     const button = &entity.type.button;
                     try switch (token.tag) {

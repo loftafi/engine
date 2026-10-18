@@ -1133,6 +1133,8 @@ pub inline fn appendMultiple(
     }
 }
 
+/// After an `Entity` is loaded into memory, this initialises any fields
+/// that require special initialisation.
 pub fn postAppend(
     display: *Display,
     entity: *Entity,
@@ -1205,6 +1207,16 @@ pub fn postAppend(
         },
         .particles => {
             try entity.type.particles.setup(display, entity);
+        },
+        .text_input => {
+            if (display.fonts.items.len > 0) {
+                entity.type.text_input.font = display.fonts.items[0];
+            }
+            if (entity.type.text_input.icon_texture_name) |value| {
+                if (try display.requireImage(value)) |texture| {
+                    entity.texture = texture;
+                }
+            }
         },
         else => {},
     }
