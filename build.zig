@@ -109,7 +109,8 @@ pub fn build(b: *std.Build) !void {
         const ios_splash_screen = b.option(std.Build.LazyPath, "ios_splash_screen", "iOS app startup splash screen jpg");
         const ios_icon = b.option(std.Build.LazyPath, "ios_icon", "The iOS icon png");
         const ios_icon_light = b.option(std.Build.LazyPath, "ios_icon_light", "Optional iOS light icon png");
-        const ios_icon_dark = b.option(std.Build.LazyPath, "ios_icon_dark", "Optional iOSdark icon png");
+        const ios_icon_tinted = b.option(std.Build.LazyPath, "ios_icon_tinted", "Optional iOS tinted icon png");
+        const ios_icon_dark = b.option(std.Build.LazyPath, "ios_icon_dark", "Optional iOS dark icon png");
 
         // Copy the xcode template
         var copy_xcode_template = b.step("xcode_template_copy", "Copy ios template");
@@ -186,7 +187,7 @@ pub fn build(b: *std.Build) !void {
         }
 
         if (ios_icon_light) |png| {
-            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
         } else {
             if (ios_resources_required) |check| {
                 if (check) {
@@ -196,11 +197,21 @@ pub fn build(b: *std.Build) !void {
         }
 
         if (ios_icon_dark) |png| {
-            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
         } else {
             if (ios_resources_required) |check| {
                 if (check) {
                     export_xcode_template.dependOn(&b.addFail("missing " ++ " dark ios icon").step);
+                }
+            }
+        }
+
+        if (ios_icon_tinted) |png| {
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+        } else {
+            if (ios_resources_required) |check| {
+                if (check) {
+                    export_xcode_template.dependOn(&b.addFail("missing " ++ " tinted ios icon").step);
                 }
             }
         }

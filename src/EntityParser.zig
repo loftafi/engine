@@ -569,6 +569,7 @@ pub fn readOnChangeAttribute(
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
         .checkbox => &entity.type.checkbox.on_change,
+        .text_input => &entity.type.text_input.on_change,
         else => return Error.UnexpectedToken,
     };
     token.* = try token.next();
