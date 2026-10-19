@@ -174,19 +174,9 @@ pub fn build(b: *std.Build) !void {
             }
         }
 
-        if (ios_icon) |png| {
-            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
-            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
-            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
-        } else {
-            if (ios_resources_required) |check| {
-                if (check) {
-                    export_xcode_template.dependOn(&b.addFail("missing " ++ "ios_icon").step);
-                }
-            }
-        }
-
         if (ios_icon_light) |png| {
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
+        } else if (ios_icon) |png| {
             copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full.png");
         } else {
             if (ios_resources_required) |check| {
@@ -198,6 +188,8 @@ pub fn build(b: *std.Build) !void {
 
         if (ios_icon_dark) |png| {
             copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
+        } else if (ios_icon) |png| {
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 1.png");
         } else {
             if (ios_resources_required) |check| {
                 if (check) {
@@ -207,6 +199,8 @@ pub fn build(b: *std.Build) !void {
         }
 
         if (ios_icon_tinted) |png| {
+            copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
+        } else if (ios_icon) |png| {
             copyStep(b, export_xcode_template, &run_xcode_update.step, png, "xcode/Dialectos/Assets.xcassets/AppIcon.appiconset/app-icon-3-full 2.png");
         } else {
             if (ios_resources_required) |check| {
