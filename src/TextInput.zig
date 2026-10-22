@@ -14,10 +14,19 @@ runes: ArrayListUnmanaged(u21) = .empty,
 max_length: ?u16 = null,
 cursor_character: usize = 0,
 cursor_pixels: f32 = 0,
+
+/// Called when the user adds or removes a character to the text input.
 on_change: Entity.Callback = .empty,
+
+/// Called when the user hits the enter key while inside the text input.
 on_submit: Entity.Callback = .empty,
+
+/// Display default lightly faded placeholder text.
 placeholder_text: ?[]const u8 = "",
 placeholder_translate: []const u8 = "",
+
+/// Optionally mask each character by drawing it as a symbol.
+password_character: ?u21 = null,
 
 pub fn keypress(
     self: *TextInput,
@@ -31,14 +40,14 @@ pub fn keypress(
     // Update the text line
     trace("text_input recieved {t} {s}", .{ event.type, slice });
     switch (key) {
-        @intFromEnum(Key.line_feed), @intFromEnum(Key.@"return") => {
+        @backingInt(Key.line_feed), @backingInt(Key.@"return") => {
             _ = sdl.SDL_StopTextInput(display.window);
             if (self.on_submit.func != null) {
                 try self.on_submit.call(display, entity, event);
             }
             return;
         },
-        @intFromEnum(Key.backspace) => {
+        @backingInt(Key.backspace) => {
             if (self.runes.items.len == 0) {
                 return;
             }

@@ -1,16 +1,16 @@
 .{
     .name = .engine,
-    .version = "0.59.0",
+    .version = "0.59.1",
     .fingerprint = 0xe8a81a8d0aa558d5,
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .translator = .{
-            .url = "git+https://github.com/loftafi/translator?ref=0.2.3#d4a1c258d63637cd11fdfee8fe6e16049bd19bba",
-            .hash = "translator-0.2.3-cfHZxqBQAADDASsUs-gpKKgjuo3z2gdYqEZW7oXywSAM",
+            .url = "git+https://github.com/loftafi/translator?ref=0.2.4#85d39dc8eef3f2fb31bed56662f5b29168fe9537",
+            .hash = "translator-0.2.4-cfHZxqBQAABdVF8elSXy1DoKb6j8_LRR9BexWECAhqyI",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources?ref=3.4.0#97d0e7cee61857604d6fdaef5868d00574b79729",
-            .hash = "resources-3.4.0-J0GwI6mizADZMs8ChpSq9fohSnVXsg9BuwbrOWrUqMRr",
+            .url = "git+https://github.com/loftafi/resources?ref=3.5.0#53da6b7265ece77b543a90a6b3eba84abd453c9b",
+            .hash = "resources-3.5.0-J0GwI5ikzAA2v09ciwAYDlsfQOp8DdWaT_Ch9bgt-WFB",
         },
         .sdl = .{
             // Required by the android template if `zig build android` is requested.
