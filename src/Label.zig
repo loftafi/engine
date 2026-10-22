@@ -32,6 +32,9 @@ pub fn setup(
         else
             entity.focus = .accessibility_focus;
     }
+    entity.rect.width = directional_clamp(entity.layout.x, entity.minimum.width, entity.rect.width, entity.maximum.width);
+    entity.rect.height = directional_clamp(entity.layout.y, entity.minimum.height, entity.rect.height, entity.maximum.height);
+
     try entity.setText(display, entity.type.label.text);
 
     // Is there a background for this label?
@@ -595,11 +598,50 @@ test "label_multiword_align" {
     }
 }
 
+test "minimum_label_height" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var display = try headless_display(allocator, io, 200, 100, 2);
+    defer display.destroy();
+
+    const panel = try display.addPanel(.{
+        .layout = .{ .x = .grows, .y = .grows },
+        .visible = .visible,
+        .type = .{ .panel = .{
+            .direction = .top_to_bottom,
+            .safe_area = .ignore_safe_area,
+        } },
+        .pad = .{ .left = 4, .right = 6, .top = 2, .bottom = 8 },
+    });
+    display.need_relayout = true;
+    display.relayout();
+
+    try eq(200, panel.rect.width);
+    try eq(100, panel.rect.height);
+
+    // An empty label should allow a minimum height
+    const child = try panel.add(.{
+        .type = .{ .label = .{} },
+        .visible = .visible,
+        .layout = .{ .x = .shrinks, .y = .shrinks },
+        .rect = .{ .width = 3, .height = 4 },
+        .minimum = .{ .width = 10, .height = 15 },
+    }, display);
+    try std.testing.expectApproxEqAbs(10, child.rect.width, 0.5);
+    try std.testing.expectApproxEqAbs(15, child.rect.height, 0.5);
+
+    display.need_relayout = true;
+    display.relayout();
+
+    try std.testing.expectApproxEqAbs(10, child.rect.width, 0.5);
+    try std.testing.expectApproxEqAbs(15, child.rect.height, 0.5);
+}
+
 test "shrunk_label_in_panel" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    // TODO: 10->22
     var display = try headless_display(allocator, io, 200, 100, 2);
     defer display.destroy();
 
@@ -674,6 +716,7 @@ const info = engine.log.info;
 const debug = engine.log.debug;
 const trace = engine.log.trace;
 const clamp = engine.clamp;
+const directional_clamp = engine.directional_clamp;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;

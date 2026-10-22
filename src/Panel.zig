@@ -363,8 +363,8 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
         if (entity.type != .label) continue;
 
         const size = Label.layout(entity, available_width);
-        if (entity.layout.x != .fixed) entity.rect.width = size.width;
-        if (entity.layout.y != .fixed) entity.rect.height = size.height;
+        if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
+        if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
     }
 
     // Step 2 - Entity placement

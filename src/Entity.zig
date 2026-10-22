@@ -1046,8 +1046,8 @@ pub inline fn setText(
             @min(self.maximum.width, width);
 
         const size = Label.layout(self, allowed_width);
-        if (self.layout.x != .fixed) self.rect.width = size.width;
-        if (self.layout.y != .fixed) self.rect.height = size.height;
+        if (self.layout.x != .fixed) self.rect.width = @max(size.width, self.minimum.width);
+        if (self.layout.y != .fixed) self.rect.height = @max(size.height, self.minimum.height);
     }
 
     if (self.visible != .hidden) display.need_relayout = true;
@@ -1139,6 +1139,9 @@ pub fn postAppend(
     display: *Display,
     entity: *Entity,
 ) (Error || Allocator.Error || Resources.Error)!void {
+    entity.rect.width = directional_clamp(entity.layout.x, entity.minimum.width, entity.rect.width, entity.maximum.width);
+    entity.rect.height = directional_clamp(entity.layout.y, entity.minimum.height, entity.rect.height, entity.maximum.height);
+
     if (entity.getText()) |text| {
         try entity.setText(display, text);
     }
