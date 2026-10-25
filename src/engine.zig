@@ -27,7 +27,7 @@ pub const Error = error{
     UnexpectedToken,
     ImageNotLoaded,
     Canceled,
-};
+} || Resources.Error || Allocator.Error;
 
 /// Capture _all_ zig log messages for the engine log system.
 pub const std_options: std.Options = .{

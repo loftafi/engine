@@ -170,8 +170,7 @@ pub fn create(
     gpa: Allocator,
     io: std.Io,
     config: Config,
-) (Error || Allocator.Error || Resources.Error || engine.Error ||
-    std.Io.Dir.StatError || std.Io.File.OpenError)!*Display {
+) (Error || std.Io.Dir.StatError || std.Io.File.OpenError)!*Display {
     info("Initialising Display. {s} {s}", .{
         config.app_name orelse "Unknown",
         config.app_version orelse "0.0.0",
@@ -1003,7 +1002,7 @@ pub fn setDefaultFont(
     name: []const u8,
     lang: praxis.Lang,
     config: Font.Config,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     const font_info = try self.loadFontResource(name, config);
     try self.required_resource.put(self.allocator, font_info.resource.uid, font_info.resource);
     defer removeFontFromList(self.allocator, &self.fonts, font_info);
@@ -1063,7 +1062,7 @@ pub fn loadFontResource(
     self: *Display,
     name: []const u8,
     config: Font.Config,
-) (Error || Allocator.Error || Resources.Error)!*Font {
+) Error!*Font {
     assert(self.display_scale > 0);
 
     for (self.fonts.items) |font| {
@@ -1165,7 +1164,7 @@ pub fn dumpAnimators(self: *Display) void {
 pub inline fn addPanel(
     self: *Display,
     item: Entity,
-) (Allocator.Error || Resources.Error || Error)!*Entity {
+) Error!*Entity {
     if (item.type != .panel) {
         warn("addPanel requires a panel entity, not {s} {s}", .{
             @tagName(item.type),
@@ -1188,7 +1187,7 @@ pub inline fn appendPanel(
     data: []const u8,
     HandlerType: type,
     handler: *HandlerType,
-) (Allocator.Error || Resources.Error || Error)!*Entity {
+) Error!*Entity {
     var token: Token = try .init(data);
 
     if (token.tag == .eof) return Error.UnexpectedToken;
@@ -1307,7 +1306,7 @@ pub inline fn requireResourceRecord(
     self: *Display,
     name: []const u8,
     category: Resources.SearchCategory,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     const resource = try self.resources.lookupRandom(name, category);
     if (resource == null) {
         err("missing {t} file named \"{s}\" not found.", .{
@@ -1333,7 +1332,7 @@ pub inline fn requireResourceRecord(
 pub inline fn requireImage(
     self: *Display,
     name: []const u8,
-) (Error || Allocator.Error || Resources.Error)!?*Texture {
+) Error!?*Texture {
     const texture = try self.loadBundleTexture(&self.resources, name);
     if (texture != null)
         try self.required_resource.put(
@@ -1349,7 +1348,7 @@ pub fn loadBundleTexture(
     self: *Display,
     bundle: *Resources,
     name: []const u8,
-) (Error || Allocator.Error || Resources.Error)!?*Texture {
+) Error!?*Texture {
     if (name.len == 0) return null;
 
     // Get a resource UID that matches the requested file/resource name.
@@ -1422,7 +1421,7 @@ pub inline fn playResource(
     retain: Audio.Retain,
     volume: f32,
     callback: ?Audio.Callback,
-) (Error || Allocator.Error || Resources.Error)!?*Audio {
+) Error!?*Audio {
     return self.playBundleResource(
         io,
         &self.resources,
@@ -1437,7 +1436,7 @@ pub inline fn playResource(
 pub fn stopAllAudio(
     self: *Display,
     fade_out_ms: i64,
-) (Error || Allocator.Error)!void {
+) Error!void {
     _ = mixer.MIX_StopAllTracks(self.mix, fade_out_ms);
 }
 
@@ -1468,7 +1467,7 @@ pub fn playBundleResource(
     retain: Audio.Retain,
     volume: f32,
     callback: ?Audio.Callback,
-) (Error || Allocator.Error || Resources.Error)!?*Audio {
+) Error!?*Audio {
     if (name.len == 0) {
         err("play_bundle_resource(\"{s}\") resource name empty", .{name});
         return null;
@@ -1657,10 +1656,7 @@ const SelectState = enum(u2) {
 /// to the next selectable entity in the entity tree.
 /// Note that next selectable entity in the entity tree might not be
 /// not the entity visually located to the right of the current entity.
-pub fn selectNextEntity(
-    self: *Display,
-    event: *const Event,
-) void {
+pub fn selectNextEntity(self: *Display, event: *const Event) void {
     trace("selectNextEntity() find next entity", .{});
     var state = SelectState.no_selectable_items;
     var previous: ?*Entity = null;
@@ -1767,10 +1763,7 @@ fn do_selectNextEntity(
 }
 
 /// Find the closest entity that is to the left of this entity.
-pub fn selectLeftEntity(
-    self: *Display,
-    event: *const Event,
-) void {
+pub fn selectLeftEntity(self: *Display, event: *const Event) void {
     var walker = EntityWalker.default;
     var chooser = EntityWalker.ClosestLeft.init(self);
     walker.walk(&self.root, self, &chooser, .{});
@@ -1778,10 +1771,7 @@ pub fn selectLeftEntity(
 }
 
 /// Find the closest entity that is to the right of this entity.
-pub fn selectRightEntity(
-    self: *Display,
-    event: *const Event,
-) void {
+pub fn selectRightEntity(self: *Display, event: *const Event) void {
     var walker = EntityWalker.default;
     var chooser = EntityWalker.ClosestRight.init(self);
     walker.walk(&self.root, self, &chooser, .{});
@@ -1789,10 +1779,7 @@ pub fn selectRightEntity(
 }
 
 /// Find the closest entity that is above this entity.
-pub fn selectAboveEntity(
-    self: *Display,
-    event: *const Event,
-) void {
+pub fn selectAboveEntity(self: *Display, event: *const Event) void {
     var walker = EntityWalker.default;
     var chooser = EntityWalker.ClosestAbove.init(self);
     walker.walk(&self.root, self, &chooser, .{});
@@ -1800,10 +1787,7 @@ pub fn selectAboveEntity(
 }
 
 /// Find the closest entity that is below this entity.
-pub fn selectBelowEntity(
-    self: *Display,
-    event: *const Event,
-) void {
+pub fn selectBelowEntity(self: *Display, event: *const Event) void {
     var walker = EntityWalker.default;
     var chooser = EntityWalker.ClosestBelow.init(self);
     walker.walk(&self.root, self, &chooser, .{});
@@ -1863,7 +1847,11 @@ pub const EntityWalker = struct {
                 .distance = std.math.floatMax(f32),
             };
         }
-        pub fn choose(self: *ClosestLeft, option: *const Entity, parent_offset: Vector) bool {
+        pub fn choose(
+            self: *ClosestLeft,
+            option: *const Entity,
+            parent_offset: Vector,
+        ) bool {
             const position = option.rect.move(parent_offset);
             if (position.x + position.width > self.anchor.x) return false;
             const d = self.anchor.distance(.{

@@ -100,7 +100,7 @@ type: union(Type) {
 pub fn setup(
     entity: *Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     switch (entity.type) {
         .panel => try entity.setup_panel(display),
         .button => try entity.setup_button(display),
@@ -702,7 +702,7 @@ pub inline fn setImage(
     display: *Display,
     repository: *Resources,
     name: []const u8,
-) (Allocator.Error || Resources.Error || engine.Error)!?*Texture {
+) engine.Error!?*Texture {
     const start = std.Io.Timestamp.now(display.io, .real).toMilliseconds();
     const texture = try display.loadBundleTexture(repository, name);
     if (texture == null) {
@@ -737,7 +737,7 @@ pub inline fn setBackgroundImage(
     display: *Display,
     repository: *Resources,
     name: []const u8,
-) (Allocator.Error || Resources.Error || engine.Error)!?*Texture {
+) Error!?*Texture {
     const texture = try display.loadBundleTexture(repository, name);
     if (texture == null) {
         warn("setBackgroundImage failed to find image resource named \"{s}\"", .{name});
@@ -1059,7 +1059,7 @@ pub inline fn add(
     self: *Entity,
     conf: Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!*Entity {
+) Error!*Entity {
     std.debug.assert(self.type == .panel);
     const child = try display.allocator.create(Entity);
     child.* = conf;
@@ -1080,7 +1080,7 @@ pub inline fn append(
     HandlerType: type,
     handler: *HandlerType,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!*Entity {
+) Error!*Entity {
     std.debug.assert(self.type == .panel);
 
     var token: Token = try .init(data);
@@ -1109,7 +1109,7 @@ pub inline fn appendMultiple(
     HandlerType: type,
     handler: *HandlerType,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     std.debug.assert(self.type == .panel);
 
     var token: Token = try .init(data);
@@ -1138,7 +1138,7 @@ pub inline fn appendMultiple(
 pub fn postAppend(
     display: *Display,
     entity: *Entity,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.rect.width = directional_clamp(entity.layout.x, entity.minimum.width, entity.rect.width, entity.maximum.width);
     entity.rect.height = directional_clamp(entity.layout.y, entity.minimum.height, entity.rect.height, entity.maximum.height);
 
@@ -1233,7 +1233,7 @@ pub inline fn insert(
     location: usize,
     conf: Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!*Entity {
+) Error!*Entity {
     std.debug.assert(self.type == .panel);
     std.debug.assert(location <= self.type.panel.children.items.len);
     const child = try display.allocator.create(Entity);
@@ -1925,7 +1925,7 @@ fn word_wrap_line(entity: *const Entity, max_parent_width: f32) f32 {
 pub fn setup_rect(
     entity: *Entity,
     _: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.texture = null;
     entity.background.image = null;
     if (entity.focus == .unspecified) {
@@ -1937,7 +1937,7 @@ pub fn setup_rect(
 pub fn setup_panel(
     entity: *Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.texture = null;
     entity.background.image = null;
 
@@ -1966,7 +1966,7 @@ pub fn setup_panel(
 pub fn setup_progress_bar(
     entity: *Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.texture = null;
     entity.background.image = null;
     if (entity.focus == .unspecified)
@@ -1988,7 +1988,7 @@ pub fn setup_progress_bar(
 pub fn setup_checkbox(
     entity: *Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.texture = null;
     entity.background.image = null;
     entity.type.checkbox.translated = "";
@@ -2030,7 +2030,7 @@ pub fn setup_checkbox(
 pub fn setup_expander(
     entity: *Entity,
     _: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.texture = null;
     entity.background.image = null;
     entity.focus = .never_focus;
@@ -2042,7 +2042,7 @@ pub fn setup_expander(
 pub fn setup_text_input(
     entity: *Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.texture = null;
     entity.background.image = null;
     if (entity.focus == .unspecified)
@@ -2087,7 +2087,7 @@ pub fn setup_text_input(
 pub fn setup_sprite(
     entity: *Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.texture = null;
     entity.background.image = null;
     if (entity.focus == .unspecified)
@@ -2127,7 +2127,7 @@ pub fn setup_sprite(
 pub fn setup_button(
     entity: *Entity,
     display: *Display,
-) (Error || Allocator.Error || Resources.Error)!void {
+) Error!void {
     entity.type.button.translated = "";
     entity.texture = null;
     entity.background.image = null;
