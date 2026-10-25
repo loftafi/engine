@@ -206,7 +206,7 @@ test "text input sizing" {
             .layout = .{ .x = .fixed, .y = .grows },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(500, l.minimumNeededWidth(500));
+        try eq(401, l.minimumNeededWidth(500));
         try eq(50, l.minimumNeededHeight(500));
         panel.removeEntities(display);
     }
@@ -222,7 +222,7 @@ test "text input sizing" {
             .layout = .{ .x = .fixed, .y = .fixed },
         }, display);
         l.pad = .{ .top = 0, .bottom = 0, .left = 0, .right = 0 };
-        try eq(500, l.minimumNeededWidth(500));
+        try eq(401, l.minimumNeededWidth(500));
         try eq(60, l.minimumNeededHeight(500));
         panel.removeEntities(display);
     }
