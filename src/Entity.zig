@@ -757,7 +757,7 @@ pub inline fn setBackgroundImage(
 pub inline fn clearBackgroundImage(
     self: *Entity,
     display: *Display,
-) error{Canceled} {
+) error{Canceled}!void {
     if (self.background.image != null) {
         try display.releaseTextureResource(self.background.image.?);
         self.background.image = null;

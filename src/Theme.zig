@@ -123,7 +123,7 @@ pub const default_themes = [5]Theme{
         .input_placeholder_colour = .{ .r = 132, .g = 142, .b = 172, .a = 255 },
         .input_icon_colour = .{ .r = 132, .g = 142, .b = 172, .a = 255 },
         .input_text_colour = .{ .r = 0, .g = 0, .b = 0, .a = 255 },
-        .input_cursor_colour = .{ .r = 255, .g = 255, .b = 255, .a = 128 },
+        .input_cursor_colour = .{ .r = 102, .g = 112, .b = 132, .a = 255 },
         .panel_colour = .{ .r = 31, .g = 34, .b = 48, .a = 255 },
         .tinted_text_colour = .{ .r = 185, .g = 185, .b = 245, .a = 255 },
         .tinted_panel_colour = .{ .r = 255, .g = 205, .b = 205, .a = 128 },
