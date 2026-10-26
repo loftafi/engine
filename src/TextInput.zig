@@ -1,18 +1,31 @@
 /// A basic single line text input boxf
 pub const TextInput = @This();
 
+/// Default maximum number of unicode u21 characters.
 pub const default_max_length: u16 = 1000;
 
 font: *Font = undefined,
 font_name: ?[]const u8 = null,
+
 texture: ?*sdl.SDL_Texture = null,
 initial_text: ?[]const u8 = "",
 icon_texture_name: ?[]const u8 = "",
+
 text_size: TextSize = .normal,
+
+/// Current text in the form of utf8 slices.
 text: ArrayListUnmanaged(u8) = .empty,
+
+/// Current text in the form of u21 unicode codepoints.
 runes: ArrayListUnmanaged(u21) = .empty,
+
+/// Maximum number of unicode u21 characters.
 max_length: ?u16 = null,
+
+/// TBC
 cursor_character: usize = 0,
+
+/// Placement of the cursor based on the `cursor_character` position.
 cursor_pixels: f32 = 0,
 
 /// Called when the user adds or removes a character to the text input.
@@ -23,6 +36,8 @@ on_submit: Entity.Callback = .empty,
 
 /// Display default lightly faded placeholder text.
 placeholder_text: ?[]const u8 = "",
+
+/// Actual placeholder text to display, translated when possible.
 placeholder_translate: []const u8 = "",
 
 /// Optionally mask each character by drawing it as a symbol.
@@ -48,9 +63,7 @@ pub fn keypress(
             return;
         },
         @backingInt(Key.backspace) => {
-            if (self.runes.items.len == 0) {
-                return;
-            }
+            if (self.runes.items.len == 0) return;
             _ = self.runes.pop();
             self.text_runes_to_data(display.allocator);
             self.cursor_character -= 1;
