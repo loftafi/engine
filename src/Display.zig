@@ -556,7 +556,7 @@ pub fn destroy(self: *Display) void {
     self.audio_cache = null;
 
     self.required_resource.deinit(gpa);
-    self.resources.deinit(gpa);
+    self.resources.deinit();
 
     self.keybindings.deinit(gpa);
     self.translation.deinit(gpa);

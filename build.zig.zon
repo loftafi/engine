@@ -1,16 +1,16 @@
 .{
     .name = .engine,
-    .version = "0.60.2",
+    .version = "0.60.3",
     .fingerprint = 0xe8a81a8d0aa558d5,
-    .minimum_zig_version = "0.17.0",
+    .minimum_zig_version = "0.17.1",
     .dependencies = .{
         .translator = .{
-            .url = "git+https://github.com/loftafi/translator?ref=0.3.0#85185c46a47856ffd3b2d0c7fa21223654b1b0de",
-            .hash = "translator-0.3.0-cfHZxqBQAAAQqx6jM_5bzZzH0H8rfM6oy8F99R8_diXG",
+            .url = "git+https://github.com/loftafi/translator?ref=0.4.0#e8d7a4075ec98a833b2fbb97a4d41462a5883377",
+            .hash = "translator-0.4.0-cfHZxqBQAADLU5ZLMMWmVUctJoE9IC4WVj1_iCgLa244",
         },
         .resources = .{
-            .url = "git+https://github.com/loftafi/resources?ref=3.5.2#4c64a26f3128867d60978462ca167a10653c561f",
-            .hash = "resources-3.5.2-J0GwI5ikzAD7d_TOCr8LgDAkllDILsaIbh5IYmiGnl-8",
+            .url = "git+https://github.com/loftafi/resources?ref=4.0.0#156ce4a1bde78a19600d75eb989b9f3fc6e041ec",
+            .hash = "resources-4.0.0-J0GwI0iizABRyNYgpWHZpA32cM3FkrJ8qo0ExyLEl4IL",
         },
         .sdl = .{
             // Required by the android template if `zig build android` is requested.
@@ -27,8 +27,8 @@
             .hash = "translate_c-2.0.0-Q_BUWltOBwBYABF84EUL208pIFeUIwbBs29FmVBaafN5",
         },
         .TrueType = .{
-            .url = "git+https://codeberg.org/andrewrk/TrueType.git#ce9da97eb4d1d30fee2a3faa190b25cf0c5d0797",
-            .hash = "TrueType-2.0.0-Ne-mWFx1AQCFjSOoGeTbEftPraXV6E9bZ2eOwcIUfnec",
+            .url = "git+https://codeberg.org/andrewrk/TrueType.git#4fea1e7c0f9d4d79348d0302c7628f485301b6ac",
+            .hash = "TrueType-3.0.0-dev-Ne-mWBF4AQAMqTUooRKXp31FdyJSGmRwSIw4vy7EREcT",
         },
         .zig_objc = .{
             // Used on iOS/macOS to register local notifications
