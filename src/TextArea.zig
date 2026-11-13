@@ -1,4 +1,4 @@
-pub const Text = @This();
+pub const TextArea = @This();
 
 pub const Paragraph = struct {
     elements: ArrayList(TextElement) = .empty,
@@ -24,14 +24,14 @@ on_element_unhover: Entity.Callback = .empty,
 /// Mouse clicked, cursor+enter, gamepad click on `TextElement`
 on_element_pressed: Entity.Callback = .empty,
 
-pub fn deinit(self: *Text, allocator: Allocator) void {
+pub fn deinit(self: *TextArea, allocator: Allocator) void {
     for (self.paragraphs.items) |*p|
         p.elements.deinit(allocator);
     self.paragraphs.deinit(allocator);
 }
 
 pub fn setup(
-    self: *Text,
+    self: *TextArea,
     display: *Display,
     entity: *Entity,
 ) (Error || Allocator.Error || Resources.Error)!void {
@@ -40,9 +40,9 @@ pub fn setup(
     self.paragraphs = .empty;
 
     if (entity.focus == .unspecified) {
-        if (entity.type.text.on_ui_event.func != null)
+        if (entity.type.text_area.on_ui_event.func != null)
             entity.focus = .can_focus
-        else if (entity.type.text.on_pressed.func != null)
+        else if (entity.type.text_area.on_pressed.func != null)
             entity.focus = .can_focus
         else
             entity.focus = .accessibility_focus;
@@ -64,7 +64,7 @@ pub fn setup(
 /// Update the text contents of this `Text` entity. A single newline character
 /// is ignored. Two newline characters mark a new paragraph.
 pub fn setText(
-    self: *Text,
+    self: *TextArea,
     display: *Display,
     new_text: []const u8,
     entity: *Entity,
@@ -139,19 +139,19 @@ test setText {
     display.relayout();
 
     var t = try panel.add(.{
-        .type = .{ .text = .{} },
+        .type = .{ .text_area = .{} },
     }, display);
 
-    try eq(0, t.type.text.paragraphs.items.len);
+    try eq(0, t.type.text_area.paragraphs.items.len);
     try t.setText(display, "A fish.");
-    try eq(1, t.type.text.paragraphs.items.len);
+    try eq(1, t.type.text_area.paragraphs.items.len);
     try t.setText(display, "A fish.\n\nThe cat.");
-    try eq(2, t.type.text.paragraphs.items.len);
+    try eq(2, t.type.text_area.paragraphs.items.len);
 }
 
 /// A text area is considered clickable if it has user driven event
 /// handlers, or if it has text and we are in blind accessibility mode.
-pub inline fn clickable(text: *const Text) bool {
+pub inline fn clickable(text: *const TextArea) bool {
     // TODO: should accessibility check be pulled in here
     return text.on_ui_event.func != null or
         text.on_pressed.func != null or
@@ -168,7 +168,7 @@ pub inline fn clickable(text: *const Text) bool {
 /// If the text is centred or right aligned, then each line must be pushed along
 /// by a certain offset amount.
 pub inline fn draw(
-    self: *const Text,
+    self: *const TextArea,
     entity: *Entity,
     display: *Display,
     _: Vector, //parent_scroll_offset: Vector,
@@ -199,7 +199,7 @@ pub inline fn draw(
 // `parent_inner_width` is the maximum space this entity could
 // theoretically grow to. Text might wrap if wider than this.
 pub inline fn minimumNeededWidth(
-    _: *const Text,
+    _: *const TextArea,
     entity: *const Entity,
     parent_inner_width: f32,
 ) f32 {
@@ -227,26 +227,26 @@ pub inline fn layout(
     entity: *const Entity,
     parent_inner_width: f32,
 ) SizeInfo {
-    std.debug.assert(entity.type == .text);
+    std.debug.assert(entity.type == .text_area);
 
     const empty: SizeInfo = .{ .width = 0, .minimum_width = 0, .height = 0 };
-    if (entity.type.text.text.len == 0) return empty;
+    if (entity.type.text_area.text.len == 0) return empty;
 
-    const text_height = entity.type.text.text_size;
+    const text_height = entity.type.text_area.text_size;
 
-    const default_font = entity.type.text.paragraphs.items[0].elements.items[0].font;
+    const default_font = entity.type.text_area.paragraphs.items[0].elements.items[0].font;
     const word_spacing = default_font.space_width;
     const maximum_total_width = clamp(entity.minimum.width, parent_inner_width, entity.maximum.width);
     const maximum_text_width = @max(0, maximum_total_width - (entity.pad.left + entity.pad.right));
 
     var box: BoxLayout = .init(maximum_text_width, word_spacing, 0);
 
-    for (entity.type.text.paragraphs.items, 0..) |paragraph, count| {
+    for (entity.type.text_area.paragraphs.items, 0..) |paragraph, count| {
         const children = paragraph.elements.items;
         if (children.len == 0) continue;
 
         if (count > 0) {
-            box.newline(entity.type.text.text_size.size());
+            box.newline(entity.type.text_area.text_size.size());
         }
 
         // Lay down each word one by one and wrap before we hit the
@@ -256,7 +256,7 @@ pub inline fn layout(
             if (word.isCR()) {
                 word.location = .{ .x = 0, .y = 0, .width = 0, .height = 0 };
                 box.finalise();
-                warn("Text entity should not contain CR.", .{});
+                warn("TextArea entity should not contain CR.", .{});
                 continue;
             }
 
@@ -294,7 +294,7 @@ pub inline fn layout(
 
     if (entity.child_align.x == .centre or entity.child_align.x == .end) {
         // Apply alignment to each paragraph
-        for (entity.type.text.paragraphs.items) |paragraph| {
+        for (entity.type.text_area.paragraphs.items) |paragraph| {
             const children = paragraph.elements.items;
             if (children.len == 0) continue;
             var line: struct { start: usize, end: usize } = .{ .start = 0, .end = 0 };
@@ -332,7 +332,7 @@ pub inline fn layout(
 // `parent_inner_width` is the maximum space this entity could
 // theoretically grow to. Text might wrap if wider than this.
 pub inline fn minimumNeededHeight(
-    _: *const Text,
+    _: *const TextArea,
     entity: *const Entity,
     parent_inner_width: f32,
 ) f32 {
@@ -391,7 +391,7 @@ test "text_panel_placement" {
     try eq(200, panel.rect.height);
 
     const child = try panel.add(.{
-        .type = .{ .text = .{ .text = "Simple" } },
+        .type = .{ .text_area = .{ .text = "Simple" } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     }, display);
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
@@ -455,12 +455,12 @@ test "single_word_layout" {
 
     const child = try panel.add(.{
         .name = "child",
-        .type = .{ .text = .{ .text = "Simple" } },
+        .type = .{ .text_area = .{ .text = "Simple" } },
         .layout = .{ .x = .grows, .y = .shrinks },
     }, display);
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
 
-    const paragraph = &child.type.text.paragraphs.items[0];
+    const paragraph = &child.type.text_area.paragraphs.items[0];
     const element = &paragraph.elements.items[0];
 
     // Test alignment without padding
@@ -573,7 +573,7 @@ test "word_wrap_layout" {
     const text_size = TextSize.normal;
     const child: *Entity = try panel.add(.{
         .name = "text_area",
-        .type = .{ .text = .{
+        .type = .{ .text_area = .{
             .text = string,
             .text_size = text_size,
         } },
@@ -581,12 +581,12 @@ test "word_wrap_layout" {
         .pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 },
     }, display);
 
-    try std.testing.expectEqualStrings(string, child.type.text.text);
+    try std.testing.expectEqualStrings(string, child.type.text_area.text);
     try eq(display_width, child.rect.width);
     try eq(22 + 22, child.rect.height); // Two lines wrapped
 
     // Paragraph has three words (elements)
-    const paragraph = &child.type.text.paragraphs.items[0];
+    const paragraph = &child.type.text_area.paragraphs.items[0];
     const element1 = &paragraph.elements.items[0];
     const element2 = &paragraph.elements.items[1];
     const element3 = &paragraph.elements.items[2];
@@ -672,7 +672,7 @@ test "paragraph_spacing" {
     const text_size = TextSize.normal;
     const child: *Entity = try panel.add(.{
         .name = "text_area",
-        .type = .{ .text = .{
+        .type = .{ .text_area = .{
             .text = string,
             .text_size = text_size,
         } },
@@ -681,8 +681,8 @@ test "paragraph_spacing" {
     }, display);
 
     // Paragraph has three words (elements)
-    const paragraph1 = &child.type.text.paragraphs.items[0];
-    const paragraph2 = &child.type.text.paragraphs.items[1];
+    const paragraph1 = &child.type.text_area.paragraphs.items[0];
+    const paragraph2 = &child.type.text_area.paragraphs.items[1];
     const element1 = &paragraph1.elements.items[0];
     const element2 = &paragraph2.elements.items[0];
 
@@ -690,7 +690,7 @@ test "paragraph_spacing" {
     try eq(0, child.rect.y);
     try eq(0, element1.location.x);
     try eq(0, element2.location.x);
-    try eq(element1.location.height + element2.location.height + child.type.text.text_size.size(), child.rect.height);
+    try eq(element1.location.height + element2.location.height + child.type.text_area.text_size.size(), child.rect.height);
 }
 
 test "minimum_textarea_height" {
@@ -717,7 +717,7 @@ test "minimum_textarea_height" {
 
     // An empty text area should allow a minimum height
     const child = try panel.add(.{
-        .type = .{ .text = .{} },
+        .type = .{ .text_area = .{} },
         .visible = .visible,
         .layout = .{ .x = .shrinks, .y = .shrinks },
         .rect = .{ .width = 3, .height = 4 },
@@ -755,7 +755,7 @@ test "shrunk_textarea_in_panel" {
     try eq(100, panel.rect.height);
 
     const child = try panel.add(.{
-        .type = .{ .text = .{ .text = "Simple" } },
+        .type = .{ .text_area = .{ .text = "Simple" } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     }, display);
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
@@ -790,7 +790,7 @@ test "shrunk_textarea_in_panel" {
 
     // Where would the draw function theoretically put this element
     const loc = Vector{ .x = child.rect.x, .y = child.rect.y };
-    const paragraph = child.type.text.paragraphs.items[0];
+    const paragraph = child.type.text_area.paragraphs.items[0];
     const would_draw_at = paragraph.elements.items[0].location.move(loc);
     try eq(@round((panel.rect.width - panel.pad.left - panel.pad.right) / 2 - (child.rect.width / 2)) + panel.pad.left, would_draw_at.x);
     try eq(2, would_draw_at.y);

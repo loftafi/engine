@@ -365,8 +365,8 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
             if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
             if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
         }
-        if (entity.type == .text) {
-            const size = Text.layout(entity, available_width);
+        if (entity.type == .text_area) {
+            const size = TextArea.layout(entity, available_width);
             if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
             if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
         }
@@ -1426,7 +1426,7 @@ const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
 const Label = @import("Label.zig");
-const Text = @import("Text.zig");
+const TextArea = @import("TextArea.zig");
 
 const Clip = Entity.Clip;
 const LayoutDirection = Entity.LayoutDirection;

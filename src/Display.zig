@@ -2064,7 +2064,7 @@ pub fn find_under_cursor(
                     if (query == .clickable) return item;
                     if (top_entity != null) top_entity = item;
                 },
-                .text => |t| if (t.clickable()) {
+                .text_area => |t| if (t.clickable()) {
                     if (query == .clickable) return item;
                     if (top_entity != null) top_entity = item;
                 },
@@ -2519,7 +2519,7 @@ inline fn handleMouseUpEvent(
             },
             .button => try found.chosen(display, &.{ .type = .mouse_up }),
             .label => try found.chosen(display, &.{ .type = .mouse_up }),
-            .text => try found.chosen(display, &.{ .type = .mouse_up }),
+            .text_area => try found.chosen(display, &.{ .type = .mouse_up }),
             .sprite => try found.chosen(display, &.{ .type = .mouse_up }),
             .checkbox => try found.chosen(display, &.{ .type = .mouse_up }),
             .text_input => found.selected(display, &.{ .type = .mouse_up }),

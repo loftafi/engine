@@ -98,7 +98,7 @@ pub fn readEntityType(allocator: Allocator, token: *Token) (Allocator.Error || E
         },
         .text_area => .{
             .focus = .accessibility_focus,
-            .type = .{ .text = .{ .text_size = .normal } },
+            .type = .{ .text_area = .{ .text_size = .normal } },
         },
         .panel => .{
             .texture = null,
@@ -544,7 +544,7 @@ pub fn readOnUiEventAttribute(
         .button => &entity.type.button.on_ui_event,
         .checkbox => &entity.type.checkbox.on_ui_event,
         .label => &entity.type.label.on_ui_event,
-        .text => &entity.type.text.on_ui_event,
+        .text_area => &entity.type.text_area.on_ui_event,
         .panel => &entity.type.panel.on_ui_event,
         .sprite => &entity.type.sprite.on_ui_event,
         else => return Error.UnexpectedToken,
@@ -611,7 +611,7 @@ pub fn readOnPressedAttribute(
     const f: *Entity.Callback = switch (entity.type) {
         .button => &entity.type.button.on_pressed,
         .label => &entity.type.label.on_pressed,
-        .text => &entity.type.text.on_pressed,
+        .text_area => &entity.type.text_area.on_pressed,
         .panel => &entity.type.panel.on_pressed,
         .sprite => &entity.type.sprite.on_pressed,
         else => {
@@ -647,7 +647,7 @@ pub fn readOnElementPressedAttribute(
     callbacks: *const CallbackSet,
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
-        .text => &entity.type.text.on_element_pressed,
+        .text_area => &entity.type.text_area.on_element_pressed,
         else => {
             warn("on_element_pressed expected button, label, panel, or sprite. Found {t}", .{entity.type});
             return Error.UnexpectedToken;
@@ -681,7 +681,7 @@ pub fn readOnElementHoverAttribute(
     callbacks: *const CallbackSet,
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
-        .text => &entity.type.text.on_element_hover,
+        .text_area => &entity.type.text_area.on_element_hover,
         else => {
             warn("on_element_hover expected button, label, panel, or sprite. Found {t}", .{entity.type});
             return Error.UnexpectedToken;
@@ -715,7 +715,7 @@ pub fn readOnElementUnhoverAttribute(
     callbacks: *const CallbackSet,
 ) Error!void {
     const f: *Entity.Callback = switch (entity.type) {
-        .text => &entity.type.text.on_element_unhover,
+        .text_area => &entity.type.text_area.on_element_unhover,
         else => {
             warn("on_element_unhover expected button, label, panel, or sprite. Found {t}", .{entity.type});
             return Error.UnexpectedToken;
@@ -783,7 +783,7 @@ pub fn readSpacingAttribute(token: *Token, entity: *Entity, font_size: f32) Erro
 pub fn readLineHeightAttribute(token: *Token, entity: *Entity, font_size: f32) Error!void {
     const line_height = switch (entity.type) {
         .label => &entity.type.label.line_height,
-        .text => &entity.type.text.line_height,
+        .text_area => &entity.type.text_area.line_height,
         .checkbox => &entity.type.checkbox.line_height,
         else => return error.UnexpectedToken,
     };
@@ -905,7 +905,7 @@ pub fn readTextAttribute(
             const value = token.data[token.loc.start + 1 .. token.loc.end - 1];
             switch (entity.type) {
                 .label => entity.type.label.text = value,
-                .text => entity.type.text.text = value,
+                .text_area => entity.type.text_area.text = value,
                 .checkbox => entity.type.checkbox.text = value,
                 .button => entity.type.button.text = value,
                 .text_input => entity.type.text_input.initial_text = if (value.len > 0) value else null,
@@ -1494,7 +1494,7 @@ pub fn readIconSizeAttribute(
 pub fn readTextSizeAttribute(token: *Token, entity: *engine.Entity) Error!void {
     const size = switch (entity.type) {
         .label => &entity.type.label.text_size,
-        .text => &entity.type.text.text_size,
+        .text_area => &entity.type.text_area.text_size,
         .checkbox => &entity.type.checkbox.text_size,
         else => return error.UnexpectedToken,
     };
