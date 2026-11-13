@@ -2799,7 +2799,6 @@ pub const Type = enum {
 };
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const sqrt = std.math.sqrt;
 const pow = std.math.pow;

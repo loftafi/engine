@@ -4,7 +4,7 @@ font: *Font = undefined,
 font_name: ?[]const u8 = null,
 text: []const u8 = "",
 translated: []const u8 = "",
-elements: ArrayListUnmanaged(TextElement) = .empty,
+elements: ArrayList(TextElement) = .empty,
 line_height: f32 = 1,
 text_size: TextSize = .normal,
 
@@ -707,7 +707,7 @@ test "shrunk_label_in_panel" {
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const eq = std.testing.expectEqual;
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 
 const resources = @import("resources");
 const Resources = resources.Resources;

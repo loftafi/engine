@@ -59,7 +59,6 @@ pub inline fn draw(
 }
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;

@@ -792,12 +792,17 @@ pub fn readLineHeightAttribute(token: *Token, entity: *Entity, font_size: f32) E
 }
 
 pub fn readWeightAttribute(token: *Token, entity: *Entity) Error!void {
-    if (entity.type != .expander) return error.UnexpectedToken;
+    const weight = switch (entity.type) {
+        .panel => &entity.type.panel.weight,
+        .expander => &entity.type.expander.weight,
+        .text_area => &entity.type.expander.weight,
+        else => return error.UnexpectedToken,
+    };
     token.* = try token.next();
     //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .number => {
-            entity.type.expander.weight = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
+            weight.* = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
             token.* = try token.next();
             return;
         },

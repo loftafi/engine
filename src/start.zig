@@ -49,7 +49,7 @@ pub fn start(
     startup_handler = startup;
     shutdown_handler = shutdown;
 
-    var list: std.ArrayListUnmanaged(?[*:0]const u8) = .empty;
+    var list: std.ArrayList(?[*:0]const u8) = .empty;
     var iter = try args.iterateAllocator(arena_allocator.allocator());
     while (iter.next()) |arg| {
         try list.append(arena_allocator.allocator(), arg);

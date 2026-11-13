@@ -159,7 +159,7 @@ pub inline fn draw(
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const expectEqual = std.testing.expectEqual;
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 
 const resources = @import("resources");
 const Resources = resources.Resources;

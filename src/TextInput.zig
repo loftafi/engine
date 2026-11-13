@@ -14,10 +14,10 @@ icon_texture_name: ?[]const u8 = "",
 text_size: TextSize = .normal,
 
 /// Current text in the form of utf8 slices.
-text: ArrayListUnmanaged(u8) = .empty,
+text: ArrayList(u8) = .empty,
 
 /// Current text in the form of u21 unicode codepoints.
-runes: ArrayListUnmanaged(u21) = .empty,
+runes: ArrayList(u21) = .empty,
 
 /// Maximum number of unicode u21 characters.
 max_length: ?u16 = null,
@@ -248,7 +248,7 @@ pub inline fn minimumNeededWidth(
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;

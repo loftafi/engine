@@ -323,15 +323,12 @@ test "clickable" {
 
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;
 const err = engine.err;
 const Display = engine.Display;
 const Entity = engine.Entity;
-const Error = engine.Error;
-const Font = engine.Font;
 const Texture = engine.Texture;
 
 const Clip = Entity.Clip;

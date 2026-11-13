@@ -22,7 +22,6 @@ test "init" {
 }
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
 
 const engine = @import("engine.zig");
 const Display = engine.Display;

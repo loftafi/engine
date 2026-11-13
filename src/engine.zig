@@ -391,7 +391,6 @@ test {
 }
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const expectEqual = std.testing.expectEqual;
 const builtin = @import("builtin");

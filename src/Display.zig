@@ -39,7 +39,7 @@ last_delta: i64,
 resources: Resources,
 
 /// A list of all active fonts loaded from the resources bundle.
-fonts: ArrayListUnmanaged(*Font),
+fonts: ArrayList(*Font),
 
 font: Font.Language,
 
@@ -151,7 +151,7 @@ root: Entity = .{
     .on_resized = .empty,
     .on_visibility = .empty,
 },
-animators: ArrayListUnmanaged(Animator),
+animators: ArrayList(Animator),
 
 keybindings: std.AutoHashMapUnmanaged(Key, Entity.Callback),
 on_resized: Entity.BoolCallback,
@@ -259,7 +259,7 @@ pub fn create(
     const current_driver = sdl.SDL_GetRendererName(renderer).?;
 
     const count = sdl.SDL_GetNumRenderDrivers();
-    var renderer_info: ArrayListUnmanaged(u8) = .empty;
+    var renderer_info: ArrayList(u8) = .empty;
     defer renderer_info.deinit(gpa);
     var i: c_int = 0;
     while (i < count) : (i += 1) {
@@ -1044,7 +1044,7 @@ pub fn setDefaultFont(
     }
 }
 
-fn removeFontFromList(allocator: Allocator, list: *ArrayListUnmanaged(*Font), item: *Font) void {
+fn removeFontFromList(allocator: Allocator, list: *ArrayList(*Font), item: *Font) void {
     for (0..list.items.len) |i| {
         if (list.items[i] == item) {
             if (list.items[i].release(allocator)) {
@@ -3093,7 +3093,7 @@ pub fn dumpEntityTree(
     gpa: Allocator,
     depth: usize,
 ) Allocator.Error!void {
-    var out = std.ArrayListUnmanaged(u8).empty;
+    var out = std.ArrayList(u8).empty;
     defer out.deinit(gpa);
     const pad = "                                                          ";
     try out.print(gpa, "{s}{s} {f}", .{
@@ -3780,7 +3780,7 @@ test "font_loading" {
 }
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const approxEqAbs = std.math.approxEqAbs;
 const expectEqual = std.testing.expectEqual;

@@ -22,6 +22,11 @@ scrollable: Scroller = .{
     .size = .{ .width = 0, .height = 0 },
 },
 
+/// If this panel is marked `grows`, set a `weight` greater than zero to
+/// indicate what portion of the whitespace this panel would like. The
+/// weight is relative to the weight in other entities in the same panel.
+weight: f32 = 0,
+
 /// Called every iteration of the main app loop.
 on_update: Entity.UpdateCallback = .empty,
 
@@ -348,11 +353,15 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
             }
         }
 
-        if (entity.type == .expander) {
-            if (entity.type.expander.weight <= 0) continue;
-            expanders[expander_count] = entity;
-            expander_count += 1;
-            expander_weights += entity.type.expander.weight;
+        if (entity.type == .expander or entity.layout.x == .grows or entity.layout.y == .grows) {
+            const entity_weight = switch (entity.type) {
+                inline else => |v| v.weight,
+            };
+            if (entity_weight > 0) {
+                expanders[expander_count] = entity;
+                expander_count += 1;
+                expander_weights += entity.type.expander.weight;
+            }
         }
     }
 

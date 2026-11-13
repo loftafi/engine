@@ -50,7 +50,7 @@ pub fn clone(self: *Texture) *Texture {
 
 const builtin = @import("builtin");
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
 const engine = @import("engine.zig");

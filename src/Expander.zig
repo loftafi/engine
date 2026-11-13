@@ -3,8 +3,13 @@
 /// the relative size of each expander.
 pub const Expander = @This();
 
-/// The `Expander` with the higher `weight` grabs more whitespace
-/// than the expander with a lower `weight`.
+/// Set a `weight` greater than zero to indicate what portion of
+/// excess whitespace this `Expander` will grow into.
+///
+/// For example, if two `Expander` entities each have a weight of 1
+/// then they evenly share the space. Alternatively, If two `Expander`
+/// entities have a `weight` of 1 and 10, then one `Expander` wants
+/// 10% the spare whitespace than the other.
 weight: f32 = 0,
 
 /// Expanders have no content to draw.
@@ -98,7 +103,7 @@ test "padding" {
 
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 
 const engine = @import("engine.zig");
 const headless_display = engine.headless_display;

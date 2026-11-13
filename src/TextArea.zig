@@ -13,6 +13,12 @@ paragraphs: ArrayList(Paragraph) = .empty,
 line_height: f32 = 1,
 text_size: TextSize = .normal,
 
+/// If this text area is marked `grows`, use `weight` greater than zero
+/// to ajust what portion of the whitespace this text area would like.
+/// The weight is relative to the weight in other entities in the same
+/// panel.
+weight: f32 = 0,
+
 // Handle User triggered events. Keyboard, Mouse, Game controller
 on_ui_event: Entity.Callback = .empty,
 on_pressed: Entity.Callback = .empty,

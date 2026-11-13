@@ -8,7 +8,7 @@ font_name: ?[]const u8 = null,
 text_size: TextSize = .normal,
 text: []const u8 = "",
 translated: []const u8 = "",
-elements: ArrayListUnmanaged(TextElement) = .empty,
+elements: ArrayList(TextElement) = .empty,
 line_height: f32 = 1,
 side: enum { start, end } = .end,
 spacing: f32 = 0,
@@ -138,7 +138,7 @@ pub inline fn minimumNeededHeight(
 }
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;

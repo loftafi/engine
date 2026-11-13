@@ -121,7 +121,7 @@ fn make_sdl_file_path(
     expected_file: []const u8,
 ) Allocator.Error!?[]const u8 {
     // Make the folder/file path
-    var buffer: std.ArrayListUnmanaged(u8) = .empty;
+    var buffer: std.ArrayList(u8) = .empty;
     try buffer.appendSlice(allocator, base_folder);
     if (!std.mem.endsWith(u8, base_folder, "/") and !std.mem.endsWith(u8, base_folder, "\\")) {
         try buffer.append(allocator, guess_separator(base_folder));
@@ -399,7 +399,7 @@ fn getUserDocumentsPath(
         return "";
     }
     const zpath = std.mem.sliceTo(path, 0);
-    var file: std.ArrayListUnmanaged(u8) = .empty;
+    var file: std.ArrayList(u8) = .empty;
     try file.appendSlice(gpa, zpath);
     if (file.items[file.items.len - 1] != '/' and file.items[file.items.len - 1] != '\\')
         try file.append(gpa, guess_separator(zpath));
@@ -434,7 +434,7 @@ fn getUserPreferencesPath(
     const zpath = std.mem.sliceTo(path, 0);
     //info("Preference path: {s} -> {s}", .{ zpath, filename });
 
-    var file: std.ArrayListUnmanaged(u8) = .empty;
+    var file: std.ArrayList(u8) = .empty;
     try file.appendSlice(gpa, zpath);
     if (file.items[file.items.len - 1] != '/' and file.items[file.items.len - 1] != '\\')
         try file.append(gpa, guess_separator(zpath));
@@ -463,7 +463,7 @@ fn load_folder_file_bytes(
     const input = in.?;
     defer _ = sdl.SDL_CloseIO(input);
 
-    var buffer = std.ArrayListUnmanaged(u8).empty;
+    var buffer = std.ArrayList(u8).empty;
     errdefer buffer.deinit(gpa);
     var block: [1024 * 5]u8 = undefined;
     _ = sdl.SDL_ClearError();

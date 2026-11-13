@@ -36,11 +36,11 @@ cache: std.AutoHashMap(TrueType.GlyphIndex, GlyphBitmap),
 
 /// Temporary working buffer to hold bitmap bytes when an individual character
 /// is generated.
-glyph_buffer: ArrayListUnmanaged(u8),
+glyph_buffer: ArrayList(u8),
 
 /// Temporary working buffer used to convert the greyscale character bitmap
 /// bytes into an RGBA image for SDL.
-image_buffer: ArrayListUnmanaged(u8),
+image_buffer: ArrayList(u8),
 
 /// A character bitmap only contains enough width and hight to store the character.
 /// Ascent describes how far up from the base "line" the bitmap should be drawn.
@@ -451,7 +451,7 @@ pub const Language = struct {
 };
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 
