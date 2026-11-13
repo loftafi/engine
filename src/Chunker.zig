@@ -29,7 +29,7 @@ pub fn next(self: *Chunker, font: *Font.Language) ?TextElement {
             }
             self.data.ptr += 1;
             self.data.len -= 1;
-            return .{ .text = cr, .width = 0, .font = font.default };
+            return .{ .text = cr, .width = 0, .font = font.default, .data = null };
         }
         if (!is_whitespace(self.data[0])) {
             break;
@@ -45,7 +45,7 @@ pub fn next(self: *Chunker, font: *Font.Language) ?TextElement {
             if (end == 0) {
                 self.data.ptr += 2;
                 self.data.len -= 2;
-                return .{ .text = cr, .width = 0, .font = font.default };
+                return .{ .text = cr, .width = 0, .font = font.default, .data = null };
             }
             break;
         }
@@ -61,6 +61,7 @@ pub fn next(self: *Chunker, font: *Font.Language) ?TextElement {
         .text = token,
         .font = guess_language(token, font),
         .width = 0,
+        .data = null,
     };
 }
 
@@ -90,7 +91,7 @@ pub fn guess_language(word: []const u8, font: *Font.Language) *Font {
     var it = v.iterator();
     while (it.nextCodepoint()) |c| {
         // Grouping characters are not meaningful for detecting language
-        if (c == '{' or c == '}' or c == '[' or c == ']') continue;
+        if (c == '{' or c == '}' or c == '[' or c == ']' or c == '(' or c == ')') continue;
 
         var x = Lang.unknown;
         if (is_greek_letter(c)) {

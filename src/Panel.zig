@@ -2,7 +2,7 @@
 pub const Panel = @This();
 
 /// Entities to draw inside this panel.
-children: ArrayListUnmanaged(*Entity) = .empty,
+children: ArrayList(*Entity) = .empty,
 
 /// Vertical or horizontal alignment
 direction: LayoutDirection = .centre,
@@ -360,11 +360,16 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     // layout of label text.
     for (self.children.items) |entity| {
         if (entity.visible == .hidden) continue;
-        if (entity.type != .label) continue;
-
-        const size = Label.layout(entity, available_width);
-        if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
-        if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
+        if (entity.type == .label) {
+            const size = Label.layout(entity, available_width);
+            if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
+            if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
+        }
+        if (entity.type == .text) {
+            const size = Text.layout(entity, available_width);
+            if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
+            if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
+        }
     }
 
     // Step 2 - Entity placement
@@ -1405,7 +1410,7 @@ test "centre_text_bug" {
 }
 
 const std = @import("std");
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 const eq = std.testing.expectEqual;
 
 const praxis = @import("praxis");
@@ -1421,6 +1426,7 @@ const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
 const Label = @import("Label.zig");
+const Text = @import("Text.zig");
 
 const Clip = Entity.Clip;
 const LayoutDirection = Entity.LayoutDirection;

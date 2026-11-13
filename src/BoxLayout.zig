@@ -60,8 +60,7 @@ pub fn place(self: *BoxLayout, width: f32, height: f32) Vector {
     return .{ .x = x, .y = y };
 }
 
-/// Set the `final.width` and `final.height` so that these
-/// variables may be read.
+/// Calculate the final box width and height.
 pub fn finalise(self: *BoxLayout) void {
     if (self.needed.width == 0 and self.needed.height == 0) return;
     self.trailing_space = self.max_width - self.needed.width;
@@ -69,6 +68,12 @@ pub fn finalise(self: *BoxLayout) void {
     self.final.height += self.needed.height;
     self.needed.width = 0;
     self.needed.height = 0;
+}
+
+/// Start a new line and insert spacing for the next paragrap.
+pub fn newline(self: *BoxLayout, space:f32) void {
+    self.finalise();
+    self.final.height += space;
 }
 
 pub fn clear(self: *BoxLayout) void {

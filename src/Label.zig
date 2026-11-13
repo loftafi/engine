@@ -12,6 +12,10 @@ text_size: TextSize = .normal,
 on_ui_event: Entity.Callback = .empty,
 on_pressed: Entity.Callback = .empty,
 
+pub fn deinit(self: *Label, allocator: Allocator) void {
+    self.elements.deinit(allocator);
+}
+
 pub fn setup(
     label: *Label,
     display: *Display,
@@ -219,7 +223,7 @@ pub inline fn layout(
 }
 
 /// Align a single line of TextElement's belonging to a label or a checkbox.
-inline fn applyLineJustification(
+pub inline fn applyLineJustification(
     entity: *const Entity,
     line_width: f32,
     usable_width: f32,

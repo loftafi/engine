@@ -1176,6 +1176,7 @@ pub inline fn addPanel(
     if (self.fonts.items.len == 0) {
         warn("addPanel '{s}' called before setDefaultFont.", .{item.name});
     }
+    if (item.visible != .hidden) self.need_relayout = true;
 
     return self.root.add(item, self);
 }
@@ -2063,6 +2064,10 @@ pub fn find_under_cursor(
                     if (query == .clickable) return item;
                     if (top_entity != null) top_entity = item;
                 },
+                .text => |t| if (t.clickable()) {
+                    if (query == .clickable) return item;
+                    if (top_entity != null) top_entity = item;
+                },
                 .sprite => |s| if (s.clickable()) {
                     if (query == .clickable) return item;
                     if (top_entity != null) top_entity = item;
@@ -2514,6 +2519,7 @@ inline fn handleMouseUpEvent(
             },
             .button => try found.chosen(display, &.{ .type = .mouse_up }),
             .label => try found.chosen(display, &.{ .type = .mouse_up }),
+            .text => try found.chosen(display, &.{ .type = .mouse_up }),
             .sprite => try found.chosen(display, &.{ .type = .mouse_up }),
             .checkbox => try found.chosen(display, &.{ .type = .mouse_up }),
             .text_input => found.selected(display, &.{ .type = .mouse_up }),
@@ -3089,7 +3095,7 @@ pub fn dumpEntityTree(
 ) Allocator.Error!void {
     var out = std.ArrayListUnmanaged(u8).empty;
     defer out.deinit(gpa);
-    const pad = "                                          ";
+    const pad = "                                                          ";
     try out.print(gpa, "{s}{s} {f}", .{
         pad[0..depth],
         pad[0..depth],

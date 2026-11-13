@@ -89,6 +89,7 @@ type: union(Type) {
     checkbox: Checkbox,
     expander: Expander,
     label: Label,
+    text: Text,
     panel: Panel,
     particles: Particles,
     progress_bar: ProgressBar,
@@ -105,6 +106,7 @@ pub fn setup(
         .panel => try entity.setup_panel(display),
         .button => try entity.setup_button(display),
         .label => try entity.type.label.setup(display, entity),
+        .text => try entity.type.text.setup(display, entity),
         .rectangle => try entity.setup_rect(display),
         .checkbox => try entity.setup_checkbox(display),
         .sprite => try entity.setup_sprite(display),
@@ -194,7 +196,10 @@ pub fn deinit(self: *Entity, allocator: Allocator, display: *Display) void {
             i.*.text.deinit(allocator);
         },
         .label => |*i| {
-            i.*.elements.deinit(allocator);
+            i.*.deinit(allocator);
+        },
+        .text => |*i| {
+            i.*.deinit(allocator);
         },
         .checkbox => |*i| {
             if (i.*.on_texture) |texture| {
@@ -319,6 +324,7 @@ pub inline fn applyBackgroundTint(
             return;
         },
         .label => tint_texture(texture, display.theme.background_colour),
+        .text => tint_texture(texture, display.theme.background_colour),
         .text_input => {
             if (display.theme.background_colour.a != 0 or self.style == .custom)
                 //tint_texture(texture, display.theme.background_colour)
@@ -493,6 +499,9 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             _ = try out.write(" text=");
             _ = try out.write(self.type.label.text);
         }
+        if (self.type.label.elements.items.len > 0) {
+            _ = try out.print(" tokens={d}", .{self.type.label.elements.items.len});
+        }
         if (!std.mem.eql(u8, self.type.label.text, self.type.label.translated) and self.type.label.translated.len > 0) {
             _ = try out.write(" translated=");
             _ = try out.write(self.type.label.text);
@@ -507,6 +516,24 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             _ = try out.write(" on_ui_event");
         if (self.type.label.on_pressed.func != null)
             _ = try out.write(" on_pressed");
+    } else if (self.type == .text) {
+        if (self.type.text.text.len > 0) {
+            _ = try out.write(" text=");
+            _ = try out.write(self.type.text.text);
+        }
+        if (self.type.text.paragraphs.items.len > 0) {
+            _ = try out.print(" paragraphs={d}", .{self.type.text.paragraphs.items.len});
+        }
+        if (self.type.text.on_ui_event.func != null)
+            _ = try out.write(" on_ui_event");
+        if (self.type.text.on_element_hover.func != null)
+            _ = try out.write(" on_element_hover_pressed");
+        if (self.type.text.on_element_unhover.func != null)
+            _ = try out.write(" on_element_unhover_pressed");
+        if (self.type.text.on_pressed.func != null)
+            _ = try out.write(" on_pressed");
+        if (self.type.text.on_element_pressed.func != null)
+            _ = try out.write(" on_element_pressed");
     } else if (self.type == .button) {
         if (self.type.button.toggle != .no_toggle) {
             _ = try out.print(" toggle={t}", .{self.type.button.toggle});
@@ -587,12 +614,13 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
     }
 }
 
-/// Changing the alignment requires reflowing the text in a label
+/// Changing the alignment requires reflowing the text in a label.
 pub inline fn setAlign(self: *Entity, x: LayoutAlign, y: LayoutAlign) void {
     self.child_align.x = x;
     self.child_align.y = y;
     switch (self.type) {
         .label, .checkbox => _ = Label.layout(self, self.rect.width),
+        .text => _ = Text.layout(self, self.rect.width),
         else => {},
     }
 }
@@ -808,6 +836,7 @@ pub inline fn getText(
         .text_input => self.type.text_input.initial_text,
         .checkbox => self.type.checkbox.text,
         .label => self.type.label.text,
+        .text => self.type.text.text,
         .button => self.type.button.text,
         else => null,
     };
@@ -834,6 +863,12 @@ pub inline fn setTextSize(
                 ti.cursor_pixels = 0.0;
                 ti.cursor_character = 0;
             }
+        },
+        .text => |*text| {
+            if (text.text_size == size) return;
+            text.text_size = size;
+            warn("Text.setTextSize() unimplemented.", .{});
+            display.need_relayout = true;
         },
         .label => |*label| {
             if (label.text_size == size) return;
@@ -914,6 +949,8 @@ pub inline fn setText(
     display: *Display,
     new_text: []const u8,
 ) error{OutOfMemory}!void {
+    if (self.type == .text) return self.type.text.setText(display, new_text, self);
+
     const old_translated = switch (self.type) {
         .text_input => self.type.text_input.text.items,
         .checkbox => self.type.checkbox.translated,
@@ -985,6 +1022,7 @@ pub inline fn setText(
                         .text = word.text,
                         .width = width,
                         .font = word.font,
+                        .data = null,
                     });
                 }
             }
@@ -1008,6 +1046,7 @@ pub inline fn setText(
                         .text = text.text,
                         .width = width,
                         .font = text.font,
+                        .data = null,
                     });
                 }
             }
@@ -1069,8 +1108,6 @@ pub inline fn add(
         display.need_relayout = true;
     return child;
 }
-
-pub const EntityParser = @import("EntityParser.zig");
 
 /// `append` a child entity to this panel and return the entity. Only
 /// permitted for the `panel` entity type. See also `insert`.
@@ -1143,6 +1180,7 @@ pub fn postAppend(
     entity.rect.height = directional_clamp(entity.layout.y, entity.minimum.height, entity.rect.height, entity.maximum.height);
 
     if (entity.getText()) |text| {
+        try entity.setText(display, "");
         try entity.setText(display, text);
     }
 
@@ -1684,6 +1722,7 @@ pub fn chosen(
         },
         .panel => try self.type.panel.on_pressed.call(display, self, event),
         .label => try self.type.label.on_pressed.call(display, self, event),
+        .text => try self.type.text.on_pressed.call(display, self, event),
         .sprite => try self.type.sprite.on_pressed.call(display, self, event),
         .checkbox => {
             self.type.checkbox.checked = !self.type.checkbox.checked;
@@ -1848,6 +1887,13 @@ pub fn isSelectable(self: *const Entity, display: *Display) bool {
             if (!display.blind_accessibility) return false;
             if (self.focus == .accessibility_focus)
                 if (l.translated.len > 0)
+                    return true;
+        },
+        .text => |t| {
+            if (t.clickable()) return true;
+            if (!display.blind_accessibility) return false;
+            if (self.focus == .accessibility_focus)
+                if (t.text.len > 0)
                     return true;
         },
         .text_input => return true,
@@ -2405,12 +2451,17 @@ pub fn select_font(fonts: []*Font, name: ?[]const u8) Error!*Font {
 }
 
 pub const TextElement = struct {
-    text: []const u8 = "",
+    text: []const u8,
     font: *Font,
     /// Width of this word/element not including display scaling
     /// or text size scaling.
     width: f32 = 0, // TODO: Why two widths?
     location: Rect = .{ .x = 0, .y = 0, .width = 0, .height = 0 },
+    data: ?*anyopaque,
+
+    pub fn isCR(self: *const TextElement) bool {
+        return self.text.len == 1 and self.text[0] == '\n';
+    }
 };
 
 /// A vector may represent a position or distance in 2D space.
@@ -2738,6 +2789,7 @@ pub const Type = enum {
     checkbox,
     expander,
     label,
+    text,
     panel,
     particles,
     progress_bar,
@@ -2780,6 +2832,8 @@ const Colour = @import("Colour.zig");
 const Theme = @import("Theme.zig");
 const Event = @import("Event.zig");
 
+pub const EntityParser = @import("EntityParser.zig");
+
 pub const TextSize = engine.TextSize;
 
 pub const Button = @import("Button.zig");
@@ -2790,6 +2844,7 @@ pub const ProgressBar = @import("ProgressBar.zig");
 pub const Particles = @import("Particles.zig");
 pub const Sprite = @import("Sprite.zig");
 pub const Label = @import("Label.zig");
+pub const Text = @import("Text.zig");
 pub const Rectangle = @import("Rectangle.zig");
 pub const TextInput = @import("TextInput.zig");
 pub const Token = @import("Token.zig");
