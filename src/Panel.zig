@@ -355,7 +355,8 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 
         if (entity.type == .expander or entity.layout.x == .grows or entity.layout.y == .grows) {
             const entity_weight = switch (entity.type) {
-                inline else => |v| v.weight,
+                inline .panel, .text_area, .expander => |v| v.weight,
+                inline else => 0,
             };
             if (entity_weight > 0) {
                 expanders[expander_count] = entity;
