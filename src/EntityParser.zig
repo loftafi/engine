@@ -795,7 +795,7 @@ pub fn readWeightAttribute(token: *Token, entity: *Entity) Error!void {
     const weight = switch (entity.type) {
         .panel => &entity.type.panel.weight,
         .expander => &entity.type.expander.weight,
-        .text_area => &entity.type.expander.weight,
+        .text_area => &entity.type.text_area.weight,
         else => return error.UnexpectedToken,
     };
     token.* = try token.next();

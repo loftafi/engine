@@ -285,6 +285,12 @@ fn calculateMinimumNeededWidth(
     }
 }
 
+pub const Expandable = struct {
+    weight: f32,
+    size: *f32, // width or height
+};
+pub const max_expandables = 30;
+
 /// The parent has a known fixed width and height. Each of the child
 /// objects can grow or shrink to fit in what the parent is providing.
 pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
@@ -293,9 +299,9 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 
     // Keep track of each expander in the panel. At the end, expand
     // each expander according to the leftover space.
-    var expanders: [20]*Entity = undefined;
-    var expander_count: usize = 0;
-    var expander_weights: f32 = 0;
+    var expandables: [max_expandables]Expandable = undefined;
+    var expandable_count: usize = 0;
+    var expandable_weights: f32 = 0;
 
     // The parent panel now has its final/fixed size for this layout
     // pass. Child entities must work within what they are given here.
@@ -335,10 +341,12 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
             if (height < 0) height = 0;
         }
 
+        const entity_weight = entity.weight(self.direction);
         const child_resized = self.updateChildSize(
             entity,
             width,
             height,
+            entity_weight > 0,
         );
 
         if (child_resized) {
@@ -353,15 +361,25 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
             }
         }
 
-        if (entity.type == .expander or entity.layout.x == .grows or entity.layout.y == .grows) {
-            const entity_weight = switch (entity.type) {
-                inline .panel, .text_area, .expander => |v| v.weight,
-                inline else => 0,
-            };
-            if (entity_weight > 0) {
-                expanders[expander_count] = entity;
-                expander_count += 1;
-                expander_weights += entity.type.expander.weight;
+        if (entity_weight > 0) {
+            switch (self.direction) {
+                .left_to_right => {
+                    expandables[expandable_count] = .{
+                        .weight = entity_weight,
+                        .size = &entity.rect.width,
+                    };
+                    expandable_count += 1;
+                    expandable_weights += entity_weight;
+                },
+                .top_to_bottom => {
+                    expandables[expandable_count] = .{
+                        .weight = entity_weight,
+                        .size = &entity.rect.height,
+                    };
+                    expandable_count += 1;
+                    expandable_weights += entity_weight;
+                },
+                else => {},
             }
         }
     }
@@ -392,9 +410,9 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     self.scrollable.size.width = parent.minimum.width;
     self.scrollable.size.height = parent.minimum.height;
     switch (self.direction) {
-        .left_to_right => self.placeChildrenLeftToRight(parent, expanders[0..expander_count], expander_weights),
         .left_to_right_wrap => self.placeChildrenLeftToRightWrap(parent),
-        .top_to_bottom => self.placeChildrenTopToBottom(parent, expanders[0..expander_count], expander_weights),
+        .left_to_right => self.placeChildrenLeftToRight(parent, expandables[0..expandable_count], expandable_weights),
+        .top_to_bottom => self.placeChildrenTopToBottom(parent, expandables[0..expandable_count], expandable_weights),
         .centre => self.placeChildrenCentred(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
         .top_left => self.placeChildrenTopLeft(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
         .top_right => self.placeChildrenTopRight(parent, if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null),
@@ -416,11 +434,15 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 
 /// Set the width and height of an entity. Check for invalid
 /// entity configurations that cause confusing on screen effects.
+///
+/// Expandables don't eagerly grow. Their growth is applied
+/// post initial layout.
 inline fn updateChildSize(
     _: *Panel,
     entity: *Entity,
     available_width: f32,
     available_height: f32,
+    expandable: bool,
 ) bool {
     var child_resized = false;
 
@@ -428,7 +450,7 @@ inline fn updateChildSize(
         .grows => {
             //trace("do grow {s}. parent width={d}", .{ entity.name, parent.rect.width });
             // Grow to the parent width, not including padding.
-            var new_width = available_width;
+            var new_width = if(!expandable) available_width else entity.minimumNeededWidth(available_width);
             if (entity.maximum.width > 0)
                 new_width = @min(new_width, entity.maximum.width);
 
@@ -453,7 +475,7 @@ inline fn updateChildSize(
     switch (entity.layout.y) {
         .grows => {
             // Grow to the parent height, not including padding.
-            var new_height = available_height;
+            var new_height = if(!expandable) available_height else entity.minimumNeededHeight(available_height);
             if (entity.maximum.height > 0)
                 new_height = @min(new_height, entity.maximum.height);
 
@@ -598,8 +620,8 @@ inline fn placeChildrenTopRight(
 inline fn placeChildrenTopToBottom(
     _: *Panel,
     parent: *Entity,
-    expanders: []*Entity,
-    expander_weights: f32,
+    expandables: []Expandable,
+    expandable_weights: f32,
 ) void {
     // Layout each item from top to bottom, initially ignoring
     // the need to centre the items or expand any expanders.
@@ -629,31 +651,25 @@ inline fn placeChildrenTopToBottom(
     const overflow_height = (parent.rect.y + parent.rect.height - parent.pad.bottom) - current.y;
     parent.type.panel.scrollable.size.height = @max(needed_height, parent.rect.height);
 
-    //info(" top to bottom layout {s} {s} - need {d} overflow {d}", .{ parent.name, @tagName(parent.type), needed_height, overflow_height });
-
     // If there are expanders, expand them, otherwise,
     // do start/centre/end alignment.
-    if (expanders.len > 0 or expander_weights > 0) {
+    if (expandables.len > 0 and expandable_weights > 0) {
+        info("top_to_bottom {s} {s} - needed={d} available={d} unused_space={d}", .{
+            parent.name,
+            @tagName(parent.type),
+            needed_height,
+            parent.inner_height(),
+            -overflow_height,
+        });
         // Relayout the children with expanders
-        //trace("expanders: {s} has {any}.  needed_height: {d} available_height: {d}", .{
-        //    parent.name,
-        //    expanders.len,
-        //    needed_height,
-        //    parent.rect.height,
-        //});
         const needed_space = needed_height + parent.pad.top + parent.pad.bottom;
-        if (parent.rect.height > needed_space) {
+        if (parent.inner_height() > needed_space) {
             // Give each expander a percentage of the spare height area
             const spare_height = parent.rect.height - needed_space;
-            for (expanders) |expander| {
-                if (expander.type.expander.weight <= 0) continue;
-
-                const percent = expander.type.expander.weight / expander_weights;
-                expander.rect.height = @trunc(spare_height * percent);
-                //trace("   expander: weight {d} given: {d}", .{
-                //    percent,
-                //    expander.rect.height,
-                //});
+            for (expandables) |expandable| {
+                if (expandable.weight <= 0) continue;
+                const percent = expandable.weight / expandable_weights;
+                expandable.size.* += @trunc(spare_height * percent);
             }
             // Re-update each child panels y position based on the
             // update to each expanders size.
@@ -668,12 +684,6 @@ inline fn placeChildrenTopToBottom(
                 child.rect.y = new_y;
                 new_y += child.rect.height;
                 if (child.type != .expander) first = false;
-                //trace("expanding. {t} {s} y={d} height={d}", .{
-                //    child.type,
-                //    child.name,
-                //    child.rect.y,
-                //    child.rect.height,
-                //});
             }
         }
     } else {
@@ -724,8 +734,8 @@ inline fn placeChildrenTopToBottom(
 inline fn placeChildrenLeftToRight(
     _: *Panel,
     parent: *Entity,
-    expanders: []*Entity,
-    expander_weights: f32,
+    expandables: []Expandable,
+    expandable_weights: f32,
 ) void {
     var current: Vector = .{
         .x = parent.rect.x + parent.pad.left,
@@ -764,27 +774,23 @@ inline fn placeChildrenLeftToRight(
     // Do we need to push them apart with expanders?
     // Do we need to centre or right align them?
 
-    if (expanders.len > 0 or expander_weights > 0) {
-        // Expanders detected, push entities apart.
-        trace("expanders: {s} has {any} expanders.  needed_width={d} available_width={d}", .{
+    if (expandables.len > 0 and expandable_weights > 0) {
+        info("top_to_bottom {s} {s} - needed={d} available={d} unused_space={d}", .{
             parent.name,
-            expanders.len,
+            @tagName(parent.type),
             needed_width,
-            parent.rect.width,
+            parent.inner_width(),
+            -overflow_width,
         });
+        // Expanders detected, push entities apart.
         const needed_space = needed_width + parent.pad.left + parent.pad.right;
-        if (parent.rect.width > needed_width) {
+        if (parent.inner_width() > needed_width) {
             // Give each expander a percentage of the spare width area
             const spare_width = parent.rect.width - needed_space;
-            for (expanders) |expander| {
-                if (expander.type.expander.weight <= 0) continue;
-
-                const percent = expander.type.expander.weight / expander_weights;
-                expander.rect.width = @trunc(spare_width * percent);
-                trace("   expander: weight {d} given: {d}", .{
-                    percent,
-                    expander.rect.width,
-                });
+            for (expandables) |expandable| {
+                if (expandable.weight <= 0) continue;
+                const percent = expandable.weight / expandable_weights;
+                expandable.size.* += @trunc(spare_width * percent);
             }
             // Re-update each child panels x position based on the
             // update to each expanders size.
@@ -799,13 +805,6 @@ inline fn placeChildrenLeftToRight(
                 child.rect.x = new_x;
                 new_x += child.rect.width;
                 if (child.type != .expander) first = false;
-
-                trace("expanding. {t} {s} x={d} width={d}", .{
-                    child.type,
-                    child.name,
-                    child.rect.x,
-                    child.rect.width,
-                });
             }
         }
     } else {

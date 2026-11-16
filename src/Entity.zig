@@ -1432,6 +1432,20 @@ pub fn minimumNeededWidth(self: *const Entity, parent_inner_width: f32) f32 {
     };
 }
 
+/// Return a non-zero (positive) number if this is an expander, or a
+/// panel or text area that whishes to expand.
+pub fn weight(self: *const Entity, parent_direction: Entity.LayoutDirection) f32 {
+    return switch (self.type) {
+        inline .expander => |v| v.weight,
+        inline .panel, .text_area => |v| switch (parent_direction) {
+            .left_to_right => if (self.layout.x == .grows) v.weight else 0,
+            .top_to_bottom => if (self.layout.y == .grows) v.weight else 0,
+            else => 0,
+        },
+        inline else => 0,
+    };
+}
+
 /// Handle the langauge change event and propogate the event
 /// downwards to each child entity, so that each child has
 /// a chance to regenerate its translation and text texture.

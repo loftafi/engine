@@ -74,6 +74,8 @@ test "padding" {
     display.need_relayout = true;
     display.relayout();
 
+    try std.testing.expectEqual(0, first.type.expander.minimumNeededWidth(first, 200));
+
     try std.testing.expectEqual(100, box.rect.height);
     try std.testing.expectEqual(20, item1.rect.height);
     try std.testing.expectEqual(40, first.rect.height);
