@@ -116,6 +116,22 @@ pub fn setup(
         .particles => try entity.type.particles.setup(display, entity),
     }
 
+    if (entity.layout.weight == 0) {
+        if (entity.layout.x == .grows or entity.layout.y == .grows)
+            entity.layout.weight = 1;
+        if (entity.type == .panel) {
+            if (entity.type.panel.scrollable.scroll.x == true)
+                entity.layout.weight = 1
+            else if (entity.type.panel.scrollable.scroll.y == true)
+                entity.layout.weight = 1;
+        }
+        if (entity.type == .expander)
+            entity.layout.weight = 1;
+    } else {
+        if (entity.layout.x != .grows and entity.layout.y != .grows)
+            entity.layout.weight = 0;
+    }
+
     // Warn about invalid layout configurations
     if (entity.layout.x == .fixed and entity.rect.width < entity.minimum.width)
         warn("{t} `{s}` has fixed width {d} but minimum width {d}.", .{
@@ -459,6 +475,11 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
     _ = try out.write(@tagName(self.layout.x));
     _ = try out.write("/");
     _ = try out.write(@tagName(self.layout.y));
+    if (self.layout.weight > 0)
+        _ = try out.print(" weight={d}/{d}", .{
+            self.layout.weight,
+            self.layout.weight_percent,
+        });
     if (self.type == .panel) {
         if (self.type.panel.choosable != .unspecified) {
             _ = try out.write(" ");
@@ -534,6 +555,8 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             _ = try out.write(" on_pressed");
         if (self.type.text_area.on_element_pressed.func != null)
             _ = try out.write(" on_element_pressed");
+    } else if (self.type == .expander) {
+        //
     } else if (self.type == .button) {
         if (self.type.button.toggle != .no_toggle) {
             _ = try out.print(" toggle={t}", .{self.type.button.toggle});
@@ -1106,6 +1129,8 @@ pub inline fn add(
     try self.type.panel.children.append(display.allocator, child);
     if (child.visible != .hidden and self.visible != .hidden)
         display.need_relayout = true;
+    if (child.layout.x == .grows or child.layout.y == .grows)
+        self.recalculateChildWeights();
     return child;
 }
 
@@ -1132,8 +1157,10 @@ pub inline fn append(
         TextSize.pixels,
     ) orelse return Error.UnexpectedToken;
 
-    try postAppend(display, child);
     try self.type.panel.children.append(display.allocator, child);
+    try postAppend(display, self);
+    if (child.layout.x == .grows or child.layout.y == .grows)
+        self.recalculateChildWeights();
 
     return child;
 }
@@ -1162,11 +1189,34 @@ pub inline fn appendMultiple(
             TextSize.pixels,
         ) orelse return Error.UnexpectedToken;
 
+        try self.type.panel.children.append(display.allocator, child);
         try postAppend(display, child);
 
-        try self.type.panel.children.append(display.allocator, child);
+        if (child.layout.x == .grows or child.layout.y == .grows)
+            self.recalculateChildWeights();
+
         if (child.visible != .hidden and self.visible != .hidden)
             display.need_relayout = true;
+    }
+}
+
+pub inline fn recalculateChildWeights(self: *Entity) void {
+    std.debug.assert(self.type == .panel);
+    const direction = self.type.panel.direction;
+
+    var total: usize = 0;
+    for (self.type.panel.children.items) |child| {
+        if (direction == .left_to_right and child.layout.x == .grows)
+            total += child.layout.weight
+        else if (direction == .top_to_bottom and child.layout.y == .grows)
+            total += child.layout.weight;
+        child.layout.weight_percent = 0;
+    }
+    for (self.type.panel.children.items) |child| {
+        if (direction == .left_to_right and child.layout.x == .grows)
+            child.layout.weight_percent = floatFromIntDiv(child.layout.weight, total)
+        else if (direction == .top_to_bottom and child.layout.y == .grows)
+            child.layout.weight_percent = floatFromIntDiv(child.layout.weight, total);
     }
 }
 
@@ -1189,6 +1239,19 @@ pub fn postAppend(
     }
     if (entity.background.image_name) |value| {
         entity.background.image = try display.requireImage(value);
+    }
+
+    if (entity.layout.weight == 0) {
+        if (entity.type == .panel) {
+            if (entity.type.panel.scrollable.scroll.x == true)
+                entity.layout.weight = 1
+            else if (entity.type.panel.scrollable.scroll.y == true)
+                entity.layout.weight = 1;
+        }
+        if (entity.layout.x == .grows or entity.layout.y == .grows)
+            entity.layout.weight = 1
+        else if (entity.type == .expander)
+            entity.layout.weight = 1;
     }
 
     switch (entity.type) {
@@ -1241,10 +1304,21 @@ pub fn postAppend(
                 }
             }
         },
+        .expander => {
+            if (entity.layout.weight == 0)
+                entity.layout.weight = 1;
+            entity.layout.x = .grows;
+            entity.layout.y = .grows;
+        },
+        .text_area => {
+            //
+        },
         .panel => {
             for (entity.type.panel.children.items) |child| {
                 try postAppend(display, child);
             }
+            if (entity.layout.x == .grows or entity.layout.y == .grows)
+                entity.recalculateChildWeights();
         },
         .particles => {
             try entity.type.particles.setup(display, entity);
@@ -1423,6 +1497,7 @@ pub fn minimumNeededWidth(self: *const Entity, parent_inner_width: f32) f32 {
 
     return switch (self.type) {
         .panel => self.type.panel.minimumNeededWidth(self, parent_inner_width),
+        .text_area => self.type.text_area.minimumNeededWidth(self, parent_inner_width),
         .button => self.type.button.minimumNeededWidth(self, parent_inner_width),
         .expander => self.type.expander.minimumNeededWidth(self, parent_inner_width),
         .label => self.type.label.minimumNeededWidth(self, parent_inner_width),
@@ -1430,20 +1505,10 @@ pub fn minimumNeededWidth(self: *const Entity, parent_inner_width: f32) f32 {
         .text_input => self.type.text_input.minimumNeededWidth(self, parent_inner_width),
         else => @max(self.minimum.width, self.rect.width),
     };
-}
 
-/// Return a non-zero (positive) number if this is an expander, or a
-/// panel or text area that whishes to expand.
-pub fn weight(self: *const Entity, parent_direction: Entity.LayoutDirection) f32 {
-    return switch (self.type) {
-        inline .expander => |v| v.weight,
-        inline .panel, .text_area => |v| switch (parent_direction) {
-            .left_to_right => if (self.layout.x == .grows) v.weight else 0,
-            .top_to_bottom => if (self.layout.y == .grows) v.weight else 0,
-            else => 0,
-        },
-        inline else => 0,
-    };
+    //return switch (self.type) {
+    //    inline else => |o| o.minimumNeededWidth(self, parent_inner_width),
+    //};
 }
 
 /// Handle the langauge change event and propogate the event
@@ -2019,6 +2084,12 @@ pub fn setup_panel(
         }
     }
 
+    if (entity.layout.weight == 0) {
+        if (entity.layout.x == .grows or entity.layout.y == .grows) {
+            entity.layout.weight = 1;
+        }
+    }
+
     entity.type.panel.children = .empty;
 }
 
@@ -2096,6 +2167,8 @@ pub fn setup_expander(
     entity.focus = .never_focus;
     entity.layout.x = .grows;
     entity.layout.y = .grows;
+    if (entity.layout.weight == 0)
+        entity.layout.weight = 1;
 }
 
 /// Internal function to initialise text input entity.
@@ -2632,6 +2705,13 @@ pub const Layout = struct {
     position: LayoutMode = .@"inline",
     x: LayoutSize = .shrinks,
     y: LayoutSize = .shrinks,
+
+    /// If marked `grows`, then `weight` indicates what portion of
+    /// the parent whitespace this entity would like.
+    weight: u8 = 0,
+
+    /// Current width allocation between 0-1 within the parent panel.
+    weight_percent: f32 = 0,
 };
 
 /// Describe where to start drawing child entity inside the parent entity.
@@ -2829,6 +2909,7 @@ const Error = engine.Error;
 const Font = engine.Font;
 const Key = engine.Key;
 const directional_clamp = engine.directional_clamp;
+const floatFromIntDiv = Panel.floatFromIntDiv;
 
 const resources = @import("resources");
 const Resources = resources.Resources;

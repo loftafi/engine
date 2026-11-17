@@ -22,11 +22,6 @@ scrollable: Scroller = .{
     .size = .{ .width = 0, .height = 0 },
 },
 
-/// If this panel is marked `grows`, set a `weight` greater than zero to
-/// indicate what portion of the whitespace this panel would like. The
-/// weight is relative to the weight in other entities in the same panel.
-weight: f32 = 0,
-
 /// Called every iteration of the main app loop.
 on_update: Entity.UpdateCallback = .empty,
 
@@ -285,9 +280,10 @@ fn calculateMinimumNeededWidth(
     }
 }
 
-pub const Expandable = struct {
-    weight: f32,
+pub const Flexible = struct {
+    percent: f32,
     size: *f32, // width or height
+    initial_size: f32, // width or height
 };
 pub const max_expandables = 30;
 
@@ -299,35 +295,38 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 
     // Keep track of each expander in the panel. At the end, expand
     // each expander according to the leftover space.
-    var expandables: [max_expandables]Expandable = undefined;
+    var expandables: [max_expandables]Flexible = undefined;
     var expandable_count: usize = 0;
-    var expandable_weights: f32 = 0;
+    var scrollables: [max_expandables]Flexible = undefined;
+    var scrollable_count: usize = 0;
 
-    // The parent panel now has its final/fixed size for this layout
-    // pass. Child entities must work within what they are given here.
-
-    // Growing child entities are simple, each child entity just takes
-    // the maximum it is allowed.
-    //
-    // Shrinking child entities are harder, each child entity
-    // must work out what is the minimum space it can work with.
+    // The parent panel now has its final/fixed size for this layout.
+    // Place child entities inside this space.
 
     // # Step 1 - Size calculation (width/height)
     //
-    // Children of this panel are either fixed positioned, growing,
-    // or shrinking.
-    //
     // - `.fixed` entities keep their requested rect `width` and `height` size.
-    // - `.grows` entities take the width and height provided by the parent `rect`.
     // - `.shrinks` entities shrink to the `minimum` space they need.
-    //
+    // - `.grows` entities shrink to `mimimum` space they need. At the end
+    //   they may grow to use remaining space.
 
     const available_width = parent.inner_width();
     const available_height = parent.inner_height();
     const in_root = parent == &display.root;
 
+    // Within the parent inner area, reserve space for fixed entities,
+    // shrinks entities, and inter-entity `spacing`.
+    var reserved_space: f32 = 0;
+
+    var previous_type: Entity.Type = .expander;
+
     for (self.children.items) |entity| {
         if (entity.visible == .hidden) continue;
+
+        if (entity.type != .expander and previous_type != .expander) {
+            reserved_space += parent.type.panel.spacing;
+        }
+        previous_type = entity.type;
 
         const ignore_safe_area = entity.type == .panel and entity.type.panel.safe_area == .ignore_safe_area;
 
@@ -341,64 +340,135 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
             if (height < 0) height = 0;
         }
 
-        const entity_weight = entity.weight(self.direction);
-        const child_resized = self.updateChildSize(
-            entity,
-            width,
-            height,
-            entity_weight > 0,
-        );
-
-        if (child_resized) {
-            resized = true;
-
-            if (entity.on_resized.func != null) {
-                trace("entity {s} resized. callback = {any}", .{
-                    entity.name,
-                    entity.on_resized.func != null,
-                });
-                _ = entity.on_resized.call(display, entity);
-            }
-        }
-
-        if (entity_weight > 0) {
-            switch (self.direction) {
-                .left_to_right => {
+        // Cacluate the initial/placeholder widths for each child.
+        switch (entity.layout.x) {
+            .shrinks => {
+                const new_width = entity.minimumNeededWidth(available_width);
+                if (new_width != entity.rect.width) {
+                    resized = true;
+                    entity.rect.width = new_width;
+                    if (entity.on_resized.func != null)
+                        _ = entity.on_resized.call(display, entity);
+                }
+                reserved_space += entity.rect.width;
+            },
+            .grows => {
+                var new_width = width;
+                if (self.direction == .left_to_right) {
                     expandables[expandable_count] = .{
-                        .weight = entity_weight,
+                        .percent = entity.layout.weight_percent,
                         .size = &entity.rect.width,
+                        .initial_size = entity.rect.width,
                     };
                     expandable_count += 1;
-                    expandable_weights += entity_weight;
-                },
-                .top_to_bottom => {
+                    new_width = entity.minimumNeededWidth(available_width);
+                }
+                new_width = engine.clamp(entity.minimum.width, new_width, entity.maximum.width);
+                if (new_width != entity.rect.width) {
+                    entity.rect.width = new_width;
+                    if (self.direction != .left_to_right and entity.on_resized.func != null)
+                        _ = entity.on_resized.call(display, entity);
+                }
+
+                // Collect scrollables that can be shrunk
+                if (entity.type == .panel and new_width > 0) {
+                    if (entity.type.panel.scrollable.scroll.x) {
+                        scrollables[scrollable_count] = .{
+                            .percent = entity.layout.weight_percent,
+                            .size = &entity.rect.width,
+                            .initial_size = entity.rect.width,
+                        };
+                        scrollable_count += 1;
+                        entity.type.panel.scrollable.size.width = entity.rect.width;
+                        entity.type.panel.scrollable.size.height = entity.rect.height;
+                    } else if (entity.type.panel.scrollable.scroll.y) {
+                        scrollables[scrollable_count] = .{
+                            .percent = entity.layout.weight_percent,
+                            .size = &entity.rect.height,
+                            .initial_size = entity.rect.height,
+                        };
+                        scrollable_count += 1;
+                        entity.type.panel.scrollable.size.width = entity.rect.width;
+                        entity.type.panel.scrollable.size.height = entity.rect.height;
+                    }
+                }
+
+            },
+            .fixed => {
+                reserved_space += entity.rect.width;
+            },
+        }
+
+        // Cacluate the initial/placeholder heights for each child.
+        switch (entity.layout.y) {
+            .shrinks => {
+                const new_height = entity.minimumNeededHeight(available_width);
+                if (new_height != entity.rect.height) {
+                    resized = true;
+                    entity.rect.height = new_height;
+                    if (entity.on_resized.func != null)
+                        _ = entity.on_resized.call(display, entity);
+                }
+                reserved_space += entity.rect.height;
+            },
+            .grows => {
+                var new_height = height;
+                if (self.direction == .top_to_bottom) {
                     expandables[expandable_count] = .{
-                        .weight = entity_weight,
+                        .percent = entity.layout.weight_percent,
                         .size = &entity.rect.height,
+                        .initial_size = entity.rect.height,
                     };
                     expandable_count += 1;
-                    expandable_weights += entity_weight;
-                },
-                else => {},
-            }
+                    new_height = entity.minimumNeededHeight(available_width);
+                }
+
+                new_height = engine.clamp(entity.minimum.height, height, entity.maximum.height);
+                if (new_height != entity.rect.height) {
+                    entity.rect.height = new_height;
+                    if (self.direction != .top_to_bottom and entity.on_resized.func != null)
+                        _ = entity.on_resized.call(display, entity);
+                }
+
+                // Collect scrollables that can be shrunk
+                if (entity.type == .panel and new_height > 0) {
+                    if (entity.type.panel.scrollable.scroll.x) {
+                        scrollables[scrollable_count] = .{
+                            .percent = entity.layout.weight_percent,
+                            .size = &entity.rect.width,
+                            .initial_size = entity.rect.width,
+                        };
+                        scrollable_count += 1;
+                        entity.type.panel.scrollable.size.width = entity.rect.width;
+                        entity.type.panel.scrollable.size.height = entity.rect.height;
+                    } else if (entity.type.panel.scrollable.scroll.y) {
+                        scrollables[scrollable_count] = .{
+                            .percent = entity.layout.weight_percent,
+                            .size = &entity.rect.height,
+                            .initial_size = entity.rect.height,
+                        };
+                        scrollable_count += 1;
+                        entity.type.panel.scrollable.size.width = entity.rect.width;
+                        entity.type.panel.scrollable.size.height = entity.rect.height;
+                    }
+                }
+            },
+            .fixed => {
+                reserved_space += entity.rect.height;
+            },
         }
     }
 
-    // Now that label entity sizes are known, do actual
-    // layout of label text.
-    for (self.children.items) |entity| {
-        if (entity.visible == .hidden) continue;
-        if (entity.type == .label) {
-            const size = Label.layout(entity, available_width);
-            if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
-            if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
-        }
-        if (entity.type == .text_area) {
-            const size = TextArea.layout(entity, available_width);
-            if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
-            if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
-        }
+    if (expandable_count > 0 and (self.direction == .left_to_right or self.direction == .top_to_bottom)) {
+        info("has expandables name={s} reserved={d}", .{
+            parent.name,
+            reserved_space,
+        });
     }
+
+    // At this point, everything is sized and placed according
+    // to the absolute minimum space it desires. Depending on the
+    // panels layout algorithm, flexible items may grow or shrink.
 
     // Step 2 - Entity placement
     //
@@ -407,103 +477,73 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     // to the start, centre, or end. The parent panel decides if
     // the entities are left-to-right or top-to-bottom.
 
-    self.scrollable.size.width = parent.minimum.width;
-    self.scrollable.size.height = parent.minimum.height;
     switch (self.direction) {
-        .left_to_right_wrap => self.placeChildrenLeftToRightWrap(parent),
-        .left_to_right => self.placeChildrenLeftToRight(parent, expandables[0..expandable_count], expandable_weights),
-        .top_to_bottom => self.placeChildrenTopToBottom(parent, expandables[0..expandable_count], expandable_weights),
-        .centre => self.placeChildrenCentred(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
-        .top_left => self.placeChildrenTopLeft(parent, if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null),
-        .top_right => self.placeChildrenTopRight(parent, if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null),
-        .bottom_left => self.placeChildrenBottomLeft(parent, if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null),
+        .left_to_right_wrap => self.placeLeftToRightWrap(parent),
+        .left_to_right => self.placeHorizontal(
+            parent,
+            reserved_space,
+            scrollables[0..scrollable_count],
+            expandables[0..expandable_count],
+        ),
+        .top_to_bottom => self.placeVertical(
+            parent,
+            reserved_space,
+            scrollables[0..scrollable_count],
+            expandables[0..expandable_count],
+        ),
+        .centre => self.placeCentred(
+            parent,
+            if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null,
+            scrollables[0..scrollable_count],
+        ),
+        .top_left => self.placeTopLeft(
+            parent,
+            if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null,
+            scrollables[0..scrollable_count],
+        ),
+        .top_right => self.placeTopRight(
+            parent,
+            if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null,
+            scrollables[0..scrollable_count],
+        ),
+        .bottom_left => self.placeBottomLeft(
+            parent,
+            if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null,
+            scrollables[0..scrollable_count],
+        ),
     }
 
-    // Descend into child entities to allow child panels to also resize.
-    for (self.children.items) |child| {
-        if (child.visible == .hidden) continue;
-        if (child.type == .panel) {
-            //trace("parent({s}).layout() calling child({s}).layout()", .{ parent.name, child.name });
-            if (child.type.panel.layout(display, child))
-                resized = true;
+    // Now that label entity sizes are known, do actual
+    // layout of label text.
+    for (self.children.items) |entity| {
+        if (entity.visible == .hidden) continue;
+        switch (entity.type) {
+            .label => {
+                const size = Label.layout(entity, available_width);
+                if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
+                if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
+            },
+            .text_area => {
+                const size = TextArea.layout(entity, available_width);
+                if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
+                if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
+            },
+            .panel => {
+                if (entity.type.panel.layout(display, entity))
+                    resized = true;
+            },
+            else => {},
         }
     }
 
     return resized;
 }
 
-/// Set the width and height of an entity. Check for invalid
-/// entity configurations that cause confusing on screen effects.
-///
-/// Expandables don't eagerly grow. Their growth is applied
-/// post initial layout.
-inline fn updateChildSize(
-    _: *Panel,
-    entity: *Entity,
-    available_width: f32,
-    available_height: f32,
-    expandable: bool,
-) bool {
-    var child_resized = false;
-
-    switch (entity.layout.x) {
-        .grows => {
-            //trace("do grow {s}. parent width={d}", .{ entity.name, parent.rect.width });
-            // Grow to the parent width, not including padding.
-            var new_width = if(!expandable) available_width else entity.minimumNeededWidth(available_width);
-            if (entity.maximum.width > 0)
-                new_width = @min(new_width, entity.maximum.width);
-
-            if (entity.rect.width != new_width) {
-                entity.rect.width = new_width;
-                child_resized = true;
-            }
-        },
-        .shrinks => {
-            // Shrink to the smallest the children will allow.
-            const new_width = entity.minimumNeededWidth(available_width);
-            if (entity.rect.width != new_width) {
-                entity.rect.width = new_width;
-                child_resized = true;
-            }
-        },
-        .fixed => {
-            // No shrinking or growing applies.
-        },
-    }
-
-    switch (entity.layout.y) {
-        .grows => {
-            // Grow to the parent height, not including padding.
-            var new_height = if(!expandable) available_height else entity.minimumNeededHeight(available_height);
-            if (entity.maximum.height > 0)
-                new_height = @min(new_height, entity.maximum.height);
-
-            if (entity.rect.height != new_height) {
-                entity.rect.height = new_height;
-                child_resized = true;
-            }
-        },
-        .shrinks => {
-            // Shrink to the smallest the children will allow.
-            const new_height = entity.minimumNeededHeight(available_width);
-            if (entity.rect.height != new_height) {
-                entity.rect.height = new_height;
-                child_resized = true;
-            }
-        },
-        .fixed => {
-            // No shrinking or growing applies.
-        },
-    }
-
-    return child_resized;
-}
-
-inline fn placeChildrenCentred(
+inline fn placeCentred(
     panel: *Panel,
     parent: *Entity,
     safe_offset: ?Vector,
+    scrollables: []Flexible,
 ) void {
     const corner: Vector = .{
         .x = parent.rect.x + parent.pad.left,
@@ -531,17 +571,20 @@ inline fn placeChildrenCentred(
             }
         }
     }
-    //TODO: Im not sure scroller detection is needed here or not
+
+    // Scrollable children may need to become scrollable or non scrollable.
+    _ = scrollables;
 
     //const needed_height = current.y - parent.y;
     //const overflow_height = (parent.y + parent.height) - current.y;
     //parent.type.panel.scrollable.size.height = @max(needed_height, parent.height);
 }
 
-inline fn placeChildrenTopLeft(
+inline fn placeTopLeft(
     _: *Panel,
     parent: *Entity,
     safe_offset: ?Vector,
+    scrollables: []Flexible,
 ) void {
     const corner: Vector = .{
         .x = parent.rect.x + parent.pad.left,
@@ -562,12 +605,16 @@ inline fn placeChildrenTopLeft(
             }
         }
     }
+
+    // Scrollable children may need to become scrollable or non scrollable.
+    _ = scrollables;
 }
 
-inline fn placeChildrenBottomLeft(
+inline fn placeBottomLeft(
     _: *Panel,
     parent: *Entity,
     safe_offset: ?Vector,
+    scrollables: []Flexible,
 ) void {
     const corner: Vector = .{
         .x = parent.rect.x + parent.pad.left,
@@ -588,12 +635,16 @@ inline fn placeChildrenBottomLeft(
             }
         }
     }
+
+    // Scrollable children may need to become scrollable or non scrollable.
+    _ = scrollables;
 }
 
-inline fn placeChildrenTopRight(
+inline fn placeTopRight(
     _: *Panel,
     parent: *Entity,
     safe_offset: ?Vector,
+    scrollables: []Flexible,
 ) void {
     const corner: Vector = .{
         .x = parent.rect.x + parent.rect.width - parent.pad.right,
@@ -615,209 +666,210 @@ inline fn placeChildrenTopRight(
             }
         }
     }
+
+    // Scrollable children may need to become scrollable or non scrollable.
+    _ = scrollables;
 }
 
-inline fn placeChildrenTopToBottom(
+inline fn placeVertical(
     _: *Panel,
     parent: *Entity,
-    expandables: []Expandable,
-    expandable_weights: f32,
+    reserved_space: f32,
+    scrollables: []Flexible,
+    expandables: []Flexible,
 ) void {
-    // Layout each item from top to bottom, initially ignoring
-    // the need to centre the items or expand any expanders.
     var current: Vector = .{
         .x = parent.rect.x + parent.pad.left,
         .y = parent.rect.y + parent.pad.top,
     };
-    var first = true;
+
+    // Do an initial layout not including expansion or shrinking of scrollers
+    // to discover if extra spaces is needed or if we are overflowing.
+    var previous_type: Entity.Type = .expander;
     for (parent.type.panel.children.items) |child| {
-        // Layout the clipped and visible items, but not the hidden items.
         if (child.visible == .hidden) continue;
         if (child.layout.position == .float) continue;
-
-        // Only apply spacing in-between items
-        if (!first and child.type != .expander)
+        if (previous_type != .expander and child.type != .expander)
             current.y += parent.type.panel.spacing;
-
+        previous_type = child.type;
         child.rect.x = current.x;
         child.rect.y = current.y;
-
-        if (child.type != .expander)
-            current.y += child.rect.height;
-
-        if (child.type != .expander) first = false;
+        if (child.type != .expander) current.y += child.rect.height;
     }
-    const needed_height = current.y - parent.rect.y - parent.pad.top;
-    const overflow_height = (parent.rect.y + parent.rect.height - parent.pad.bottom) - current.y;
-    parent.type.panel.scrollable.size.height = @max(needed_height, parent.rect.height);
+    const needed_space = current.y - parent.rect.y - parent.pad.top;
+    const trailing_space = (parent.rect.y + parent.rect.height - parent.pad.bottom) - current.y;
+    parent.type.panel.scrollable.size.height = @max(needed_space, parent.rect.height);
 
-    // If there are expanders, expand them, otherwise,
-    // do start/centre/end alignment.
-    if (expandables.len > 0 and expandable_weights > 0) {
-        info("top_to_bottom {s} {s} - needed={d} available={d} unused_space={d}", .{
-            parent.name,
-            @tagName(parent.type),
-            needed_height,
-            parent.inner_height(),
-            -overflow_height,
-        });
-        // Relayout the children with expanders
-        const needed_space = needed_height + parent.pad.top + parent.pad.bottom;
-        if (parent.inner_height() > needed_space) {
-            // Give each expander a percentage of the spare height area
-            const spare_height = parent.rect.height - needed_space;
-            for (expandables) |expandable| {
-                if (expandable.weight <= 0) continue;
-                const percent = expandable.weight / expandable_weights;
-                expandable.size.* += @trunc(spare_height * percent);
-            }
-            // Re-update each child panels y position based on the
-            // update to each expanders size.
-            var new_y: f32 = parent.rect.y + parent.pad.top;
-            first = true;
-            for (parent.type.panel.children.items) |child| {
-                // Relayout top to bottom using expander sizes
-                if (child.visible == .hidden) continue;
-                if (child.layout.position == .float) continue;
-                if (!first and child.type != .expander)
-                    new_y += parent.type.panel.spacing;
-                child.rect.y = new_y;
-                new_y += child.rect.height;
-                if (child.type != .expander) first = false;
-            }
+    if (expandables.len > 0) {
+        info("placeVertical expandables={d} trailing_space={d} reserved={d}", .{ expandables.len, trailing_space, reserved_space });
+    }
+
+    // Child entities have been now been placed, so handle alignment:
+    // Do we need to push them apart with expanders?
+    // Do we need to start, centre or end align them?
+
+    if (trailing_space > 0 and expandables.len > 0) {
+        // Need to expand, Give each expandable a percentage of spare space
+        for (expandables) |expandable| {
+            expandable.size.* += @trunc(trailing_space * expandable.percent);
         }
-    } else {
-        // If there is remaining space at end of children, maybe we
-        // need to centre or right align.
+        // Revise each child's y position due to expandables resizing.
+        var new_y: f32 = parent.rect.y + parent.pad.top;
+        previous_type = .expander;
+        for (parent.type.panel.children.items) |child| {
+            // Relayout start to end using expander sizes
+            if (child.visible == .hidden) continue;
+            if (child.layout.position == .float) continue;
+            if (previous_type != .expander and child.type != .expander)
+                new_y += parent.type.panel.spacing;
+            previous_type = child.type;
+            child.rect.y = new_y;
+            new_y += child.rect.height;
+        }
+    } else if (trailing_space > 0) {
+        // There is spare space, but no expandables to fill the spare space.
+        // Align the items inside the spare space.
         switch (parent.child_align.y) {
             .start => {},
             .centre => {
                 // Align from top to work out how much space is left
-                var new_y: f32 = parent.rect.y + parent.pad.top + (overflow_height / 2.0);
-                first = true;
+                var new_y: f32 = parent.rect.y + parent.pad.top + (trailing_space / 2.0);
+                previous_type = .expander;
                 for (parent.type.panel.children.items) |child| {
                     if (child.visible == .hidden) continue;
                     if (child.layout.position == .float) continue;
-                    if (!first and child.type != .expander)
+                    if (previous_type != .expander and child.type != .expander)
                         new_y += parent.type.panel.spacing;
+                    previous_type = child.type;
                     child.rect.y = new_y;
                     new_y += child.rect.height;
-                    if (child.type != .expander) first = false;
                 }
             },
             .end => {
                 // Workout the offset between the initial draw position
                 // and the overflow (underflow) to adjust for.
-                var new_y: f32 = parent.rect.y + parent.pad.top + overflow_height;
-                first = true;
+                var new_y: f32 = parent.rect.y + parent.pad.top + trailing_space;
+                previous_type = .expander;
                 for (parent.type.panel.children.items) |child| {
                     if (child.visible == .hidden) continue;
                     if (child.layout.position == .float) continue;
-                    if (!first and child.type != .expander)
+                    if (previous_type != .expander and child.type != .expander)
                         new_y += parent.type.panel.spacing;
+                    previous_type = child.type;
                     child.rect.y = new_y;
                     new_y += child.rect.height;
-                    if (child.type != .expander) first = false;
                 }
                 parent.type.panel.scrollable.size.width = @max(
-                    needed_height,
-                    parent.rect.height,
+                    needed_space,
+                    parent.rect.width,
                 );
             },
         }
+    } else if (trailing_space < 0) {
+        // Content does not fit. Can we shrink anything?
+        //info("top_to_bottom {s} {s} - needed={d} available={d} unused_space={d}", .{
+        //    parent.name,
+        //    @tagName(parent.type),
+        //    needed_space, // Not including padding
+        //    parent.inner_height(),
+        //    trailing_space,
+        //});
+        // There is no spare space, are there scrollables that can shrink?
+        if (scrollables.len > 0) {
+            var total_weights: f32 = 0;
+            for (scrollables) |scrollable|
+                total_weights += scrollable.percent;
+            for (scrollables) |scrollable| {
+                const percent = scrollable.percent / total_weights;
+                scrollable.size.* += @trunc(trailing_space * percent);
+            }
+            // Revise each child's y position because of scrollable resizing.
+            var new_y: f32 = parent.rect.y + parent.pad.top;
+            previous_type = .expander;
+            for (parent.type.panel.children.items) |child| {
+                // Relayout top to bottom using expander sizes
+                if (child.visible == .hidden) continue;
+                if (child.layout.position == .float) continue;
+                if (previous_type != .expander and child.type != .expander)
+                    new_y += parent.type.panel.spacing;
+                previous_type = child.type;
+                child.rect.y = new_y;
+                new_y += child.rect.height;
+            }
+        }
     }
+}
+
+pub inline fn floatFromIntDiv(a: u8, b: usize) f32 {
+    return @as(f32, @floatFromInt(a)) / @as(f32, @floatFromInt(b));
 }
 
 /// Draw panel children from top left corner of the panel
 /// assuming no scrolling of the child entities. Offsets
 /// applied at runtime.
-inline fn placeChildrenLeftToRight(
+inline fn placeHorizontal(
     _: *Panel,
     parent: *Entity,
-    expandables: []Expandable,
-    expandable_weights: f32,
+    reserved_space: f32,
+    scrollables: []Flexible,
+    expandables: []Flexible,
 ) void {
     var current: Vector = .{
         .x = parent.rect.x + parent.pad.left,
         .y = parent.rect.y + parent.pad.top,
     };
-    // On first pass, we don't know the stretch size of the
-    // expanders so first pass ignores expander width to find
-    // only the "needed" space.
-    var first = true;
+
+    // Do an initial layout not including expansion or shrinking of scrollers
+    // to discover if extra spaces is needed or if we are overflowing.
+    var previous_type: Entity.Type = .expander;
     for (parent.type.panel.children.items) |child| {
         if (child.visible == .hidden) continue;
         if (child.layout.position == .float) continue;
-        if (!first and child.type != .expander)
+        if (previous_type != .expander and child.type != .expander)
             current.x += parent.type.panel.spacing;
-
+        previous_type = child.type;
         child.rect.x = current.x;
         child.rect.y = current.y;
-        //trace("drop {s} at position {d}x{d} size:{d}x{d}", .{
-        //    child.name,
-        //    child.rect.x,
-        //    child.rect.y,
-        //    child.rect.width,
-        //    child.rect.height,
-        //});
-
-        if (child.type != .expander)
-            current.x += child.rect.width;
-
-        if (child.type != .expander) first = false;
+        if (child.type != .expander) current.x += child.rect.width;
     }
-    const needed_width = current.x - parent.rect.x - parent.pad.left;
-    const overflow_width = (parent.rect.x + parent.rect.width - parent.pad.right) - current.x;
-    parent.type.panel.scrollable.size.width = @max(needed_width, parent.rect.width);
+    const needed_space = current.x - parent.rect.x - parent.pad.left;
+    const trailing_space = (parent.rect.x + parent.rect.width - parent.pad.right) - current.x;
+    parent.type.panel.scrollable.size.width = @max(needed_space, parent.rect.width);
 
-    // Child entities have been now been placed.
+    if (expandables.len > 0) {
+        info("placeHorizontal expandables={d} trailing_space={d} reserved={d}", .{ expandables.len, trailing_space, reserved_space });
+    }
+
+    // Child entities have been now been placed, so handle alignment:
     // Do we need to push them apart with expanders?
-    // Do we need to centre or right align them?
+    // Do we need to start, centre or end align them?
 
-    if (expandables.len > 0 and expandable_weights > 0) {
-        info("top_to_bottom {s} {s} - needed={d} available={d} unused_space={d}", .{
-            parent.name,
-            @tagName(parent.type),
-            needed_width,
-            parent.inner_width(),
-            -overflow_width,
-        });
-        // Expanders detected, push entities apart.
-        const needed_space = needed_width + parent.pad.left + parent.pad.right;
-        if (parent.inner_width() > needed_width) {
-            // Give each expander a percentage of the spare width area
-            const spare_width = parent.rect.width - needed_space;
-            for (expandables) |expandable| {
-                if (expandable.weight <= 0) continue;
-                const percent = expandable.weight / expandable_weights;
-                expandable.size.* += @trunc(spare_width * percent);
-            }
-            // Re-update each child panels x position based on the
-            // update to each expanders size.
-            var new_x: f32 = parent.rect.x + parent.pad.left;
-            first = true;
-            for (parent.type.panel.children.items) |child| {
-                // Relayout left to right using expander sizes
-                if (child.visible == .hidden) continue;
-                if (child.layout.position == .float) continue;
-                if (!first and child.type != .expander)
-                    new_x += parent.type.panel.spacing;
-                child.rect.x = new_x;
-                new_x += child.rect.width;
-                if (child.type != .expander) first = false;
-            }
+    if (trailing_space > 0 and expandables.len > 0) {
+        // Need to expand, Give each expandable a percentage of spare space
+        for (expandables) |expandable| {
+            expandable.size.* += @trunc(trailing_space * expandable.percent);
         }
-    } else {
-        // Alternatively, if there are no expanders, we can align
-        // the children.
-        //
-        // If there is remaining space at end of children, maybe we
-        // need to centre or right align.
+        // Revise each child's x position due to expandables resizing.
+        var new_x: f32 = parent.rect.x + parent.pad.left;
+        previous_type = .expander;
+        for (parent.type.panel.children.items) |child| {
+            // Relayout start to end using expander sizes
+            if (child.visible == .hidden) continue;
+            if (child.layout.position == .float) continue;
+            if (previous_type != .expander and child.type != .expander)
+                new_x += parent.type.panel.spacing;
+            previous_type = child.type;
+            child.rect.x = new_x;
+            new_x += child.rect.width;
+        }
+    } else if (trailing_space > 0) {
+        // There is spare space, but no expandables to fill the spare space.
+        // Align the items inside the spare space.
         switch (parent.child_align.x) {
             .start => {},
             .centre => {
                 // Align from top to work out how much space is left
-                var new_x: f32 = parent.rect.x + parent.pad.left + @round(overflow_width / 2.0);
+                var new_x: f32 = parent.rect.x + parent.pad.left + @round(trailing_space / 2.0);
                 for (parent.type.panel.children.items) |child| {
                     if (child.visible == .hidden) continue;
                     if (child.layout.position == .float) continue;
@@ -828,7 +880,7 @@ inline fn placeChildrenLeftToRight(
             .end => {
                 // Workout the offset between the initial draw position
                 // and the overflow (underflow) to adjust for.
-                var new_x: f32 = parent.rect.x + parent.pad.left + overflow_width;
+                var new_x: f32 = parent.rect.x + parent.pad.left + trailing_space;
                 for (parent.type.panel.children.items) |child| {
                     if (child.visible == .hidden) continue;
                     if (child.layout.position == .float) continue;
@@ -836,10 +888,35 @@ inline fn placeChildrenLeftToRight(
                     new_x += child.rect.width + parent.type.panel.spacing;
                 }
                 parent.type.panel.scrollable.size.width = @max(
-                    needed_width,
+                    needed_space,
                     parent.rect.width,
                 );
             },
+        }
+    } else if (trailing_space < 0) {
+        // Content does not fit. Can we shrink anything?
+        if (scrollables.len > 0) {
+            var total_weights: f32 = 0;
+            for (scrollables) |scrollable|
+                total_weights += scrollable.percent;
+            for (scrollables) |scrollable| {
+                const percent = scrollable.percent / total_weights;
+                scrollable.size.* += @trunc(trailing_space * percent);
+                //trace("fix scrollable weight={d} percent={d} size={d}", .{ scrollable.weight, percent, scrollable.size.* });
+            }
+            // Revise each child's x position because of scrollable resizing.
+            var new_x: f32 = parent.rect.x + parent.pad.left;
+            previous_type = .expander;
+            for (parent.type.panel.children.items) |child| {
+                // Relayout left to right using expander sizes
+                if (child.visible == .hidden) continue;
+                if (child.layout.position == .float) continue;
+                if (previous_type != .expander and child.type != .expander)
+                    new_x += parent.type.panel.spacing;
+                previous_type = child.type;
+                child.rect.x = new_x;
+                new_x += child.rect.width;
+            }
         }
     }
 }
@@ -848,7 +925,7 @@ inline fn placeChildrenLeftToRight(
 // assuming no scrolling of the child entities. Offsets
 // applied at runtime. Track the height of each entity
 // so wrapping can occur down to the next line.
-inline fn placeChildrenLeftToRightWrap(
+inline fn placeLeftToRightWrap(
     panel: *Panel,
     entity: *Entity,
 ) void {
@@ -903,7 +980,6 @@ inline fn placeChildrenLeftToRightWrap(
     current.y += entity.pad.bottom;
     const needed_height = current.y - entity.rect.y;
     entity.type.panel.scrollable.size.height = @max(needed_height, entity.rect.height);
-    //const overflow_height = parent.rect.height - needed_height;
 }
 
 /// Adjust the horizontal position of a line of entities based on
@@ -1140,6 +1216,8 @@ test "root_panel_alignment" {
     panel.layout = .{ .x = .grows, .y = .grows };
     display.need_relayout = true;
     display.relayout();
+    try eq(300, display.root.rect.width);
+    try eq(200, display.root.rect.height);
     try eq(200, panel.rect.width);
     try eq(160, panel.rect.height);
 
@@ -1276,10 +1354,16 @@ test "centre_text_bug" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var display = try headless_display(allocator, io, 600, 800, 2);
+    const screen_width = 600;
+    const screen_height = 800;
+    var display = try headless_display(allocator, io, screen_width, screen_height, 2);
     defer display.destroy();
 
+    // Create a parent left_to_right panel to hold a sub-panel "row"
+    // of items. Check that the sub-panel "row" is correctly centred.
+
     const panel = try display.addPanel(.{
+        .name = "main_panel",
         .type = .{
             .panel = .{
                 .direction = .left_to_right,
@@ -1293,17 +1377,21 @@ test "centre_text_bug" {
     display.need_relayout = true;
     display.relayout();
 
+    try eq(1, panel.layout.weight);
+
     try eq(80, display.safe_area.top);
     try eq(0, display.safe_area.left);
     try eq(0, display.safe_area.right);
     try eq(0, display.safe_area.bottom);
-    try eq(600, display.root.rect.width);
-    try eq(600, display.root.inner_width());
-    try eq(600, panel.rect.width);
-    try eq(800, panel.rect.height);
+    try eq(screen_width, display.root.rect.width);
+    try eq(screen_width, display.root.inner_width());
+    try eq(screen_height, display.root.inner_height());
+    try eq(screen_width, panel.rect.width);
+    try eq(screen_height, panel.rect.height);
 
-    var footer = try panel.add(.{
-        .name = "panel_left_to_right",
+    // Include an icon and lable into the row.
+    var row = try panel.add(.{
+        .name = "row",
         .focus = .never_focus,
         .minimum = .{ .width = 180 },
         .maximum = .{ .width = 400 },
@@ -1317,18 +1405,16 @@ test "centre_text_bug" {
     }, display);
     display.need_relayout = true;
     display.relayout();
-    try eq(180, footer.rect.width);
+    try eq(180, row.rect.width);
     // No children yet, so height should be padding only
-    try eq(15 + 11, footer.rect.height);
+    try eq(15 + 11, row.rect.height);
 
-    const icon = try footer.add(.{
-        .name = "test.icon",
+    const icon = try row.add(.{
+        .name = "row.icon",
         .focus = .never_focus,
         .child_align = .{ .x = .centre },
         .rect = .{ .width = 50, .height = 50 },
-        .minimum = .{ .width = 50, .height = 50 },
-        .maximum = .{ .width = 50, .height = 50 },
-        .layout = .{ .x = .shrinks, .y = .shrinks },
+        .layout = .{ .x = .fixed, .y = .fixed },
         .type = .{ .sprite = .{} },
         .pad = .{ .left = 15, .right = 15, .top = 25, .bottom = 0 },
     }, display);
@@ -1337,10 +1423,10 @@ test "centre_text_bug" {
     try eq(50, icon.rect.width);
     try eq(50, icon.rect.height);
 
-    // The text is just a little smaller than the minmum width, so we can
-    // test child start, centre, end align in child panels.
-    const label = try footer.add(.{
-        .name = "test.label",
+    // The text is just a little smaller than the minmum width, so
+    // we can test child start, centre, end align in child panels.
+    const label = try row.add(.{
+        .name = "row.label",
         .focus = .accessibility_focus,
         .style = .tinted,
         .minimum = .{ .width = 250 },
@@ -1354,21 +1440,26 @@ test "centre_text_bug" {
     }, display);
 
     {
-        const full_width = 15 + 50 + 12 + 250 + 15;
+        const row_width = 15 + 50 + 12 + 250 + 15;
         {
             panel.child_align.x = .start;
             display.need_relayout = true;
             display.relayout();
+
             try eq(250, label.minimumNeededWidth(1000));
             try eq(250, Label.layout(label, 1000).minimum_width);
             try eq(250, Label.layout(label, 1000).width);
             try eq(250, label.rect.width); // text smaller than minimum
             try eq(22, label.rect.height);
-            try eq(full_width, footer.rect.width);
-            try eq(icon.rect.x, footer.rect.x + footer.pad.left);
-            try eq(icon.rect.y, footer.rect.y + footer.pad.top);
-            try eq(label.rect.x, footer.rect.x + footer.pad.left + 12 + icon.rect.width);
-            try eq(label.rect.y, footer.rect.y + footer.pad.top);
+
+            try eq(row_width, row.rect.width);
+
+            // Check items are offset correctly from panel/row start.
+            try eq(0, row.rect.x);
+            try eq(icon.rect.x, row.rect.x + row.pad.left);
+            try eq(icon.rect.y, row.rect.y + row.pad.top);
+            try eq(label.rect.x, row.rect.x + row.pad.left + 12 + icon.rect.width);
+            try eq(label.rect.y, row.rect.y + row.pad.top);
             const word1 = &label.type.label.elements.items[0];
             const word2 = &label.type.label.elements.items[1];
             const word3 = &label.type.label.elements.items[2];
@@ -1390,12 +1481,12 @@ test "centre_text_bug" {
             panel.child_align.x = .end;
             display.need_relayout = true;
             display.relayout();
-            try eq(full_width, footer.rect.width);
-            try eq(panel.rect.width - full_width, footer.rect.x);
-            try eq(label.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width);
-            try eq(label.rect.y, footer.rect.y + footer.pad.top);
-            try eq(icon.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width - 12 - icon.rect.width);
-            try eq(icon.rect.y, footer.rect.y + footer.pad.top);
+            try eq(row_width, row.rect.width);
+            try eq(panel.rect.width - row_width, row.rect.x);
+            try eq(label.rect.x, row.rect.x + row.rect.width - row.pad.right - label.rect.width);
+            try eq(label.rect.y, row.rect.y + row.pad.top);
+            try eq(icon.rect.x, row.rect.x + row.rect.width - row.pad.right - label.rect.width - 12 - icon.rect.width);
+            try eq(icon.rect.y, row.rect.y + row.pad.top);
             const entity = label.type.label.elements.items[0];
             try eq(0, entity.location.x);
             try eq(0, entity.location.y);
@@ -1405,12 +1496,12 @@ test "centre_text_bug" {
             panel.child_align.x = .centre;
             display.need_relayout = true;
             display.relayout();
-            try eq(full_width, footer.rect.width);
-            try eq(panel.rect.width / 2 - full_width / 2, footer.rect.x);
-            try eq(label.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width);
-            try eq(label.rect.y, footer.rect.y + footer.pad.top);
-            try eq(icon.rect.x, footer.rect.x + footer.rect.width - footer.pad.right - label.rect.width - 12 - icon.rect.width);
-            try eq(icon.rect.y, footer.rect.y + footer.pad.top);
+            try eq(row_width, row.rect.width);
+            try eq(panel.rect.width / 2 - row_width / 2, row.rect.x);
+            try eq(label.rect.x, row.rect.x + row.rect.width - row.pad.right - label.rect.width);
+            try eq(label.rect.y, row.rect.y + row.pad.top);
+            try eq(icon.rect.x, row.rect.x + row.rect.width - row.pad.right - label.rect.width - 12 - icon.rect.width);
+            try eq(icon.rect.y, row.rect.y + row.pad.top);
             const entity = label.type.label.elements.items[0];
             try eq(0, entity.location.x);
             try eq(0, entity.location.y);
@@ -1444,5 +1535,6 @@ const Size = Entity.Size;
 const TextSize = Entity.TextSize;
 const Vector = Entity.Vector;
 
+const clamp = engine.clamp;
 const test_config = engine.test_config;
 const headless_display = engine.headless_display;

@@ -792,17 +792,10 @@ pub fn readLineHeightAttribute(token: *Token, entity: *Entity, font_size: f32) E
 }
 
 pub fn readWeightAttribute(token: *Token, entity: *Entity) Error!void {
-    const weight = switch (entity.type) {
-        .panel => &entity.type.panel.weight,
-        .expander => &entity.type.expander.weight,
-        .text_area => &entity.type.text_area.weight,
-        else => return error.UnexpectedToken,
-    };
     token.* = try token.next();
-    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     switch (token.tag) {
         .number => {
-            weight.* = std.fmt.parseFloat(f32, token.slice()) catch return error.UnexpectedToken;
+            entity.layout.weight = std.fmt.parseInt(u8, token.slice(), 10) catch return error.UnexpectedToken;
             token.* = try token.next();
             return;
         },
@@ -2302,10 +2295,10 @@ test "text_input" {
 test "expander" {
     var te: TestHandler = .{};
     const entity = try readEntity(std.testing.allocator,
-        \\expander name "expander 1" weight 0.4
+        \\expander name "expander 1" weight 49
     , TestHandler, &te, TextSize.pixels) orelse unreachable;
     defer std.testing.allocator.destroy(entity);
-    try expectEqual(0.4, entity.type.expander.weight);
+    try expectEqual(49, entity.layout.weight);
     try expectEqualStrings("expander 1", entity.name);
 }
 

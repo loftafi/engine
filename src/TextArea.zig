@@ -13,12 +13,6 @@ paragraphs: ArrayList(Paragraph) = .empty,
 line_height: f32 = 1,
 text_size: TextSize = .normal,
 
-/// If this text area is marked `grows`, use `weight` greater than zero
-/// to ajust what portion of the whitespace this text area would like.
-/// The weight is relative to the weight in other entities in the same
-/// panel.
-weight: f32 = 0,
-
 // Handle User triggered events. Keyboard, Mouse, Game controller
 on_ui_event: Entity.Callback = .empty,
 on_pressed: Entity.Callback = .empty,
@@ -207,14 +201,22 @@ pub inline fn draw(
 pub inline fn minimumNeededWidth(
     _: *const TextArea,
     entity: *const Entity,
-    parent_inner_width: f32,
+    _: f32,
 ) f32 {
-    const min = @max(
-        layout(entity, parent_inner_width).minimum_width,
+    var longest_word: f32 = 0;
+    for (entity.type.text_area.paragraphs.items) |paragraph| {
+        const children = paragraph.elements.items;
+        if (children.len == 0) continue;
+        for (children) |word| {
+            if (word.isCR()) continue;
+            longest_word = @max(longest_word, word.width);
+        }
+    }
+    return @ceil(clamp(
         entity.minimum.width,
-    );
-    if (entity.maximum.width == 0) return @ceil(min);
-    return @min(min, entity.maximum.width);
+        longest_word,
+        entity.maximum.width,
+    ));
 }
 
 /// Position each each word (text element) within the space allowed by
@@ -600,6 +602,11 @@ test "word_wrap_layout" {
     try eq(0, child.rect.x);
     try eq(0, child.rect.y);
     try eq(element1.location.height + element3.location.height, child.rect.height);
+
+    try eq(77, @round(element1.location.width));
+    try eq(59, @round(element2.location.width));
+    try eq(117, @ceil(element3.location.width));
+    try eq(117, child.minimumNeededWidth(display_width));
 
     // Check both lines align correctly to the left.
     {

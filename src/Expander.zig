@@ -3,15 +3,6 @@
 /// the relative size of each expander.
 pub const Expander = @This();
 
-/// Set a `weight` greater than zero to indicate what portion of
-/// excess whitespace this `Expander` will grow into.
-///
-/// For example, if two `Expander` entities each have a weight of 1
-/// then they evenly share the space. Alternatively, If two `Expander`
-/// entities have a `weight` of 1 and 10, then one `Expander` wants
-/// 10% the spare whitespace than the other.
-weight: f32 = 0,
-
 /// Expanders have no content to draw.
 pub inline fn draw(
     _: *const Expander,
@@ -57,50 +48,60 @@ test "padding" {
 
     const panel = try display.addPanel(.{
         .layout = .{ .x = .grows, .y = .grows },
-        .type = .{ .panel = .{ .safe_area = .ignore_safe_area } },
+        .type = .{ .panel = .{
+            .safe_area = .ignore_safe_area,
+            .direction = .centre,
+        } },
     });
 
     display.need_relayout = true;
     display.relayout();
     try std.testing.expectEqual(300, panel.rect.width);
     try std.testing.expectEqual(200, panel.rect.height);
-
     var empty: Empty = .{};
-    const box = try panel.append("panel vertical layout fixed fixed rect width=200 height=100", Empty, &empty, display);
-    const item1 = try box.append("sprite layout fixed fixed rect width=20 height=20", Empty, &empty, display);
-    const first = try box.append("expander weight 1", Empty, &empty, display);
-    const second = try box.append("expander weight 1", Empty, &empty, display);
+
+    const box = try panel.append("panel name \"box\" vertical layout fixed fixed rect width=200 height=100", Empty, &empty, display);
+    try std.testing.expectEqual(.top_to_bottom, box.type.panel.direction);
+
+    const first = try box.append("sprite name \"first\" layout fixed fixed rect width=20 height=20", Empty, &empty, display);
+    const middle = try box.append("expander name \"middle\" weight 1", Empty, &empty, display);
+    const last = try box.append("expander name \"last\" weight 1", Empty, &empty, display);
 
     display.need_relayout = true;
     display.relayout();
 
-    try std.testing.expectEqual(0, first.type.expander.minimumNeededWidth(first, 200));
+    try std.testing.expectEqual(1, middle.layout.weight);
+    try std.testing.expectEqual(0.5, middle.layout.weight_percent);
+    try std.testing.expectEqual(1, last.layout.weight);
+    try std.testing.expectEqual(0.5, last.layout.weight_percent);
+
+    try std.testing.expectEqual(0, middle.type.expander.minimumNeededWidth(middle, 200));
 
     try std.testing.expectEqual(100, box.rect.height);
-    try std.testing.expectEqual(20, item1.rect.height);
-    try std.testing.expectEqual(40, first.rect.height);
-    try std.testing.expectEqual(40, second.rect.height);
+    try std.testing.expectEqual(20, first.rect.height);
+    try std.testing.expectEqual(40, middle.rect.height);
+    try std.testing.expectEqual(40, last.rect.height);
 
     box.pad.top = 5;
     box.pad.bottom = 15;
     display.need_relayout = true;
     display.relayout();
-    try std.testing.expectEqual(30, first.rect.height);
-    try std.testing.expectEqual(30, second.rect.height);
+    try std.testing.expectEqual(30, middle.rect.height);
+    try std.testing.expectEqual(30, last.rect.height);
 
     box.pad.top = 20;
     box.pad.bottom = 0;
     display.need_relayout = true;
     display.relayout();
-    try std.testing.expectEqual(30, first.rect.height);
-    try std.testing.expectEqual(30, second.rect.height);
+    try std.testing.expectEqual(30, middle.rect.height);
+    try std.testing.expectEqual(30, last.rect.height);
 
     box.pad.top = 0;
     box.pad.bottom = 20;
     display.need_relayout = true;
     display.relayout();
-    try std.testing.expectEqual(30, first.rect.height);
-    try std.testing.expectEqual(30, second.rect.height);
+    try std.testing.expectEqual(30, middle.rect.height);
+    try std.testing.expectEqual(30, last.rect.height);
 }
 
 const std = @import("std");
