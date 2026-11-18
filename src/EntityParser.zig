@@ -277,13 +277,13 @@ pub fn readAttributes(
             .vertical => {
                 if (entity.type != .panel)
                     return error.UnexpectedToken;
-                entity.type.panel.direction = .top_to_bottom;
+                entity.type.panel.direction = .vertical;
                 token.* = try token.next();
             },
             .horizontal => {
                 if (entity.type != .panel)
                     return error.UnexpectedToken;
-                entity.type.panel.direction = .left_to_right;
+                entity.type.panel.direction = .horizontal;
                 token.* = try token.next();
             },
             .choosable => {
@@ -2069,7 +2069,7 @@ test "panel" {
     try expectEqualStrings("./test/repo/white.png", entity.texture.?.resource.filename orelse ""); // "cat"
     try expectEqualStrings("bh", entity.background.image_name.?);
     try expect(entity.background.image != null);
-    try expectEqual(.left_to_right, entity.type.panel.direction);
+    try expectEqual(.horizontal, entity.type.panel.direction);
     try expectEqual(.tinted, entity.style);
 
     try expectEqual(entity.texture.?.uid, 454147630);

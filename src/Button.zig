@@ -345,7 +345,7 @@ test "button_text_size" {
     try expectEqual(67, panel.rect.width);
     try expectEqual(32, panel.rect.height);
 
-    panel.type.panel.direction = .left_to_right;
+    panel.type.panel.direction = .horizontal;
     display.need_relayout = true;
     display.relayout();
     try expectEqual(67, button.minimumNeededWidth(200));
@@ -357,7 +357,7 @@ test "button_text_size" {
     try expectEqual(67, panel.rect.width);
     try expectEqual(32, panel.rect.height);
 
-    panel.type.panel.direction = .left_to_right_wrap;
+    panel.type.panel.direction = .horizontal_wrap;
     panel.layout.x = .grows;
     display.need_relayout = true;
     display.relayout();
@@ -381,7 +381,7 @@ test "button_icon_size" {
     defer display.destroy();
 
     const panel = try display.addPanel(.{
-        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .horizontal } },
         .layout = .{ .x = .grows, .y = .grows },
     });
 
@@ -428,12 +428,12 @@ test "button_in_float" {
     defer display.destroy();
 
     const panel = try display.addPanel(.{
-        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .horizontal } },
         .layout = .{ .x = .grows, .y = .grows },
     });
 
     const bar = try panel.add(.{
-        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .horizontal } },
         .layout = .{ .x = .shrinks, .y = .shrinks, .position = .float },
     }, display);
 
@@ -470,7 +470,7 @@ test "normal_use" {
 
     const panel = try display.addPanel(.{
         .minimum = .{ .width = 5, .height = 8 },
-        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .horizontal } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
     try expectEqual(5, panel.minimumNeededWidth(500));
@@ -555,7 +555,7 @@ test "button_sizing" {
 
     const panel = try display.addPanel(.{
         .minimum = .{ .width = 500, .height = 500 },
-        .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .vertical } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
 

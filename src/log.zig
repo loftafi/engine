@@ -254,7 +254,7 @@ fn formatted_log_output(
 ) void {
     _ = scope;
     if (minimum_log_level.gt(level) or log_level.gt(level)) return;
-    //if (builtin.is_test) return;
+    if (builtin.is_test) return;
 
     var buffer: [max_log_message_size]u8 = undefined;
     var msg = std.Io.Writer.fixed(&buffer);

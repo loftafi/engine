@@ -3494,7 +3494,7 @@ test "text input sizing" {
     defer display.destroy();
 
     var panel = try display.addPanel(.{
-        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .type = .{ .panel = .{ .direction = .vertical } },
         .layout = .{ .x = .grows, .y = .grows },
     });
 
@@ -3646,7 +3646,7 @@ test "text input sizing" {
     panel = try display.addPanel(.{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
-        .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .vertical } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
     try eq(5, panel.minimumNeededWidth(500));
@@ -3738,7 +3738,7 @@ test "test_init" {
     var panel = try display.addPanel(.{
         .rect = .{ .width = 500, .height = 200 },
         .minimum = .{ .width = 5, .height = 8 },
-        .type = .{ .panel = .{ .spacing = 0, .direction = .top_to_bottom } },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .vertical } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
 

@@ -61,7 +61,7 @@ test "vertical_expanding" {
     var empty: Empty = .{};
 
     const box = try panel.append("panel name \"box\" vertical layout fixed fixed rect width=200 height=110", Empty, &empty, display);
-    try std.testing.expectEqual(.top_to_bottom, box.type.panel.direction);
+    try std.testing.expectEqual(.vertical, box.type.panel.direction);
 
     const first = try box.append("sprite name \"first\" layout fixed fixed rect width=20 height=20", Empty, &empty, display);
     const middle = try box.append("expander name \"middle\" weight 1", Empty, &empty, display);
@@ -125,7 +125,7 @@ test "horizontal_expanding" {
     var empty: Empty = .{};
 
     const box = try panel.append("panel name \"box\" horizontal layout fixed fixed rect width=110 height=200", Empty, &empty, display);
-    try std.testing.expectEqual(.left_to_right, box.type.panel.direction);
+    try std.testing.expectEqual(.horizontal, box.type.panel.direction);
 
     const first = try box.append("sprite name \"first\" layout fixed fixed rect width=20 height=20", Empty, &empty, display);
     const middle = try box.append("expander name \"middle\" weight 1", Empty, &empty, display);

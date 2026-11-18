@@ -131,7 +131,7 @@ test setText {
     const panel = try display.addPanel(.{
         .name = "parent",
         .type = .{ .panel = .{
-            .direction = .top_to_bottom,
+            .direction = .vertical,
             .safe_area = .ignore_safe_area,
         } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -387,7 +387,7 @@ test "text_panel_placement" {
 
     const panel = try display.addPanel(.{
         .type = .{ .panel = .{
-            .direction = .top_to_bottom,
+            .direction = .vertical,
             .safe_area = .ignore_safe_area,
         } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -405,7 +405,7 @@ test "text_panel_placement" {
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
 
     // Test alignment without padding
-    panel.type.panel.direction = .top_to_bottom;
+    panel.type.panel.direction = .vertical;
     display.need_relayout = true;
     display.relayout();
     try eq(60, child.rect.width);
@@ -450,7 +450,7 @@ test "single_word_layout" {
     const panel = try display.addPanel(.{
         .name = "parent",
         .type = .{ .panel = .{
-            .direction = .top_to_bottom,
+            .direction = .vertical,
             .safe_area = .ignore_safe_area,
         } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -566,7 +566,7 @@ test "word_wrap_layout" {
     const panel: *Entity = try display.addPanel(.{
         .name = "parent",
         .type = .{ .panel = .{
-            .direction = .top_to_bottom,
+            .direction = .vertical,
             .safe_area = .ignore_safe_area,
         } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -670,7 +670,7 @@ test "paragraph_spacing" {
     const panel: *Entity = try display.addPanel(.{
         .name = "parent",
         .type = .{ .panel = .{
-            .direction = .top_to_bottom,
+            .direction = .vertical,
             .safe_area = .ignore_safe_area,
         } },
         .layout = .{ .x = .grows, .y = .grows },
@@ -717,7 +717,7 @@ test "minimum_textarea_height" {
         .layout = .{ .x = .grows, .y = .grows },
         .visible = .visible,
         .type = .{ .panel = .{
-            .direction = .top_to_bottom,
+            .direction = .vertical,
             .safe_area = .ignore_safe_area,
         } },
         .pad = .{ .left = 4, .right = 6, .top = 2, .bottom = 8 },
@@ -774,7 +774,7 @@ test "shrunk_textarea_in_panel" {
     child.pad = .{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
 
     panel.child_align.x = .start;
-    panel.type.panel.direction = .left_to_right;
+    panel.type.panel.direction = .horizontal;
     display.need_relayout = true;
     display.relayout();
     try eq(60, child.rect.width);
@@ -783,7 +783,7 @@ test "shrunk_textarea_in_panel" {
     try eq(2, child.rect.y);
 
     panel.child_align.x = .end;
-    panel.type.panel.direction = .left_to_right;
+    panel.type.panel.direction = .horizontal;
     display.need_relayout = true;
     display.relayout();
     try eq(60, child.rect.width);
@@ -792,7 +792,7 @@ test "shrunk_textarea_in_panel" {
     try eq(2, child.rect.y);
 
     panel.child_align.x = .centre;
-    panel.type.panel.direction = .left_to_right;
+    panel.type.panel.direction = .horizontal;
     display.need_relayout = true;
     display.relayout();
     try eq(60, child.rect.width);

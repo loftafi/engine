@@ -149,7 +149,7 @@ fn calculateMinimumNeededHeight(
     const available_width = entity.inner_width();
 
     switch (entity.type.panel.direction) {
-        .top_to_bottom => {
+        .vertical => {
             // a, above b, above c. (top to bottom)
             var minimum_needed: f32 = entity.pad.top + entity.pad.bottom;
             // Add the size needed for each inline child.
@@ -176,7 +176,7 @@ fn calculateMinimumNeededHeight(
             return result;
         },
 
-        .left_to_right_wrap => {
+        .horizontal_wrap => {
             var box: engine.BoxLayout = .init(
                 available_width,
                 entity.type.panel.spacing,
@@ -198,7 +198,7 @@ fn calculateMinimumNeededHeight(
             );
         },
 
-        .centre, .left_to_right, .top_left, .bottom_left, .top_right => {
+        .centre, .horizontal, .top_left, .bottom_left, .top_right => {
             // centred all together
             // a, next to b, next c.
             //
@@ -248,11 +248,11 @@ fn calculateMinimumNeededWidth(
     const available_width = entity.inner_width();
 
     switch (panel.direction) {
-        .left_to_right, .left_to_right_wrap => {
+        .horizontal, .horizontal_wrap => {
             // Place each element left to right with possible
             // inner spacing and possible wrapping.
             var box: engine.BoxLayout = .init(
-                if (panel.direction == .left_to_right_wrap) available_width else std.math.floatMax(f32),
+                if (panel.direction == .horizontal_wrap) available_width else std.math.floatMax(f32),
                 entity.type.panel.spacing,
                 entity.type.panel.spacing,
             );
@@ -271,7 +271,7 @@ fn calculateMinimumNeededWidth(
                 entity.minimum.width,
             );
         },
-        .centre, .top_to_bottom, .top_left, .bottom_left, .top_right => {
+        .centre, .vertical, .top_left, .bottom_left, .top_right => {
             // a, centred upon b, centred upon c
             // a, then b underneath, thn c underneath...
             //
@@ -380,7 +380,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 var new_width = entity.minimumNeededWidth(inner_width);
                 if (in_root) new_width = inner_width;
 
-                if (self.direction == .left_to_right) {
+                if (self.direction == .horizontal) {
                     expandables[expandable_count] = .{
                         .percent = entity.layout.weight_percent,
                         .size = &entity.rect.width,
@@ -388,7 +388,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                     };
                     expandable_count += 1;
                     //err("expandable width={d} -> {d} ec+>{d}", .{ entity.rect.width, new_width, expandable_count});
-                } else if(self.direction == .left_to_right_wrap) {
+                } else if(self.direction == .horizontal_wrap) {
                     // Not expandable
                 } else {
                     new_width = inner_width;
@@ -397,7 +397,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
 
                 if (new_width != entity.rect.width) {
                     entity.rect.width = new_width;
-                    if (self.direction != .left_to_right and entity.on_resized.func != null)
+                    if (self.direction != .horizontal and entity.on_resized.func != null)
                         _ = entity.on_resized.call(display, entity);
                 }
 
@@ -444,7 +444,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 var new_height = entity.minimumNeededHeight(inner_width);
                 if (in_root) new_height = inner_height;
 
-                if (self.direction == .top_to_bottom) {
+                if (self.direction == .vertical) {
                     expandables[expandable_count] = .{
                         .percent = entity.layout.weight_percent,
                         .size = &entity.rect.height,
@@ -459,7 +459,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
 
                 if (new_height != entity.rect.height) {
                     entity.rect.height = new_height;
-                    if (self.direction != .top_to_bottom and entity.on_resized.func != null)
+                    if (self.direction != .vertical and entity.on_resized.func != null)
                         _ = entity.on_resized.call(display, entity);
                 }
 
@@ -492,7 +492,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
         }
     }
 
-    if (expandable_count > 0 and (self.direction == .left_to_right or self.direction == .top_to_bottom)) {
+    if (expandable_count > 0 and (self.direction == .horizontal or self.direction == .vertical)) {
         info("parent name={s} has expandables reserved={d}", .{
             parent.name,
             reserved_space,
@@ -511,14 +511,14 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
     // the entities are left-to-right or top-to-bottom.
 
     switch (self.direction) {
-        .left_to_right_wrap => self.placeLeftToRightWrap(parent),
-        .left_to_right => self.placeHorizontal(
+        .horizontal_wrap => self.placeHorizontalWrap(parent),
+        .horizontal => self.placeHorizontal(
             parent,
             reserved_space,
             scrollables[0..scrollable_count],
             expandables[0..expandable_count],
         ),
-        .top_to_bottom => self.placeVertical(
+        .vertical => self.placeVertical(
             parent,
             reserved_space,
             scrollables[0..scrollable_count],
@@ -846,7 +846,7 @@ inline fn placeVertical(
         }
     } else if (trailing_space < 0) {
         // Content does not fit. Can we shrink anything?
-        //info("top_to_bottom {s} {s} - needed={d} available={d} unused_space={d}", .{
+        //info("vertical {s} {s} - needed={d} available={d} unused_space={d}", .{
         //    parent.name,
         //    @tagName(parent.type),
         //    needed_space, // Not including padding
@@ -1004,7 +1004,7 @@ inline fn placeHorizontal(
 // assuming no scrolling of the child entities. Offsets
 // applied at runtime. Track the height of each entity
 // so wrapping can occur down to the next line.
-inline fn placeLeftToRightWrap(
+inline fn placeHorizontalWrap(
     panel: *Panel,
     entity: *Entity,
 ) void {
@@ -1195,7 +1195,7 @@ test "panel_button_layout" {
     try eq(1 + (display.root.rect.width - 1 - 3) / 2 - b1.rect.width / 2, b3.rect.x);
     try eq(2 + (display.root.rect.height - 2 - 4) / 2 - b1.rect.height / 2, b3.rect.y);
 
-    panel.type.panel.direction = .left_to_right;
+    panel.type.panel.direction = .horizontal;
     display.need_relayout = true;
     display.relayout();
     try eq(1, b1.rect.x);
@@ -1205,7 +1205,7 @@ test "panel_button_layout" {
     try eq(1 + b1.rect.width * 2 + panel.type.panel.spacing * 2, b3.rect.x);
     try eq(2, b3.rect.y);
 
-    panel.type.panel.direction = .left_to_right_wrap;
+    panel.type.panel.direction = .horizontal_wrap;
     display.need_relayout = true;
     display.relayout();
     try eq(1, b1.rect.x);
@@ -1215,7 +1215,7 @@ test "panel_button_layout" {
     try eq(1, b3.rect.x);
     try eq(2 + panel.type.panel.spacing + b1.rect.height, b3.rect.y);
 
-    panel.type.panel.direction = .top_to_bottom;
+    panel.type.panel.direction = .vertical;
     display.need_relayout = true;
     display.relayout();
     try eq(1, b1.rect.x);
@@ -1251,7 +1251,7 @@ test "panel_label_layout" {
     const b2 = try panel.append("label text \"word\" layout shrinks shrinks", NullHandler, &handler, display);
     const b3 = try panel.append("label text \"fish\" layout shrinks shrinks", NullHandler, &handler, display);
 
-    panel.type.panel.direction = .left_to_right;
+    panel.type.panel.direction = .horizontal;
     display.need_relayout = true;
     display.relayout();
     try eq(1, b1.rect.x);
@@ -1286,7 +1286,7 @@ test "root_panel_alignment" {
     display.root.rect.height = 200;
 
     const panel = try display.addPanel(.{
-        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .type = .{ .panel = .{ .direction = .vertical } },
         .minimum = .{ .width = 100, .height = 120 },
         .maximum = .{ .width = 200, .height = 160 },
         .layout = .{ .x = .grows, .y = .grows },
@@ -1348,7 +1348,7 @@ test "panel_padding" {
 
     const panel = try display.addPanel(.{
         .type = .{ .panel = .{
-            .direction = .top_to_bottom,
+            .direction = .vertical,
             .choosable = .choosable,
             .safe_area = .ignore_safe_area,
         } },
@@ -1361,13 +1361,13 @@ test "panel_padding" {
     try eq(200, panel.rect.height);
 
     const child = try panel.add(.{
-        .type = .{ .panel = .{ .direction = .top_to_bottom } },
+        .type = .{ .panel = .{ .direction = .vertical } },
         .rect = .{ .width = 120, .height = 80 },
         .layout = .{ .x = .fixed, .y = .fixed },
     }, display);
 
     // Test alignment without padding
-    panel.type.panel.direction = .top_to_bottom;
+    panel.type.panel.direction = .vertical;
     display.need_relayout = true;
     display.relayout();
     try eq(120, child.rect.width);
@@ -1387,7 +1387,7 @@ test "panel_padding" {
     try eq(panel.rect.width - child.rect.width, child.rect.x);
     try eq(0, child.rect.y);
 
-    panel.type.panel.direction = .left_to_right;
+    panel.type.panel.direction = .horizontal;
     display.need_relayout = true;
     display.relayout();
     try eq(0, child.rect.x);
@@ -1402,7 +1402,7 @@ test "panel_padding" {
     // Retest alignment with padding
     panel.pad = .{ .left = 2, .right = 4, .top = 8, .bottom = 16 };
 
-    panel.type.panel.direction = .top_to_bottom;
+    panel.type.panel.direction = .vertical;
     display.need_relayout = true;
     display.relayout();
     try eq(120, child.rect.width);
@@ -1416,7 +1416,7 @@ test "panel_padding" {
     try eq(2, child.rect.x);
     try eq(8, child.rect.y);
 
-    panel.type.panel.direction = .left_to_right;
+    panel.type.panel.direction = .horizontal;
     display.need_relayout = true;
     display.relayout();
     try eq(2, child.rect.x);
@@ -1438,14 +1438,14 @@ test "centre_text_bug" {
     var display = try headless_display(allocator, io, screen_width, screen_height, 2);
     defer display.destroy();
 
-    // Create a parent left_to_right panel to hold a sub-panel "row"
+    // Create a parent horizontal panel to hold a sub-panel "row"
     // of items. Check that the sub-panel "row" is correctly centred.
 
     const panel = try display.addPanel(.{
         .name = "main_panel",
         .type = .{
             .panel = .{
-                .direction = .left_to_right,
+                .direction = .horizontal,
                 .spacing = 5,
                 .safe_area = .ignore_safe_area,
                 .choosable = .choosable,
@@ -1478,7 +1478,7 @@ test "centre_text_bug" {
         .layout = .{ .x = .shrinks, .y = .shrinks },
         .child_align = .{ .x = .centre, .y = .start },
         .type = .{ .panel = .{
-            .direction = .left_to_right,
+            .direction = .horizontal,
             .spacing = 12,
         } },
     }, display);

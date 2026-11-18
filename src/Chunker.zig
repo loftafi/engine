@@ -329,7 +329,7 @@ test "guess_fail" {
 
     const panel = try display.addPanel(.{
         .minimum = .{ .width = 5, .height = 8 },
-        .type = .{ .panel = .{ .spacing = 0, .direction = .left_to_right } },
+        .type = .{ .panel = .{ .spacing = 0, .direction = .horizontal } },
         .layout = .{ .x = .shrinks, .y = .shrinks },
     });
     try expectEqual(5, panel.minimumNeededWidth(500));

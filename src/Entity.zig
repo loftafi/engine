@@ -1222,16 +1222,16 @@ pub inline fn recalculateChildWeights(self: *Entity) void {
 
     var total: usize = 0;
     for (self.type.panel.children.items) |child| {
-        if (direction == .left_to_right and child.layout.x == .grows)
+        if (direction == .horizontal and child.layout.x == .grows)
             total += child.layout.weight
-        else if (direction == .top_to_bottom and child.layout.y == .grows)
+        else if (direction == .vertical and child.layout.y == .grows)
             total += child.layout.weight;
         child.layout.weight_percent = 0;
     }
     for (self.type.panel.children.items) |child| {
-        if (direction == .left_to_right and child.layout.x == .grows)
+        if (direction == .horizontal and child.layout.x == .grows)
             child.layout.weight_percent = floatFromIntDiv(child.layout.weight, total)
-        else if (direction == .top_to_bottom and child.layout.y == .grows)
+        else if (direction == .vertical and child.layout.y == .grows)
             child.layout.weight_percent = floatFromIntDiv(child.layout.weight, total);
     }
 }
@@ -2803,14 +2803,14 @@ pub const LayoutAlign = enum {
 /// top to bottom, or every item is drawn in the centre.
 pub const LayoutDirection = enum {
     /// Starting at the top, place each entity under the previous entity.
-    top_to_bottom,
+    vertical,
 
     /// Place all items along the top, from left to right.
-    left_to_right,
+    horizontal,
 
     /// Place items along the top, but wrap if you reach
     /// the end of the line.
-    left_to_right_wrap,
+    horizontal_wrap,
 
     //right_to_left,
     //bottom_to_top,
