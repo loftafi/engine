@@ -356,19 +356,19 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
         previous_type = entity.type;
 
         // Top level panels may have safe area avoidance
-        var height = available_height;
-        var width = available_width;
+        var inner_height = available_height;
+        var inner_width = available_width;
         if (in_root and !ignore_safe_area) {
-            width -= (display.safe_area.left + display.safe_area.right);
-            height -= (display.safe_area.top + display.safe_area.bottom);
-            if (width < 0) width = 0;
-            if (height < 0) height = 0;
+            inner_width -= (display.safe_area.left + display.safe_area.right);
+            inner_height -= (display.safe_area.top + display.safe_area.bottom);
+            if (inner_width < 0) inner_width = 0;
+            if (inner_height < 0) inner_height = 0;
         }
 
         // Cacluate the initial/placeholder widths for each child.
         switch (entity.layout.x) {
             .shrinks => {
-                const new_width = entity.minimumNeededWidth(available_width);
+                const new_width = entity.minimumNeededWidth(inner_width);
                 if (new_width != entity.rect.width) {
                     entity.rect.width = new_width;
                     if (entity.on_resized.func != null)
@@ -377,7 +377,9 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 reserved_space += entity.rect.width;
             },
             .grows => {
-                var new_width = width;
+                var new_width = entity.minimumNeededWidth(inner_width);
+                if (in_root) new_width = inner_width;
+
                 if (self.direction == .left_to_right) {
                     expandables[expandable_count] = .{
                         .percent = entity.layout.weight_percent,
@@ -385,9 +387,14 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                         .initial_size = entity.rect.width,
                     };
                     expandable_count += 1;
-                    new_width = entity.minimumNeededWidth(available_width);
+                    //err("expandable width={d} -> {d} ec+>{d}", .{ entity.rect.width, new_width, expandable_count});
+                } else if(self.direction == .left_to_right_wrap) {
+                    // Not expandable
+                } else {
+                    new_width = inner_width;
                 }
                 new_width = engine.clamp(entity.minimum.width, new_width, entity.maximum.width);
+
                 if (new_width != entity.rect.width) {
                     entity.rect.width = new_width;
                     if (self.direction != .left_to_right and entity.on_resized.func != null)
@@ -434,7 +441,9 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 reserved_space += entity.rect.height;
             },
             .grows => {
-                var new_height = height;
+                var new_height = entity.minimumNeededHeight(inner_width);
+                if (in_root) new_height = inner_height;
+
                 if (self.direction == .top_to_bottom) {
                     expandables[expandable_count] = .{
                         .percent = entity.layout.weight_percent,
@@ -442,10 +451,12 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                         .initial_size = entity.rect.height,
                     };
                     expandable_count += 1;
-                    new_height = entity.minimumNeededHeight(available_width);
+                    //err("expandable height={d} -> {d} ec+>{d}", .{ entity.rect.height, new_height, expandable_count});
+                } else {
+                    new_height = inner_height;
                 }
+                new_height = engine.clamp(entity.minimum.height, new_height, entity.maximum.height);
 
-                new_height = engine.clamp(entity.minimum.height, height, entity.maximum.height);
                 if (new_height != entity.rect.height) {
                     entity.rect.height = new_height;
                     if (self.direction != .top_to_bottom and entity.on_resized.func != null)
@@ -482,7 +493,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
     }
 
     if (expandable_count > 0 and (self.direction == .left_to_right or self.direction == .top_to_bottom)) {
-        info("has expandables name={s} reserved={d}", .{
+        info("parent name={s} has expandables reserved={d}", .{
             parent.name,
             reserved_space,
         });
@@ -1440,7 +1451,7 @@ test "centre_text_bug" {
                 .choosable = .choosable,
             },
         },
-        .layout = .{ .x = .grows, .y = .grows },
+        .layout = .{ .x = .grows, .y = .grows, .weight = 1 },
     });
     display.need_relayout = true;
     display.relayout();

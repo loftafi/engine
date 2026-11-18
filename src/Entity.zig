@@ -1165,7 +1165,7 @@ pub inline fn append(
     errdefer child.destroy(display);
 
     try self.type.panel.children.append(display.allocator, child);
-    try postAppend(display, self);
+    try postAppend(display, child);
     if (child.layout.x == .grows or child.layout.y == .grows)
         self.recalculateChildWeights();
 
@@ -1323,6 +1323,10 @@ pub fn postAppend(
         .expander => {
             if (entity.layout.weight == 0)
                 entity.layout.weight = 1;
+            if (entity.layout.x != .grows)
+                warn("expander layout x should be `grows` not `{t}`", .{entity.layout.x});
+            if (entity.layout.y != .grows)
+                warn("expander layout y should be `grows` not `{t}`", .{entity.layout.y});
             entity.layout.x = .grows;
             entity.layout.y = .grows;
         },
@@ -2181,6 +2185,10 @@ pub fn setup_expander(
     entity.texture = null;
     entity.background.image = null;
     entity.focus = .never_focus;
+    if (entity.layout.x != .grows)
+        warn("expander layout x should be `grows` not `{t}`", .{entity.layout.x});
+    if (entity.layout.y != .grows)
+        warn("expander layout y should be `grows` not `{t}`", .{entity.layout.y});
     entity.layout.x = .grows;
     entity.layout.y = .grows;
     if (entity.layout.weight == 0)
