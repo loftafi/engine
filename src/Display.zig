@@ -903,23 +903,8 @@ pub fn relayoutCount(display: *Display, count: u8) void {
 
     display.need_relayout = false;
 
-    var resized = display.root.type.panel.layout(display, &display.root);
-    resized = display.root.type.panel.layout(display, &display.root) or resized;
-
-    if (resized) {
-        if (display.on_resized.call(display, &display.root)) {
-            _ = display.root.type.panel.layout(display, &display.root);
-        }
-        const child_resized = display.propagateResizeEvent(&display.root);
-        if (child_resized) {
-            display.need_relayout = true;
-            if (count == 10) {
-                err("relayout loop caught", .{});
-                return;
-            }
-            display.relayoutCount(count + 1);
-        }
-    }
+    display.root.type.panel.layout(display, &display.root);
+    //    const child_resized = display.propagateResizeEvent(&display.root);
 }
 
 pub fn setLanguage(self: *Display, language: Lang) !void {

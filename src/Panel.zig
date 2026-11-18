@@ -289,8 +289,7 @@ pub const max_expandables = 30;
 
 /// The parent has a known fixed width and height. Each of the child
 /// objects can grow or shrink to fit in what the parent is providing.
-pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
-    var resized = false;
+pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
     //trace("layout on {s}", .{parent.name});
 
     // Keep track of each expander in the panel. At the end, expand
@@ -322,13 +321,16 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
 
     for (self.children.items) |entity| {
         if (entity.visible == .hidden) continue;
+        const ignore_safe_area = entity.type == .panel and entity.type.panel.safe_area == .ignore_safe_area;
+        if (entity.layout.position == .float) {
+            floatLayout(display, entity, in_root and ignore_safe_area);
+            continue;
+        }
 
         if (entity.type != .expander and previous_type != .expander) {
             reserved_space += parent.type.panel.spacing;
         }
         previous_type = entity.type;
-
-        const ignore_safe_area = entity.type == .panel and entity.type.panel.safe_area == .ignore_safe_area;
 
         // Top level panels may have safe area avoidance
         var height = available_height;
@@ -345,7 +347,6 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
             .shrinks => {
                 const new_width = entity.minimumNeededWidth(available_width);
                 if (new_width != entity.rect.width) {
-                    resized = true;
                     entity.rect.width = new_width;
                     if (entity.on_resized.func != null)
                         _ = entity.on_resized.call(display, entity);
@@ -392,7 +393,6 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
                         entity.type.panel.scrollable.size.height = entity.rect.height;
                     }
                 }
-
             },
             .fixed => {
                 reserved_space += entity.rect.width;
@@ -404,7 +404,6 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
             .shrinks => {
                 const new_height = entity.minimumNeededHeight(available_width);
                 if (new_height != entity.rect.height) {
-                    resized = true;
                     entity.rect.height = new_height;
                     if (entity.on_resized.func != null)
                         _ = entity.on_resized.call(display, entity);
@@ -517,6 +516,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
     // layout of label text.
     for (self.children.items) |entity| {
         if (entity.visible == .hidden) continue;
+        if (entity.layout.position == .float) continue;
         switch (entity.type) {
             .label => {
                 const size = Label.layout(entity, available_width);
@@ -529,14 +529,55 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) bool {
                 if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
             },
             .panel => {
-                if (entity.type.panel.layout(display, entity))
-                    resized = true;
+                entity.type.panel.layout(display, entity);
             },
             else => {},
         }
     }
+}
 
-    return resized;
+/// If a float is found inside a panel, it is drawn out of the
+/// entity tree.
+fn floatLayout(display: *Display, entity: *Entity, avoid_safe_area: bool) void {
+    _ = avoid_safe_area;
+    switch (entity.layout.x) {
+        .shrinks => {
+            const new_width = entity.minimumNeededWidth(display.root.rect.width);
+            if (new_width != entity.rect.width) {
+                entity.rect.width = new_width;
+            }
+        },
+        .grows => {
+            const new_width = clamp(
+                entity.minimum.width,
+                display.root.rect.width,
+                entity.minimum.height,
+            );
+            if (new_width != entity.rect.width) {
+                entity.rect.width = new_width;
+            }
+        },
+        .fixed => {},
+    }
+    switch (entity.layout.y) {
+        .shrinks => {
+            const new_height = entity.minimumNeededHeight(display.root.rect.width);
+            if (new_height != entity.rect.height) {
+                entity.rect.height = new_height;
+            }
+        },
+        .grows => {
+            const new_height = clamp(
+                entity.minimum.width,
+                display.root.rect.width,
+                entity.minimum.height,
+            );
+            if (new_height != entity.rect.height) {
+                entity.rect.height = new_height;
+            }
+        },
+        .fixed => {},
+    }
 }
 
 inline fn placeCentred(
