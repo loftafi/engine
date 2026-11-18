@@ -450,7 +450,6 @@ pub fn readOnResizedAttribute(
     callbacks: *const BoolCallbackSet,
 ) Error!void {
     token.* = try token.next();
-    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     const callback = switch (token.tag) {
         .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
         .field => token.slice(),
@@ -468,7 +467,6 @@ pub fn readOnVisibilityAttribute(
     callbacks: *const StateCallbackSet,
 ) Error!void {
     token.* = try token.next();
-    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
     const callback = switch (token.tag) {
         .string => token.data[token.loc.start + 1 .. token.loc.end - 1],
         .field => token.slice(),

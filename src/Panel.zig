@@ -564,7 +564,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
 fn floatLayout(display: *Display, entity: *Entity, avoid_safe_area: bool) void {
     if (entity.type == .panel) {
         entity.type.panel.layout(display, entity);
-        return;
+        //return;
     }
     _ = avoid_safe_area;
     switch (entity.layout.x) {

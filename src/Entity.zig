@@ -82,6 +82,8 @@ border_colour: Colour = .transparent,
 border_width: f32 = 0,
 
 on_resized: BoolCallback = .empty,
+
+// Called when this entity or one of its parents has changed its visibility.
 on_visibility: StateCallback = .empty,
 
 type: union(Type) {
@@ -631,6 +633,7 @@ pub inline fn setVisibility(self: *Entity, display: *Display, visible: Visibilit
     self.visible = visible;
     display.need_relayout = true;
 
+    // If a selected item becomes not-visible. It cant stay selected.
     if (visible != .visible) {
         if (display.selected) |s| {
             if (s == self)
@@ -650,7 +653,27 @@ pub inline fn setVisibility(self: *Entity, display: *Display, visible: Visibilit
             }
         }
     }
+
+    // If a panel becomes visible, it may not have had a layout calculation.
+    if (self.type == .panel and visible == .visible)
+        self.type.panel.layout(display, self);
+
     try self.on_visibility.call(display, self);
+    if (self.type == .panel) try self.propagateVisibility(display, visible);
+}
+
+/// Parent entities can become visible or non-visible and this overrides
+/// the visibility of all child elements. Force notify all child elememts
+/// that their visibility changed due to their parent.
+fn propagateVisibility(self: *Entity, display: *Display, state: Visibility) Allocator.Error!void {
+    std.debug.assert(self.type == .panel);
+    for (self.type.panel.children.items) |child| {
+        if (child.visible == .visible) {
+            try child.on_visibility.call(display, self);
+            if (child.type == .panel)
+                try child.propagateVisibility(display, state);
+        }
+    }
 }
 
 /// Replace the foreground texture with an image resource found
