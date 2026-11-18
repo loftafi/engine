@@ -1178,13 +1178,19 @@ pub inline fn appendPanel(
 
     if (token.tag == .eof) return Error.UnexpectedToken;
 
-    const child = try EntityParser.readEntityTokens(
+    const result = EntityParser.readEntityTokens(
         self.allocator,
         &token,
         HandlerType,
         handler,
         TextSize.pixels,
-    ) orelse return Error.UnexpectedToken;
+    ) catch |e| {
+        var slice = data;
+        if (data.len > 60) slice = data[0..60];
+        err("Failed to append panel to root. {t}. '{s}...'", .{e, slice});
+        return Error.UnexpectedToken;
+    };
+    const child = result orelse return Error.UnexpectedToken;
     errdefer child.destroy(self);
 
     if (child.type != .panel) {

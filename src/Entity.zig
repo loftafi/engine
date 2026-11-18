@@ -450,6 +450,8 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             self.maximum.height,
         });
     }
+    if (self.offset.x != 0 or self.offset.y != 0)
+        _ = try out.print(" offset={d}x{d}", .{ self.offset.x, self.offset.y });
     if (self.pad.left > 0 or self.pad.right > 0 or self.pad.top > 0 or self.pad.bottom > 0) {
         _ = try out.write(" pad=");
         if (self.pad.left > 0)
@@ -480,35 +482,8 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
             self.layout.weight,
             self.layout.weight_percent,
         });
-    if (self.type == .panel) {
-        if (self.type.panel.choosable != .unspecified) {
-            _ = try out.write(" ");
-            _ = try out.write(@tagName(self.type.panel.choosable));
-        }
-        if (self.type.panel.safe_area != .unspecified) {
-            _ = try out.write(" ");
-            _ = try out.write(@tagName(self.type.panel.safe_area));
-        }
-        if (self.name.len > 0) {
-            _ = try out.write(" direction=");
-            _ = try out.write(@tagName(self.type.panel.direction));
-        }
-        if (self.type.panel.scrollable.scroll.x or self.type.panel.scrollable.scroll.y) {
-            _ = try out.print(" offset={d}x{d}", .{ self.offset.x, self.offset.y });
-            _ = try out.print(" inner={d}x{d}", .{ self.type.panel.scrollable.size.width, self.type.panel.scrollable.size.height });
-        }
-    }
-    if (self.type == .particles) {
-        _ = try out.write(" count=");
-        _ = try out.print("{d}", .{self.type.particles.count});
-        _ = try out.write(" movement=");
-        _ = try out.write(@tagName(self.type.particles.movement));
-        _ = try out.write(" image=\"");
-        if (self.texture_name) |image| {
-            _ = try out.write(image);
-        }
-        _ = try out.write("\"");
-    }
+    if (self.type == .panel) try self.type.panel.format(out);
+    if (self.type == .particles) {}
     if (self.type == .sprite) {
         if (self.name.len > 0) {
             _ = try out.write(" stretch=");
@@ -1149,13 +1124,22 @@ pub inline fn append(
 
     if (token.tag == .eof) return Error.UnexpectedToken;
 
-    const child = try EntityParser.readEntityTokens(
+    const result = EntityParser.readEntityTokens(
         display.allocator,
         &token,
         HandlerType,
         handler,
         TextSize.pixels,
-    ) orelse return Error.UnexpectedToken;
+    ) catch |e| {
+        err("Failed to append child to {t} '{s}'. {t}", .{
+            self.type,
+            self.name,
+            e,
+        });
+        return Error.UnexpectedToken;
+    };
+    const child = result orelse return Error.UnexpectedToken;
+    errdefer child.destroy(display);
 
     try self.type.panel.children.append(display.allocator, child);
     try postAppend(display, self);
@@ -1181,13 +1165,22 @@ pub inline fn appendMultiple(
     if (token.tag == .eof) return Error.UnexpectedToken;
 
     while (token.tag != .eof) {
-        const child = try EntityParser.readEntityTokens(
+        const result = EntityParser.readEntityTokens(
             display.allocator,
             &token,
             HandlerType,
             handler,
             TextSize.pixels,
-        ) orelse return Error.UnexpectedToken;
+        ) catch |e| {
+            err("Failed to append child to {t} '{s}'. {t}", .{
+                self.type,
+                self.name,
+                e,
+            });
+            return Error.UnexpectedToken;
+        };
+        const child = result orelse return Error.UnexpectedToken;
+        errdefer child.destroy(display);
 
         try self.type.panel.children.append(display.allocator, child);
         try postAppend(display, child);

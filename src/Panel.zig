@@ -69,6 +69,29 @@ pub inline fn clickable(self: *const Panel) bool {
     return self.on_ui_event.func != null or self.on_pressed.func != null;
 }
 
+pub inline fn format(
+    self: *const Panel,
+    out: *std.Io.Writer,
+) std.Io.Writer.Error!void {
+    if (self.choosable != .unspecified) {
+        _ = try out.write(" ");
+        _ = try out.write(@tagName(self.choosable));
+    }
+    if (self.safe_area != .unspecified) {
+        _ = try out.write(" ");
+        _ = try out.write(@tagName(self.safe_area));
+    }
+    _ = try out.write(" direction=");
+    _ = try out.write(@tagName(self.direction));
+
+    if (self.scrollable.scroll.x or self.scrollable.scroll.y) {
+        _ = try out.print(" inner={d}x{d}", .{ self.scrollable.size.width, self.scrollable.size.height });
+    }
+    if (self.spacing > 0) {
+        _ = try out.print(" spacing={d}", .{self.spacing});
+    }
+}
+
 /// Draw the contents of a panel.
 pub inline fn draw(
     self: *const Panel,
@@ -539,6 +562,10 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
 /// If a float is found inside a panel, it is drawn out of the
 /// entity tree.
 fn floatLayout(display: *Display, entity: *Entity, avoid_safe_area: bool) void {
+    if (entity.type == .panel) {
+        entity.type.panel.layout(display, entity);
+        return;
+    }
     _ = avoid_safe_area;
     switch (entity.layout.x) {
         .shrinks => {

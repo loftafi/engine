@@ -38,6 +38,21 @@ pub const Particle = struct {
     texture_index: u8 = 0,
 };
 
+pub inline fn format(
+    self: *const Particles,
+    out: *std.Io.Writer,
+) std.Io.Writer.Error!void {
+    _ = try out.write(" count=");
+    _ = try out.print("{d}", .{self.count});
+    _ = try out.write(" movement=");
+    _ = try out.write(@tagName(self.movement));
+    _ = try out.write(" image=\"");
+    if (self.texture_name) |image| {
+        _ = try out.write(image);
+    }
+    _ = try out.write("\"");
+}
+
 pub fn update(self: *Particles, _: *Display) void {
     for (0..self.particles.len) |i| {
         self.particles[i].rect.x += self.particles[i].velocity.x;
