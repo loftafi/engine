@@ -493,7 +493,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
     }
 
     if (expandable_count > 0 and (self.direction == .horizontal or self.direction == .vertical)) {
-        info("parent name={s} has expandables reserved={d}", .{
+        trace("parent name={s} has expandables reserved={d}", .{
             parent.name,
             reserved_space,
         });
@@ -780,7 +780,7 @@ inline fn placeVertical(
     parent.type.panel.scrollable.size.height = @max(needed_space, parent.rect.height);
 
     if (expandables.len > 0) {
-        info("placeVertical expandables={d} trailing_space={d} reserved={d}", .{ expandables.len, trailing_space, reserved_space });
+        trace("placeVertical expandables={d} trailing_space={d} reserved={d}", .{ expandables.len, trailing_space, reserved_space });
     }
 
     // Child entities have been now been placed, so handle alignment:
@@ -916,7 +916,7 @@ inline fn placeHorizontal(
     parent.type.panel.scrollable.size.width = @max(needed_space, parent.rect.width);
 
     if (expandables.len > 0) {
-        info("placeHorizontal expandables={d} trailing_space={d} reserved={d}", .{ expandables.len, trailing_space, reserved_space });
+        trace("placeHorizontal expandables={d} trailing_space={d} reserved={d}", .{ expandables.len, trailing_space, reserved_space });
     }
 
     // Child entities have been now been placed, so handle alignment:
