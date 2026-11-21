@@ -388,7 +388,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                     };
                     expandable_count += 1;
                     //err("expandable width={d} -> {d} ec+>{d}", .{ entity.rect.width, new_width, expandable_count});
-                } else if(self.direction == .horizontal_wrap) {
+                } else if (self.direction == .horizontal_wrap) {
                     // Not expandable
                 } else {
                     new_width = inner_width;
@@ -402,27 +402,30 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 }
 
                 // Collect scrollables that can be shrunk
-                if (entity.type == .panel and new_width > 0) {
-                    if (entity.type.panel.scrollable.scroll.x) {
-                        scrollables[scrollable_count] = .{
-                            .percent = entity.layout.weight_percent,
-                            .size = &entity.rect.width,
-                            .initial_size = entity.rect.width,
-                        };
-                        scrollable_count += 1;
-                        entity.type.panel.scrollable.size.width = entity.rect.width;
-                        entity.type.panel.scrollable.size.height = entity.rect.height;
-                    } else if (entity.type.panel.scrollable.scroll.y) {
-                        scrollables[scrollable_count] = .{
-                            .percent = entity.layout.weight_percent,
-                            .size = &entity.rect.height,
-                            .initial_size = entity.rect.height,
-                        };
-                        scrollable_count += 1;
-                        entity.type.panel.scrollable.size.width = entity.rect.width;
-                        entity.type.panel.scrollable.size.height = entity.rect.height;
-                    }
-                }
+                if (new_width > 0) switch (entity.type) {
+                    inline .panel, .text_area => |*s| {
+                        if (s.scrollable.scroll.x) {
+                            scrollables[scrollable_count] = .{
+                                .percent = entity.layout.weight_percent,
+                                .size = &entity.rect.width,
+                                .initial_size = entity.rect.width,
+                            };
+                            scrollable_count += 1;
+                            s.scrollable.size.width = entity.rect.width;
+                            s.scrollable.size.height = entity.rect.height;
+                        } else if (s.scrollable.scroll.y) {
+                            scrollables[scrollable_count] = .{
+                                .percent = entity.layout.weight_percent,
+                                .size = &entity.rect.height,
+                                .initial_size = entity.rect.height,
+                            };
+                            scrollable_count += 1;
+                            s.scrollable.size.width = entity.rect.width;
+                            s.scrollable.size.height = entity.rect.height;
+                        }
+                    },
+                    else => {},
+                };
             },
             .fixed => {
                 reserved_space += entity.rect.width;
@@ -464,27 +467,30 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 }
 
                 // Collect scrollables that can be shrunk
-                if (entity.type == .panel and new_height > 0) {
-                    if (entity.type.panel.scrollable.scroll.x) {
-                        scrollables[scrollable_count] = .{
-                            .percent = entity.layout.weight_percent,
-                            .size = &entity.rect.width,
-                            .initial_size = entity.rect.width,
-                        };
-                        scrollable_count += 1;
-                        entity.type.panel.scrollable.size.width = entity.rect.width;
-                        entity.type.panel.scrollable.size.height = entity.rect.height;
-                    } else if (entity.type.panel.scrollable.scroll.y) {
-                        scrollables[scrollable_count] = .{
-                            .percent = entity.layout.weight_percent,
-                            .size = &entity.rect.height,
-                            .initial_size = entity.rect.height,
-                        };
-                        scrollable_count += 1;
-                        entity.type.panel.scrollable.size.width = entity.rect.width;
-                        entity.type.panel.scrollable.size.height = entity.rect.height;
-                    }
-                }
+                if (new_height > 0) switch (entity.type) {
+                    inline .panel, .text_area => |*s| {
+                        if (s.scrollable.scroll.x) {
+                            scrollables[scrollable_count] = .{
+                                .percent = entity.layout.weight_percent,
+                                .size = &entity.rect.width,
+                                .initial_size = entity.rect.width,
+                            };
+                            scrollable_count += 1;
+                            s.scrollable.size.width = entity.rect.width;
+                            s.scrollable.size.height = entity.rect.height;
+                        } else if (s.scrollable.scroll.y) {
+                            scrollables[scrollable_count] = .{
+                                .percent = entity.layout.weight_percent,
+                                .size = &entity.rect.height,
+                                .initial_size = entity.rect.height,
+                            };
+                            scrollable_count += 1;
+                            s.scrollable.size.width = entity.rect.width;
+                            s.scrollable.size.height = entity.rect.height;
+                        }
+                    },
+                    else => {},
+                };
             },
             .fixed => {
                 reserved_space += entity.rect.height;

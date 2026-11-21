@@ -729,7 +729,6 @@ pub fn choosePanel(
 
     for (self.root.type.panel.children.items) |item| {
         const panel = if (item.type == .panel) item.type.panel else continue;
-        if (panel.choosable == .not_choosable) continue;
         if (panel.choosable == .unspecified)
             warn("Top level panel '{s}' is neither {t} nor {t}", .{
                 item.name,
@@ -738,6 +737,13 @@ pub fn choosePanel(
             });
 
         if (std.mem.eql(u8, name, item.name)) {
+            if (panel.choosable == .not_choosable) {
+                warn("ignoring choice of {t} panel '{s}'", .{
+                    Entity.Panel.Choosable.not_choosable,
+                    name,
+                });
+                continue;
+            }
             if (item.visible != .visible) {
                 if (old_panel) |old| {
                     info("choose panel. {s} -> {s}", .{ old.name, name });
@@ -1187,7 +1193,7 @@ pub inline fn appendPanel(
     ) catch |e| {
         var slice = data;
         if (data.len > 60) slice = data[0..60];
-        err("Failed to append panel to root. {t}. '{s}...'", .{e, slice});
+        err("Failed to append panel to root. {t}. '{s}...'", .{ e, slice });
         return Error.UnexpectedToken;
     };
     const child = result orelse return Error.UnexpectedToken;

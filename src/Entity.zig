@@ -2720,7 +2720,9 @@ pub const Flip = struct {
 
 /// Scroll information
 pub const Scroller = struct {
+    // Indicates which direction scrolling is allowed.
     scroll: Flip,
+    // The total size of the content being drawn inside the scroller.
     size: Size,
 };
 

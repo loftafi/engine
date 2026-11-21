@@ -868,12 +868,16 @@ pub fn readStyleAttribute(token: *Token, style: *engine.Theme.Style) Error!void 
 }
 
 pub fn readScrollAttribute(token: *Token, entity: *engine.Entity) Error!void {
+    const scrollable = switch (entity.type) {
+        .text_area => &entity.type.text_area.scrollable,
+        .panel => &entity.type.panel.scrollable,
+        else => return error.UnexpectedToken,
+    };
     token.* = try token.next();
-    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
 
     switch (token.tag) {
-        .vertical => entity.type.panel.scrollable.scroll.y = true,
-        .horizontal => entity.type.panel.scrollable.scroll.x = true,
+        .vertical => scrollable.scroll.y = true,
+        .horizontal => scrollable.scroll.x = true,
         else => return error.UnexpectedToken,
     }
     const previous = token.tag;
@@ -881,8 +885,8 @@ pub fn readScrollAttribute(token: *Token, entity: *engine.Entity) Error!void {
 
     if (previous != token.tag) {
         switch (token.tag) {
-            .vertical => entity.type.panel.scrollable.scroll.y = true,
-            .horizontal => entity.type.panel.scrollable.scroll.x = true,
+            .vertical => scrollable.scroll.y = true,
+            .horizontal => scrollable.scroll.x = true,
             else => return,
         }
         token.* = try token.next();

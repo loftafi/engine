@@ -24,6 +24,11 @@ on_element_unhover: Entity.Callback = .empty,
 /// Mouse clicked, cursor+enter, gamepad click on `TextElement`
 on_element_pressed: Entity.Callback = .empty,
 
+scrollable: Entity.Scroller = .{
+    .scroll = .{ .x = false, .y = false },
+    .size = .{ .width = 0, .height = 0 },
+},
+
 pub fn deinit(self: *TextArea, allocator: Allocator) void {
     for (self.paragraphs.items) |*p|
         p.elements.deinit(allocator);
