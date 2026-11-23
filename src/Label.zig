@@ -176,7 +176,7 @@ pub inline fn layout(
     const used_text_width = switch (entity.layout.x) {
         .shrinks => @max(minimum_without_padding, @ceil(box.final.width)),
         .grows => maximum_text_width,
-        .fixed => @max(0, entity.rect.width - (entity.pad.left - entity.pad.right)),
+        .fixed => @max(0, entity.rect.width - (entity.pad.left + entity.pad.right)),
     };
 
     //err("finalize final.width={d} requested_min={d} [{t}] chosen_min={d}", .{
@@ -270,7 +270,7 @@ pub inline fn minimumNeededHeight(
     // How high does the label text get when laying it out.
     return switch (entity.layout.y) {
         .shrinks, .grows => @max(
-            layout(entity, allowed_width).height + entity.pad.top + entity.pad.bottom,
+            layout(entity, allowed_width).height, // + entity.pad.top + entity.pad.bottom,
             entity.minimum.height,
         ),
         .fixed => entity.rect.height,
