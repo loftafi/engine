@@ -515,23 +515,7 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
         if (self.type.label.on_pressed.func != null)
             _ = try out.write(" on_pressed");
     } else if (self.type == .text_area) {
-        if (self.type.text_area.text.len > 0) {
-            _ = try out.write(" text=");
-            _ = try out.write(self.type.text_area.text);
-        }
-        if (self.type.text_area.paragraphs.items.len > 0) {
-            _ = try out.print(" paragraphs={d}", .{self.type.text_area.paragraphs.items.len});
-        }
-        if (self.type.text_area.on_ui_event.func != null)
-            _ = try out.write(" on_ui_event");
-        if (self.type.text_area.on_element_hover.func != null)
-            _ = try out.write(" on_element_hover_pressed");
-        if (self.type.text_area.on_element_unhover.func != null)
-            _ = try out.write(" on_element_unhover_pressed");
-        if (self.type.text_area.on_pressed.func != null)
-            _ = try out.write(" on_pressed");
-        if (self.type.text_area.on_element_pressed.func != null)
-            _ = try out.write(" on_element_pressed");
+        try self.type.text_area.format(out);
     } else if (self.type == .expander) {
         //
     } else if (self.type == .button) {

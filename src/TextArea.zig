@@ -66,6 +66,32 @@ pub fn setup(
     try self.setText(display, initial_text, entity);
 }
 
+pub inline fn format(
+    self: *const TextArea,
+    out: *std.Io.Writer,
+) std.Io.Writer.Error!void {
+    if (self.text.len > 0) {
+        _ = try out.write(" text=");
+        _ = try out.write(self.text);
+    }
+    if (self.paragraphs.items.len > 0) {
+        _ = try out.print(" paragraphs={d}", .{self.paragraphs.items.len});
+    }
+    if (self.scrollable.scroll.x or self.scrollable.scroll.y) {
+        _ = try out.print(" inner={d}x{d}", .{ self.scrollable.size.width, self.scrollable.size.height });
+    }
+    if (self.on_ui_event.func != null)
+        _ = try out.write(" on_ui_event");
+    if (self.on_element_hover.func != null)
+        _ = try out.write(" on_element_hover_pressed");
+    if (self.on_element_unhover.func != null)
+        _ = try out.write(" on_element_unhover_pressed");
+    if (self.on_pressed.func != null)
+        _ = try out.write(" on_pressed");
+    if (self.on_element_pressed.func != null)
+        _ = try out.write(" on_element_pressed");
+}
+
 /// Update the text contents of this `Text` entity. A single newline character
 /// is ignored. Two newline characters mark a new paragraph.
 pub fn setText(

@@ -2020,7 +2020,7 @@ pub fn find_under_cursor(
         if (item.visible != .visible) continue;
 
         const is_under_cursor = item.atPoint(cursor, scroll_offset);
-        if (!is_under_cursor and item.type != .panel) continue;
+        if (!is_under_cursor and item.type != .panel and item.type != .text_area) continue;
 
         //debug("under cursor {s}.{s}", .{ @tagName(item.type), item.name });
         if (item.type == .panel) {
@@ -2029,19 +2029,28 @@ pub fn find_under_cursor(
                 return found;
             }
         }
+        if (item.type == .text_area) {
+            // TODO check if word is under cursor
+            //const so = scroll_offset.add(item.offset);
+            //
+        }
+
         // This item is under the cursor
         if (query == .any) {
             // Search for any entity
             if (item.focus == .never_focus) continue;
 
-            // Panels get special handling,
+            // Panels and TextArea's get special handling,
             if (item.type != .panel) return item;
+            if (item.type != .text_area) return item;
 
             if (is_under_cursor) {
                 if (item.type.panel.clickable())
                     return item;
 
                 if (item.type.panel.scrollable.scroll.x == true or item.type.panel.scrollable.scroll.y == true)
+                    return item;
+                if (item.type.text_area.scrollable.scroll.x == true or item.type.text_area.scrollable.scroll.y == true)
                     return item;
             }
         }
@@ -2061,7 +2070,7 @@ pub fn find_under_cursor(
                     if (query == .clickable) return item;
                     if (top_entity != null) top_entity = item;
                 },
-                .text_area => |t| if (t.clickable()) {
+                .text_area => |t| if (is_under_cursor and t.clickable()) {
                     if (query == .clickable) return item;
                     if (top_entity != null) top_entity = item;
                 },
@@ -2077,9 +2086,15 @@ pub fn find_under_cursor(
             };
         }
         if (query == .scrollable or query == .clickable_or_scrollable) {
-            if (item.type == .panel and is_under_cursor) {
-                if (item.type.panel.scrollable.scroll.x or item.type.panel.scrollable.scroll.y) {
-                    return item;
+            if (is_under_cursor) {
+                if (item.type == .panel) {
+                    if (item.type.panel.scrollable.scroll.x or item.type.panel.scrollable.scroll.y) {
+                        return item;
+                    }
+                } else if (item.type == .text_area) {
+                    if (item.type.text_area.scrollable.scroll.x or item.type.text_area.scrollable.scroll.y) {
+                        return item;
+                    }
                 }
             }
         }
@@ -2561,6 +2576,18 @@ inline fn handleMouseDownEvent(
                     trace("begin scrolling {s} at {any}", .{ found.name, cursor });
                 }
             },
+            .text_area => {
+                if (found.type.text_area.scrollable.scroll.x or found.type.text_area.scrollable.scroll.y) {
+                    display.scrolling = found;
+                    // scroll_start is the cursor position when drag
+                    // started, used to calculate drag distance.
+                    display.scroll_start = cursor;
+                    // If a previos drag occured then this new drag
+                    // adds to the previous drag.
+                    display.scroll_initial_offset = found.offset;
+                    trace("begin scrolling {s} at {any}", .{ found.name, cursor });
+                }
+            },
             .label => try found.type.label.on_ui_event.call(
                 display,
                 found,
@@ -2605,58 +2632,59 @@ inline fn handleMouseMotionEvent(
     if (display.scrolling) |entity| {
         // If mouse is down while movement is detected, and mouse was
         // down on a movable item, we are in scrolling/moving mode.
-        switch (entity.type) {
-            .panel => |*panel| {
+        const scrollable: *Entity.Scroller = switch (entity.type) {
+            .text_area => |*ta| &ta.scrollable,
+            .panel => |*panel| &panel.scrollable,
+            else => {
+                err("Cant scroll {s}. Not a panel or text area.", .{entity.name});
+                return;
+            },
+        };
 
-                // How far has the mouse/finger moved the item
-                entity.offset = cursor.minus(display.scroll_start).add(display.scroll_initial_offset);
+        // How far has the mouse/finger moved the item
+        entity.offset = cursor.minus(display.scroll_start).add(display.scroll_initial_offset);
 
-                // Clamp offset so we cant scroll past end at all
-                switch (entity.child_align.x) {
-                    .centre => {
-                        // allowable scroll offset (negative number)
-                        const allowable_x_scroll = @min(0, entity.rect.width - panel.scrollable.size.width) / 2;
-                        entity.offset.x = limit_scroll(allowable_x_scroll, entity.offset.x, -allowable_x_scroll);
-                    },
-                    else => {
-                        // allowable scroll offset (negative number)
-                        const allowable_x_scroll = @min(0, entity.rect.width - panel.scrollable.size.width);
-                        entity.offset.x = limit_scroll(allowable_x_scroll, entity.offset.x, 0);
-                    },
-                }
-
-                // Clamp offset so we cant scroll past start at all
-                switch (entity.child_align.y) {
-                    .centre => {
-                        const allowable_y_scroll = @min(0, entity.rect.height - panel.scrollable.size.height) / 2;
-                        entity.offset.y = limit_scroll(allowable_y_scroll, entity.offset.y, -allowable_y_scroll);
-                    },
-                    else => {
-                        const allowable_y_scroll = @min(0, entity.rect.height - panel.scrollable.size.height);
-                        entity.offset.y = limit_scroll(allowable_y_scroll, entity.offset.y, 0);
-                    },
-                }
-
-                if (!panel.scrollable.scroll.y)
-                    entity.offset.y = 0;
-
-                if (!panel.scrollable.scroll.x)
-                    entity.offset.x = 0;
-
-                trace("scrolling panel {s}. scrollable.size={d}x{d} panel.size={d}x{d}. draw.offset={d}x{d}", .{
-                    entity.name,
-                    panel.scrollable.size.width,
-                    panel.scrollable.size.height,
-                    entity.rect.width,
-                    entity.rect.height,
-                    entity.offset.x,
-                    entity.offset.y,
-                });
+        // Clamp offset so we cant scroll past end at all
+        switch (entity.child_align.x) {
+            .centre => {
+                // allowable scroll offset (negative number)
+                const allowable_x_scroll = @min(0, entity.rect.width - scrollable.size.width) / 2;
+                entity.offset.x = limit_scroll(allowable_x_scroll, entity.offset.x, -allowable_x_scroll);
             },
             else => {
-                err("Cant scroll {s}. Not a panel.", .{entity.name});
+                // allowable scroll offset (negative number)
+                const allowable_x_scroll = @min(0, entity.rect.width - scrollable.size.width);
+                entity.offset.x = limit_scroll(allowable_x_scroll, entity.offset.x, 0);
             },
         }
+
+        // Clamp offset so we cant scroll past start at all
+        switch (entity.child_align.y) {
+            .centre => {
+                const allowable_y_scroll = @min(0, entity.rect.height - scrollable.size.height) / 2;
+                entity.offset.y = limit_scroll(allowable_y_scroll, entity.offset.y, -allowable_y_scroll);
+            },
+            else => {
+                const allowable_y_scroll = @min(0, entity.rect.height - scrollable.size.height);
+                entity.offset.y = limit_scroll(allowable_y_scroll, entity.offset.y, 0);
+            },
+        }
+
+        if (!scrollable.scroll.y)
+            entity.offset.y = 0;
+
+        if (!scrollable.scroll.x)
+            entity.offset.x = 0;
+
+        trace("scrolling panel {s}. scrollable.size={d}x{d} panel.size={d}x{d}. draw.offset={d}x{d}", .{
+            entity.name,
+            scrollable.size.width,
+            scrollable.size.height,
+            entity.rect.width,
+            entity.rect.height,
+            entity.offset.x,
+            entity.offset.y,
+        });
         return;
     }
 
