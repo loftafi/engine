@@ -430,6 +430,9 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
         _ = try out.write(" background_image=");
         _ = try out.write(name);
     }
+    if (self.colour.a > 0) {
+        _ = try out.print(" colour={f}", .{self.colour});
+    }
     if (self.background.colour.a != 0) {
         _ = try out.write(" background_colour=");
         _ = try out.print("{f}", .{self.background.colour});
@@ -479,122 +482,20 @@ pub fn format(self: *const Entity, out: *std.Io.Writer) std.Io.Writer.Error!void
     _ = try out.write(@tagName(self.layout.x));
     _ = try out.write("/");
     _ = try out.write(@tagName(self.layout.y));
-    if (self.layout.weight > 0)
+    if (self.layout.weight > 0) {
         _ = try out.print(" weight={d}/{d}", .{
             self.layout.weight,
             self.layout.weight_percent,
         });
-    if (self.type == .panel) try self.type.panel.format(out);
-    if (self.type == .particles) {}
-    if (self.type == .sprite) {
-        if (self.name.len > 0) {
-            _ = try out.write(" stretch=");
-            _ = try out.write(@tagName(self.type.sprite.scale));
-        }
     }
-    if (self.type == .label) {
-        if (self.type.label.text.len > 0) {
-            _ = try out.write(" text=");
-            _ = try out.write(self.type.label.text);
-        }
-        if (self.type.label.elements.items.len > 0) {
-            _ = try out.print(" tokens={d}", .{self.type.label.elements.items.len});
-        }
-        if (!std.mem.eql(u8, self.type.label.text, self.type.label.translated) and self.type.label.translated.len > 0) {
-            _ = try out.write(" translated=");
-            _ = try out.write(self.type.label.text);
-        }
-        if (self.type.label.font_name) |font| {
-            if (font.len > 0) {
-                _ = try out.write(" font=");
-                _ = try out.write(font);
-            }
-        }
-        if (self.type.label.on_ui_event.func != null)
-            _ = try out.write(" on_ui_event");
-        if (self.type.label.on_pressed.func != null)
-            _ = try out.write(" on_pressed");
-    } else if (self.type == .text_area) {
-        try self.type.text_area.format(out);
-    } else if (self.type == .expander) {
-        //
-    } else if (self.type == .button) {
-        if (self.type.button.toggle != .no_toggle) {
-            _ = try out.print(" toggle={t}", .{self.type.button.toggle});
-        }
-        if (self.colour.a > 0) {
-            _ = try out.print(" colour={f}", .{self.colour});
-        }
-        if (self.type.button.text.len > 0) {
-            _ = try out.write(" text='");
-            _ = try out.write(self.type.button.text);
-            _ = try out.writeByte('\'');
-        }
-        if (!std.mem.eql(u8, self.type.button.text, self.type.button.translated) and self.type.button.translated.len > 0) {
-            _ = try out.write(" translated=");
-            _ = try out.write(self.type.button.translated);
-        }
-        if (self.type.button.icon.size.height > 0 or self.type.button.icon.size.width > 0) {
-            _ = try out.print(" icon.size={d:1.0}x{d:1.0}", .{
-                self.type.button.icon.size.width,
-                self.type.button.icon.size.height,
-            });
-        }
-        if (self.type.button.icon.mod.a > 0) {
-            _ = try out.print(" icon.mod={f}", .{self.type.button.icon.mod});
-        }
-        if (self.type.button.icon.default_name) |value| {
-            _ = try out.print(" icon.default='{s}'", .{value});
-        }
-        if (self.type.button.button.default_name) |value| {
-            _ = try out.print(" button.default='{s}'", .{value});
-        }
-        if (self.type.button.button.pressed_name) |value| {
-            _ = try out.print(" button.pressed='{s}'", .{value});
-        }
-        if (self.type.button.font_name) |font| {
-            if (font.len > 0) {
-                _ = try out.write(" font=");
-                _ = try out.write(font);
-            }
-        }
-
-        if (self.type.button.on_ui_event.func != null)
-            _ = try out.write(" on_ui_event");
-        if (self.type.button.on_pressed.func != null)
-            _ = try out.write(" on_pressed");
-    } else if (self.type == .checkbox) {
-        if (self.type.checkbox.text.len > 0) {
-            _ = try out.write(" text=");
-            _ = try out.write(self.type.checkbox.text);
-        }
-        if (self.type.checkbox.checked) {
-            _ = try out.write(" checked=");
-            if (self.type.checkbox.checked) {
-                _ = try out.write("true");
-            } else {
-                _ = try out.write("false");
-            }
-        }
-        if (!std.mem.eql(u8, self.type.checkbox.text, self.type.checkbox.translated) and self.type.checkbox.translated.len > 0) {
-            _ = try out.write(" translated=");
-            _ = try out.write(self.type.checkbox.translated);
-        }
-        if (self.type.checkbox.checkbox_size.height > 0 or self.type.checkbox.checkbox_size.width > 0) {
-            _ = try out.print(" checkbox_size={d:1.0}x{d:1.0}", .{
-                self.type.checkbox.checkbox_size.width,
-                self.type.checkbox.checkbox_size.height,
-            });
-        }
-        if (self.type.checkbox.font_name) |font| {
-            if (font.len > 0) {
-                _ = try out.write(" font=");
-                _ = try out.write(font);
-            }
-        }
-        if (self.type.checkbox.on_change.func != null) {
-            _ = try out.write(" on_change");
-        }
+    switch (self.type) {
+        .label => |e| try e.format(out),
+        .text_area => |e| try e.format(out),
+        .button => |e| try e.format(out),
+        .panel => |e| try e.format(out),
+        .checkbox => |e| try e.format(out),
+        .sprite => |e| try e.format(out),
+        else => {},
     }
 }
 

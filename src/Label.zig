@@ -48,6 +48,33 @@ pub fn setup(
     }
 }
 
+pub inline fn format(
+    self: *const Label,
+    out: *std.Io.Writer,
+) std.Io.Writer.Error!void {
+    if (self.text.len > 0) {
+        _ = try out.write(" text=");
+        _ = try out.write(self.text);
+    }
+    if (self.elements.items.len > 0) {
+        _ = try out.print(" tokens={d}", .{self.elements.items.len});
+    }
+    if (!std.mem.eql(u8, self.text, self.translated) and self.translated.len > 0) {
+        _ = try out.write(" translated=");
+        _ = try out.write(self.text);
+    }
+    if (self.font_name) |font| {
+        if (font.len > 0) {
+            _ = try out.write(" font=");
+            _ = try out.write(font);
+        }
+    }
+    if (self.on_ui_event.func != null)
+        _ = try out.write(" on_ui_event");
+    if (self.on_pressed.func != null)
+        _ = try out.write(" on_pressed");
+}
+
 /// A label is considered clickable if it has a user driven event
 /// handler, or if it has text and  we are in blind accessibility mode.
 pub inline fn clickable(label: *const Label) bool {

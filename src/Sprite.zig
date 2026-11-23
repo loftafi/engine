@@ -76,6 +76,14 @@ pub inline fn draw(
     }
 }
 
+pub inline fn format(
+    self: *const Sprite,
+    out: *std.Io.Writer,
+) std.Io.Writer.Error!void {
+    _ = try out.write(" stretch=");
+    _ = try out.write(@tagName(self.scale));
+}
+
 /// Calculate the slice of the source image and the slice of the target drawing
 /// area based on the scaling and alignment setting.
 pub fn applyContentScale(

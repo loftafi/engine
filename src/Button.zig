@@ -41,6 +41,52 @@ toggle: ToggleState = .no_toggle,
 on_ui_event: Entity.Callback = .empty,
 on_pressed: Entity.Callback = .empty,
 
+pub inline fn format(
+    self: *const Button,
+    out: *std.Io.Writer,
+) std.Io.Writer.Error!void {
+    if (self.toggle != .no_toggle) {
+        _ = try out.print(" toggle={t}", .{self.toggle});
+    }
+    if (self.text.len > 0) {
+        _ = try out.write(" text='");
+        _ = try out.write(self.text);
+        _ = try out.writeByte('\'');
+    }
+    if (!std.mem.eql(u8, self.text, self.translated) and self.translated.len > 0) {
+        _ = try out.write(" translated=");
+        _ = try out.write(self.translated);
+    }
+    if (self.icon.size.height > 0 or self.icon.size.width > 0) {
+        _ = try out.print(" icon.size={d:1.0}x{d:1.0}", .{
+            self.icon.size.width,
+            self.icon.size.height,
+        });
+    }
+    if (self.icon.mod.a > 0) {
+        _ = try out.print(" icon.mod={f}", .{self.icon.mod});
+    }
+    if (self.icon.default_name) |value| {
+        _ = try out.print(" icon.default='{s}'", .{value});
+    }
+    if (self.button.default_name) |value| {
+        _ = try out.print(" button.default='{s}'", .{value});
+    }
+    if (self.button.pressed_name) |value| {
+        _ = try out.print(" button.pressed='{s}'", .{value});
+    }
+    if (self.font_name) |font| {
+        if (font.len > 0) {
+            _ = try out.write(" font=");
+            _ = try out.write(font);
+        }
+    }
+    if (self.on_ui_event.func != null)
+        _ = try out.write(" on_ui_event");
+    if (self.on_pressed.func != null)
+        _ = try out.write(" on_pressed");
+}
+
 /// Draw a button with its text and/or icon. Mouse hover, mouse click
 /// and the disabled status may change the picture or icon
 /// displayed in the button.

@@ -30,6 +30,43 @@ pub inline fn clickable(checkbox: *const Checkbox) bool {
     return true;
 }
 
+pub inline fn format(
+    self: *const Checkbox,
+    out: *std.Io.Writer,
+) std.Io.Writer.Error!void {
+    if (self.text.len > 0) {
+        _ = try out.write(" text=");
+        _ = try out.write(self.text);
+    }
+    if (self.checked) {
+        _ = try out.write(" checked=");
+        if (self.checked) {
+            _ = try out.write("true");
+        } else {
+            _ = try out.write("false");
+        }
+    }
+    if (!std.mem.eql(u8, self.text, self.translated) and self.translated.len > 0) {
+        _ = try out.write(" translated=");
+        _ = try out.write(self.translated);
+    }
+    if (self.checkbox_size.height > 0 or self.checkbox_size.width > 0) {
+        _ = try out.print(" checkbox_size={d:1.0}x{d:1.0}", .{
+            self.checkbox_size.width,
+            self.checkbox_size.height,
+        });
+    }
+    if (self.font_name) |font| {
+        if (font.len > 0) {
+            _ = try out.write(" font=");
+            _ = try out.write(font);
+        }
+    }
+    if (self.on_change.func != null) {
+        _ = try out.write(" on_change");
+    }
+}
+
 /// Draw a radio box combined with a text label.
 pub inline fn draw(
     self: *const Checkbox,
