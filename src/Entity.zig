@@ -770,7 +770,7 @@ pub inline fn setTextSize(
                 ti.cursor_character = 0;
             }
         },
-        .text => |*text| {
+        .text_area => |*text| {
             if (text.text_size == size) return;
             text.text_size = size;
             warn("Text.setTextSize() unimplemented.", .{});
