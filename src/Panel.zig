@@ -101,23 +101,16 @@ pub inline fn draw(
     parent_clip: ?Clip,
     scroll_offset: Vector,
 ) void {
-    if (parent_clip) |clip| {
-        for (self.children.items) |child| {
-            child.draw(display, scroll_offset, clip);
-        }
-    } else if (self.scrollable.scroll.x or self.scrollable.scroll.y) {
-        for (self.children.items) |child| {
-            child.draw(display, scroll_offset, Clip{
-                .top = entity.rect.y,
-                .left = entity.rect.x,
-                .bottom = entity.rect.y + entity.rect.height,
-                .right = entity.rect.x + entity.rect.width,
-            });
-        }
-    } else {
-        for (self.children.items) |child| {
-            child.draw(display, scroll_offset, null);
-        }
+    var clip = parent_clip;
+    if (self.scrollable.scroll.x or self.scrollable.scroll.y) {
+        clip = if (clip == null)
+            entity.rect.bounds()
+        else
+            clip.?.intersect(entity.rect.bounds());
+    }
+
+    for (self.children.items) |child| {
+        child.draw(display, scroll_offset, clip);
     }
 }
 

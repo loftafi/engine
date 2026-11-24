@@ -2540,6 +2540,15 @@ pub const Rect = extern struct {
         return .{ .x = self.x, .y = self.y };
     }
 
+    pub inline fn bounds(self: *Rect) Clip {
+        return .{
+            .left = self.x,
+            .right = self.x + self.width,
+            .top = self.y,
+            .bottom = self.y + self.height,
+        };
+    }
+
     /// Return a new rectangle by shrinking this rectangle by the requested
     /// padding amount.
     pub fn removePadding(self: Rect, pad: Clip) Rect {
@@ -2577,6 +2586,34 @@ pub const Clip = struct {
             rect.height = @max(0, rect.height - cut_amount);
             rect.y += cut_amount;
         }
+    }
+
+    // Shrink any edge of `clip` if it falls out of `bounds`
+    pub fn intersect(clip: Clip, bounds: Clip) Clip {
+        return .{
+            .top = if (clip.top < bounds.top) bounds.top else clip.top,
+            .left = if (clip.left < bounds.left) bounds.left else clip.left,
+            .bottom = if (clip.bottom > bounds.bottom) bounds.bottom else clip.bottom,
+            .right = if (clip.right > bounds.right) bounds.right else clip.right,
+        };
+    }
+
+    test intersect {
+        const a: Clip = .{ .top = 10, .bottom = 20, .left = 10, .right = 20 };
+        const b: Clip = .{ .top = 10, .bottom = 20, .left = 10, .right = 20 };
+        try expectEqualDeep(a, b);
+        try expectEqualDeep(a, a.intersect(b));
+        try expectEqualDeep(a, b.intersect(a));
+        const c: Clip = .{ .top = 12, .bottom = 18, .left = 12, .right = 18 };
+        try expectEqualDeep(c, a.intersect(c));
+        try expectEqualDeep(c, c.intersect(a));
+        const d: Clip = .{ .top = 0, .bottom = 30, .left = 10, .right = 20 };
+        try expectEqualDeep(a, d.intersect(a));
+        try expectEqualDeep(a, a.intersect(d));
+        const e: Clip = .{ .top = 10, .bottom = 20, .left = 0, .right = 30 };
+        try expectEqualDeep(a, e.intersect(a));
+        try expectEqualDeep(a, a.intersect(e));
+
     }
 };
 
@@ -2809,6 +2846,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const sqrt = std.math.sqrt;
 const pow = std.math.pow;
+const expectEqual = std.testing.expectEqual;
+const expectEqualDeep = std.testing.expectEqualDeep;
 
 const engine = @import("engine.zig");
 const sdl = engine.sdl;
