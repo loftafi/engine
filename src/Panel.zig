@@ -305,19 +305,17 @@ pub const Flexible = struct {
     size: *f32, // width or height
     initial_size: f32, // width or height
 };
-pub const max_expandables = 30;
+pub const max_flexibles = 30;
 
 /// The parent has a known fixed width and height. Each of the child
 /// objects can grow or shrink to fit in what the parent is providing.
 pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
     //trace("layout on {s}", .{parent.name});
 
-    // Keep track of each expander in the panel. At the end, expand
-    // each expander according to the leftover space.
-    var expandables: [max_expandables]Flexible = undefined;
-    var expandable_count: usize = 0;
-    var scrollables: [max_expandables]Flexible = undefined;
-    var scrollable_count: usize = 0;
+    // Keep track of each expander/scroller in the panel. At the end, expand
+    // each entity according to the leftover space.
+    var flexibles: [max_flexibles]Flexible = undefined;
+    var flexible_count: usize = 0;
 
     // The parent panel now has its final/fixed size for this layout.
     // Place child entities inside this space.

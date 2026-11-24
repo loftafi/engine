@@ -178,6 +178,7 @@ pub const Tag = enum(u8) {
     bottom_left,
     width_range,
     height_range,
+    pixel_art,
 };
 
 /// Wrap a string of bytes with a parser. This wrapper does

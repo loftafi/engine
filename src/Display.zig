@@ -2894,7 +2894,7 @@ pub inline fn renderTexture(
         .w = dest.width * self.scale,
         .h = dest.height * self.scale,
     };
-
+    //_ = sdl.SDL_SetTextureScaleMode(texture, sdl.SDL_SCALEMODE_PIXELART);
     _ = sdl.SDL_RenderTexture(
         self.renderer,
         texture,
@@ -2918,6 +2918,7 @@ pub inline fn renderTextureWithMod(
     };
     _ = sdl.SDL_SetTextureAlphaMod(texture, mod.a);
     _ = sdl.SDL_SetTextureColorMod(texture, mod.r, mod.g, mod.b);
+    //_ = sdl.SDL_SetTextureScaleMode(texture, sdl.SDL_SCALEMODE_PIXELART);
     _ = sdl.SDL_RenderTexture(
         self.renderer,
         texture,
@@ -3031,6 +3032,7 @@ pub inline fn render9GridTexture(
     else
         corner_radius;
 
+    //_ = sdl.SDL_SetTextureScaleMode(texture, sdl.SDL_SCALEMODE_PIXELART);
     _ = sdl.SDL_RenderTexture9Grid(
         self.renderer,
         texture,

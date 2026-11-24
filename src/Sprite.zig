@@ -3,6 +3,8 @@ pub const Sprite = @This();
 
 scale: Fit = .stretch,
 
+pixel_art: bool = false,
+
 /// Request a callback every iteration of the main app loop.
 on_update: Entity.UpdateCallback = .empty,
 
