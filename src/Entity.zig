@@ -541,7 +541,9 @@ pub inline fn setVisibility(self: *Entity, display: *Display, visible: Visibilit
 
     // If a panel becomes visible, it may not have had a layout calculation.
     if (self.type == .panel and visible == .visible)
-        self.type.panel.layout(display, self);
+        self.type.panel.layout(display, self)
+    else if (self.type == .panel and visible == .visible)
+        self.type.text_area.layout(display, self);
 
     try self.on_visibility.call(display, self);
     if (self.type == .panel) try self.propagateVisibility(display, visible);
@@ -1385,6 +1387,7 @@ pub fn minimumNeededHeight(self: *Entity, parent_width: f32) f32 {
         .expander => return self.minimum.height,
         .label => return self.type.label.minimumNeededHeight(self, parent_width),
         .panel => return self.type.panel.minimumNeededHeight(self, parent_width),
+        .text_area => return self.type.text_area.minimumNeededHeight(self, parent_width),
         .text_input => return self.type.text_input.minimumNeededHeight(self, parent_width),
         else => self.rect.height,
     };
@@ -1565,6 +1568,12 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
             entity.rect.move(scroll_offset),
         );
         if (entity.type == .panel and (entity.type.panel.scrollable.scroll.x or entity.type.panel.scrollable.scroll.y)) {
+            display.renderRectangle(
+                2,
+                display.theme.success_panel_colour,
+                entity.rect,
+            );
+        } else if (entity.type == .text_area and (entity.type.text_area.scrollable.scroll.x or entity.type.text_area.scrollable.scroll.y)) {
             display.renderRectangle(
                 2,
                 display.theme.success_panel_colour,

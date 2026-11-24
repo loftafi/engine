@@ -85,7 +85,11 @@ pub inline fn format(
     _ = try out.write(@tagName(self.direction));
 
     if (self.scrollable.scroll.x or self.scrollable.scroll.y) {
-        _ = try out.print(" inner={d}x{d}", .{ self.scrollable.size.width, self.scrollable.size.height });
+        if (self.scrollable.scroll.x)
+            _ = try out.print(" scroll.x={any}", .{ self.scrollable.scroll.x });
+        if (self.scrollable.scroll.y)
+            _ = try out.print(" scroll.y={any}", .{ self.scrollable.scroll.y });
+        _ = try out.print(" scroll.inner={d}x{d}", .{ self.scrollable.size.width, self.scrollable.size.height });
     }
     if (self.spacing > 0) {
         _ = try out.print(" spacing={d}", .{self.spacing});

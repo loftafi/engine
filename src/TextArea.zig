@@ -70,15 +70,15 @@ pub inline fn format(
     self: *const TextArea,
     out: *std.Io.Writer,
 ) std.Io.Writer.Error!void {
-    if (self.text.len > 0) {
-        _ = try out.write(" text=");
-        _ = try out.write(self.text);
-    }
     if (self.paragraphs.items.len > 0) {
         _ = try out.print(" paragraphs={d}", .{self.paragraphs.items.len});
     }
     if (self.scrollable.scroll.x or self.scrollable.scroll.y) {
-        _ = try out.print(" inner={d}x{d}", .{ self.scrollable.size.width, self.scrollable.size.height });
+        if (self.scrollable.scroll.x)
+            _ = try out.print(" scroll.x={any}", .{self.scrollable.scroll.x});
+        if (self.scrollable.scroll.y)
+            _ = try out.print(" scroll.y={any}", .{self.scrollable.scroll.y});
+        _ = try out.print(" scroll.inner={d}x{d}", .{ self.scrollable.size.width, self.scrollable.size.height });
     }
     if (self.on_ui_event.func != null)
         _ = try out.write(" on_ui_event");
@@ -90,6 +90,16 @@ pub inline fn format(
         _ = try out.write(" on_pressed");
     if (self.on_element_pressed.func != null)
         _ = try out.write(" on_element_pressed");
+    if (self.text.len > 0) {
+        _ = try out.write(" text=\"");
+        if (self.text.len > 30) {
+            _ = try out.write(self.text[0..27]);
+            _ = try out.write("...\"");
+        } else {
+            _ = try out.write(self.text);
+            _ = try out.write("\"");
+        }
+    }
 }
 
 /// Update the text contents of this `Text` entity. A single newline character
@@ -146,6 +156,15 @@ pub fn setText(
         @min(entity.maximum.width, width);
 
     const size = layout(entity, allowed_width);
+    if (entity.type.text_area.scrollable.size.height != size.height) {
+        entity.type.text_area.scrollable.size.height = size.height;
+        display.need_relayout = true;
+    }
+    if (entity.type.text_area.scrollable.size.width != size.width) {
+        entity.type.text_area.scrollable.size.width = size.width;
+        display.need_relayout = true;
+    }
+
     if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
     if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
     if (entity.visible != .hidden) display.need_relayout = true;
