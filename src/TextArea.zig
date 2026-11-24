@@ -206,6 +206,14 @@ pub inline fn draw(
     parent_clip: ?Clip,
     scroll_offset: Vector,
 ) void {
+    var clip = parent_clip;
+    if (self.scrollable.scroll.x or self.scrollable.scroll.y) {
+        clip = if (clip == null)
+            entity.rect.bounds()
+        else
+            clip.?.intersect(entity.rect.bounds());
+    }
+
     const loc = Vector{
         .x = entity.rect.x + entity.pad.left + scroll_offset.x,
         .y = entity.rect.y + entity.pad.top + scroll_offset.y,
@@ -217,7 +225,7 @@ pub inline fn draw(
             loc,
             text_colour,
             display,
-            parent_clip,
+            clip,
             self.text_size,
         );
     }
