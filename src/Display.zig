@@ -2645,36 +2645,17 @@ inline fn handleMouseMotionEvent(
         entity.offset = cursor.minus(display.scroll_start).add(display.scroll_initial_offset);
 
         // Clamp offset so we cant scroll past end at all
-        switch (entity.child_align.x) {
-            .centre => {
-                // allowable scroll offset (negative number)
-                const allowable_x_scroll = @min(0, entity.rect.width - scrollable.size.width) / 2;
-                entity.offset.x = limit_scroll(allowable_x_scroll, entity.offset.x, -allowable_x_scroll);
-            },
-            else => {
-                // allowable scroll offset (negative number)
-                const allowable_x_scroll = @min(0, entity.rect.width - scrollable.size.width);
-                entity.offset.x = limit_scroll(allowable_x_scroll, entity.offset.x, 0);
-            },
-        }
+        // Scroll offset begins at zero, becomes a negative number
+        // while scrolling/dragging left.
+        const allowable_x_scroll = @min(0, entity.rect.width - scrollable.size.width);
+        entity.offset.x = limit_scroll(allowable_x_scroll, entity.offset.x, 0);
 
-        // Clamp offset so we cant scroll past start at all
-        switch (entity.child_align.y) {
-            .centre => {
-                const allowable_y_scroll = @min(0, entity.rect.height - scrollable.size.height) / 2;
-                entity.offset.y = limit_scroll(allowable_y_scroll, entity.offset.y, -allowable_y_scroll);
-            },
-            else => {
-                const allowable_y_scroll = @min(0, entity.rect.height - scrollable.size.height);
-                entity.offset.y = limit_scroll(allowable_y_scroll, entity.offset.y, 0);
-            },
-        }
+        // Clamp offset so we cant scroll past start at all.
+        const allowable_y_scroll = @min(0, entity.rect.height - scrollable.size.height);
+        entity.offset.y = limit_scroll(allowable_y_scroll, entity.offset.y, 0);
 
-        if (!scrollable.scroll.y)
-            entity.offset.y = 0;
-
-        if (!scrollable.scroll.x)
-            entity.offset.x = 0;
+        if (!scrollable.scroll.y) entity.offset.y = 0;
+        if (!scrollable.scroll.x) entity.offset.x = 0;
 
         trace("scrolling panel {s}. scrollable.size={d}x{d} panel.size={d}x{d}. draw.offset={d}x{d}", .{
             entity.name,

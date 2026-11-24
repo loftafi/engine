@@ -794,6 +794,7 @@ pub inline fn setTextSize(
                         .text = word.text,
                         .width = width,
                         .font = word.font,
+                        .data = null,
                     });
                 }
                 display.need_relayout = true;
@@ -818,6 +819,7 @@ pub inline fn setTextSize(
                         .text = text.text,
                         .width = width,
                         .font = text.font,
+                        .data = null,
                     });
                 }
                 display.need_relayout = true;
