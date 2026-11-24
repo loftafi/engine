@@ -633,6 +633,7 @@ const sdl = engine.sdl;
 const err = engine.log.err;
 const info = engine.log.info;
 const Display = engine.Display;
+const Clip = engine.Clip;
 const Colour = engine.Colour;
 const Error = engine.Error;
 const Font = engine.Font;
@@ -642,7 +643,6 @@ const Texture = engine.Texture;
 const Theme = engine.Theme;
 const TextSize = engine.TextSize;
 
-const Clip = Entity.Clip;
 const Rect = Entity.Rect;
 const Size = Entity.Size;
 const ToggleState = Entity.ToggleState;

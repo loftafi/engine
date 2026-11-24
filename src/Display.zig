@@ -3805,6 +3805,7 @@ const sdl = engine.sdl;
 const Animator = engine.Animator;
 const Audio = @import("Audio.zig");
 const Chunker = engine.Chunker;
+const Clip = engine.Clip;
 const Config = engine.Config;
 const Error = engine.Error;
 const Font = engine.Font;
@@ -3832,7 +3833,6 @@ const Event = @import("Event.zig");
 
 const Entity = @import("Entity.zig");
 const Background = Entity.Background;
-const Clip = Entity.Clip;
 const Fit = Entity.Fit;
 const Label = Entity.Label;
 const LayoutSize = Entity.LayoutSize;

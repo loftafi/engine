@@ -184,6 +184,7 @@ const warn = engine.warn;
 const info = engine.info;
 const debug = engine.debug;
 const trace = engine.trace;
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
@@ -193,7 +194,6 @@ const TextSize = engine.TextSize;
 
 const Label = @import("Label.zig");
 
-const Clip = Entity.Clip;
 const Rect = Entity.Rect;
 const Size = Entity.Size;
 const TextElement = Entity.TextElement;

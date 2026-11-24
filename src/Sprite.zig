@@ -335,11 +335,11 @@ const expectEqual = std.testing.expectEqual;
 const engine = @import("engine.zig");
 const sdl = engine.sdl;
 const err = engine.err;
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Texture = engine.Texture;
 
-const Clip = Entity.Clip;
 const Fit = Entity.Fit;
 const Rect = Entity.Rect;
 const Size = Entity.Size;

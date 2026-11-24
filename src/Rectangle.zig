@@ -24,9 +24,9 @@ test "init" {
 const std = @import("std");
 
 const engine = @import("engine.zig");
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Texture = engine.Texture;
 
-const Clip = Entity.Clip;
 const Vector = Entity.Vector;

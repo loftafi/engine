@@ -185,13 +185,13 @@ const sdl = engine.sdl;
 const err = engine.err;
 const warn = engine.log.warn;
 const info = engine.log.info;
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
 const Texture = engine.Texture;
 
-const Clip = Entity.Clip;
 const Fit = Entity.Fit;
 const Rect = Entity.Rect;
 const Size = Entity.Size;

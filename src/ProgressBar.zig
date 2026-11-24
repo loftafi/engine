@@ -63,10 +63,10 @@ const std = @import("std");
 const engine = @import("engine.zig");
 const sdl = engine.sdl;
 const err = engine.log.err;
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Texture = engine.Texture;
 
-const Clip = Entity.Clip;
 const Rect = Entity.Rect;
 const Vector = Entity.Vector;

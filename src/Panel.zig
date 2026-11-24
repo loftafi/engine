@@ -1599,6 +1599,7 @@ const warn = engine.log.warn;
 const info = engine.log.info;
 const debug = engine.log.debug;
 const trace = engine.log.trace;
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
@@ -1606,7 +1607,6 @@ const Font = engine.Font;
 const Label = @import("Label.zig");
 const TextArea = @import("TextArea.zig");
 
-const Clip = Entity.Clip;
 const LayoutDirection = Entity.LayoutDirection;
 const Scroller = Entity.Scroller;
 const Size = Entity.Size;

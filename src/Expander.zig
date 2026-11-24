@@ -175,9 +175,9 @@ const ArrayList = std.ArrayList;
 const engine = @import("engine.zig");
 const headless_display = engine.headless_display;
 
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const TextSize = engine.TextSize;
 
 const Vector = Entity.Vector;
-const Clip = Entity.Clip;

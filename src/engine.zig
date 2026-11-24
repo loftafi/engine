@@ -426,8 +426,8 @@ pub const random = praxis.random;
 pub const seed = random.seed;
 
 pub const Entity = @import("Entity.zig");
+pub const Clip = @import("Clip.zig");
 pub const Background = Entity.Background;
-pub const Clip = Entity.Clip;
 pub const Fit = Entity.Fit;
 pub const LayoutSize = Entity.LayoutSize;
 pub const LayoutAlign = Entity.LayoutAlign;

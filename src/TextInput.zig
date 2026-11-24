@@ -257,6 +257,7 @@ const warn = engine.log.warn;
 const info = engine.log.info;
 const debug = engine.log.debug;
 const trace = engine.log.trace;
+const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
@@ -266,7 +267,6 @@ const Texture = engine.Texture;
 const TextSize = engine.TextSize;
 const Event = @import("Event.zig");
 
-const Clip = Entity.Clip;
 const Rect = Entity.Rect;
 const Size = Entity.Size;
 const Vector = Entity.Vector;

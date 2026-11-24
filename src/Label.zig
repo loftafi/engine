@@ -749,11 +749,11 @@ const trace = engine.log.trace;
 const clamp = engine.clamp;
 const directional_clamp = engine.directional_clamp;
 const Display = engine.Display;
+const Clip = engine.Clip;
 const Entity = engine.Entity;
 const Error = engine.Error;
 const Font = engine.Font;
 
-const Clip = Entity.Clip;
 const SizeInfo = Entity.SizeInfo;
 const TextSize = Entity.TextSize;
 const Texture = Entity.Texture;
