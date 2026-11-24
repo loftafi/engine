@@ -777,6 +777,12 @@ inline fn placeVertical(
             previous_type = child.type;
             child.rect.y = new_y;
             new_y += child.rect.height;
+            if (child.type == .text_area) {
+                info("redo text_area layout with new height: {d}->{d}", .{ child.rect.height, child.inner_height() });
+                const size = TextArea.layout(child, child.inner_width());
+                child.type.text_area.scrollable.size.width = size.width;
+                child.type.text_area.scrollable.size.height = size.height;
+            }
         }
     } else if (trailing_space > 0) {
         // There is spare space, but no flexibles to fill the spare space.
@@ -910,7 +916,7 @@ inline fn placeHorizontal(
             child.rect.x = new_x;
             new_x += child.rect.width;
             if (child.type == .text_area) {
-                info("redo text_area layout with new width: {d}->{d}", .{ child.rect.width, child.inner_width()});
+                info("redo text_area layout with new width: {d}->{d}", .{ child.rect.width, child.inner_width() });
                 const size = TextArea.layout(child, child.inner_width());
                 child.type.text_area.scrollable.size.width = size.width;
                 child.type.text_area.scrollable.size.height = size.height;
