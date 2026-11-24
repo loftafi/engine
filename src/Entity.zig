@@ -2576,7 +2576,7 @@ pub const Clip = struct {
         return false;
     }
 
-    /// Shrink the bounding box if its crossing the clip boundary.
+    /// Shrink a bounding `rect` if it crosses this `clip` boundary.
     pub fn applyEdgeClipping(clip: Clip, rect: *engine.Rect) void {
         // Is text crossing over scroll box boundary?
         if (rect.y + rect.height > clip.bottom) {
@@ -2588,7 +2588,7 @@ pub const Clip = struct {
         }
     }
 
-    // Shrink any edge of `clip` if it falls out of `bounds`
+    /// Shrink any edge of this `clip` if it falls out of `bounds`.
     pub fn intersect(clip: Clip, bounds: Clip) Clip {
         return .{
             .top = if (clip.top < bounds.top) bounds.top else clip.top,
@@ -2613,7 +2613,6 @@ pub const Clip = struct {
         const e: Clip = .{ .top = 10, .bottom = 20, .left = 0, .right = 30 };
         try expectEqualDeep(a, e.intersect(a));
         try expectEqualDeep(a, a.intersect(e));
-
     }
 };
 
