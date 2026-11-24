@@ -305,6 +305,7 @@ pub inline fn layout(
     const maximum_total_width = clamp(entity.minimum.width, parent_inner_width, entity.maximum.width);
     const maximum_text_width = @max(0, maximum_total_width - (entity.pad.left + entity.pad.right));
 
+    info("do text layout with width: {d}", .{maximum_text_width});
     var box: BoxLayout = .init(maximum_text_width, word_spacing, 0);
 
     for (entity.type.text_area.paragraphs.items, 0..) |paragraph, count| {

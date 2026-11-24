@@ -542,8 +542,15 @@ pub inline fn setVisibility(self: *Entity, display: *Display, visible: Visibilit
     // If a panel becomes visible, it may not have had a layout calculation.
     if (self.type == .panel and visible == .visible)
         self.type.panel.layout(display, self)
-    else if (self.type == .panel and visible == .visible)
-        self.type.text_area.layout(display, self);
+    else if (self.type == .text_area and visible == .visible) {
+        if (display.findParent(self)) |parent| {
+            const size = TextArea.layout(self, parent.inner_width());
+            self.type.text_area.scrollable.size.width = size.width;
+            self.type.text_area.scrollable.size.height = size.height;
+        } else {
+            err("Unable to find child parent.", .{});
+        }
+    }
 
     try self.on_visibility.call(display, self);
     if (self.type == .panel) try self.propagateVisibility(display, visible);

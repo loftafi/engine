@@ -86,9 +86,9 @@ pub inline fn format(
 
     if (self.scrollable.scroll.x or self.scrollable.scroll.y) {
         if (self.scrollable.scroll.x)
-            _ = try out.print(" scroll.x={any}", .{ self.scrollable.scroll.x });
+            _ = try out.print(" scroll.x={any}", .{self.scrollable.scroll.x});
         if (self.scrollable.scroll.y)
-            _ = try out.print(" scroll.y={any}", .{ self.scrollable.scroll.y });
+            _ = try out.print(" scroll.y={any}", .{self.scrollable.scroll.y});
         _ = try out.print(" scroll.inner={d}x{d}", .{ self.scrollable.size.width, self.scrollable.size.height });
     }
     if (self.spacing > 0) {
@@ -331,10 +331,6 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
     const available_height = parent.inner_height();
     const in_root = parent == &display.root;
 
-    // Within the parent inner area, reserve space for fixed entities,
-    // shrinks entities, and inter-entity `spacing`.
-    var reserved_space: f32 = 0;
-
     var previous_type: Entity.Type = .expander;
 
     for (self.children.items) |entity| {
@@ -345,9 +341,6 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
             continue;
         }
 
-        if (entity.type != .expander and previous_type != .expander) {
-            reserved_space += parent.type.panel.spacing;
-        }
         previous_type = entity.type;
 
         // Top level panels may have safe area avoidance
@@ -369,26 +362,26 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                     if (entity.on_resized.func != null)
                         _ = entity.on_resized.call(display, entity);
                 }
-                reserved_space += entity.rect.width;
             },
             .grows => {
                 var new_width = entity.minimumNeededWidth(inner_width);
                 if (in_root) new_width = inner_width;
+                new_width = engine.clamp(entity.minimum.width, new_width, entity.maximum.width);
+                if (entity.type == .panel or entity.type == .text_area) new_width = 0;
 
                 if (self.direction == .horizontal) {
-                    expandables[expandable_count] = .{
+                    flexibles[flexible_count] = .{
                         .percent = entity.layout.weight_percent,
                         .size = &entity.rect.width,
                         .initial_size = entity.rect.width,
                     };
-                    expandable_count += 1;
+                    flexible_count += 1;
                     //err("expandable width={d} -> {d} ec+>{d}", .{ entity.rect.width, new_width, expandable_count});
                 } else if (self.direction == .horizontal_wrap) {
-                    // Not expandable
+                    // Not expandable. Keep minimum width.
                 } else {
                     new_width = inner_width;
                 }
-                new_width = engine.clamp(entity.minimum.width, new_width, entity.maximum.width);
 
                 if (new_width != entity.rect.width) {
                     entity.rect.width = new_width;
@@ -400,21 +393,9 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 if (new_width > 0) switch (entity.type) {
                     inline .panel, .text_area => |*s| {
                         if (s.scrollable.scroll.x) {
-                            scrollables[scrollable_count] = .{
-                                .percent = entity.layout.weight_percent,
-                                .size = &entity.rect.width,
-                                .initial_size = entity.rect.width,
-                            };
-                            scrollable_count += 1;
                             s.scrollable.size.width = entity.rect.width;
                             s.scrollable.size.height = entity.rect.height;
                         } else if (s.scrollable.scroll.y) {
-                            scrollables[scrollable_count] = .{
-                                .percent = entity.layout.weight_percent,
-                                .size = &entity.rect.height,
-                                .initial_size = entity.rect.height,
-                            };
-                            scrollable_count += 1;
                             s.scrollable.size.width = entity.rect.width;
                             s.scrollable.size.height = entity.rect.height;
                         }
@@ -422,9 +403,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                     else => {},
                 };
             },
-            .fixed => {
-                reserved_space += entity.rect.width;
-            },
+            .fixed => {},
         }
 
         // Cacluate the initial/placeholder heights for each child.
@@ -436,24 +415,24 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                     if (entity.on_resized.func != null)
                         _ = entity.on_resized.call(display, entity);
                 }
-                reserved_space += entity.rect.height;
             },
             .grows => {
                 var new_height = entity.minimumNeededHeight(inner_width);
                 if (in_root) new_height = inner_height;
+                new_height = engine.clamp(entity.minimum.height, new_height, entity.maximum.height);
+                if (entity.type == .panel or entity.type == .text_area) new_height = 0;
 
                 if (self.direction == .vertical) {
-                    expandables[expandable_count] = .{
+                    flexibles[flexible_count] = .{
                         .percent = entity.layout.weight_percent,
                         .size = &entity.rect.height,
                         .initial_size = entity.rect.height,
                     };
-                    expandable_count += 1;
+                    flexible_count += 1;
                     //err("expandable height={d} -> {d} ec+>{d}", .{ entity.rect.height, new_height, expandable_count});
                 } else {
                     new_height = inner_height;
                 }
-                new_height = engine.clamp(entity.minimum.height, new_height, entity.maximum.height);
 
                 if (new_height != entity.rect.height) {
                     entity.rect.height = new_height;
@@ -465,21 +444,21 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 if (new_height > 0) switch (entity.type) {
                     inline .panel, .text_area => |*s| {
                         if (s.scrollable.scroll.x) {
-                            scrollables[scrollable_count] = .{
+                            flexibles[flexible_count] = .{
                                 .percent = entity.layout.weight_percent,
                                 .size = &entity.rect.width,
                                 .initial_size = entity.rect.width,
                             };
-                            scrollable_count += 1;
+                            flexible_count += 1;
                             s.scrollable.size.width = entity.rect.width;
                             s.scrollable.size.height = entity.rect.height;
                         } else if (s.scrollable.scroll.y) {
-                            scrollables[scrollable_count] = .{
+                            flexibles[flexible_count] = .{
                                 .percent = entity.layout.weight_percent,
                                 .size = &entity.rect.height,
                                 .initial_size = entity.rect.height,
                             };
-                            scrollable_count += 1;
+                            flexible_count += 1;
                             s.scrollable.size.width = entity.rect.width;
                             s.scrollable.size.height = entity.rect.height;
                         }
@@ -487,16 +466,13 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                     else => {},
                 };
             },
-            .fixed => {
-                reserved_space += entity.rect.height;
-            },
+            .fixed => {},
         }
     }
 
-    if (expandable_count > 0 and (self.direction == .horizontal or self.direction == .vertical)) {
-        trace("parent name={s} has expandables reserved={d}", .{
-            parent.name,
-            reserved_space,
+    if (flexible_count > 0 and (self.direction == .horizontal or self.direction == .vertical)) {
+        info("parent name={s} has {d} {t} flexibles", .{
+            parent.name, flexible_count, self.direction,
         });
     }
 
@@ -515,35 +491,31 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
         .horizontal_wrap => self.placeHorizontalWrap(parent),
         .horizontal => self.placeHorizontal(
             parent,
-            reserved_space,
-            scrollables[0..scrollable_count],
-            expandables[0..expandable_count],
+            flexibles[0..flexible_count],
         ),
         .vertical => self.placeVertical(
             parent,
-            reserved_space,
-            scrollables[0..scrollable_count],
-            expandables[0..expandable_count],
+            flexibles[0..flexible_count],
         ),
         .centre => self.placeCentred(
             parent,
             if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null,
-            scrollables[0..scrollable_count],
+            flexibles[0..flexible_count],
         ),
         .top_left => self.placeTopLeft(
             parent,
             if (in_root) .{ .x = display.safe_area.left, .y = display.safe_area.top } else null,
-            scrollables[0..scrollable_count],
+            flexibles[0..flexible_count],
         ),
         .top_right => self.placeTopRight(
             parent,
             if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null,
-            scrollables[0..scrollable_count],
+            flexibles[0..flexible_count],
         ),
         .bottom_left => self.placeBottomLeft(
             parent,
             if (in_root) .{ .x = -display.safe_area.right, .y = display.safe_area.top } else null,
-            scrollables[0..scrollable_count],
+            flexibles[0..flexible_count],
         ),
     }
 
@@ -559,9 +531,9 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
                 if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
             },
             .text_area => {
-                const size = TextArea.layout(entity, available_width);
-                if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
-                if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
+                //const size = TextArea.layout(entity, available_width);
+                //if (entity.layout.x != .fixed) entity.rect.width = @max(size.width, entity.minimum.width);
+                //if (entity.layout.y != .fixed) entity.rect.height = @max(size.height, entity.minimum.height);
             },
             .panel => {
                 entity.type.panel.layout(display, entity);
@@ -754,9 +726,7 @@ inline fn placeTopRight(
 inline fn placeVertical(
     _: *Panel,
     parent: *Entity,
-    reserved_space: f32,
-    scrollables: []Flexible,
-    expandables: []Flexible,
+    flexibles: []Flexible,
 ) void {
     var current: Vector = .{
         .x = parent.rect.x + parent.pad.left,
@@ -780,20 +750,22 @@ inline fn placeVertical(
     const trailing_space = (parent.rect.y + parent.rect.height - parent.pad.bottom) - current.y;
     parent.type.panel.scrollable.size.height = @max(needed_space, parent.rect.height);
 
-    if (expandables.len > 0) {
-        trace("placeVertical expandables={d} trailing_space={d} reserved={d}", .{ expandables.len, trailing_space, reserved_space });
+    if (flexibles.len > 0) {
+        trace("placeVertical flexibles={d} inner_space={d} trailing_space={d}", .{ flexibles.len, parent.inner_height(), trailing_space });
     }
 
     // Child entities have been now been placed, so handle alignment:
     // Do we need to push them apart with expanders?
     // Do we need to start, centre or end align them?
 
-    if (trailing_space > 0 and expandables.len > 0) {
+    if (trailing_space > 0 and flexibles.len > 0) {
         // Need to expand, Give each expandable a percentage of spare space
-        for (expandables) |expandable| {
-            expandable.size.* += @trunc(trailing_space * expandable.percent);
+        for (flexibles, 0..) |flex, i| {
+            const b = flex.size.*;
+            flex.size.* += @trunc(trailing_space * flex.percent);
+            info(" {d} expand {d}x{d} += {d}->{d} (initial was {d}) ", .{ i, trailing_space, flex.percent, b, flex.size.*, flex.initial_size });
         }
-        // Revise each child's y position due to expandables resizing.
+        // Revise each child's y position due to flexibles resizing.
         var new_y: f32 = parent.rect.y + parent.pad.top;
         previous_type = .expander;
         for (parent.type.panel.children.items) |child| {
@@ -807,7 +779,7 @@ inline fn placeVertical(
             new_y += child.rect.height;
         }
     } else if (trailing_space > 0) {
-        // There is spare space, but no expandables to fill the spare space.
+        // There is spare space, but no flexibles to fill the spare space.
         // Align the items inside the spare space.
         switch (parent.child_align.y) {
             .start => {},
@@ -847,21 +819,17 @@ inline fn placeVertical(
         }
     } else if (trailing_space < 0) {
         // Content does not fit. Can we shrink anything?
-        //info("vertical {s} {s} - needed={d} available={d} unused_space={d}", .{
-        //    parent.name,
-        //    @tagName(parent.type),
-        //    needed_space, // Not including padding
-        //    parent.inner_height(),
-        //    trailing_space,
-        //});
+        info("vertical {s} {s} - needed={d} available={d} unused_space={d}", .{
+            parent.name,
+            @tagName(parent.type),
+            needed_space, // Not including padding
+            parent.inner_height(),
+            trailing_space,
+        });
         // There is no spare space, are there scrollables that can shrink?
-        if (scrollables.len > 0) {
-            var total_weights: f32 = 0;
-            for (scrollables) |scrollable|
-                total_weights += scrollable.percent;
-            for (scrollables) |scrollable| {
-                const percent = scrollable.percent / total_weights;
-                scrollable.size.* += @trunc(trailing_space * percent);
+        if (flexibles.len > 0) {
+            for (flexibles) |flexible| {
+                flexible.size.* += @trunc(trailing_space * flexible.percent);
             }
             // Revise each child's y position because of scrollable resizing.
             var new_y: f32 = parent.rect.y + parent.pad.top;
@@ -890,9 +858,7 @@ pub inline fn floatFromIntDiv(a: u8, b: usize) f32 {
 inline fn placeHorizontal(
     _: *Panel,
     parent: *Entity,
-    reserved_space: f32,
-    scrollables: []Flexible,
-    expandables: []Flexible,
+    flexibles: []Flexible,
 ) void {
     var current: Vector = .{
         .x = parent.rect.x + parent.pad.left,
@@ -916,20 +882,22 @@ inline fn placeHorizontal(
     const trailing_space = (parent.rect.x + parent.rect.width - parent.pad.right) - current.x;
     parent.type.panel.scrollable.size.width = @max(needed_space, parent.rect.width);
 
-    if (expandables.len > 0) {
-        trace("placeHorizontal expandables={d} trailing_space={d} reserved={d}", .{ expandables.len, trailing_space, reserved_space });
+    if (flexibles.len > 0) {
+        info("placeHorizontal flexibles={d} inner_width={d} trailing_space={d} ", .{ flexibles.len, parent.inner_width(), trailing_space });
     }
 
     // Child entities have been now been placed, so handle alignment:
     // Do we need to push them apart with expanders?
     // Do we need to start, centre or end align them?
 
-    if (trailing_space > 0 and expandables.len > 0) {
+    if (trailing_space > 0 and flexibles.len > 0) {
         // Need to expand, Give each expandable a percentage of spare space
-        for (expandables) |expandable| {
-            expandable.size.* += @trunc(trailing_space * expandable.percent);
+        for (flexibles, 0..) |flex, i| {
+            const b = flex.size.*;
+            flex.size.* += @trunc(trailing_space * flex.percent);
+            info(" {d} expand {d}x{d} += {d}->{d} (initial was {d}) ", .{ i, trailing_space, flex.percent, b, flex.size.*, flex.initial_size });
         }
-        // Revise each child's x position due to expandables resizing.
+        // Revise each child's x position due to flexibles resizing.
         var new_x: f32 = parent.rect.x + parent.pad.left;
         previous_type = .expander;
         for (parent.type.panel.children.items) |child| {
@@ -941,9 +909,15 @@ inline fn placeHorizontal(
             previous_type = child.type;
             child.rect.x = new_x;
             new_x += child.rect.width;
+            if (child.type == .text_area) {
+                info("redo text_area layout with new width: {d}->{d}", .{ child.rect.width, child.inner_width()});
+                const size = TextArea.layout(child, child.inner_width());
+                child.type.text_area.scrollable.size.width = size.width;
+                child.type.text_area.scrollable.size.height = size.height;
+            }
         }
     } else if (trailing_space > 0) {
-        // There is spare space, but no expandables to fill the spare space.
+        // There is spare space, but no flexibles to fill the spare space.
         // Align the items inside the spare space.
         switch (parent.child_align.x) {
             .start => {},
@@ -975,11 +949,11 @@ inline fn placeHorizontal(
         }
     } else if (trailing_space < 0) {
         // Content does not fit. Can we shrink anything?
-        if (scrollables.len > 0) {
+        if (flexibles.len > 0) {
             var total_weights: f32 = 0;
-            for (scrollables) |scrollable|
+            for (flexibles) |scrollable|
                 total_weights += scrollable.percent;
-            for (scrollables) |scrollable| {
+            for (flexibles) |scrollable| {
                 const percent = scrollable.percent / total_weights;
                 scrollable.size.* += @trunc(trailing_space * percent);
                 //trace("fix scrollable weight={d} percent={d} size={d}", .{ scrollable.weight, percent, scrollable.size.* });

@@ -1563,6 +1563,22 @@ pub fn playBundleResource(
     return item;
 }
 
+/// Find the parent of a child entity. This is recursive and slow,
+/// avoid where possible.
+pub fn findParent(self: *Display, child: *Entity) ?*Entity {
+    return self.findChildParent(&self.root, child);
+}
+
+fn findChildParent(self: *Display, parent: *Entity, child: *Entity) ?*Entity {
+    for (parent.type.panel.children.items) |entity| {
+        if (entity == child) return parent;
+        if (entity.type == .panel) {
+            if (self.findChildParent(entity, child)) |f| return f;
+        }
+    }
+    return null;
+}
+
 /// The `target` entity has an x/y position on screen, but the x/y
 /// position may have been translated by one or more scroll panels.
 /// If the `target` is visible, this will return the real physical
@@ -3760,7 +3776,7 @@ test "test_init" {
     });
 
     try eq(1, display.root.type.panel.children.items.len);
-    _ = try panel.add(.{
+    const child = try panel.add(.{
         .name = "menu_bg",
         .rect = .{ .x = 0, .y = 0, .width = 550, .height = 100 },
         .minimum = .{ .width = 300, .height = 130 },
@@ -3770,6 +3786,9 @@ test "test_init" {
         .type = .{ .rectangle = .{} },
     }, display);
     try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
+
+    try eq(panel, display.findParent(child).?);
+    try eq(display.root, display.findParent(panel).?);
 }
 
 test "font_loading" {
