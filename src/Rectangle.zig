@@ -1,6 +1,9 @@
 /// Draw a basic rectangle with a basic colour background.
 pub const Rectangle = @This();
 
+on_ui_event: Entity.Callback = .empty,
+on_pressed: Entity.Callback = .empty,
+
 /// Draw a basic rectangle.
 pub inline fn draw(
     _: *const Rectangle,

@@ -39,6 +39,7 @@ pub fn readEntityTokens(
     const state_callbacks: StateCallbackSet = .init(HandlerType);
     const update_callbacks: UpdateCallbackSet = .init(HandlerType);
     const bool_callbacks: BoolCallbackSet = .init(HandlerType);
+    const text_area_callbacks: TextAreaCallbackSet = .init(HandlerType);
 
     errdefer {
         err("Unexpected token {t} at {d}.{d}: {s}", .{
@@ -61,6 +62,7 @@ pub fn readEntityTokens(
         &state_callbacks,
         &update_callbacks,
         &bool_callbacks,
+        &text_area_callbacks,
         &entity_pointers,
         font_size,
     ) catch return error.UnexpectedToken;
@@ -145,6 +147,7 @@ pub fn readAttributes(
     state_callbacks: *const StateCallbackSet,
     update_callbacks: *const UpdateCallbackSet,
     bool_callbacks: *const BoolCallbackSet,
+    text_area_callbacks: *const TextAreaCallbackSet,
     entity_pointers: *const FieldSet,
     font_size: f32,
 ) Error!void {
@@ -246,9 +249,7 @@ pub fn readAttributes(
             .placeholder_text => readPlaceholderTextAttribute(token, entity),
             .on_change => readOnChangeAttribute(token, entity, handler, callbacks),
             .on_pressed => readOnPressedAttribute(token, entity, handler, callbacks),
-            .on_element_pressed => readOnElementPressedAttribute(token, entity, handler, callbacks),
-            .on_element_hover => readOnElementHoverAttribute(token, entity, handler, callbacks),
-            .on_element_unhover => readOnElementUnhoverAttribute(token, entity, handler, callbacks),
+            .on_element_event => readOnElementEventAttribute(token, entity, handler, text_area_callbacks),
             .on_resized => readOnResizedAttribute(token, entity, handler, bool_callbacks),
             .on_visibility => readOnVisibilityAttribute(token, entity, handler, state_callbacks),
             .on_update => readOnUpdateAttribute(token, entity, handler, update_callbacks),
@@ -545,6 +546,8 @@ pub fn readOnUiEventAttribute(
         .text_area => &entity.type.text_area.on_ui_event,
         .panel => &entity.type.panel.on_ui_event,
         .sprite => &entity.type.sprite.on_ui_event,
+        .rectangle => &entity.type.rectangle.on_ui_event,
+        .text_input => &entity.type.text_input.on_ui_event,
         else => return Error.UnexpectedToken,
     };
     token.* = try token.next();
@@ -612,6 +615,7 @@ pub fn readOnPressedAttribute(
         .text_area => &entity.type.text_area.on_pressed,
         .panel => &entity.type.panel.on_pressed,
         .sprite => &entity.type.sprite.on_pressed,
+        .rectangle => &entity.type.sprite.on_pressed,
         else => {
             warn("on_pressed expected button, label, panel, or sprite. Found {t}", .{entity.type});
             return Error.UnexpectedToken;
@@ -638,84 +642,16 @@ pub fn readOnPressedAttribute(
     }
 }
 
-pub fn readOnElementPressedAttribute(
+pub fn readOnElementEventAttribute(
     token: *Token,
     entity: *Entity,
     handler: *anyopaque,
-    callbacks: *const CallbackSet,
+    callbacks: *const TextAreaCallbackSet,
 ) Error!void {
-    const f: *Entity.Callback = switch (entity.type) {
-        .text_area => &entity.type.text_area.on_element_pressed,
+    const f: *Entity.TextArea.Callback = switch (entity.type) {
+        .text_area => &entity.type.text_area.on_element_event,
         else => {
-            warn("on_element_pressed expected button, label, panel, or sprite. Found {t}", .{entity.type});
-            return Error.UnexpectedToken;
-        },
-    };
-    token.* = try token.next();
-    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
-    switch (token.tag) {
-        .string => {
-            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            f.func = try callbacks.find(callback_name);
-            f.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
-        .field => {
-            const callback_name = token.slice();
-            f.func = try callbacks.find(callback_name);
-            f.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
-        else => return error.UnexpectedToken,
-    }
-}
-
-pub fn readOnElementHoverAttribute(
-    token: *Token,
-    entity: *Entity,
-    handler: *anyopaque,
-    callbacks: *const CallbackSet,
-) Error!void {
-    const f: *Entity.Callback = switch (entity.type) {
-        .text_area => &entity.type.text_area.on_element_hover,
-        else => {
-            warn("on_element_hover expected button, label, panel, or sprite. Found {t}", .{entity.type});
-            return Error.UnexpectedToken;
-        },
-    };
-    token.* = try token.next();
-    //err("reading attribute vaue {t}='{s}'", .{ token.tag, token.slice() });
-    switch (token.tag) {
-        .string => {
-            const callback_name = token.data[token.loc.start + 1 .. token.loc.end - 1];
-            f.func = try callbacks.find(callback_name);
-            f.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
-        .field => {
-            const callback_name = token.slice();
-            f.func = try callbacks.find(callback_name);
-            f.ptr = handler;
-            token.* = try token.next();
-            return;
-        },
-        else => return error.UnexpectedToken,
-    }
-}
-
-pub fn readOnElementUnhoverAttribute(
-    token: *Token,
-    entity: *Entity,
-    handler: *anyopaque,
-    callbacks: *const CallbackSet,
-) Error!void {
-    const f: *Entity.Callback = switch (entity.type) {
-        .text_area => &entity.type.text_area.on_element_unhover,
-        else => {
-            warn("on_element_unhover expected button, label, panel, or sprite. Found {t}", .{entity.type});
+            warn("on_element_event expected button, label, panel, or sprite. Found {t}", .{entity.type});
             return Error.UnexpectedToken;
         },
     };
@@ -1641,6 +1577,85 @@ pub const CallbackSet = struct {
     }
 };
 
+pub const TextAreaCallbackSet = struct {
+    callbacks: [max_callbacks]Callback,
+    count: usize,
+
+    /// Describes a function exposed to a UI at runtime
+    pub const Callback = struct {
+        f: *const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event, *const Entity.TextElement) error{OutOfMemory}!void,
+        name: []const u8,
+    };
+
+    /// Return the name and pointer to all functions matching the Callback
+    /// function definition.
+    pub fn init(t: type) TextAreaCallbackSet {
+        var callbacks: [max_callbacks]Callback = undefined;
+        var count: usize = 0;
+        inline for (@typeInfo(t).@"struct".decl_names) |decl_name| {
+            const f = @field(t, decl_name);
+            const info = @typeInfo(@TypeOf(f));
+            if (info != .@"fn") continue;
+            if (info.@"fn".param_types.len != 5) continue;
+            if (info.@"fn".return_type == null) continue;
+            if (@typeInfo(info.@"fn".return_type.?) != .error_union) continue;
+            if (@typeInfo(info.@"fn".return_type.?).error_union.payload != void) continue;
+            if (@typeInfo(info.@"fn".return_type.?).error_union.error_set != std.mem.Allocator.Error) continue;
+
+            if (info.@"fn".param_types[0] == null) continue;
+            const t0 = @typeInfo(info.@"fn".param_types[0].?);
+            if (t0 != .pointer) continue;
+            const t0i = @typeInfo(t0.pointer.child);
+            if (t0i != .@"struct") continue;
+
+            if (info.@"fn".param_types[1] == null) continue;
+            const t1 = @typeInfo(info.@"fn".param_types[1].?);
+            if (t1 != .pointer) continue;
+            const t1i = @typeInfo(t1.pointer.child);
+            if (t1i != .@"struct") continue;
+            if (t1.pointer.child != engine.Display) continue;
+
+            if (info.@"fn".param_types[2] == null) continue;
+            const t2 = @typeInfo(info.@"fn".param_types[2].?);
+            if (t2 != .pointer) continue;
+            const t2i = @typeInfo(t2.pointer.child);
+            if (t2i != .@"struct") continue;
+            if (t2.pointer.child != engine.Entity) continue;
+
+            if (info.@"fn".param_types[3] == null) continue;
+            const t3 = @typeInfo(info.@"fn".param_types[3].?);
+            if (t3 != .pointer) continue;
+            const t3i = @typeInfo(t3.pointer.child);
+            if (t3i != .@"struct") continue;
+            if (t3.pointer.child != engine.Event) continue;
+
+            if (info.@"fn".param_types[4] == null) continue;
+            const t4 = @typeInfo(info.@"fn".param_types[4].?);
+            if (t4 != .pointer) continue;
+            const t4i = @typeInfo(t4.pointer.child);
+            if (t4i != .@"struct") continue;
+            if (t4.pointer.child != Entity.TextElement) continue;
+
+            callbacks[count] = Callback{ .name = decl_name, .f = @ptrCast(&f) };
+            count += 1;
+            if (count == max_callbacks) break;
+        }
+        return .{
+            .callbacks = callbacks,
+            .count = count,
+        };
+    }
+
+    fn find(self: *const TextAreaCallbackSet, name: []const u8) Error!*const fn (*anyopaque, *engine.Display, *Entity, *const engine.Event, *const TextElement) error{OutOfMemory}!void {
+        for (self.callbacks[0..self.count]) |option| {
+            if (std.ascii.eqlIgnoreCase(name, option.name))
+                return option.f;
+        }
+        engine.log.warn("callback function {s} not found.", .{name});
+        return Error.UnexpectedToken;
+    }
+};
+
 pub const StateCallbackSet = struct {
     callbacks: [max_callbacks]Callback,
     count: usize,
@@ -2319,3 +2334,4 @@ const Token = @import("Token.zig");
 const Entity = @import("Entity.zig");
 const Colour = engine.Colour;
 const TextSize = engine.TextSize;
+const TextElement = engine.TextElement;

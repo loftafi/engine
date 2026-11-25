@@ -13,16 +13,15 @@ paragraphs: ArrayList(Paragraph) = .empty,
 line_height: f32 = 1,
 text_size: TextSize = .normal,
 
+/// Keep track of when the cursor is hovering over a word.
+hovered: ?*TextElement = null,
+
 // Handle User triggered events. Keyboard, Mouse, Game controller
 on_ui_event: Entity.Callback = .empty,
 on_pressed: Entity.Callback = .empty,
 
-/// Mouse, cursor, or gamepad entered over a `TextElement`
-on_element_hover: Entity.Callback = .empty,
-/// Mouse, cursor, or gamepad exited from a `TextElement`
-on_element_unhover: Entity.Callback = .empty,
-/// Mouse clicked, cursor+enter, gamepad click on `TextElement`
-on_element_pressed: Entity.Callback = .empty,
+/// Mouse, cursor, or gamepad interacted over a `TextElement`
+on_element_event: Callback = .empty,
 
 scrollable: Entity.Scroller = .{
     .scroll = .{ .x = false, .y = false },
@@ -42,6 +41,7 @@ pub fn setup(
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
     entity.background.image = null;
+    entity.hovered = null;
     self.paragraphs = .empty;
 
     if (entity.focus == .unspecified) {
@@ -82,14 +82,10 @@ pub inline fn format(
     }
     if (self.on_ui_event.func != null)
         _ = try out.write(" on_ui_event");
-    if (self.on_element_hover.func != null)
-        _ = try out.write(" on_element_hover_pressed");
-    if (self.on_element_unhover.func != null)
-        _ = try out.write(" on_element_unhover_pressed");
+    if (self.on_element_event.func != null)
+        _ = try out.write(" on_element_event");
     if (self.on_pressed.func != null)
         _ = try out.write(" on_pressed");
-    if (self.on_element_pressed.func != null)
-        _ = try out.write(" on_element_pressed");
     if (self.text.len > 0) {
         _ = try out.write(" text=\"");
         if (self.text.len > 30) {
@@ -205,15 +201,19 @@ pub inline fn clickable(text: *const TextArea) bool {
     // TODO: should accessibility check be pulled in here
     return text.on_ui_event.func != null or
         text.on_pressed.func != null or
-        text.on_element_hover.func != null or
-        text.on_element_unhover.func != null or
-        text.on_element_pressed.func != null;
+        text.on_element_event.func != null;
 }
 
-pub fn findTextElementUnderCursor(self: *const TextArea, cursor: Vector) ?*TextElement {
+/// Given a specific mouse `cursor` position, is the mouse over
+/// a word in this `entity`.
+pub fn findTextElementUnderCursor(self: *const TextArea, entity:*const Entity, cursor: Vector) ?*TextElement {
+    const pos:Vector = .{
+        .x = cursor.x - entity.rect.x - entity.pad.left,
+        .y = cursor.y - entity.rect.y - entity.pad.top,
+    };
     for (self.paragraphs.items) |paragraph| {
-        for (&paragraph.elements.items) |*element| {
-            if (element.location.containsPoint(cursor)) {
+        for (paragraph.elements.items) |*element| {
+            if (element.location.containsPoint(pos)) {
                 return element;
             }
         }
@@ -438,6 +438,33 @@ pub inline fn minimumNeededHeight(
         .fixed => entity.rect.height,
     };
 }
+
+pub const Callback = struct {
+    func: ?*const fn (
+        ptr: *anyopaque,
+        display: *Display,
+        entity: *Entity,
+        event: *const Event,
+        element: *const TextElement,
+    ) Allocator.Error!void = null,
+    ptr: *anyopaque = undefined,
+
+    pub const empty: @This() = .{
+        .func = null,
+        .ptr = undefined,
+    };
+
+    /// Trigger the callback if the `func` is specified (not null)
+    pub fn call(
+        self: @This(),
+        display: *Display,
+        entity: *Entity,
+        event: *const Event,
+        element: *const TextElement,
+    ) Allocator.Error!void {
+        if (self.func) |f| return f(self.ptr, display, entity, event, element);
+    }
+};
 
 const drawTextElements = Label.drawTextElements;
 const applyLineJustification = Label.applyLineJustification;
@@ -907,6 +934,7 @@ const Clip = engine.Clip;
 const Display = engine.Display;
 const Entity = engine.Entity;
 const Error = engine.Error;
+const Event = engine.Event;
 const Font = engine.Font;
 
 const SizeInfo = Entity.SizeInfo;

@@ -2035,8 +2035,10 @@ pub fn findUnderCursor(
         //debug("seek={s} visible={any} {s} {s}", .{ @tagName(query), entity.visible, @tagName(entity.type), entity.name });
         if (item.visible != .visible) continue;
 
+        // If item is not under cursor, don't even look at
+        // it. Panels are an exception to the rule.
         const is_under_cursor = item.atPoint(cursor, scroll_offset);
-        if (!is_under_cursor and item.type != .panel and item.type != .text_area) continue;
+        if (!is_under_cursor and item.type != .panel) continue;
 
         //debug("under cursor {s}.{s}", .{ @tagName(item.type), item.name });
         if (item.type == .panel) {
@@ -2056,9 +2058,9 @@ pub fn findUnderCursor(
             // Search for any entity
             if (item.focus == .never_focus) continue;
 
-            // Panels and TextArea's get special handling,
+            // Panels get special handling,
             if (item.type != .panel) return item;
-            if (item.type != .text_area) return item;
+            //if (item.type != .text_area) return item;
 
             if (is_under_cursor) {
                 if (item.type.panel.clickable())
@@ -2066,8 +2068,8 @@ pub fn findUnderCursor(
 
                 if (item.type.panel.scrollable.scroll.x == true or item.type.panel.scrollable.scroll.y == true)
                     return item;
-                if (item.type.text_area.scrollable.scroll.x == true or item.type.text_area.scrollable.scroll.y == true)
-                    return item;
+                //if (item.type.text_area.scrollable.scroll.x == true or item.type.text_area.scrollable.scroll.y == true)
+                //    return item;
             }
         }
 
@@ -2547,7 +2549,12 @@ inline fn handleMouseUpEvent(
             },
             .button => try found.chosen(display, &.{ .type = .mouse_up }),
             .label => try found.chosen(display, &.{ .type = .mouse_up }),
-            .text_area => try found.chosen(display, &.{ .type = .mouse_up }),
+            .text_area => |*t| {
+                try found.chosen(display, &.{ .type = .mouse_up });
+                if (t.findTextElementUnderCursor(found, cursor)) |word| {
+                    try t.on_element_event.call(display, found, &.{ .type = .mouse_up }, word);
+                }
+            },
             .sprite => try found.chosen(display, &.{ .type = .mouse_up }),
             .checkbox => try found.chosen(display, &.{ .type = .mouse_up }),
             .text_input => found.selected(display, &.{ .type = .mouse_up }),
@@ -2592,7 +2599,7 @@ inline fn handleMouseDownEvent(
                     trace("begin scrolling {s} at {any}", .{ found.name, cursor });
                 }
             },
-            .text_area => {
+            .text_area => |*t| {
                 if (found.type.text_area.scrollable.scroll.x or found.type.text_area.scrollable.scroll.y) {
                     display.scrolling = found;
                     // scroll_start is the cursor position when drag
@@ -2602,6 +2609,11 @@ inline fn handleMouseDownEvent(
                     // adds to the previous drag.
                     display.scroll_initial_offset = found.offset;
                     trace("begin scrolling {s} at {any}", .{ found.name, cursor });
+                } else {
+                    try t.on_pressed.call(display, found, &.{ .type = .mouse_down });
+                    if (t.findTextElementUnderCursor(found, cursor)) |word| {
+                        try t.on_element_event.call(display, found, &.{ .type = .mouse_down }, word);
+                    }
                 }
             },
             .label => try found.type.label.on_ui_event.call(
@@ -2691,36 +2703,43 @@ inline fn handleMouseMotionEvent(
         .{},
         .any,
     );
+
+    // STEP 1: Have we exited an item. Deselect this item.
     if (display.hovered) |old_item| {
-        // Deactivate previously hovered item if it is
-        // not still being hovered over.
-        if (found != display.hovered) {
-            trace("end hover: {s} {s}", .{ @tagName(old_item.type), old_item.name });
+        // If `found` is null, or `found` is not the `old_item` we
+        // left the old item. exit ui events should be triggered.
+        if (found == null or found.? != old_item) {
+            trace("ended hover: {s} {s}", .{ @tagName(old_item.type), old_item.name });
             switch (old_item.type) {
-                .label => |l| try l.on_ui_event.call(
+                inline .button,
+                .checkbox,
+                .label,
+                .panel,
+                .rectangle,
+                .sprite,
+                .text_input,
+                => |l| try l.on_ui_event.call(
                     display,
                     old_item,
                     &.{ .type = .mouse_exit },
                 ),
-                .button => |b| try b.on_ui_event.call(
-                    display,
-                    old_item,
-                    &.{ .type = .mouse_exit },
-                ),
-                .checkbox => |b| try b.on_ui_event.call(
-                    display,
-                    old_item,
-                    &.{ .type = .mouse_exit },
-                ),
-                else => {},
+                .text_area => |*t| if (t.hovered) |e| {
+                    try t.on_element_event.call(display, old_item, &.{ .type = .mouse_exit }, e);
+                    t.hovered = null;
+                },
+                .progress_bar, .particles, .expander => {},
             }
             old_item.hovered = false;
             display.hovered = null;
+        } else {
+            // `found` item is set, and we were already hovering over it.
+            // no exit ui events needs to be triggered.
         }
     }
-    if (found != null) {
-        // Mark the newly hovered item as hovered
-        // if there is one that is hovered.
+
+    if (found) |f| {
+        // STEP 2: We found an item, and it is not the currently hovered item.
+        // Mark the newly hovered item and trigger mouse entered events
         if (found != display.hovered) {
             trace("entered hover({s} {s}) pos: {d}x{d} size: {d}x{d}  min: {d}x{d}   max: {d}x{d}", .{
                 @tagName(found.?.type),
@@ -2734,31 +2753,24 @@ inline fn handleMouseMotionEvent(
                 found.?.maximum.width,
                 found.?.maximum.height,
             });
-            switch (found.?.type) {
-                .label => |l| try l.on_ui_event.call(
-                    display,
-                    found.?,
-                    &.{ .type = .mouse_enter },
-                ),
-                .button => |b| try b.on_ui_event.call(
-                    display,
-                    found.?,
-                    &.{ .type = .mouse_enter },
-                ),
-                .checkbox => |b| try b.on_ui_event.call(
-                    display,
-                    found.?,
-                    &.{ .type = .mouse_enter },
-                ),
+            switch (f.type) {
+                .label => |l| try l.on_ui_event.call(display, f, &.{ .type = .mouse_enter }),
+                .button => |b| try b.on_ui_event.call(display, f, &.{ .type = .mouse_enter }),
+                .checkbox => |b| try b.on_ui_event.call(display, f, &.{ .type = .mouse_enter }),
                 .panel => |p| if (engine.gui_debug) {
                     trace("on_mouse_enter({s} {s}) scrollable.size={d}x{d} rect={d}x{d}", .{
-                        @tagName(found.?.type),
-                        found.?.name,
+                        @tagName(f.type),
+                        f.name,
                         p.scrollable.size.width,
                         p.scrollable.size.height,
-                        found.?.rect.width,
-                        found.?.rect.height,
+                        f.rect.width,
+                        f.rect.height,
                     });
+                    try p.on_ui_event.call(display, f, &.{ .type = .mouse_enter });
+                },
+                .text_area => |*t| {
+                    try t.on_ui_event.call(display, f, &.{ .type = .mouse_enter });
+                    t.hovered = null;
                 },
                 else => {},
             }
@@ -2767,6 +2779,24 @@ inline fn handleMouseMotionEvent(
         } else {
             if (engine.gui_debug) {
                 //debug("mouse over: {s} {s}", .{ @tagName(found.?.type), found.?.name });
+            }
+        }
+
+        // STEP3: No matter if we just entered a text_area, or we moved
+        // inside the text area, there are `on_element_event`s that must
+        // be triggered.
+        if (f.type == .text_area) {
+            //trace("motion over {t} {s} {d}x{d} {d}x{d}", .{ f.type, f.name, f.rect.x, f.rect.y, f.rect.width, f.rect.height });
+            if (f.type.text_area.findTextElementUnderCursor(f, cursor)) |e| {
+                if (f.type.text_area.hovered == null or f.type.text_area.hovered != e) {
+                    f.type.text_area.hovered = e;
+                    try f.type.text_area.on_element_event.call(display, f, &.{ .type = .mouse_enter }, e);
+                }
+            } else {
+                if (f.type.text_area.hovered) |hovered| {
+                    try f.type.text_area.on_element_event.call(display, f, &.{ .type = .mouse_exit }, hovered);
+                    f.type.text_area.hovered = null;
+                }
             }
         }
     }

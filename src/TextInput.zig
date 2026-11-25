@@ -34,6 +34,8 @@ on_change: Entity.Callback = .empty,
 /// Called when the user hits the enter key while inside the text input.
 on_submit: Entity.Callback = .empty,
 
+on_ui_event: Entity.Callback = .empty,
+
 /// Display default lightly faded placeholder text.
 placeholder_text: ?[]const u8 = "",
 
