@@ -41,7 +41,7 @@ pub fn setup(
 ) (Error || Allocator.Error || Resources.Error)!void {
     entity.texture = null;
     entity.background.image = null;
-    entity.hovered = null;
+    self.hovered = null;
     self.paragraphs = .empty;
 
     if (entity.focus == .unspecified) {
