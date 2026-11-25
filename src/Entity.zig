@@ -284,22 +284,23 @@ pub fn getChild(self: *Entity, no: usize) ?*Entity {
 
 /// Return true if this entity appears under this point on the screen.
 pub fn atPoint(self: *Entity, cursor: Vector, parent_scroll_offset: Vector) bool {
-    const point = Vector{ .x = self.rect.x, .y = self.rect.y };
+    var point = Vector{ .x = self.rect.x, .y = self.rect.y };
+
     if (self.type == .panel and
         (self.type.panel.scrollable.scroll.x or self.type.panel.scrollable.scroll.y))
     {
         // Scrollable panels live at their pre-scroll-offset location.
-        if (cursor.x < point.x) return false;
-        if (cursor.y < point.y) return false;
-        if (cursor.x > point.x + self.rect.width) return false;
-        if (cursor.y > point.y + self.rect.height) return false;
+    } else if (self.type == .text_area and
+        (self.type.text_area.scrollable.scroll.x or self.type.text_area.scrollable.scroll.y))
+    {
+        // Scrollable text_areas live at their pre-scroll-offset location.
     } else {
-        const current = point.add(self.offset).add(parent_scroll_offset);
-        if (cursor.x < current.x) return false;
-        if (cursor.y < current.y) return false;
-        if (cursor.x > current.x + self.rect.width) return false;
-        if (cursor.y > current.y + self.rect.height) return false;
+        point = point.add(self.offset).add(parent_scroll_offset);
     }
+    if (cursor.x < point.x) return false;
+    if (cursor.y < point.y) return false;
+    if (cursor.x > point.x + self.rect.width) return false;
+    if (cursor.y > point.y + self.rect.height) return false;
     return true;
 }
 
