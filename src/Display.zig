@@ -2754,9 +2754,13 @@ inline fn handleMouseMotionEvent(
                 found.?.maximum.height,
             });
             switch (f.type) {
-                .label => |l| try l.on_ui_event.call(display, f, &.{ .type = .mouse_enter }),
-                .button => |b| try b.on_ui_event.call(display, f, &.{ .type = .mouse_enter }),
-                .checkbox => |b| try b.on_ui_event.call(display, f, &.{ .type = .mouse_enter }),
+                inline .button,
+                .checkbox,
+                .label,
+                .rectangle,
+                .sprite,
+                .text_input,
+                => |l| try l.on_ui_event.call(display, f, &.{ .type = .mouse_enter }),
                 .panel => |p| if (engine.gui_debug) {
                     trace("on_mouse_enter({s} {s}) scrollable.size={d}x{d} rect={d}x{d}", .{
                         @tagName(f.type),
@@ -2772,7 +2776,7 @@ inline fn handleMouseMotionEvent(
                     try t.on_ui_event.call(display, f, &.{ .type = .mouse_enter });
                     t.hovered = null;
                 },
-                else => {},
+                .progress_bar, .particles, .expander => {},
             }
             display.hovered = found.?;
             display.hovered.?.hovered = true;
