@@ -210,6 +210,17 @@ pub inline fn clickable(text: *const TextArea) bool {
         text.on_element_pressed.func != null;
 }
 
+pub fn findTextElementUnderCursor(self:*const TextArea, cursor:Vector) ?*TextElement {
+    for (self.paragraphs.items) |paragraph| {
+        for (&paragraph.elements.items) |*element| {
+            if (element.location.containsPoint(cursor)) {
+                return element;
+            }
+        }
+    }
+    return null;
+}
+
 /// Calculate the layout of all elements, and optionally render every entity.
 ///
 /// Normally text is converted to an image and rendered left to right, starting

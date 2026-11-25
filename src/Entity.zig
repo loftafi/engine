@@ -2552,6 +2552,15 @@ pub const Rect = extern struct {
         };
     }
 
+    /// Returns true if a `point` exists inside this `Rect`.
+    pub fn containsPoint(self: *const Rect, point: Vector) bool {
+        if (point.x < self.x) return false;
+        if (point.y < self.y) return false;
+        if (point.y > self.y + self.height) return false;
+        if (point.x > self.x + self.width) return false;
+        return true;
+    }
+
     /// The x and y position of the rectangle
     pub fn location(self: *Rect) Vector {
         return .{ .x = self.x, .y = self.y };

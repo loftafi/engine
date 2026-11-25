@@ -2046,9 +2046,9 @@ pub fn findUnderCursor(
             }
         }
         if (item.type == .text_area) {
-            // TODO check if word is under cursor
+            // Check if word is under cursor
             //const so = scroll_offset.add(item.offset);
-            //
+            //item.type.text_area.findUnderCursor(so);
         }
 
         // This item is under the cursor
@@ -3788,7 +3788,7 @@ test "test_init" {
     try eq(1, display.root.type.panel.children.items[0].type.panel.children.items.len);
 
     try eq(panel, display.findParent(child).?);
-    try eq(display.root, display.findParent(panel).?);
+    try eq(&display.root, display.findParent(panel).?);
 }
 
 test "font_loading" {
