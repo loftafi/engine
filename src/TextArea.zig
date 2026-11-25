@@ -210,7 +210,7 @@ pub inline fn clickable(text: *const TextArea) bool {
         text.on_element_pressed.func != null;
 }
 
-pub fn findTextElementUnderCursor(self:*const TextArea, cursor:Vector) ?*TextElement {
+pub fn findTextElementUnderCursor(self: *const TextArea, cursor: Vector) ?*TextElement {
     for (self.paragraphs.items) |paragraph| {
         for (&paragraph.elements.items) |*element| {
             if (element.location.containsPoint(cursor)) {
@@ -289,8 +289,10 @@ pub inline fn minimumNeededWidth(
 }
 
 /// Position each each word (text element) within the space allowed by
-/// `parent_inner_width`. Returns the `width` this text area  will use,
-/// and the `minimum_width` the element _could_ be squished into.
+/// `parent_inner_width`. Returns the `width` this text area will use
+/// (including padding) and the `minimum_width` the element _could_
+/// be squished into (including padding).
+///
 /// `entity.layout` determinse if the text area will `grows` to use
 /// all space or `shrinks` to the minimum width.
 ///
@@ -305,19 +307,24 @@ pub inline fn layout(
     parent_inner_width: f32,
 ) SizeInfo {
     std.debug.assert(entity.type == .text_area);
+    const horizontal_padding = entity.pad.left + entity.pad.right;
 
-    const empty: SizeInfo = .{ .width = 0, .minimum_width = 0, .height = 0 };
-    if (entity.type.text_area.text.len == 0) return empty;
+    if (entity.type.text_area.text.len == 0) return .{
+        .width = horizontal_padding,
+        .minimum_width = horizontal_padding,
+        .height = entity.pad.top + entity.pad.bottom,
+    };
 
     const text_height = entity.type.text_area.text_size;
-
     const default_font = entity.type.text_area.paragraphs.items[0].elements.items[0].font;
     const word_spacing = default_font.space_width;
-    const maximum_total_width = clamp(entity.minimum.width, parent_inner_width, entity.maximum.width);
-    const maximum_text_width = @max(0, maximum_total_width - (entity.pad.left + entity.pad.right));
 
-    info("do text layout with width: {d}", .{maximum_text_width});
-    var box: BoxLayout = .init(maximum_text_width, word_spacing, 0);
+    const minimum_width = @max(0, entity.minimum.width - horizontal_padding);
+    const maximum_width = @max(0, entity.maximum.width - horizontal_padding);
+    const inner_width = clamp(minimum_width, parent_inner_width, maximum_width);
+
+    info("do text layout with width: {d}", .{inner_width});
+    var box: BoxLayout = .init(inner_width, word_spacing, 0);
 
     for (entity.type.text_area.paragraphs.items, 0..) |paragraph, count| {
         const children = paragraph.elements.items;
@@ -357,7 +364,7 @@ pub inline fn layout(
 
     const used_text_width = switch (entity.layout.x) {
         .shrinks => @max(minimum_without_padding, @ceil(box.final.width)),
-        .grows => maximum_text_width,
+        .grows => inner_width,
         .fixed => @max(0, entity.rect.width - (entity.pad.left - entity.pad.right)),
     };
 
@@ -415,7 +422,7 @@ pub inline fn minimumNeededHeight(
     parent_inner_width: f32,
 ) f32 {
     const padding = entity.pad.left + entity.pad.right;
-    const allowed_width = engine.directional_clamp(
+    const inner_width = engine.directional_clamp(
         entity.layout.x,
         @max(0, entity.minimum.width - padding),
         @max(0, parent_inner_width - padding),
@@ -425,7 +432,7 @@ pub inline fn minimumNeededHeight(
     // How high does the text area text get when laying it out.
     return switch (entity.layout.y) {
         .shrinks, .grows => @max(
-            layout(entity, allowed_width).height + entity.pad.top + entity.pad.bottom,
+            layout(entity, inner_width).height + entity.pad.top + entity.pad.bottom,
             entity.minimum.height,
         ),
         .fixed => entity.rect.height,

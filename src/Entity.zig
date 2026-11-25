@@ -506,7 +506,7 @@ pub inline fn setAlign(self: *Entity, x: LayoutAlign, y: LayoutAlign) void {
     self.child_align.y = y;
     switch (self.type) {
         .label, .checkbox => _ = Label.layout(self, self.rect.width),
-        .text_area => _ = TextArea.layout(self, self.rect.width),
+        .text_area => _ = TextArea.layout(self, self.inner_width()),
         else => {},
     }
 }
@@ -1581,12 +1581,22 @@ pub fn draw(entity: *Entity, display: *Display, parent_scroll_offset: Vector, pa
                 display.theme.success_panel_colour,
                 entity.rect,
             );
-        } else if (entity.type == .text_area and (entity.type.text_area.scrollable.scroll.x or entity.type.text_area.scrollable.scroll.y)) {
-            display.renderRectangle(
-                2,
-                display.theme.success_panel_colour,
-                entity.rect,
-            );
+        } else if (entity.type == .text_area) {
+            if (entity.type.text_area.scrollable.scroll.x or entity.type.text_area.scrollable.scroll.y) {
+                display.renderRectangle(
+                    2,
+                    display.theme.success_panel_colour,
+                    entity.rect,
+                );
+            }
+            if (entity.pad.top > 0 or entity.pad.left > 0 or entity.pad.right > 0 or entity.pad.bottom > 0) {
+                var pad_line = entity.rect.move(scroll_offset);
+                pad_line.x += entity.pad.left;
+                pad_line.y += entity.pad.top;
+                pad_line.width -= (entity.pad.left + entity.pad.right);
+                pad_line.height -= (entity.pad.top + entity.pad.bottom);
+                entity.markCorners(display, scroll_offset);
+            }
         } else if (entity.type == .label) {
             var pad_line = entity.rect.move(scroll_offset);
             pad_line.x += entity.pad.left;
