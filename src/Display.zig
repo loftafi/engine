@@ -2016,7 +2016,7 @@ pub const FindQuery = enum {
 // the panel surface under the button. We are seeking the bottom most
 // (first drawn) items. (Because on mouse down is not a button click
 // we dont need to handle this special case.)
-pub fn find_under_cursor(
+pub fn findUnderCursor(
     display: *Display,
     entities: []*Entity,
     cursor: Vector,
@@ -2041,7 +2041,7 @@ pub fn find_under_cursor(
         //debug("under cursor {s}.{s}", .{ @tagName(item.type), item.name });
         if (item.type == .panel) {
             const so = scroll_offset.add(item.offset);
-            if (display.find_under_cursor(item.type.panel.children.items, cursor, so, query)) |found| {
+            if (display.findUnderCursor(item.type.panel.children.items, cursor, so, query)) |found| {
                 return found;
             }
         }
@@ -2527,7 +2527,7 @@ inline fn handleMouseUpEvent(
         display.scrolling = null;
     }
 
-    if (display.find_under_cursor(
+    if (display.findUnderCursor(
         display.root.type.panel.children.items,
         cursor,
         .{},
@@ -2573,7 +2573,7 @@ inline fn handleMouseDownEvent(
     _ = sdl.SDL_GetMouseState(&cursor.x, &cursor.y);
     cursor = cursor.divide(display.controller_scale * display.user_scale);
 
-    if (display.find_under_cursor(
+    if (display.findUnderCursor(
         display.root.type.panel.children.items,
         cursor,
         .{},
@@ -2685,7 +2685,7 @@ inline fn handleMouseMotionEvent(
         return;
     }
 
-    const found = display.find_under_cursor(
+    const found = display.findUnderCursor(
         display.root.type.panel.children.items,
         cursor,
         .{},
