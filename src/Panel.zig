@@ -471,7 +471,7 @@ pub fn layout(self: *Panel, display: *Display, parent: *Entity) void {
     }
 
     if (flexible_count > 0 and (self.direction == .horizontal or self.direction == .vertical)) {
-        info("parent name={s} has {d} {t} flexibles", .{
+        trace("parent name={s} has {d} {t} flexibles", .{
             parent.name, flexible_count, self.direction,
         });
     }
@@ -763,7 +763,7 @@ inline fn placeVertical(
         for (flexibles, 0..) |flex, i| {
             const b = flex.size.*;
             flex.size.* += @trunc(trailing_space * flex.percent);
-            info(" {d} expand {d}x{d} += {d}->{d} (initial was {d}) ", .{ i, trailing_space, flex.percent, b, flex.size.*, flex.initial_size });
+            trace(" {d} expand {d}x{d} += {d}->{d} (initial was {d}) ", .{ i, trailing_space, flex.percent, b, flex.size.*, flex.initial_size });
         }
         // Revise each child's y position due to flexibles resizing.
         var new_y: f32 = parent.rect.y + parent.pad.top;
@@ -778,7 +778,7 @@ inline fn placeVertical(
             child.rect.y = new_y;
             new_y += child.rect.height;
             if (child.type == .text_area) {
-                info("redo text_area layout with new height: {d}->{d}", .{ child.rect.height, child.inner_height() });
+                trace("redo text_area layout with new height: {d}->{d}", .{ child.rect.height, child.inner_height() });
                 const size = TextArea.layout(child, child.inner_width());
                 child.type.text_area.scrollable.size.width = size.width;
                 child.type.text_area.scrollable.size.height = size.height;
@@ -825,7 +825,7 @@ inline fn placeVertical(
         }
     } else if (trailing_space < 0) {
         // Content does not fit. Can we shrink anything?
-        info("vertical {s} {s} - needed={d} available={d} unused_space={d}", .{
+        trace("vertical {s} {s} - needed={d} available={d} unused_space={d}", .{
             parent.name,
             @tagName(parent.type),
             needed_space, // Not including padding
@@ -889,7 +889,7 @@ inline fn placeHorizontal(
     parent.type.panel.scrollable.size.width = @max(needed_space, parent.rect.width);
 
     if (flexibles.len > 0) {
-        info("placeHorizontal flexibles={d} inner_width={d} trailing_space={d} ", .{ flexibles.len, parent.inner_width(), trailing_space });
+        trace("placeHorizontal flexibles={d} inner_width={d} trailing_space={d} ", .{ flexibles.len, parent.inner_width(), trailing_space });
     }
 
     // Child entities have been now been placed, so handle alignment:
@@ -901,7 +901,7 @@ inline fn placeHorizontal(
         for (flexibles, 0..) |flex, i| {
             const b = flex.size.*;
             flex.size.* += @trunc(trailing_space * flex.percent);
-            info(" {d} expand {d}x{d} += {d}->{d} (initial was {d}) ", .{ i, trailing_space, flex.percent, b, flex.size.*, flex.initial_size });
+            trace(" {d} expand {d}x{d} += {d}->{d} (initial was {d}) ", .{ i, trailing_space, flex.percent, b, flex.size.*, flex.initial_size });
         }
         // Revise each child's x position due to flexibles resizing.
         var new_x: f32 = parent.rect.x + parent.pad.left;
@@ -916,7 +916,7 @@ inline fn placeHorizontal(
             child.rect.x = new_x;
             new_x += child.rect.width;
             if (child.type == .text_area) {
-                info("redo text_area layout with new width: {d}->{d}", .{ child.rect.width, child.inner_width() });
+                trace("redo text_area layout with new width: {d}->{d}", .{ child.rect.width, child.inner_width() });
                 const size = TextArea.layout(child, child.inner_width());
                 child.type.text_area.scrollable.size.width = size.width;
                 child.type.text_area.scrollable.size.height = size.height;
@@ -1578,7 +1578,6 @@ const praxis = @import("praxis");
 const engine = @import("engine.zig");
 const err = engine.log.err;
 const warn = engine.log.warn;
-const info = engine.log.info;
 const debug = engine.log.debug;
 const trace = engine.log.trace;
 const Clip = engine.Clip;

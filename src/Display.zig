@@ -2286,7 +2286,7 @@ inline fn handleKeyDownEvent(_: *Display, _: *sdl.SDL_Event) !void {
 /// Refresh the window size information, then refresh the
 /// safe area information.
 pub inline fn updateScreenMetrics(display: *Display, event_code: usize) void {
-    info("updateScreenMetrics requested {s}", .{switch (event_code) {
+    trace("updateScreenMetrics requested {s}", .{switch (event_code) {
         sdl.SDL_EVENT_DISPLAY_ORIENTATION => "SDL_EVENT_DISPLAY_ORIENTATION", //       0x151 / 337
         sdl.SDL_EVENT_WINDOW_RESIZED => "SDL_EVENT_WINDOW_RESIZED", //            0x206 / 518
         sdl.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED => "SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED", // 0x207 / 519
@@ -2326,7 +2326,7 @@ pub inline fn updateScreenMetrics(display: *Display, event_code: usize) void {
     if (old_display_scale != display.scale) updated = true;
 
     if (updated or engine.gui_debug) {
-        info("window resized {d}x{d} (scale={d}) => {d}x{d} ({d}) (scale={d}) mouse_scale={d} user_scale={d}", .{
+        debug("window resized {d}x{d} (scale={d}) => {d}x{d} ({d}) (scale={d}) mouse_scale={d} user_scale={d}", .{
             display.root.rect.width,
             display.root.rect.height,
             old_display_scale,
@@ -2392,7 +2392,7 @@ fn calculateSafeArea(self: *Display) void {
         err("calculateSafeArea() unable to request safe area. (SDL_GetWindowSafeArea failed) {s}", .{sdl.SDL_GetError()});
         return;
     }
-    info("SDL_GetWindowSafeArea: {d}x{d} {d}x{d}", .{
+    debug("SDL_GetWindowSafeArea: {d}x{d} {d}x{d}", .{
         new_safe_area.x,
         new_safe_area.y,
         new_safe_area.w,
